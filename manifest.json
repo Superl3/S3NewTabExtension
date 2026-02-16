@@ -1,0 +1,11 @@
+{
+  "manifest_version": 3,
+  "name": "S3 New Tab",
+  "version": "0.1.0",
+  "description": "Customizable New Tab dashboard with draggable widgets and recursive bookmarks.",
+  "permissions": ["storage", "bookmarks"],
+  "host_permissions": ["https://*/*", "http://*/*"],
+  "chrome_url_overrides": {
+    "newtab": "newtab.html"
+  }
+}

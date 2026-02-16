@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>S3 New Tab</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <svg class="icon-sprite" aria-hidden="true" focusable="false">
+      <symbol id="i-mode" viewBox="0 0 24 24">
+        <path d="M9 3h6l1 3 3 1v6l-3 1-1 3H9l-1-3-3-1V7l3-1 1-3z" />
+        <circle cx="12" cy="10" r="3.2" />
+      </symbol>
+      <symbol id="i-plus" viewBox="0 0 24 24">
+        <path d="M12 5v14" />
+        <path d="M5 12h14" />
+      </symbol>
+      <symbol id="i-reset" viewBox="0 0 24 24">
+        <path d="M3 12a9 9 0 1 0 3-6.7" />
+        <path d="M3 5v4h4" />
+      </symbol>
+      <symbol id="i-widget" viewBox="0 0 24 24">
+        <rect x="3" y="3" width="8" height="8" rx="1.5" />
+        <rect x="13" y="3" width="8" height="5" rx="1.5" />
+        <rect x="13" y="10" width="8" height="11" rx="1.5" />
+        <rect x="3" y="13" width="8" height="8" rx="1.5" />
+      </symbol>
+      <symbol id="i-settings" viewBox="0 0 24 24">
+        <path d="M10 3h4l.7 2.3 2.2.9 2-1.2 2.8 2.8-1.2 2 .9 2.2L23 12v4l-2.3.7-.9 2.2 1.2 2-2.8 2.8-2-1.2-2.2.9L14 23h-4l-.7-2.3-2.2-.9-2 1.2L2.3 18l1.2-2-.9-2.2L1 14v-4l2.3-.7.9-2.2-1.2-2L5.9 2.3l2 1.2 2.2-.9L10 3z" />
+        <circle cx="12" cy="12" r="3.3" />
+      </symbol>
+      <symbol id="i-trash" viewBox="0 0 24 24">
+        <path d="M4 7h16" />
+        <path d="M9 7V5h6v2" />
+        <path d="M7 7l1 12h8l1-12" />
+      </symbol>
+      <symbol id="i-pencil" viewBox="0 0 24 24">
+        <path d="M3 21l3.7-.7L20 7.1 16.9 4 3.7 17.2 3 21z" />
+      </symbol>
+      <symbol id="i-close" viewBox="0 0 24 24">
+        <path d="M6 6l12 12" />
+        <path d="M18 6l-12 12" />
+      </symbol>
+      <symbol id="i-move" viewBox="0 0 24 24">
+        <path d="M12 3v18" />
+        <path d="M3 12h18" />
+        <path d="M8 7l4-4 4 4" />
+        <path d="M8 17l4 4 4-4" />
+        <path d="M7 8l-4 4 4 4" />
+        <path d="M17 8l4 4-4 4" />
+      </symbol>
+      <symbol id="i-arrange" viewBox="0 0 24 24">
+        <rect x="3" y="4" width="8" height="6" rx="1.2" />
+        <rect x="13" y="4" width="8" height="6" rx="1.2" />
+        <rect x="3" y="12" width="8" height="8" rx="1.2" />
+        <rect x="13" y="12" width="8" height="8" rx="1.2" />
+      </symbol>
+    </svg>
+
+    <div id="bgLayer" class="bg-layer" aria-hidden="true">
+      <img id="bgImage" class="bg-image" alt="" />
+      <video id="bgVideo" class="bg-video" muted autoplay loop playsinline></video>
+      <div id="bgOverlay" class="bg-overlay"></div>
+    </div>
+
+    <div id="app">
+      <div id="editRail" class="edit-rail" aria-label="Edit controls">
+        <div class="edit-peek-zone"></div>
+        <div class="edit-dock">
+          <button id="modeToggleBtn" class="btn btn-primary dock-btn" title="Toggle edit mode">
+            <svg class="icon"><use href="#i-mode"></use></svg>
+            <span class="btn-label">Edit Mode</span>
+          </button>
+
+          <div class="dock-edit-controls">
+            <label class="field field-select" title="Widget type">
+              <svg class="icon"><use href="#i-widget"></use></svg>
+              <select id="widgetTypeSelect"></select>
+            </label>
+
+            <button id="addWidgetBtn" class="btn dock-btn" title="Add widget">
+              <svg class="icon"><use href="#i-plus"></use></svg>
+              <span class="btn-label">Add</span>
+            </button>
+
+            <button id="resetBtn" class="btn btn-danger dock-btn" title="Reset layout">
+              <svg class="icon"><use href="#i-reset"></use></svg>
+              <span class="btn-label">Reset</span>
+            </button>
+
+            <button id="autoArrangeBtn" class="btn dock-btn" title="Auto arrange widgets">
+              <svg class="icon"><use href="#i-arrange"></use></svg>
+              <span class="btn-label">Arrange</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <main class="workspace">
+        <section id="board" class="board" aria-label="Widget board"></section>
+        <aside id="settingsPanel" class="settings-panel" aria-label="Widget settings">
+          <div class="settings-panel-head">
+            <h2>Settings</h2>
+            <div class="settings-tabs" role="tablist" aria-label="Settings tabs">
+              <button id="tabGlobalBtn" class="settings-tab-btn active" role="tab" aria-selected="true">
+                Global
+              </button>
+              <button id="tabBackgroundBtn" class="settings-tab-btn" role="tab" aria-selected="false">
+                Background
+              </button>
+            </div>
+          </div>
+          <div id="settingsContent" class="settings-content">
+            <p class="muted">Edit Mode에서 글로벌 설정을 조정할 수 있습니다.</p>
+          </div>
+        </aside>
+      </main>
+    </div>
+
+    <template id="widgetTemplate">
+      <article class="widget-card">
+        <header class="widget-head drag-handle">
+          <div class="widget-title"></div>
+          <div class="widget-head-actions">
+            <button class="icon-btn widget-select-btn" title="Select widget">
+              <svg class="icon"><use href="#i-settings"></use></svg>
+            </button>
+            <button class="icon-btn widget-remove-btn" title="Remove widget">
+              <svg class="icon"><use href="#i-trash"></use></svg>
+            </button>
+          </div>
+        </header>
+        <div class="widget-floating-actions">
+          <button class="icon-btn widget-drag-btn" title="Move widget">
+            <svg class="icon"><use href="#i-move"></use></svg>
+          </button>
+          <button class="icon-btn widget-float-select" title="Widget settings">
+            <svg class="icon"><use href="#i-settings"></use></svg>
+          </button>
+          <button class="icon-btn widget-float-remove" title="Remove widget">
+            <svg class="icon"><use href="#i-trash"></use></svg>
+          </button>
+        </div>
+        <section class="widget-body"></section>
+        <div class="widget-resize-handle" title="Resize widget" aria-hidden="true"></div>
+      </article>
+    </template>
+
+    <div id="widgetModalOverlay" class="widget-modal-overlay" aria-hidden="true">
+      <section class="widget-modal" role="dialog" aria-modal="true" aria-label="Widget Settings Modal">
+        <header class="widget-modal-head">
+          <h3 id="widgetModalTitle">Widget Settings</h3>
+          <button id="widgetModalCloseBtn" class="icon-btn" title="Close settings">
+            <svg class="icon"><use href="#i-close"></use></svg>
+          </button>
+        </header>
+        <div id="widgetModalBody" class="widget-modal-body"></div>
+        <footer class="widget-modal-actions">
+          <button id="widgetModalCancelBtn" class="btn">Cancel</button>
+          <button id="widgetModalOkBtn" class="btn btn-primary">OK</button>
+        </footer>
+      </section>
+    </div>
+
+    <script type="module" src="app.js"></script>
+  </body>
+</html>
