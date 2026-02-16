@@ -178,18 +178,62 @@ body.mode-edit .dock-edit-controls {
   overflow: hidden;
 }
 
-.settings-panel {
-  width: 360px;
-  max-width: 76vw;
-  border-left: 1px solid color-mix(in srgb, var(--line), transparent 20%);
-  background: color-mix(in srgb, var(--surface), transparent 4%);
-  display: none;
-  flex-direction: column;
-  backdrop-filter: blur(14px);
+.settings-rail-toggle {
+  margin-left: 2px;
 }
 
-body.mode-edit .settings-panel {
+body.mode-edit .settings-rail-toggle {
+  display: inline-flex;
+}
+
+.settings-panel-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(8, 12, 16, 0.22);
+  opacity: 0;
+  pointer-events: none;
+  z-index: 74;
+  transition: opacity 0.2s ease;
+}
+
+.settings-panel {
+  width: min(380px, 82vw);
+  border-left: 1px solid color-mix(in srgb, var(--line), transparent 20%);
+  background: color-mix(in srgb, var(--surface), transparent 4%);
   display: flex;
+  flex-direction: column;
+  backdrop-filter: blur(14px);
+  position: fixed;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  z-index: 75;
+  transform: translateX(105%);
+  opacity: 0;
+  pointer-events: none;
+  transition: transform 0.22s ease, opacity 0.2s ease;
+  box-shadow: -14px 0 28px rgba(18, 20, 24, 0.22);
+}
+
+body.mode-edit.settings-open .settings-panel-backdrop {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+body.mode-edit.settings-open .settings-panel {
+  transform: translateX(0);
+  opacity: 1;
+  pointer-events: auto;
+}
+
+body.mode-edit.settings-open .board {
+  pointer-events: none;
+}
+
+body.mode-edit.settings-open .settings-rail-toggle {
+  background: color-mix(in srgb, var(--primary), #fff 6%);
+  border-color: color-mix(in srgb, var(--primary), #000 20%);
+  color: #fff;
 }
 
 .settings-panel-head {
@@ -327,12 +371,13 @@ body.mode-edit .drag-handle {
 }
 
 .widget-body {
-  padding: 10px;
+  padding: var(--widget-content-padding, 10px);
   height: calc(100% - 40px);
   overflow: auto;
 }
 
 .widget-content-host {
+  position: relative;
   min-height: 100%;
   display: flex;
   flex-direction: column;
@@ -346,6 +391,27 @@ body.mode-edit .drag-handle {
   min-height: 0;
 }
 
+.widget-card[data-content-fill="true"] .widget-body {
+  overflow: hidden;
+}
+
+.widget-card[data-content-fill="true"] .widget-content-host {
+  gap: 0;
+}
+
+.widget-card[data-content-fill="true"] .widget-content-slot {
+  flex: 1 1 auto;
+  display: flex;
+  height: 100%;
+  min-height: 0;
+}
+
+.widget-modal-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
 .widget-card.headless .widget-head {
   display: none;
 }
@@ -355,13 +421,28 @@ body.mode-edit .drag-handle {
 }
 
 .widget-inline-actions {
-  display: none;
+  position: absolute;
+  top: 0;
+  right: 0;
+  z-index: 6;
+  display: inline-flex;
   gap: 6px;
-  align-self: flex-end;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-4px);
+  transition: opacity 0.16s ease, transform 0.16s ease;
 }
 
 body.mode-edit .widget-card.headless .widget-inline-actions {
-  display: inline-flex;
+  opacity: 0;
+  pointer-events: none;
+}
+
+body.mode-edit .widget-card.headless:hover .widget-inline-actions,
+body.mode-edit .widget-card.headless:focus-within .widget-inline-actions {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(0);
 }
 
 .widget-resize-handle {
@@ -511,6 +592,32 @@ body:not(.mode-edit) .widget-select-btn {
   color: var(--text);
   font: inherit;
   background: color-mix(in srgb, var(--surface), transparent 5%);
+}
+
+.color-field-control {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid color-mix(in srgb, var(--line), transparent 15%);
+  border-radius: 10px;
+  padding: 8px 10px;
+  background: color-mix(in srgb, var(--surface), transparent 8%);
+}
+
+.color-field-control input[type="color"] {
+  width: 42px;
+  height: 30px;
+  border: none;
+  border-radius: 7px;
+  padding: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.color-code {
+  font-family: "IBM Plex Mono", "Consolas", monospace;
+  font-size: 0.9em;
+  color: var(--muted);
 }
 
 .form-row textarea {
@@ -712,6 +819,18 @@ body:not(.mode-edit) .widget-select-btn {
   padding: 10px;
 }
 
+.widget-card[data-content-fill="true"] .shortcut-tile {
+  flex: 1 1 auto;
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.widget-card[data-content-fill="true"] .shortcut-inner {
+  height: 100%;
+  padding: 0;
+  gap: 0;
+}
+
 .shortcut-icon {
   width: 36px;
   height: 36px;
@@ -725,11 +844,22 @@ body:not(.mode-edit) .widget-select-btn {
   line-height: 1;
 }
 
+.widget-card[data-content-fill="true"] .shortcut-icon {
+  width: 100%;
+  height: 100%;
+  border-radius: 0;
+  font-size: clamp(40px, 16vh, 120px);
+}
+
 .shortcut-icon img {
   width: 100%;
   height: 100%;
   object-fit: cover;
   border-radius: 10px;
+}
+
+.widget-card[data-content-fill="true"] .shortcut-icon img {
+  border-radius: 0;
 }
 
 .shortcut-label {
@@ -740,6 +870,18 @@ body:not(.mode-edit) .widget-select-btn {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.widget-card[data-content-fill="true"] .shortcut-label {
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  bottom: 8px;
+  color: #fff;
+  text-shadow: 0 2px 8px rgba(3, 5, 8, 0.75);
+  background: linear-gradient(to top, rgba(5, 8, 12, 0.55), rgba(5, 8, 12, 0));
+  border-radius: 8px;
+  padding: 6px 8px;
 }
 
 .widget-modal-overlay {
@@ -767,6 +909,21 @@ body:not(.mode-edit) .widget-select-btn {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+}
+
+.add-widget-modal {
+  width: min(520px, 92vw);
+}
+
+.add-widget-modal-body .field {
+  min-width: 0;
+  width: 100%;
+}
+
+.add-widget-size-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
 }
 
 .widget-modal-head {
@@ -876,12 +1033,7 @@ body:not(.mode-edit) .widget-select-btn {
 
 @media (max-width: 1040px) {
   .settings-panel {
-    position: absolute;
-    right: 0;
-    top: 0;
-    bottom: 0;
-    z-index: 70;
-    box-shadow: -10px 0 24px rgba(19, 21, 24, 0.2);
+    width: min(360px, 86vw);
   }
 }
 
@@ -906,5 +1058,9 @@ body:not(.mode-edit) .widget-select-btn {
 
   .dock-btn .btn-label {
     display: none;
+  }
+
+  .add-widget-size-grid {
+    grid-template-columns: 1fr;
   }
 }

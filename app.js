@@ -2,8 +2,9 @@ import { loadState, saveState } from "./storage.js";
 import { widgetRegistry, widgetList } from "./widgets/index.js";
 
 const SNAP = 20;
-const LONG_PRESS_DRAG_MS = 320;
 const GRID_MAX_ROW_SPAN = 24;
+const GRID_MAX_COLUMNS = 16;
+const GRID_MAX_ROWS = 16;
 
 const FONT_OPTIONS = [
   {
@@ -38,7 +39,16 @@ const elements = {
   tabGlobalBtn: document.getElementById("tabGlobalBtn"),
   tabBackgroundBtn: document.getElementById("tabBackgroundBtn"),
   tabProfileBtn: document.getElementById("tabProfileBtn"),
+  settingsRailToggleBtn: document.getElementById("settingsRailToggleBtn"),
+  settingsPanelBackdrop: document.getElementById("settingsPanelBackdrop"),
+  settingsPanel: document.getElementById("settingsPanel"),
   widgetTypeSelect: document.getElementById("widgetTypeSelect"),
+  addWidgetModalOverlay: document.getElementById("addWidgetModalOverlay"),
+  addWidgetModalCloseBtn: document.getElementById("addWidgetModalCloseBtn"),
+  addWidgetModalCancelBtn: document.getElementById("addWidgetModalCancelBtn"),
+  addWidgetModalOkBtn: document.getElementById("addWidgetModalOkBtn"),
+  addWidgetColSpanInput: document.getElementById("addWidgetColSpanInput"),
+  addWidgetRowSpanInput: document.getElementById("addWidgetRowSpanInput"),
   settingsContent: document.getElementById("settingsContent"),
   template: document.getElementById("widgetTemplate"),
   bgLayer: document.getElementById("bgLayer"),
@@ -64,7 +74,8 @@ const modalState = {
   dismissStartX: 0,
   dismissStartY: 0,
   dismissMoved: false,
-  dismissStartedOnOverlay: false
+  dismissStartedOnOverlay: false,
+  activeTab: "widget"
 };
 
 let state = null;
@@ -75,6 +86,8 @@ let lastDragEndAt = 0;
 let blurComputeToken = 0;
 let wallpaperSourceSignature = "";
 let zCounter = 1;
+let addWidgetModalOpen = false;
+let wallpaperLoadToken = 0;
 
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
@@ -132,8 +145,8 @@ function gridMetrics(instances = state.instances) {
 
   const boardW = Math.max(1, Math.floor(elements.board.clientWidth));
   const boardH = Math.max(1, Math.floor(elements.board.clientHeight));
-  const cols = clamp(Number(home.gridColumns) || 4, 1, 8);
-  const baseRows = clamp(Number(home.gridRows) || 3, 1, 8);
+  const cols = clamp(Number(home.gridColumns) || 4, 1, GRID_MAX_COLUMNS);
+  const baseRows = clamp(Number(home.gridRows) || 3, 1, GRID_MAX_ROWS);
   const marginX = marginPresetToPx(home.marginHorizontal);
   const marginY = marginPresetToPx(home.marginVertical);
   const gapX = boardW < 900 ? 8 : 12;
@@ -197,6 +210,9 @@ function defaultBackground() {
     redditSubreddit: "EarthPorn",
     redditTime: "week",
     rotateMinutes: 15,
+    wallpaperCachedUrl: "",
+    wallpaperCachedAt: 0,
+    wallpaperCachedSignature: "",
     videoUrl: "",
     blurAmount: 0,
     overlayOpacity: 0.24
@@ -206,6 +222,7 @@ function defaultBackground() {
 function defaultUi() {
   return {
     activeTab: "global",
+    settingsOpen: false,
     theme: defaultTheme(),
     background: defaultBackground(),
     home: defaultHomeLayout()
@@ -232,6 +249,14 @@ function normalizeTransparency(value, fallback = 0.94) {
     return clamp(fallback, 0, 1);
   }
   return clamp(num, 0, 1);
+}
+
+function normalizeContentPadding(value, fallback = 10) {
+  const num = Number(value);
+  if (!Number.isFinite(num)) {
+    return clamp(fallback, 0, 48);
+  }
+  return clamp(num, 0, 48);
 }
 
 function normalizeAlign(value, fallback = "top") {
@@ -283,8 +308,8 @@ function normalizeHomeLayout(layout) {
 
   return {
     mode: normalizeHomeMode(base.mode, "grid"),
-    gridColumns: clamp(Number(base.gridColumns) || 4, 1, 8),
-    gridRows: clamp(Number(base.gridRows) || 3, 1, 8),
+    gridColumns: clamp(Number(base.gridColumns) || 4, 1, GRID_MAX_COLUMNS),
+    gridRows: clamp(Number(base.gridRows) || 3, 1, GRID_MAX_ROWS),
     marginHorizontal: normalizeMarginPreset(base.marginHorizontal, "medium"),
     marginVertical: normalizeMarginPreset(base.marginVertical, "medium")
   };
@@ -306,6 +331,8 @@ function defaultInstances() {
         surfaceMode: "normal",
         transparency: 0.94,
         contentAlignY: "top",
+        contentFillParent: false,
+        contentPadding: 10,
         config: structuredClone(def.defaultConfig || {}),
         gridLayout: {
           col: idx % 4,
@@ -509,6 +536,8 @@ function hydrate(raw) {
       surfaceMode: normalizeSurfaceMode(item.surfaceMode, "normal"),
       transparency: normalizeTransparency(item.transparency, 0.94),
       contentAlignY: normalizeAlign(item.contentAlignY, "top"),
+      contentFillParent: Boolean(item.contentFillParent),
+      contentPadding: normalizeContentPadding(item.contentPadding, 10),
       enabled: item.enabled !== false,
       gridLayout: normalizeGridLayout(item.gridLayout, {
         col: normalized.length % 4,
@@ -579,6 +608,9 @@ function hydrate(raw) {
   background.redditSubreddit = normalizeText(background.redditSubreddit, "EarthPorn");
   background.redditTime = normalizeText(background.redditTime, "week");
   background.rotateMinutes = clamp(Number(background.rotateMinutes) || 15, 1, 240);
+  background.wallpaperCachedUrl = normalizeText(background.wallpaperCachedUrl);
+  background.wallpaperCachedSignature = normalizeText(background.wallpaperCachedSignature);
+  background.wallpaperCachedAt = Math.max(0, Number(background.wallpaperCachedAt) || 0);
   background.blurAmount = clamp(Number(background.blurAmount) || 0, 0, 28);
   background.overlayOpacity = clamp(Number(background.overlayOpacity) || 0.24, 0, 0.85);
 
@@ -593,6 +625,7 @@ function hydrate(raw) {
           : rawUi.activeTab === "profile"
             ? "profile"
             : "global",
+      settingsOpen: Boolean(rawUi.settingsOpen),
       theme,
       background,
       home
@@ -626,6 +659,22 @@ function setBodyMode() {
 
   if (!isEdit) {
     closeWidgetModal(false);
+    closeAddWidgetModal();
+    if (state?.ui) {
+      state.ui.settingsOpen = false;
+    }
+  }
+
+  syncSettingsPanelVisibility();
+}
+
+function syncSettingsPanelVisibility() {
+  const open = Boolean(state?.mode === "edit" && state?.ui?.settingsOpen);
+  document.body.classList.toggle("settings-open", open);
+  elements.settingsRailToggleBtn?.setAttribute("aria-expanded", String(open));
+  elements.settingsPanel?.setAttribute("aria-hidden", String(!open));
+  if (elements.settingsRailToggleBtn) {
+    elements.settingsRailToggleBtn.title = open ? "Close settings" : "Open settings";
   }
 }
 
@@ -667,11 +716,18 @@ function isInsideModalOverlay(target) {
   return target instanceof Element && Boolean(target.closest("#widgetModalOverlay"));
 }
 
+function isInsideAddWidgetModalOverlay(target) {
+  return target instanceof Element && Boolean(target.closest("#addWidgetModalOverlay"));
+}
+
 function blockOutsideModalEvent(event) {
-  if (!modalState.open) {
+  if (!modalState.open && !addWidgetModalOpen) {
     return;
   }
-  if (isInsideModalOverlay(event.target)) {
+  if (modalState.open && isInsideModalOverlay(event.target)) {
+    return;
+  }
+  if (addWidgetModalOpen && isInsideAddWidgetModalOverlay(event.target)) {
     return;
   }
   event.preventDefault();
@@ -686,6 +742,8 @@ function applyCardVisual(card, instance) {
   card.style.setProperty("--widget-opacity", String(opacity));
   const align = normalizeAlign(instance.contentAlignY, "top");
   card.dataset.contentAlignY = align;
+  card.dataset.contentFill = instance.contentFillParent ? "true" : "false";
+  card.style.setProperty("--widget-content-padding", `${normalizeContentPadding(instance.contentPadding, 10)}px`);
   const justify = align === "center" ? "center" : align === "bottom" ? "flex-end" : "flex-start";
   card.style.setProperty("--widget-content-justify", justify);
 }
@@ -738,6 +796,7 @@ function applyTheme() {
 
 function clearWallpaperTimer() {
   if (wallpaperTimer) {
+    clearTimeout(wallpaperTimer);
     clearInterval(wallpaperTimer);
     wallpaperTimer = null;
   }
@@ -843,6 +902,55 @@ function sanitizeWallhavenCode(value, fallback, allowedRegex, maxLength) {
   return text;
 }
 
+function wallpaperSignature(cfg) {
+  return [
+    cfg.wallpaperProvider,
+    cfg.wallpaperTheme,
+    cfg.wallhavenPurity,
+    cfg.wallhavenCategories,
+    cfg.redditSubreddit,
+    cfg.redditTime
+  ].join("|");
+}
+
+function wallpaperRotateMs(cfg) {
+  return clamp(Number(cfg.rotateMinutes) || 15, 1, 240) * 60000;
+}
+
+function hasWallpaperCacheRecord(cfg, signature) {
+  return (
+    normalizeText(cfg.wallpaperCachedUrl) !== "" &&
+    normalizeText(cfg.wallpaperCachedSignature) === signature &&
+    Number(cfg.wallpaperCachedAt) > 0
+  );
+}
+
+function isWallpaperCacheFresh(cfg, signature) {
+  if (!hasWallpaperCacheRecord(cfg, signature)) {
+    return false;
+  }
+  const age = Math.max(0, Date.now() - Number(cfg.wallpaperCachedAt || 0));
+  return age < wallpaperRotateMs(cfg);
+}
+
+function applyWallpaperSwap(url, token) {
+  if (!url) {
+    return false;
+  }
+  if (token !== wallpaperLoadToken) {
+    return false;
+  }
+  elements.bgImage.src = url;
+  elements.bgImage.classList.add("visible");
+  void updateBlurFromImage(url);
+  return true;
+}
+
+async function preloadAndSwapWallpaper(url, token) {
+  await preloadImage(url);
+  return applyWallpaperSwap(url, token);
+}
+
 function buildSimpleWallpaperUrl(provider, themeTag) {
   wallpaperCounter += 1;
   const theme = encodeURIComponent(normalizeText(themeTag, "nature"));
@@ -945,27 +1053,95 @@ function preloadImage(url) {
   });
 }
 
-async function refreshWallpaper() {
+async function refreshWallpaper({ signature = null, force = false } = {}) {
   const cfg = state.ui.background;
-  try {
-    const url = await resolveWallpaperUrl(cfg);
-    await preloadImage(url);
-    elements.bgImage.src = url;
-    elements.bgImage.classList.add("visible");
-    void updateBlurFromImage(url);
+  const activeSignature = signature || wallpaperSignature(cfg);
+  const token = ++wallpaperLoadToken;
+  const currentSrc = normalizeText(elements.bgImage.getAttribute("src"));
+  let hasVisibleSource = Boolean(currentSrc && elements.bgImage.classList.contains("visible"));
+  let cachedShown = false;
+
+  if (hasWallpaperCacheRecord(cfg, activeSignature)) {
+    const cachedUrl = normalizeText(cfg.wallpaperCachedUrl);
+    if (cachedUrl) {
+      if (currentSrc === cachedUrl && elements.bgImage.classList.contains("visible")) {
+        hasVisibleSource = true;
+        cachedShown = true;
+        void updateBlurFromImage(cachedUrl);
+      } else {
+        try {
+          const swapped = await preloadAndSwapWallpaper(cachedUrl, token);
+          if (swapped) {
+            hasVisibleSource = true;
+            cachedShown = true;
+          }
+        } catch {
+        }
+      }
+    }
+  }
+
+  const cacheFresh = isWallpaperCacheFresh(cfg, activeSignature);
+  if (!force && cacheFresh && (cachedShown || hasVisibleSource)) {
+    wallpaperSourceSignature = activeSignature;
     return;
+  }
+
+  let nextUrl = "";
+  try {
+    nextUrl = await resolveWallpaperUrl(cfg);
+    await preloadImage(nextUrl);
   } catch {
-    const fallback = buildSimpleWallpaperUrl("picsum", cfg.wallpaperTheme);
+    nextUrl = buildSimpleWallpaperUrl("picsum", cfg.wallpaperTheme);
     try {
-      await preloadImage(fallback);
-      elements.bgImage.src = fallback;
-      elements.bgImage.classList.add("visible");
-      void updateBlurFromImage(fallback);
+      await preloadImage(nextUrl);
     } catch {
+      nextUrl = "";
+    }
+  }
+
+  if (!nextUrl || token !== wallpaperLoadToken) {
+    if (!hasVisibleSource && !cachedShown) {
       elements.bgImage.classList.remove("visible");
       clearBlurLayer();
     }
+    return;
   }
+
+  state.ui.background.wallpaperCachedUrl = nextUrl;
+  state.ui.background.wallpaperCachedAt = Date.now();
+  state.ui.background.wallpaperCachedSignature = activeSignature;
+  wallpaperSourceSignature = activeSignature;
+  queueSave();
+
+  applyWallpaperSwap(nextUrl, token);
+}
+
+function scheduleWallpaperRefresh(signature) {
+  clearWallpaperTimer();
+
+  if (state.ui.background.mode !== "wallpaper") {
+    return;
+  }
+
+  const cfg = state.ui.background;
+  const period = wallpaperRotateMs(cfg);
+  let wait = 1000;
+
+  if (hasWallpaperCacheRecord(cfg, signature)) {
+    const age = Math.max(0, Date.now() - Number(cfg.wallpaperCachedAt || 0));
+    wait = Math.max(1000, period - age);
+  }
+
+  wallpaperTimer = setTimeout(() => {
+    if (state.ui.background.mode !== "wallpaper") {
+      return;
+    }
+    const nextSignature = wallpaperSignature(state.ui.background);
+    void refreshWallpaper({ signature: nextSignature, force: true }).finally(() => {
+      scheduleWallpaperRefresh(nextSignature);
+    });
+  }, wait);
 }
 
 function applyBackground() {
@@ -977,17 +1153,22 @@ function applyBackground() {
 
   elements.bgOverlay.style.background = `rgba(8, 11, 16, ${overlay})`;
   elements.bgLayer.style.background = theme.background;
-  elements.bgImage.classList.remove("visible");
-  clearBlurLayer();
   hideVideo();
 
   if (cfg.mode === "solid") {
+    wallpaperSourceSignature = "";
+    wallpaperLoadToken += 1;
+    elements.bgImage.classList.remove("visible");
+    clearBlurLayer();
     elements.bgLayer.style.background = cfg.solidColor || theme.background;
     return;
   }
 
   if (cfg.mode === "video") {
     wallpaperSourceSignature = "";
+    wallpaperLoadToken += 1;
+    elements.bgImage.classList.remove("visible");
+    clearBlurLayer();
     elements.bgLayer.style.background = theme.background;
     const src = (cfg.videoUrl || "").trim();
     if (!src) {
@@ -1002,31 +1183,21 @@ function applyBackground() {
 
   if (cfg.mode === "wallpaper") {
     elements.bgLayer.style.background = theme.background;
-    const signature = [
-      cfg.wallpaperProvider,
-      cfg.wallpaperTheme,
-      cfg.wallhavenPurity,
-      cfg.wallhavenCategories,
-      cfg.redditSubreddit,
-      cfg.redditTime
-    ].join("|");
-    const hasCurrent = Boolean(elements.bgImage.getAttribute("src"));
-
-    if (!hasCurrent || signature !== wallpaperSourceSignature) {
-      wallpaperSourceSignature = signature;
-      void refreshWallpaper();
-    } else {
-      elements.bgImage.classList.add("visible");
-      void updateBlurFromImage(elements.bgImage.src);
-    }
-
-    wallpaperTimer = setInterval(() => {
-      void refreshWallpaper();
-    }, clamp(Number(cfg.rotateMinutes) || 15, 1, 240) * 60000);
+    const signature = wallpaperSignature(cfg);
+    wallpaperSourceSignature = signature;
+    void refreshWallpaper({ signature, force: false }).finally(() => {
+      if (state.ui.background.mode !== "wallpaper") {
+        return;
+      }
+      scheduleWallpaperRefresh(wallpaperSignature(state.ui.background));
+    });
     return;
   }
 
   wallpaperSourceSignature = "";
+  wallpaperLoadToken += 1;
+  elements.bgImage.classList.remove("visible");
+  clearBlurLayer();
 
   elements.bgLayer.style.background =
     `radial-gradient(circle at 20% 20%, ${theme.surface} 0 20%, transparent 48%), ` +
@@ -1048,6 +1219,90 @@ function populateTypeSelect() {
     option.textContent = `${def.title} (${def.type})`;
     elements.widgetTypeSelect.append(option);
   }
+}
+
+function normalizeGridSpanValue(value, fallback, max) {
+  const num = Math.floor(Number(value));
+  if (!Number.isFinite(num)) {
+    return clamp(Math.floor(Number(fallback) || 1), 1, max);
+  }
+  return clamp(num, 1, max);
+}
+
+function syncAddWidgetSizeInputs() {
+  const type = elements.widgetTypeSelect?.value;
+  const def = widgetRegistry[type];
+  if (!def) {
+    return;
+  }
+
+  const size = widgetDefaultGridSize(type, def);
+  if (elements.addWidgetColSpanInput) {
+    elements.addWidgetColSpanInput.value = String(size.colSpan);
+  }
+  if (elements.addWidgetRowSpanInput) {
+    elements.addWidgetRowSpanInput.value = String(size.rowSpan);
+  }
+}
+
+function openAddWidgetModal() {
+  if (state.mode !== "edit") {
+    return;
+  }
+  if (!elements.addWidgetModalOverlay) {
+    addWidget(elements.widgetTypeSelect?.value || widgetList[0]?.type || "clock");
+    return;
+  }
+
+  if (modalState.open) {
+    closeWidgetModal(false);
+  }
+
+  const firstType = widgetList[0]?.type;
+  if (firstType && !widgetRegistry[elements.widgetTypeSelect?.value]) {
+    elements.widgetTypeSelect.value = firstType;
+  }
+
+  syncAddWidgetSizeInputs();
+
+  addWidgetModalOpen = true;
+  elements.addWidgetModalOverlay.classList.add("open");
+  elements.addWidgetModalOverlay.setAttribute("aria-hidden", "false");
+  setModalInteractionLock(true);
+  requestAnimationFrame(() => {
+    elements.widgetTypeSelect?.focus();
+  });
+}
+
+function closeAddWidgetModal() {
+  if (!addWidgetModalOpen) {
+    return;
+  }
+
+  addWidgetModalOpen = false;
+  elements.addWidgetModalOverlay?.classList.remove("open");
+  elements.addWidgetModalOverlay?.setAttribute("aria-hidden", "true");
+  if (!modalState.open) {
+    setModalInteractionLock(false);
+  }
+}
+
+function applyAddWidgetModal() {
+  const type = elements.widgetTypeSelect?.value;
+  const def = widgetRegistry[type];
+  if (!def) {
+    return;
+  }
+
+  const defaultSize = widgetDefaultGridSize(type, def);
+  const colSpan = normalizeGridSpanValue(elements.addWidgetColSpanInput?.value, defaultSize.colSpan, GRID_MAX_COLUMNS);
+  const rowSpan = normalizeGridSpanValue(elements.addWidgetRowSpanInput?.value, defaultSize.rowSpan, GRID_MAX_ROW_SPAN);
+
+  addWidget(type, {
+    colSpan,
+    rowSpan
+  });
+  closeAddWidgetModal();
 }
 
 function applyLayout(card, layout) {
@@ -1418,7 +1673,14 @@ function createWidgetCard(instance) {
     container: contentSlot || body,
     getConfig: () => instance.config,
     patchConfig: (patch) => patchWidgetConfig(instance.id, patch),
-    isEditMode: () => state.mode === "edit"
+    isEditMode: () => state.mode === "edit",
+    openSettings: () => {
+      if (state.mode !== "edit") {
+        return;
+      }
+      setSelected(instance.id);
+      openWidgetModal(instance.id);
+    }
   });
 
   const openSettings = () => {
@@ -1442,9 +1704,15 @@ function createWidgetCard(instance) {
   removeBtn.addEventListener("click", removeCurrent);
   floatRemoveBtn?.addEventListener("click", removeCurrent);
 
-  card.addEventListener("click", () => {
-    if (state.mode === "edit") {
-      setSelected(instance.id);
+  card.addEventListener("click", (event) => {
+    if (state.mode !== "edit") {
+      return;
+    }
+    setSelected(instance.id);
+    if (instance.type === "shortcut" && event.target.closest(".shortcut-tile")) {
+      event.preventDefault();
+      event.stopPropagation();
+      openWidgetModal(instance.id);
     }
   });
 
@@ -1556,72 +1824,6 @@ function createWidgetCard(instance) {
 
   dragBtn?.addEventListener("pointerdown", (event) => {
     startDrag({ event, target: event.target, fromHandleButton: true });
-  });
-
-  let longPressTimer = null;
-  let longPressPointerId = null;
-  let longPressStartX = 0;
-  let longPressStartY = 0;
-
-  const clearLongPress = () => {
-    if (longPressTimer) {
-      clearTimeout(longPressTimer);
-      longPressTimer = null;
-    }
-    longPressPointerId = null;
-  };
-
-  card.addEventListener("pointerdown", (event) => {
-    if (state.mode !== "edit" || event.button !== 0) {
-      return;
-    }
-    if (event.target.closest("button, input, textarea, select, a")) {
-      return;
-    }
-    if (event.target.closest(".widget-head")) {
-      return;
-    }
-
-    clearLongPress();
-    longPressPointerId = event.pointerId;
-    longPressStartX = event.clientX;
-    longPressStartY = event.clientY;
-
-    const cancelLongPressByMove = (moveEvent) => {
-      if (moveEvent.pointerId !== longPressPointerId) {
-        return;
-      }
-      const dist = Math.hypot(moveEvent.clientX - longPressStartX, moveEvent.clientY - longPressStartY);
-      if (dist > 6) {
-        clearLongPress();
-      }
-    };
-
-    const cancelLongPress = (endEvent) => {
-      if (!endEvent || endEvent.pointerId === longPressPointerId) {
-        window.removeEventListener("pointermove", cancelLongPressByMove, true);
-        window.removeEventListener("pointerup", cancelLongPress, true);
-        window.removeEventListener("pointercancel", cancelLongPress, true);
-        clearLongPress();
-      }
-    };
-
-    window.addEventListener("pointermove", cancelLongPressByMove, true);
-    window.addEventListener("pointerup", cancelLongPress, true);
-    window.addEventListener("pointercancel", cancelLongPress, true);
-
-    longPressTimer = setTimeout(() => {
-      window.removeEventListener("pointermove", cancelLongPressByMove, true);
-      window.removeEventListener("pointerup", cancelLongPress, true);
-      window.removeEventListener("pointercancel", cancelLongPress, true);
-      clearLongPress();
-      startDrag({
-        target: card,
-        fromHandleButton: true,
-        startX: longPressStartX,
-        startY: longPressStartY
-      });
-    }, LONG_PRESS_DRAG_MS);
   });
 
   if (resizeHandle) {
@@ -1744,6 +1946,44 @@ function createFormRow(labelText) {
   return row;
 }
 
+function normalizeDisplayColor(value, fallback = "#000000") {
+  const raw = String(value || "").trim();
+  if (/^#[0-9a-fA-F]{6}$/.test(raw)) {
+    return raw.toUpperCase();
+  }
+  if (/^#[0-9a-fA-F]{3}$/.test(raw)) {
+    const [r, g, b] = [raw[1], raw[2], raw[3]];
+    return `#${r}${r}${g}${g}${b}${b}`.toUpperCase();
+  }
+  return fallback.toUpperCase();
+}
+
+function createColorControl(value, onChange) {
+  const wrap = document.createElement("div");
+  wrap.className = "color-field-control";
+
+  const swatch = document.createElement("input");
+  swatch.type = "color";
+  swatch.value = normalizeDisplayColor(value, "#000000");
+
+  const code = document.createElement("code");
+  code.className = "color-code";
+  code.textContent = swatch.value.toUpperCase();
+
+  const emit = () => {
+    const next = normalizeDisplayColor(swatch.value, "#000000");
+    swatch.value = next;
+    code.textContent = next;
+    onChange(next);
+  };
+
+  swatch.addEventListener("input", emit);
+  swatch.addEventListener("change", emit);
+
+  wrap.append(swatch, code);
+  return wrap;
+}
+
 function createSectionChip(text) {
   const chip = document.createElement("p");
   chip.className = "section-chip";
@@ -1840,12 +2080,20 @@ function renderGlobalSettings() {
   for (const schema of themeFields) {
     const row = createFormRow(schema.label);
     const value = state.ui.theme[schema.key];
-    const input = createInputBySchema(schema, value);
-    input.addEventListener(settingsEventName(schema), () => {
-      const next = readFieldValue(input, schema);
-      patchTheme({ [schema.key]: next });
-    });
-    row.append(input);
+    if (schema.type === "color") {
+      row.append(
+        createColorControl(value, (next) => {
+          patchTheme({ [schema.key]: next });
+        })
+      );
+    } else {
+      const input = createInputBySchema(schema, value);
+      input.addEventListener(settingsEventName(schema), () => {
+        const next = readFieldValue(input, schema);
+        patchTheme({ [schema.key]: next });
+      });
+      row.append(input);
+    }
     elements.settingsContent.append(row);
   }
   appendDivider();
@@ -1861,8 +2109,22 @@ function renderGlobalSettings() {
         { value: "free", label: "Free mode" }
       ]
     },
-    { key: "gridColumns", label: "Grid columns (N)", type: "number", min: 1, max: 8, step: 1 },
-    { key: "gridRows", label: "Grid rows (M)", type: "number", min: 1, max: 8, step: 1 },
+    {
+      key: "gridColumns",
+      label: "Grid columns (N)",
+      type: "number",
+      min: 1,
+      max: GRID_MAX_COLUMNS,
+      step: 1
+    },
+    {
+      key: "gridRows",
+      label: "Grid rows (M)",
+      type: "number",
+      min: 1,
+      max: GRID_MAX_ROWS,
+      step: 1
+    },
     {
       key: "marginHorizontal",
       label: "Horizontal margin",
@@ -2068,17 +2330,25 @@ function renderBackgroundSettings() {
   for (const schema of bgFields) {
     const row = createFormRow(schema.label);
     const value = state.ui.background[schema.key];
-    const input = createInputBySchema(schema, value);
-    input.addEventListener(settingsEventName(schema), () => {
-      const next = readFieldValue(input, schema);
-      patchBackground({ [schema.key]: next });
-    });
-    row.append(input);
+    if (schema.type === "color") {
+      row.append(
+        createColorControl(value, (next) => {
+          patchBackground({ [schema.key]: next });
+        })
+      );
+    } else {
+      const input = createInputBySchema(schema, value);
+      input.addEventListener(settingsEventName(schema), () => {
+        const next = readFieldValue(input, schema);
+        patchBackground({ [schema.key]: next });
+      });
+      row.append(input);
+    }
     elements.settingsContent.append(row);
   }
 }
 
-function getWidgetModalFields(def) {
+function getWidgetModalCommonFields() {
   const baseFields = [
     { key: "title", label: "Title", type: "text", group: "base" },
     {
@@ -2121,6 +2391,21 @@ function getWidgetModalFields(def) {
         { value: "bottom", label: "Bottom" }
       ]
     },
+    {
+      key: "contentFillParent",
+      label: "Fill content to widget",
+      type: "checkbox",
+      group: "base"
+    },
+    {
+      key: "contentPadding",
+      label: "Content padding",
+      type: "number",
+      min: 0,
+      max: 48,
+      step: 1,
+      group: "base"
+    },
     ...(isGridLayoutMode()
       ? []
       : [
@@ -2131,7 +2416,32 @@ function getWidgetModalFields(def) {
         ])
   ];
 
-  return [...baseFields, ...(def.settingsSchema || [])];
+  return baseFields;
+}
+
+function getWidgetModalSpecificFields(def) {
+  const specific = Array.isArray(def.settingsSchema) ? def.settingsSchema : [];
+  return specific.map((field) => ({ ...field, group: "config" }));
+}
+
+function setWidgetModalActiveTab(tab) {
+  const next = tab === "common" ? "common" : "widget";
+  modalState.activeTab = next;
+  renderWidgetModal();
+}
+
+function renderWidgetModalFields(fields) {
+  const frag = document.createDocumentFragment();
+  for (const field of fields) {
+    const row = createFormRow(field.label);
+    const input = createInputBySchema(field, modalFieldValue(field));
+    input.addEventListener(settingsEventName(field), () => {
+      setModalFieldValue(field, readFieldValue(input, field));
+    });
+    row.append(input);
+    frag.append(row);
+  }
+  return frag;
 }
 
 function modalFieldValue(field) {
@@ -2171,6 +2481,7 @@ function closeWidgetModal(rerender = true) {
   modalState.dismissPointerId = null;
   modalState.dismissMoved = false;
   modalState.dismissStartedOnOverlay = false;
+  modalState.activeTab = "widget";
 
   setModalInteractionLock(false);
   elements.widgetModalOverlay?.classList.remove("open");
@@ -2196,16 +2507,61 @@ function renderWidgetModal() {
   elements.widgetModalTitle.textContent = `${def.title} Settings`;
   elements.widgetModalBody.replaceChildren();
 
-  const fields = getWidgetModalFields(def);
-  for (const field of fields) {
-    const row = createFormRow(field.label);
-    const input = createInputBySchema(field, modalFieldValue(field));
-    input.addEventListener(settingsEventName(field), () => {
-      setModalFieldValue(field, readFieldValue(input, field));
+  const commonFields = getWidgetModalCommonFields();
+  const widgetFields = getWidgetModalSpecificFields(def);
+  const hasWidgetTab = widgetFields.length > 0;
+  const active = hasWidgetTab ? (modalState.activeTab === "common" ? "common" : "widget") : "common";
+  modalState.activeTab = active;
+
+  if (hasWidgetTab) {
+    const tablist = document.createElement("div");
+    tablist.className = "widget-modal-tabs";
+    tablist.setAttribute("role", "tablist");
+    tablist.setAttribute("aria-label", "Widget settings tabs");
+
+    const widgetBtn = document.createElement("button");
+    widgetBtn.type = "button";
+    widgetBtn.className = "settings-tab-btn";
+    widgetBtn.setAttribute("role", "tab");
+    widgetBtn.id = "widgetModalTabWidget";
+    widgetBtn.setAttribute("aria-controls", "widgetModalTabPanelWidget");
+    widgetBtn.textContent = "Widget";
+
+    const commonBtn = document.createElement("button");
+    commonBtn.type = "button";
+    commonBtn.className = "settings-tab-btn";
+    commonBtn.setAttribute("role", "tab");
+    commonBtn.id = "widgetModalTabCommon";
+    commonBtn.setAttribute("aria-controls", "widgetModalTabPanelCommon");
+    commonBtn.textContent = "Common";
+
+    const widgetOn = active === "widget";
+    widgetBtn.classList.toggle("active", widgetOn);
+    widgetBtn.setAttribute("aria-selected", String(widgetOn));
+    commonBtn.classList.toggle("active", !widgetOn);
+    commonBtn.setAttribute("aria-selected", String(!widgetOn));
+
+    widgetBtn.addEventListener("click", () => {
+      setWidgetModalActiveTab("widget");
     });
-    row.append(input);
-    elements.widgetModalBody.append(row);
+    commonBtn.addEventListener("click", () => {
+      setWidgetModalActiveTab("common");
+    });
+
+    tablist.append(widgetBtn, commonBtn);
+    elements.widgetModalBody.append(tablist);
   }
+
+  const activeFields = active === "widget" ? widgetFields : commonFields;
+  const panel = document.createElement("section");
+  panel.setAttribute("role", "tabpanel");
+  if (hasWidgetTab) {
+    const isWidget = active === "widget";
+    panel.id = isWidget ? "widgetModalTabPanelWidget" : "widgetModalTabPanelCommon";
+    panel.setAttribute("aria-labelledby", isWidget ? "widgetModalTabWidget" : "widgetModalTabCommon");
+  }
+  panel.append(renderWidgetModalFields(activeFields));
+  elements.widgetModalBody.append(panel);
 
   elements.widgetModalOverlay.classList.add("open");
   elements.widgetModalOverlay.setAttribute("aria-hidden", "false");
@@ -2225,12 +2581,15 @@ function openWidgetModal(instanceId) {
 
   modalState.open = true;
   modalState.widgetId = instance.id;
+  modalState.activeTab = "widget";
   modalState.draft = {
     title: instance.title,
     viewMode: instance.viewMode || "window",
     surfaceMode: normalizeSurfaceMode(instance.surfaceMode, "normal"),
     transparency: normalizeTransparency(instance.transparency, 0.94),
     contentAlignY: normalizeAlign(instance.contentAlignY, "top"),
+    contentFillParent: Boolean(instance.contentFillParent),
+    contentPadding: normalizeContentPadding(instance.contentPadding, 10),
     layout: {
       ...instance.layout
     },
@@ -2261,6 +2620,8 @@ function applyWidgetModal() {
   instance.surfaceMode = normalizeSurfaceMode(draft.surfaceMode, "normal");
   instance.transparency = normalizeTransparency(draft.transparency, 0.94);
   instance.contentAlignY = normalizeAlign(draft.contentAlignY, "top");
+  instance.contentFillParent = Boolean(draft.contentFillParent);
+  instance.contentPadding = normalizeContentPadding(draft.contentPadding, 10);
   instance.layout = cloneLayout(draft.layout);
   instance.config = {
     ...instance.config,
@@ -2286,6 +2647,7 @@ function applyWidgetModal() {
 function renderSettings() {
   elements.settingsContent.replaceChildren();
   syncSettingsTabButtons();
+  syncSettingsPanelVisibility();
 
   if (state.mode !== "edit") {
     const p = document.createElement("p");
@@ -2308,7 +2670,7 @@ function renderSettings() {
   renderGlobalSettings();
 }
 
-function addWidget(type) {
+function addWidget(type, options = {}) {
   if (state.mode !== "edit") {
     return;
   }
@@ -2317,6 +2679,10 @@ function addWidget(type) {
   if (!def) {
     return;
   }
+
+  const defaultSize = widgetDefaultGridSize(type, def);
+  const colSpan = normalizeGridSpanValue(options.colSpan, defaultSize.colSpan, GRID_MAX_COLUMNS);
+  const rowSpan = normalizeGridSpanValue(options.rowSpan, defaultSize.rowSpan, GRID_MAX_ROW_SPAN);
 
   const instance = {
     id: `${type}-${state.nextId}`,
@@ -2327,12 +2693,15 @@ function addWidget(type) {
     surfaceMode: "normal",
     transparency: 0.94,
     contentAlignY: "top",
+    contentFillParent: false,
+    contentPadding: 10,
     enabled: true,
     config: structuredClone(def.defaultConfig || {}),
     gridLayout: normalizeGridLayout(null, {
       col: state.instances.length % 4,
       row: Math.floor(state.instances.length / 4),
-      ...widgetDefaultGridSize(type, def)
+      colSpan,
+      rowSpan
     }),
     layout: cloneLayout(def.defaultLayout)
   };
@@ -2343,6 +2712,11 @@ function addWidget(type) {
   if (!isGridLayoutMode()) {
     instance.layout.x += (state.instances.length % 6) * 24;
     instance.layout.y += (state.instances.length % 4) * 24;
+    const boardRect = elements.board.getBoundingClientRect();
+    const scaleX = colSpan / Math.max(1, defaultSize.colSpan);
+    const scaleY = rowSpan / Math.max(1, defaultSize.rowSpan);
+    instance.layout.w = clamp(Math.round(instance.layout.w * scaleX), 80, Math.max(80, Math.floor(boardRect.width)));
+    instance.layout.h = clamp(Math.round(instance.layout.h * scaleY), 80, Math.max(80, Math.floor(boardRect.height)));
   }
 
   state.instances.push(instance);
@@ -2368,6 +2742,24 @@ function resetState() {
 }
 
 function wireEvents() {
+  elements.settingsRailToggleBtn?.addEventListener("click", () => {
+    if (state.mode !== "edit") {
+      return;
+    }
+    state.ui.settingsOpen = !state.ui.settingsOpen;
+    syncSettingsPanelVisibility();
+    queueSave();
+  });
+
+  elements.settingsPanelBackdrop?.addEventListener("click", () => {
+    if (!state.ui.settingsOpen) {
+      return;
+    }
+    state.ui.settingsOpen = false;
+    syncSettingsPanelVisibility();
+    queueSave();
+  });
+
   elements.modeToggleBtn.addEventListener("click", () => {
     state.mode = state.mode === "edit" ? "use" : "edit";
     if (state.mode === "use") {
@@ -2401,8 +2793,33 @@ function wireEvents() {
     queueSave();
   });
 
+  elements.widgetTypeSelect?.addEventListener("change", () => {
+    if (!addWidgetModalOpen) {
+      return;
+    }
+    syncAddWidgetSizeInputs();
+  });
+
   elements.addWidgetBtn.addEventListener("click", () => {
-    addWidget(elements.widgetTypeSelect.value);
+    openAddWidgetModal();
+  });
+
+  elements.addWidgetModalCloseBtn?.addEventListener("click", () => {
+    closeAddWidgetModal();
+  });
+
+  elements.addWidgetModalCancelBtn?.addEventListener("click", () => {
+    closeAddWidgetModal();
+  });
+
+  elements.addWidgetModalOkBtn?.addEventListener("click", () => {
+    applyAddWidgetModal();
+  });
+
+  elements.addWidgetModalOverlay?.addEventListener("click", (event) => {
+    if (event.target === elements.addWidgetModalOverlay) {
+      closeAddWidgetModal();
+    }
   });
 
   elements.resetBtn.addEventListener("click", () => {
@@ -2485,6 +2902,26 @@ function wireEvents() {
   document.addEventListener("touchmove", blockOutsideModalEvent, { capture: true, passive: false });
 
   window.addEventListener("keydown", (event) => {
+    if (addWidgetModalOpen) {
+      if (!isInsideAddWidgetModalOverlay(event.target)) {
+        event.preventDefault();
+        event.stopPropagation();
+        return;
+      }
+
+      if (event.key === "Escape") {
+        event.preventDefault();
+        closeAddWidgetModal();
+        return;
+      }
+
+      if (event.key === "Enter" && event.target instanceof HTMLInputElement) {
+        event.preventDefault();
+        applyAddWidgetModal();
+        return;
+      }
+    }
+
     if (!modalState.open) {
       return;
     }
@@ -2529,6 +2966,7 @@ function wireEvents() {
 
 async function init() {
   populateTypeSelect();
+  syncAddWidgetSizeInputs();
   const loaded = await loadState(defaultState());
   state = hydrate(loaded);
 

@@ -3,7 +3,8 @@ export const notesWidget = {
   title: "Notes",
   defaultConfig: {
     content: "",
-    placeholder: "Write your notes here"
+    placeholder: "Write your notes here",
+    textAlign: "left"
   },
   defaultLayout: {
     x: 430,
@@ -12,7 +13,17 @@ export const notesWidget = {
     h: 290
   },
   settingsSchema: [
-    { key: "placeholder", label: "Placeholder", type: "text", placeholder: "Write notes" }
+    { key: "placeholder", label: "Placeholder", type: "text", placeholder: "Write notes" },
+    {
+      key: "textAlign",
+      label: "Text align",
+      type: "select",
+      options: [
+        { value: "left", label: "Left" },
+        { value: "center", label: "Center" },
+        { value: "right", label: "Right" }
+      ]
+    }
   ],
   create({ container, getConfig, patchConfig }) {
     const textarea = document.createElement("textarea");
@@ -23,7 +34,9 @@ export const notesWidget = {
 
     function render() {
       const cfg = getConfig();
+      const align = cfg.textAlign === "center" || cfg.textAlign === "right" ? cfg.textAlign : "left";
       textarea.placeholder = cfg.placeholder || "Write notes";
+      textarea.style.textAlign = align;
       if (textarea.value !== (cfg.content || "")) {
         textarea.value = cfg.content || "";
       }

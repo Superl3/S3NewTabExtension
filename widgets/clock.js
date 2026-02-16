@@ -7,7 +7,8 @@ export const clockWidget = {
     showSeconds: true,
     timeZone: "",
     fontFamily: "mono",
-    styleVariant: "minimal"
+    styleVariant: "minimal",
+    textAlign: "center"
   },
   defaultLayout: {
     x: 40,
@@ -38,12 +39,23 @@ export const clockWidget = {
         { value: "glow", label: "Glow" }
       ]
     },
+    {
+      key: "textAlign",
+      label: "Text align",
+      type: "select",
+      options: [
+        { value: "left", label: "Left" },
+        { value: "center", label: "Center" },
+        { value: "right", label: "Right" }
+      ]
+    },
     { key: "hour12", label: "12-hour", type: "checkbox" },
     { key: "showSeconds", label: "Show seconds", type: "checkbox" }
   ],
   create({ container, getConfig }) {
     const wrap = document.createElement("div");
     wrap.className = "clock-wrap";
+    wrap.style.width = "100%";
     const timeEl = document.createElement("div");
     const dateEl = document.createElement("div");
     timeEl.className = "clock-time";
@@ -65,9 +77,13 @@ export const clockWidget = {
 
       const font = cfg.fontFamily === "display" || cfg.fontFamily === "digital" ? cfg.fontFamily : "mono";
       const variant = cfg.styleVariant === "tile" || cfg.styleVariant === "glow" ? cfg.styleVariant : "minimal";
+      const align = cfg.textAlign === "left" || cfg.textAlign === "right" ? cfg.textAlign : "center";
 
       container.classList.add(`clock-font-${font}`);
       container.classList.add(`clock-variant-${variant}`);
+      wrap.style.justifyItems = align === "left" ? "start" : align === "right" ? "end" : "center";
+      timeEl.style.textAlign = align;
+      dateEl.style.textAlign = align;
     }
 
     function render() {
