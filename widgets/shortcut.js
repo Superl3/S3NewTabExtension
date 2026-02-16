@@ -56,7 +56,7 @@ export const shortcutWidget = {
     },
     { key: "openInNewTab", label: "Open in new tab", type: "checkbox" }
   ],
-  create({ container, getConfig }) {
+  create({ container, getConfig, isEditMode, openSettings }) {
     const tile = document.createElement("a");
     tile.className = "shortcut-tile";
 
@@ -72,6 +72,15 @@ export const shortcutWidget = {
     inner.append(icon, label);
     tile.append(inner);
     container.append(tile);
+
+    tile.addEventListener("click", (event) => {
+      if (!isEditMode?.()) {
+        return;
+      }
+      event.preventDefault();
+      event.stopPropagation();
+      openSettings?.();
+    });
 
     function render() {
       const cfg = getConfig();
