@@ -35,6 +35,7 @@ const elements = {
   autoArrangeBtn: document.getElementById("autoArrangeBtn"),
   tabGlobalBtn: document.getElementById("tabGlobalBtn"),
   tabBackgroundBtn: document.getElementById("tabBackgroundBtn"),
+  tabProfileBtn: document.getElementById("tabProfileBtn"),
   widgetTypeSelect: document.getElementById("widgetTypeSelect"),
   settingsContent: document.getElementById("settingsContent"),
   template: document.getElementById("widgetTemplate"),
@@ -126,7 +127,18 @@ function defaultUi() {
   return {
     activeTab: "global",
     theme: defaultTheme(),
-    background: defaultBackground()
+    background: defaultBackground(),
+    home: defaultHomeLayout()
+  };
+}
+
+function defaultHomeLayout() {
+  return {
+    mode: "grid",
+    gridColumns: 4,
+    gridRows: 3,
+    marginHorizontal: "medium",
+    marginVertical: "medium"
   };
 }
 
@@ -154,6 +166,48 @@ function normalizeSurfaceMode(value, fallback = "normal") {
     return value;
   }
   return fallback;
+}
+
+function normalizeHomeMode(value, fallback = "grid") {
+  if (value === "grid" || value === "free") {
+    return value;
+  }
+  return fallback;
+}
+
+function normalizeMarginPreset(value, fallback = "medium") {
+  if (value === "wide" || value === "medium" || value === "narrow" || value === "none") {
+    return value;
+  }
+  return fallback;
+}
+
+function marginPresetToPx(value) {
+  if (value === "wide") {
+    return 40;
+  }
+  if (value === "narrow") {
+    return 14;
+  }
+  if (value === "none") {
+    return 0;
+  }
+  return 26;
+}
+
+function normalizeHomeLayout(layout) {
+  const base = {
+    ...defaultHomeLayout(),
+    ...(layout || {})
+  };
+
+  return {
+    mode: normalizeHomeMode(base.mode, "grid"),
+    gridColumns: clamp(Number(base.gridColumns) || 4, 1, 8),
+    gridRows: clamp(Number(base.gridRows) || 3, 1, 8),
+    marginHorizontal: normalizeMarginPreset(base.marginHorizontal, "medium"),
+    marginVertical: normalizeMarginPreset(base.marginVertical, "medium")
+  };
 }
 
 function defaultInstances() {
@@ -193,7 +247,8 @@ function clonePresetSnapshot(snapshot) {
   return {
     ui: {
       theme: { ...(snapshot?.ui?.theme || {}) },
-      background: { ...(snapshot?.ui?.background || {}) }
+      background: { ...(snapshot?.ui?.background || {}) },
+      home: { ...(snapshot?.ui?.home || {}) }
     },
     instances: Array.isArray(snapshot?.instances)
       ? snapshot.instances.map((instance) => ({ ...instance, config: { ...(instance.config || {}) } }))
@@ -205,7 +260,8 @@ function createStateSnapshot() {
   return {
     ui: {
       theme: structuredClone(state.ui.theme),
-      background: structuredClone(state.ui.background)
+      background: structuredClone(state.ui.background),
+      home: structuredClone(state.ui.home)
     },
     instances: state.instances.map((instance) => ({
       ...structuredClone(instance),
@@ -279,6 +335,10 @@ function loadPresetById(presetId, scope = "all") {
       background: {
         ...state.ui.background,
         ...(applyBackgroundOnly ? snapshot.ui?.background || {} : {})
+      },
+      home: {
+        ...state.ui.home,
+        ...(applyGlobal ? snapshot.ui?.home || {} : {})
       }
     },
     instances:
@@ -290,6 +350,7 @@ function loadPresetById(presetId, scope = "all") {
 
   state.ui.theme = hydrated.ui.theme;
   state.ui.background = hydrated.ui.background;
+  state.ui.home = normalizeHomeLayout(hydrated.ui.home);
 
   if (applyWidgets) {
     state.instances = hydrated.instances;
@@ -300,12 +361,16 @@ function loadPresetById(presetId, scope = "all") {
   closeWidgetModal(false);
 
   applyTheme();
+  setBodyMode();
   applyBackground();
 
   if (applyWidgets) {
     renderBoard();
   } else {
     refreshAllWidgets();
+    if (state.ui.home.mode === "grid") {
+      applyGridLayout({ commitFreeLayout: false });
+    }
   }
 
   renderSettings();
@@ -375,6 +440,7 @@ function hydrate(raw) {
     ...defaultBackground(),
     ...(rawUi.background || {})
   };
+  const home = normalizeHomeLayout(rawUi.home || {});
   const rawPresets = Array.isArray(raw?.presets) ? raw.presets : [];
   const presets = rawPresets
     .map((preset) => {
@@ -429,9 +495,15 @@ function hydrate(raw) {
     selectedWidgetId: raw.selectedWidgetId || "",
     nextId: Number(raw.nextId || 100),
     ui: {
-      activeTab: rawUi.activeTab === "background" ? "background" : "global",
+      activeTab:
+        rawUi.activeTab === "background"
+          ? "background"
+          : rawUi.activeTab === "profile"
+            ? "profile"
+            : "global",
       theme,
-      background
+      background,
+      home
     },
     presets,
     instances: normalized.length ? normalized : base.instances
@@ -451,6 +523,8 @@ function queueSave() {
 function setBodyMode() {
   const isEdit = state.mode === "edit";
   document.body.classList.toggle("mode-edit", isEdit);
+  document.body.classList.toggle("layout-grid", state.ui.home.mode === "grid");
+  document.body.classList.toggle("layout-free", state.ui.home.mode === "free");
 
   const label = elements.modeToggleBtn.querySelector(".btn-label");
   if (label) {
@@ -464,7 +538,8 @@ function setBodyMode() {
 }
 
 function syncSettingsTabButtons() {
-  const active = state.ui.activeTab === "background" ? "background" : "global";
+  const active =
+    state.ui.activeTab === "background" ? "background" : state.ui.activeTab === "profile" ? "profile" : "global";
   if (elements.tabGlobalBtn) {
     const on = active === "global";
     elements.tabGlobalBtn.classList.toggle("active", on);
@@ -474,6 +549,11 @@ function syncSettingsTabButtons() {
     const on = active === "background";
     elements.tabBackgroundBtn.classList.toggle("active", on);
     elements.tabBackgroundBtn.setAttribute("aria-selected", String(on));
+  }
+  if (elements.tabProfileBtn) {
+    const on = active === "profile";
+    elements.tabProfileBtn.classList.toggle("active", on);
+    elements.tabProfileBtn.setAttribute("aria-selected", String(on));
   }
 }
 
@@ -885,7 +965,88 @@ function applyLayout(card, layout) {
   card.style.height = `${Math.max(1, Math.round(layout.h))}px`;
 }
 
+function isGridLayoutMode() {
+  return state?.ui?.home?.mode === "grid";
+}
+
+function captureFreeLayouts() {
+  for (const instance of state.instances) {
+    instance.freeLayout = {
+      x: Number(instance.layout.x) || 0,
+      y: Number(instance.layout.y) || 0,
+      w: Number(instance.layout.w) || 320,
+      h: Number(instance.layout.h) || 220
+    };
+  }
+}
+
+function restoreFreeLayouts() {
+  for (const instance of state.instances) {
+    if (!instance.freeLayout) {
+      continue;
+    }
+    instance.layout = cloneLayout(instance.freeLayout);
+  }
+}
+
+function applyGridLayout({ commitFreeLayout = false, shouldSave = false } = {}) {
+  if (!isGridLayoutMode()) {
+    return;
+  }
+
+  if (commitFreeLayout) {
+    captureFreeLayouts();
+  }
+
+  const items = state.instances.filter((instance) => instance.enabled !== false);
+  if (!items.length) {
+    return;
+  }
+
+  const home = normalizeHomeLayout(state.ui.home);
+  state.ui.home = home;
+
+  const boardW = Math.max(1, Math.floor(elements.board.clientWidth));
+  const boardH = Math.max(1, Math.floor(elements.board.clientHeight));
+  const cols = clamp(Number(home.gridColumns) || 4, 1, 8);
+  const rows = Math.max(clamp(Number(home.gridRows) || 3, 1, 8), Math.ceil(items.length / cols));
+  const marginX = marginPresetToPx(home.marginHorizontal);
+  const marginY = marginPresetToPx(home.marginVertical);
+  const gapX = boardW < 900 ? 8 : 12;
+  const gapY = boardW < 900 ? 8 : 12;
+
+  const availableW = Math.max(1, boardW - marginX * 2 - gapX * (cols - 1));
+  const availableH = Math.max(1, boardH - marginY * 2 - gapY * (rows - 1));
+  const cellW = Math.max(1, Math.floor(availableW / cols));
+  const cellH = Math.max(1, Math.floor(availableH / rows));
+
+  for (let i = 0; i < items.length; i += 1) {
+    const instance = items[i];
+    const row = Math.floor(i / cols);
+    const col = i % cols;
+
+    instance.layout.x = marginX + col * (cellW + gapX);
+    instance.layout.y = marginY + row * (cellH + gapY);
+    instance.layout.w = cellW;
+    instance.layout.h = cellH;
+
+    const rt = runtime.get(instance.id);
+    if (rt?.card) {
+      applyLayout(rt.card, instance.layout);
+    }
+  }
+
+  if (shouldSave) {
+    queueSave();
+  }
+}
+
 function updateBoardBounds() {
+  if (isGridLayoutMode()) {
+    applyGridLayout({ commitFreeLayout: false, shouldSave: false });
+    return;
+  }
+
   const boardW = Math.max(1, Math.floor(elements.board.clientWidth));
   const boardH = Math.max(1, Math.floor(elements.board.clientHeight));
 
@@ -907,6 +1068,11 @@ function updateBoardBounds() {
 
 function autoArrangeWidgets() {
   if (state.mode !== "edit") {
+    return;
+  }
+
+  if (isGridLayoutMode()) {
+    applyGridLayout({ commitFreeLayout: false, shouldSave: true });
     return;
   }
 
@@ -999,6 +1165,32 @@ function patchTheme(patch) {
 
   applyTheme();
   applyBackground();
+  renderSettings();
+  queueSave();
+}
+
+function patchHomeLayout(patch) {
+  const prevMode = state.ui.home.mode;
+  state.ui.home = normalizeHomeLayout({
+    ...state.ui.home,
+    ...patch
+  });
+
+  const nextMode = state.ui.home.mode;
+  if (prevMode !== nextMode) {
+    if (nextMode === "grid") {
+      applyGridLayout({ commitFreeLayout: true, shouldSave: false });
+    } else {
+      restoreFreeLayouts();
+      updateBoardBounds();
+    }
+  } else if (nextMode === "grid") {
+    applyGridLayout({ commitFreeLayout: false, shouldSave: false });
+  } else {
+    updateBoardBounds();
+  }
+
+  setBodyMode();
   renderSettings();
   queueSave();
 }
@@ -1171,6 +1363,9 @@ function createWidgetCard(instance) {
     if (state.mode !== "edit") {
       return;
     }
+    if (isGridLayoutMode()) {
+      return;
+    }
     if (event.button !== 0) {
       return;
     }
@@ -1234,6 +1429,9 @@ function createWidgetCard(instance) {
       if (state.mode !== "edit") {
         return;
       }
+      if (isGridLayoutMode()) {
+        return;
+      }
       if (event.button !== 0) {
         return;
       }
@@ -1293,6 +1491,10 @@ function renderBoard() {
     if (instance.enabled !== false) {
       createWidgetCard(instance);
     }
+  }
+
+  if (isGridLayoutMode()) {
+    applyGridLayout({ commitFreeLayout: false, shouldSave: false });
   }
 
   setSelected(state.selectedWidgetId);
@@ -1390,8 +1592,6 @@ function appendDivider() {
 }
 
 function renderGlobalSettings() {
-  elements.settingsContent.append(createSectionChip("Global Theme"));
-
   const themeFields = [
     { key: "primary", label: "Primary", type: "color" },
     { key: "accent", label: "Accent", type: "color" },
@@ -1415,10 +1615,60 @@ function renderGlobalSettings() {
     row.append(input);
     elements.settingsContent.append(row);
   }
-
   appendDivider();
-  elements.settingsContent.append(createSectionChip("Presets"));
 
+  const home = state.ui.home;
+  const homeFields = [
+    {
+      key: "mode",
+      label: "Home layout mode",
+      type: "select",
+      options: [
+        { value: "grid", label: "Grid" },
+        { value: "free", label: "Free mode" }
+      ]
+    },
+    { key: "gridColumns", label: "Grid columns (N)", type: "number", min: 1, max: 8, step: 1 },
+    { key: "gridRows", label: "Grid rows (M)", type: "number", min: 1, max: 8, step: 1 },
+    {
+      key: "marginHorizontal",
+      label: "Horizontal margin",
+      type: "select",
+      options: [
+        { value: "wide", label: "Wide" },
+        { value: "medium", label: "Medium" },
+        { value: "narrow", label: "Narrow" },
+        { value: "none", label: "None" }
+      ]
+    },
+    {
+      key: "marginVertical",
+      label: "Vertical margin",
+      type: "select",
+      options: [
+        { value: "wide", label: "Wide" },
+        { value: "medium", label: "Medium" },
+        { value: "narrow", label: "Narrow" },
+        { value: "none", label: "None" }
+      ]
+    }
+  ];
+
+  for (const schema of homeFields) {
+    if (home.mode === "free" && (schema.key === "gridColumns" || schema.key === "gridRows")) {
+      continue;
+    }
+    const row = createFormRow(schema.label);
+    const input = createInputBySchema(schema, home[schema.key]);
+    input.addEventListener(settingsEventName(schema), () => {
+      patchHomeLayout({ [schema.key]: readFieldValue(input, schema) });
+    });
+    row.append(input);
+    elements.settingsContent.append(row);
+  }
+}
+
+function renderProfileSettings() {
   const presetNameRow = createFormRow("Preset name");
   const presetNameInput = document.createElement("input");
   presetNameInput.type = "text";
@@ -1504,80 +1754,83 @@ function renderGlobalSettings() {
 }
 
 function renderBackgroundSettings() {
-  elements.settingsContent.append(createSectionChip("Background"));
+  const modeSchema = {
+    key: "mode",
+    label: "Mode",
+    type: "select",
+    options: [
+      { value: "gradient", label: "Gradient" },
+      { value: "solid", label: "Solid color" },
+      { value: "wallpaper", label: "Wallpaper rotation" },
+      { value: "video", label: "Loop video" }
+    ]
+  };
+  const bg = state.ui.background;
+  const bgFields = [modeSchema];
 
-  const bgFields = [
-    {
-      key: "mode",
-      label: "Mode",
-      type: "select",
-      options: [
-        { value: "gradient", label: "Gradient" },
-        { value: "solid", label: "Solid color" },
-        { value: "wallpaper", label: "Wallpaper rotation" },
-        { value: "video", label: "Loop video" }
-      ]
-    },
-    { key: "solidColor", label: "Solid color", type: "color" },
-    {
-      key: "wallpaperProvider",
-      label: "Wallpaper source",
-      type: "select",
-      options: [
-        { value: "picsum", label: "Picsum" },
-        { value: "unsplash", label: "Unsplash Source" },
-        { value: "wallhaven", label: "Wallhaven" },
-        { value: "reddit", label: "Reddit" }
-      ]
-    },
-    { key: "wallpaperTheme", label: "Wallpaper theme", type: "text", placeholder: "nature, city, sea" },
-    {
-      key: "wallhavenPurity",
-      label: "Wallhaven purity (SFW=100)",
-      type: "text",
-      placeholder: "100"
-    },
-    {
-      key: "wallhavenCategories",
-      label: "Wallhaven categories",
-      type: "text",
-      placeholder: "111"
-    },
-    {
-      key: "wallhavenApiKey",
-      label: "Wallhaven API key",
-      type: "password",
-      placeholder: "optional"
-    },
-    {
-      key: "redditSubreddit",
-      label: "Reddit subreddit",
-      type: "text",
-      placeholder: "EarthPorn"
-    },
-    {
-      key: "redditTime",
-      label: "Reddit time range",
-      type: "select",
-      options: [
-        { value: "hour", label: "hour" },
-        { value: "day", label: "day" },
-        { value: "week", label: "week" },
-        { value: "month", label: "month" },
-        { value: "year", label: "year" },
-        { value: "all", label: "all" }
-      ]
-    },
-    { key: "rotateMinutes", label: "Rotate every (minutes)", type: "number", min: 1, max: 240, step: 1 },
-    {
+  if (bg.mode === "solid") {
+    bgFields.push({ key: "solidColor", label: "Solid color", type: "color" });
+  }
+
+  if (bg.mode === "wallpaper") {
+    bgFields.push(
+      {
+        key: "wallpaperProvider",
+        label: "Wallpaper source",
+        type: "select",
+        options: [
+          { value: "picsum", label: "Picsum" },
+          { value: "unsplash", label: "Unsplash Source" },
+          { value: "wallhaven", label: "Wallhaven" },
+          { value: "reddit", label: "Reddit" }
+        ]
+      },
+      { key: "wallpaperTheme", label: "Wallpaper theme", type: "text", placeholder: "nature, city, sea" }
+    );
+
+    if (bg.wallpaperProvider === "wallhaven") {
+      bgFields.push(
+        { key: "wallhavenPurity", label: "Wallhaven purity (SFW=100)", type: "text", placeholder: "100" },
+        { key: "wallhavenCategories", label: "Wallhaven categories", type: "text", placeholder: "111" },
+        { key: "wallhavenApiKey", label: "Wallhaven API key", type: "password", placeholder: "optional" }
+      );
+    }
+
+    if (bg.wallpaperProvider === "reddit") {
+      bgFields.push(
+        { key: "redditSubreddit", label: "Reddit subreddit", type: "text", placeholder: "EarthPorn" },
+        {
+          key: "redditTime",
+          label: "Reddit time range",
+          type: "select",
+          options: [
+            { value: "hour", label: "hour" },
+            { value: "day", label: "day" },
+            { value: "week", label: "week" },
+            { value: "month", label: "month" },
+            { value: "year", label: "year" },
+            { value: "all", label: "all" }
+          ]
+        }
+      );
+    }
+
+    bgFields.push(
+      { key: "rotateMinutes", label: "Rotate every (minutes)", type: "number", min: 1, max: 240, step: 1 },
+      { key: "blurAmount", label: "Background blur", type: "number", min: 0, max: 28, step: 1 }
+    );
+  }
+
+  if (bg.mode === "video") {
+    bgFields.push({
       key: "videoUrl",
       label: "Video URL (mp4/webm)",
       type: "text",
       placeholder: "https://.../loop.mp4"
-    },
-    { key: "blurAmount", label: "Background blur", type: "number", min: 0, max: 28, step: 1 },
-    { key: "overlayOpacity", label: "Overlay opacity", type: "number", min: 0, max: 0.85, step: 0.05 }
-  ];
+    });
+  }
+
+  bgFields.push({ key: "overlayOpacity", label: "Overlay opacity", type: "number", min: 0, max: 0.85, step: 0.05 });
 
   for (const schema of bgFields) {
     const row = createFormRow(schema.label);
@@ -1635,10 +1888,14 @@ function getWidgetModalFields(def) {
         { value: "bottom", label: "Bottom" }
       ]
     },
-    { key: "x", label: "X", type: "number", group: "layout" },
-    { key: "y", label: "Y", type: "number", group: "layout" },
-    { key: "w", label: "Width", type: "number", group: "layout" },
-    { key: "h", label: "Height", type: "number", group: "layout" }
+    ...(isGridLayoutMode()
+      ? []
+      : [
+          { key: "x", label: "X", type: "number", group: "layout" },
+          { key: "y", label: "Y", type: "number", group: "layout" },
+          { key: "w", label: "Width", type: "number", group: "layout" },
+          { key: "h", label: "Height", type: "number", group: "layout" }
+        ])
   ];
 
   return [...baseFields, ...(def.settingsSchema || [])];
@@ -1810,6 +2067,11 @@ function renderSettings() {
     return;
   }
 
+  if (state.ui.activeTab === "profile") {
+    renderProfileSettings();
+    return;
+  }
+
   renderGlobalSettings();
 }
 
@@ -1839,11 +2101,19 @@ function addWidget(type) {
 
   state.nextId += 1;
   zCounter = instance.zIndex;
-  instance.layout.x += (state.instances.length % 6) * 24;
-  instance.layout.y += (state.instances.length % 4) * 24;
+
+  if (!isGridLayoutMode()) {
+    instance.layout.x += (state.instances.length % 6) * 24;
+    instance.layout.y += (state.instances.length % 4) * 24;
+  }
 
   state.instances.push(instance);
   createWidgetCard(instance);
+
+  if (isGridLayoutMode()) {
+    applyGridLayout({ commitFreeLayout: false, shouldSave: false });
+  }
+
   setSelected(instance.id);
   updateBoardBounds();
   queueSave();
@@ -1883,6 +2153,12 @@ function wireEvents() {
 
   elements.tabBackgroundBtn?.addEventListener("click", () => {
     state.ui.activeTab = "background";
+    renderSettings();
+    queueSave();
+  });
+
+  elements.tabProfileBtn?.addEventListener("click", () => {
+    state.ui.activeTab = "profile";
     renderSettings();
     queueSave();
   });
