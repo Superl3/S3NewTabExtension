@@ -71,6 +71,7 @@ let wallpaperCounter = 0;
 let lastDragEndAt = 0;
 let blurComputeToken = 0;
 let wallpaperSourceSignature = "";
+let zCounter = 1;
 
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
@@ -165,6 +166,7 @@ function defaultInstances() {
         id: `${type}-${idx + 1}`,
         type,
         title: def.title,
+        zIndex: idx + 1,
         viewMode: "window",
         surfaceMode: "normal",
         transparency: 0.94,
@@ -207,6 +209,7 @@ function createStateSnapshot() {
     },
     instances: state.instances.map((instance) => ({
       ...structuredClone(instance),
+      zIndex: Math.max(1, Number(instance.zIndex) || 1),
       surfaceMode: normalizeSurfaceMode(instance.surfaceMode, "normal"),
       contentAlignY: normalizeAlign(instance.contentAlignY, "top"),
       transparency: normalizeTransparency(instance.transparency, 0.94)
@@ -349,6 +352,7 @@ function hydrate(raw) {
       id: item.id || `${item.type}-${idSuffix()}`,
       type: item.type,
       title: item.title || def.title,
+      zIndex: Math.max(1, Number(item.zIndex) || normalized.length + 1),
       viewMode: item.viewMode === "headless" ? "headless" : "window",
       surfaceMode: normalizeSurfaceMode(item.surfaceMode, "normal"),
       transparency: normalizeTransparency(item.transparency, 0.94),
@@ -512,6 +516,37 @@ function applyCardVisual(card, instance) {
   card.dataset.contentAlignY = align;
   const justify = align === "center" ? "center" : align === "bottom" ? "flex-end" : "flex-start";
   card.style.setProperty("--widget-content-justify", justify);
+}
+
+function applyCardStack(card, instance) {
+  card.style.zIndex = String(Math.max(1, Number(instance.zIndex) || 1));
+}
+
+function syncZCounterFromState() {
+  zCounter = state.instances.reduce((max, instance) => {
+    return Math.max(max, Math.max(1, Number(instance.zIndex) || 1));
+  }, 1);
+}
+
+function bringWidgetToFront(instanceId) {
+  const instance = instanceById(instanceId);
+  if (!instance) {
+    return;
+  }
+
+  const current = Math.max(1, Number(instance.zIndex) || 1);
+  if (current >= zCounter) {
+    zCounter = current;
+    return;
+  }
+
+  instance.zIndex = zCounter + 1;
+  zCounter = instance.zIndex;
+
+  const rt = runtime.get(instanceId);
+  if (rt?.card) {
+    applyCardStack(rt.card, instance);
+  }
 }
 
 function applyTheme() {
@@ -944,6 +979,9 @@ function instanceById(instanceId) {
 }
 
 function setSelected(instanceId) {
+  if (instanceId) {
+    bringWidgetToFront(instanceId);
+  }
   state.selectedWidgetId = instanceId || "";
   for (const [id, rt] of runtime.entries()) {
     rt.card.classList.toggle("selected", id === state.selectedWidgetId);
@@ -1093,6 +1131,7 @@ function createWidgetCard(instance) {
 
   applyLayout(card, instance.layout);
   applyCardVisual(card, instance);
+  applyCardStack(card, instance);
 
   const controller = def.create({
     container: contentSlot || body,
@@ -1248,6 +1287,7 @@ function renderBoard() {
   }
   runtime.clear();
   elements.board.replaceChildren();
+  syncZCounterFromState();
 
   for (const instance of state.instances) {
     if (instance.enabled !== false) {
@@ -1787,6 +1827,7 @@ function addWidget(type) {
     id: `${type}-${state.nextId}`,
     type,
     title: def.title,
+    zIndex: zCounter + 1,
     viewMode: "window",
     surfaceMode: "normal",
     transparency: 0.94,
@@ -1797,6 +1838,7 @@ function addWidget(type) {
   };
 
   state.nextId += 1;
+  zCounter = instance.zIndex;
   instance.layout.x += (state.instances.length % 6) * 24;
   instance.layout.y += (state.instances.length % 4) * 24;
 
