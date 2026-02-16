@@ -27,6 +27,7 @@ const FONT_OPTIONS = [
 ];
 
 const elements = {
+  appRoot: document.getElementById("app"),
   board: document.getElementById("board"),
   modeToggleBtn: document.getElementById("modeToggleBtn"),
   addWidgetBtn: document.getElementById("addWidgetBtn"),
@@ -39,6 +40,7 @@ const elements = {
   template: document.getElementById("widgetTemplate"),
   bgLayer: document.getElementById("bgLayer"),
   bgImage: document.getElementById("bgImage"),
+  bgBlurImage: document.getElementById("bgBlurImage"),
   bgVideo: document.getElementById("bgVideo"),
   bgOverlay: document.getElementById("bgOverlay"),
   widgetModalOverlay: document.getElementById("widgetModalOverlay"),
@@ -54,13 +56,21 @@ const runtime = new Map();
 const modalState = {
   open: false,
   widgetId: "",
-  draft: null
+  draft: null,
+  dismissPointerId: null,
+  dismissStartX: 0,
+  dismissStartY: 0,
+  dismissMoved: false,
+  dismissStartedOnOverlay: false
 };
 
 let state = null;
 let saveTimer = null;
 let wallpaperTimer = null;
 let wallpaperCounter = 0;
+let lastDragEndAt = 0;
+let blurComputeToken = 0;
+let wallpaperSourceSignature = "";
 
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
@@ -106,6 +116,7 @@ function defaultBackground() {
     redditTime: "week",
     rotateMinutes: 15,
     videoUrl: "",
+    blurAmount: 0,
     overlayOpacity: 0.24
   };
 }
@@ -116,6 +127,32 @@ function defaultUi() {
     theme: defaultTheme(),
     background: defaultBackground()
   };
+}
+
+function defaultPresets() {
+  return [];
+}
+
+function normalizeTransparency(value, fallback = 0.94) {
+  const num = Number(value);
+  if (!Number.isFinite(num)) {
+    return clamp(fallback, 0, 1);
+  }
+  return clamp(num, 0, 1);
+}
+
+function normalizeAlign(value, fallback = "top") {
+  if (value === "top" || value === "center" || value === "bottom") {
+    return value;
+  }
+  return fallback;
+}
+
+function normalizeSurfaceMode(value, fallback = "normal") {
+  if (value === "normal" || value === "transparent") {
+    return value;
+  }
+  return fallback;
 }
 
 function defaultInstances() {
@@ -129,7 +166,9 @@ function defaultInstances() {
         type,
         title: def.title,
         viewMode: "window",
+        surfaceMode: "normal",
         transparency: 0.94,
+        contentAlignY: "top",
         config: structuredClone(def.defaultConfig || {}),
         layout: cloneLayout(def.defaultLayout),
         enabled: true
@@ -143,8 +182,141 @@ function defaultState() {
     selectedWidgetId: "",
     nextId: 100,
     ui: defaultUi(),
+    presets: defaultPresets(),
     instances: defaultInstances()
   };
+}
+
+function clonePresetSnapshot(snapshot) {
+  return {
+    ui: {
+      theme: { ...(snapshot?.ui?.theme || {}) },
+      background: { ...(snapshot?.ui?.background || {}) }
+    },
+    instances: Array.isArray(snapshot?.instances)
+      ? snapshot.instances.map((instance) => ({ ...instance, config: { ...(instance.config || {}) } }))
+      : []
+  };
+}
+
+function createStateSnapshot() {
+  return {
+    ui: {
+      theme: structuredClone(state.ui.theme),
+      background: structuredClone(state.ui.background)
+    },
+    instances: state.instances.map((instance) => ({
+      ...structuredClone(instance),
+      surfaceMode: normalizeSurfaceMode(instance.surfaceMode, "normal"),
+      contentAlignY: normalizeAlign(instance.contentAlignY, "top"),
+      transparency: normalizeTransparency(instance.transparency, 0.94)
+    }))
+  };
+}
+
+function inferNextId(instances, fallback) {
+  let maxId = Number(fallback) || 100;
+  for (const instance of instances || []) {
+    const id = String(instance?.id || "");
+    const match = id.match(/-(\d+)$/);
+    if (!match) {
+      continue;
+    }
+    const num = Number(match[1]);
+    if (Number.isFinite(num)) {
+      maxId = Math.max(maxId, num + 1);
+    }
+  }
+  return maxId;
+}
+
+function savePreset(nameInput) {
+  const name = normalizeText(nameInput, "Preset");
+  const now = Date.now();
+  const snapshot = createStateSnapshot();
+  const byName = state.presets.find((preset) => preset.name.toLowerCase() === name.toLowerCase());
+
+  if (byName) {
+    byName.snapshot = clonePresetSnapshot(snapshot);
+    byName.updatedAt = now;
+  } else {
+    state.presets.push({
+      id: `${now}-${Math.random().toString(16).slice(2, 8)}`,
+      name,
+      createdAt: now,
+      updatedAt: now,
+      snapshot: clonePresetSnapshot(snapshot)
+    });
+  }
+
+  state.presets.sort((a, b) => b.updatedAt - a.updatedAt);
+  renderSettings();
+  queueSave();
+}
+
+function loadPresetById(presetId, scope = "all") {
+  const preset = state.presets.find((entry) => entry.id === presetId);
+  if (!preset) {
+    return;
+  }
+
+  const applyGlobal = scope === "all" || scope === "global";
+  const applyBackgroundOnly = scope === "all" || scope === "background";
+  const applyWidgets = scope === "all" || scope === "widgets";
+
+  const snapshot = clonePresetSnapshot(preset.snapshot);
+  const hydrated = hydrate({
+    ...state,
+    ui: {
+      activeTab: state.ui.activeTab,
+      theme: {
+        ...state.ui.theme,
+        ...(applyGlobal ? snapshot.ui?.theme || {} : {})
+      },
+      background: {
+        ...state.ui.background,
+        ...(applyBackgroundOnly ? snapshot.ui?.background || {} : {})
+      }
+    },
+    instances:
+      applyWidgets && Array.isArray(snapshot.instances) && snapshot.instances.length
+        ? snapshot.instances
+        : state.instances,
+    presets: state.presets
+  });
+
+  state.ui.theme = hydrated.ui.theme;
+  state.ui.background = hydrated.ui.background;
+
+  if (applyWidgets) {
+    state.instances = hydrated.instances;
+    state.selectedWidgetId = "";
+    state.nextId = inferNextId(state.instances, hydrated.nextId);
+  }
+
+  closeWidgetModal(false);
+
+  applyTheme();
+  applyBackground();
+
+  if (applyWidgets) {
+    renderBoard();
+  } else {
+    refreshAllWidgets();
+  }
+
+  renderSettings();
+  queueSave();
+}
+
+function deletePresetById(presetId) {
+  const index = state.presets.findIndex((entry) => entry.id === presetId);
+  if (index < 0) {
+    return;
+  }
+  state.presets.splice(index, 1);
+  renderSettings();
+  queueSave();
 }
 
 function normalizeHexColor(value, fallback) {
@@ -178,7 +350,9 @@ function hydrate(raw) {
       type: item.type,
       title: item.title || def.title,
       viewMode: item.viewMode === "headless" ? "headless" : "window",
-      transparency: clamp(Number(item.transparency) || 0.94, 0.15, 1),
+      surfaceMode: normalizeSurfaceMode(item.surfaceMode, "normal"),
+      transparency: normalizeTransparency(item.transparency, 0.94),
+      contentAlignY: normalizeAlign(item.contentAlignY, "top"),
       enabled: item.enabled !== false,
       layout: cloneLayout(item.layout || def.defaultLayout),
       config: {
@@ -197,6 +371,33 @@ function hydrate(raw) {
     ...defaultBackground(),
     ...(rawUi.background || {})
   };
+  const rawPresets = Array.isArray(raw?.presets) ? raw.presets : [];
+  const presets = rawPresets
+    .map((preset) => {
+      if (!preset || typeof preset !== "object") {
+        return null;
+      }
+      const snapshot = preset.snapshot;
+      if (!snapshot || typeof snapshot !== "object") {
+        return null;
+      }
+      return {
+        id: normalizeText(preset.id, `${Date.now()}-${Math.random().toString(16).slice(2, 8)}`),
+        name: normalizeText(preset.name, "Preset"),
+        createdAt: Number(preset.createdAt) || Date.now(),
+        updatedAt: Number(preset.updatedAt) || Date.now(),
+        snapshot: {
+          ui: {
+            theme: { ...(snapshot.ui?.theme || {}) },
+            background: { ...(snapshot.ui?.background || {}) }
+          },
+          instances: Array.isArray(snapshot.instances)
+            ? snapshot.instances.map((instance) => ({ ...instance }))
+            : []
+        }
+      };
+    })
+    .filter(Boolean);
 
   theme.primary = normalizeHexColor(theme.primary, defaultTheme().primary);
   theme.accent = normalizeHexColor(theme.accent, defaultTheme().accent);
@@ -216,6 +417,7 @@ function hydrate(raw) {
   background.redditSubreddit = normalizeText(background.redditSubreddit, "EarthPorn");
   background.redditTime = normalizeText(background.redditTime, "week");
   background.rotateMinutes = clamp(Number(background.rotateMinutes) || 15, 1, 240);
+  background.blurAmount = clamp(Number(background.blurAmount) || 0, 0, 28);
   background.overlayOpacity = clamp(Number(background.overlayOpacity) || 0.24, 0, 0.85);
 
   return {
@@ -227,6 +429,7 @@ function hydrate(raw) {
       theme,
       background
     },
+    presets,
     instances: normalized.length ? normalized : base.instances
   };
 }
@@ -270,9 +473,45 @@ function syncSettingsTabButtons() {
   }
 }
 
+function setModalInteractionLock(locked) {
+  document.body.classList.toggle("modal-open", locked);
+
+  if (!elements.appRoot) {
+    return;
+  }
+
+  if (locked) {
+    elements.appRoot.setAttribute("inert", "");
+  } else {
+    elements.appRoot.removeAttribute("inert");
+  }
+}
+
+function isInsideModalOverlay(target) {
+  return target instanceof Element && Boolean(target.closest("#widgetModalOverlay"));
+}
+
+function blockOutsideModalEvent(event) {
+  if (!modalState.open) {
+    return;
+  }
+  if (isInsideModalOverlay(event.target)) {
+    return;
+  }
+  event.preventDefault();
+  event.stopPropagation();
+}
+
 function applyCardVisual(card, instance) {
   card.classList.toggle("headless", instance.viewMode === "headless");
-  card.style.setProperty("--widget-opacity", String(clamp(Number(instance.transparency) || 0.94, 0.15, 1)));
+  const surfaceMode = normalizeSurfaceMode(instance.surfaceMode, "normal");
+  const opacity = surfaceMode === "transparent" ? 0 : normalizeTransparency(instance.transparency, 0.94);
+  card.classList.toggle("surface-transparent", surfaceMode === "transparent");
+  card.style.setProperty("--widget-opacity", String(opacity));
+  const align = normalizeAlign(instance.contentAlignY, "top");
+  card.dataset.contentAlignY = align;
+  const justify = align === "center" ? "center" : align === "bottom" ? "flex-end" : "flex-start";
+  card.style.setProperty("--widget-content-justify", justify);
 }
 
 function applyTheme() {
@@ -303,6 +542,78 @@ function hideVideo() {
   if (elements.bgVideo.getAttribute("src")) {
     elements.bgVideo.removeAttribute("src");
     elements.bgVideo.load();
+  }
+}
+
+function clearBlurLayer() {
+  blurComputeToken += 1;
+  elements.bgBlurImage.classList.remove("visible");
+  elements.bgBlurImage.style.filter = "none";
+  if (elements.bgBlurImage.getAttribute("src")) {
+    elements.bgBlurImage.removeAttribute("src");
+  }
+  document.documentElement.style.setProperty("--bg-sharp-opacity", "1");
+  document.documentElement.style.setProperty("--bg-blur-opacity", "0");
+}
+
+function loadImageForBlur(url) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.referrerPolicy = "no-referrer";
+    img.onload = () => resolve(img);
+    img.onerror = reject;
+    img.src = url;
+  });
+}
+
+async function buildPrecomputedBlurData(url, amount) {
+  const source = await loadImageForBlur(url);
+  const targetMax = 820;
+  const scale = Math.min(1, targetMax / Math.max(source.width, source.height));
+  const width = Math.max(24, Math.round(source.width * scale));
+  const height = Math.max(24, Math.round(source.height * scale));
+
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) {
+    throw new Error("canvas-context");
+  }
+
+  ctx.filter = `blur(${Math.max(1, Math.round(amount))}px)`;
+  ctx.drawImage(source, 0, 0, width, height);
+
+  return canvas.toDataURL("image/jpeg", 0.82);
+}
+
+async function updateBlurFromImage(url) {
+  const blur = clamp(Number(state.ui.background.blurAmount) || 0, 0, 28);
+  if (blur <= 0 || !url) {
+    clearBlurLayer();
+    return;
+  }
+
+  const token = ++blurComputeToken;
+  document.documentElement.style.setProperty("--bg-sharp-opacity", "0.38");
+  document.documentElement.style.setProperty("--bg-blur-opacity", "0.95");
+
+  try {
+    const dataUrl = await buildPrecomputedBlurData(url, blur);
+    if (token !== blurComputeToken) {
+      return;
+    }
+    elements.bgBlurImage.src = dataUrl;
+    elements.bgBlurImage.style.filter = "none";
+    elements.bgBlurImage.classList.add("visible");
+  } catch {
+    if (token !== blurComputeToken) {
+      return;
+    }
+    elements.bgBlurImage.src = url;
+    elements.bgBlurImage.style.filter = `blur(${Math.max(1, blur)}px)`;
+    elements.bgBlurImage.classList.add("visible");
   }
 }
 
@@ -434,6 +745,7 @@ async function refreshWallpaper() {
     await preloadImage(url);
     elements.bgImage.src = url;
     elements.bgImage.classList.add("visible");
+    void updateBlurFromImage(url);
     return;
   } catch {
     const fallback = buildSimpleWallpaperUrl("picsum", cfg.wallpaperTheme);
@@ -441,8 +753,10 @@ async function refreshWallpaper() {
       await preloadImage(fallback);
       elements.bgImage.src = fallback;
       elements.bgImage.classList.add("visible");
+      void updateBlurFromImage(fallback);
     } catch {
       elements.bgImage.classList.remove("visible");
+      clearBlurLayer();
     }
   }
 }
@@ -457,6 +771,7 @@ function applyBackground() {
   elements.bgOverlay.style.background = `rgba(8, 11, 16, ${overlay})`;
   elements.bgLayer.style.background = theme.background;
   elements.bgImage.classList.remove("visible");
+  clearBlurLayer();
   hideVideo();
 
   if (cfg.mode === "solid") {
@@ -465,6 +780,7 @@ function applyBackground() {
   }
 
   if (cfg.mode === "video") {
+    wallpaperSourceSignature = "";
     elements.bgLayer.style.background = theme.background;
     const src = (cfg.videoUrl || "").trim();
     if (!src) {
@@ -473,17 +789,37 @@ function applyBackground() {
     elements.bgVideo.src = src;
     elements.bgVideo.play().catch(() => {});
     elements.bgVideo.classList.add("visible");
+    elements.bgVideo.style.filter = "none";
     return;
   }
 
   if (cfg.mode === "wallpaper") {
     elements.bgLayer.style.background = theme.background;
-    void refreshWallpaper();
+    const signature = [
+      cfg.wallpaperProvider,
+      cfg.wallpaperTheme,
+      cfg.wallhavenPurity,
+      cfg.wallhavenCategories,
+      cfg.redditSubreddit,
+      cfg.redditTime
+    ].join("|");
+    const hasCurrent = Boolean(elements.bgImage.getAttribute("src"));
+
+    if (!hasCurrent || signature !== wallpaperSourceSignature) {
+      wallpaperSourceSignature = signature;
+      void refreshWallpaper();
+    } else {
+      elements.bgImage.classList.add("visible");
+      void updateBlurFromImage(elements.bgImage.src);
+    }
+
     wallpaperTimer = setInterval(() => {
       void refreshWallpaper();
     }, clamp(Number(cfg.rotateMinutes) || 15, 1, 240) * 60000);
     return;
   }
+
+  wallpaperSourceSignature = "";
 
   elements.bgLayer.style.background =
     `radial-gradient(circle at 20% 20%, ${theme.surface} 0 20%, transparent 48%), ` +
@@ -652,6 +988,7 @@ function patchBackground(patch) {
   state.ui.background.redditSubreddit = normalizeText(state.ui.background.redditSubreddit, "EarthPorn");
   state.ui.background.redditTime = normalizeText(state.ui.background.redditTime, "week");
   state.ui.background.rotateMinutes = clamp(Number(state.ui.background.rotateMinutes) || 15, 1, 240);
+  state.ui.background.blurAmount = clamp(Number(state.ui.background.blurAmount) || 0, 0, 28);
   state.ui.background.overlayOpacity = clamp(
     Number(state.ui.background.overlayOpacity) || 0.24,
     0,
@@ -719,9 +1056,12 @@ function createWidgetCard(instance) {
   const def = widgetRegistry[instance.type];
   const fragment = elements.template.content.cloneNode(true);
   const card = fragment.querySelector(".widget-card");
+  const shell = fragment.querySelector(".widget-shell");
   const head = fragment.querySelector(".widget-head");
   const title = fragment.querySelector(".widget-title");
   const body = fragment.querySelector(".widget-body");
+  const contentHost = fragment.querySelector(".widget-content-host");
+  const contentSlot = fragment.querySelector(".widget-content-slot");
   const selectBtn = fragment.querySelector(".widget-select-btn");
   const removeBtn = fragment.querySelector(".widget-remove-btn");
   const floatSelectBtn = fragment.querySelector(".widget-float-select");
@@ -730,11 +1070,32 @@ function createWidgetCard(instance) {
   const resizeHandle = fragment.querySelector(".widget-resize-handle");
 
   title.textContent = instance.title || def.title;
+  card.dataset.widgetId = instance.id;
+  card.dataset.treeId = instance.id;
+  if (shell) {
+    shell.dataset.treeId = `${instance.id}-1`;
+  }
+  if (head) {
+    head.dataset.treeId = `${instance.id}-1-1`;
+  }
+  if (body) {
+    body.dataset.treeId = `${instance.id}-1-2`;
+  }
+  if (contentHost) {
+    contentHost.dataset.treeId = `${instance.id}-1-2-1`;
+  }
+  if (contentSlot) {
+    contentSlot.dataset.treeId = `${instance.id}-1-2-2`;
+  }
+  if (resizeHandle) {
+    resizeHandle.dataset.treeId = `${instance.id}-1-3`;
+  }
+
   applyLayout(card, instance.layout);
   applyCardVisual(card, instance);
 
   const controller = def.create({
-    container: body,
+    container: contentSlot || body,
     getConfig: () => instance.config,
     patchConfig: (patch) => patchWidgetConfig(instance.id, patch),
     isEditMode: () => state.mode === "edit"
@@ -807,6 +1168,7 @@ function createWidgetCard(instance) {
     const up = () => {
       window.removeEventListener("pointermove", move);
       window.removeEventListener("pointerup", up);
+      lastDragEndAt = Date.now();
       patchWidgetLayout(instance.id, {
         x: Math.round(instance.layout.x / SNAP) * SNAP,
         y: Math.round(instance.layout.y / SNAP) * SNAP
@@ -864,6 +1226,7 @@ function createWidgetCard(instance) {
       const up = () => {
         window.removeEventListener("pointermove", move);
         window.removeEventListener("pointerup", up);
+        lastDragEndAt = Date.now();
         patchWidgetLayout(instance.id, {
           w: Math.round(instance.layout.w / SNAP) * SNAP,
           h: Math.round(instance.layout.h / SNAP) * SNAP
@@ -1012,6 +1375,92 @@ function renderGlobalSettings() {
     row.append(input);
     elements.settingsContent.append(row);
   }
+
+  appendDivider();
+  elements.settingsContent.append(createSectionChip("Presets"));
+
+  const presetNameRow = createFormRow("Preset name");
+  const presetNameInput = document.createElement("input");
+  presetNameInput.type = "text";
+  presetNameInput.placeholder = "My preset";
+  presetNameRow.append(presetNameInput);
+  elements.settingsContent.append(presetNameRow);
+
+  const actionRow = document.createElement("div");
+  actionRow.className = "preset-actions";
+  const saveBtn = document.createElement("button");
+  saveBtn.type = "button";
+  saveBtn.className = "btn btn-primary";
+  saveBtn.textContent = "Save current";
+  saveBtn.addEventListener("click", () => {
+    savePreset(presetNameInput.value);
+  });
+
+  actionRow.append(saveBtn);
+  elements.settingsContent.append(actionRow);
+
+  const presets = Array.isArray(state.presets) ? state.presets : [];
+  if (!presets.length) {
+    const hint = document.createElement("p");
+    hint.className = "muted";
+    hint.textContent = "No saved presets yet.";
+    elements.settingsContent.append(hint);
+    return;
+  }
+
+  const presetSelectRow = createFormRow("Saved presets");
+  const presetSelect = document.createElement("select");
+  for (const preset of presets) {
+    const option = document.createElement("option");
+    option.value = preset.id;
+    option.textContent = `${preset.name} (${new Date(preset.updatedAt).toLocaleString()})`;
+    presetSelect.append(option);
+  }
+  presetSelectRow.append(presetSelect);
+  elements.settingsContent.append(presetSelectRow);
+
+  const loadScopeRow = createFormRow("Load scope");
+  const loadScopeSelect = document.createElement("select");
+  const scopeOptions = [
+    { value: "all", label: "Global + Background + Widgets" },
+    { value: "global", label: "Global only" },
+    { value: "background", label: "Background only" },
+    { value: "widgets", label: "Widgets (includes layout)" }
+  ];
+  for (const opt of scopeOptions) {
+    const option = document.createElement("option");
+    option.value = opt.value;
+    option.textContent = opt.label;
+    loadScopeSelect.append(option);
+  }
+  loadScopeRow.append(loadScopeSelect);
+  elements.settingsContent.append(loadScopeRow);
+
+  const manageRow = document.createElement("div");
+  manageRow.className = "preset-actions";
+
+  const loadBtn = document.createElement("button");
+  loadBtn.type = "button";
+  loadBtn.className = "btn";
+  loadBtn.textContent = "Load";
+  loadBtn.addEventListener("click", () => {
+    loadPresetById(presetSelect.value, loadScopeSelect.value);
+  });
+
+  const deleteBtn = document.createElement("button");
+  deleteBtn.type = "button";
+  deleteBtn.className = "btn btn-danger";
+  deleteBtn.textContent = "Delete";
+  deleteBtn.addEventListener("click", () => {
+    const ok = window.confirm("Delete selected preset?");
+    if (!ok) {
+      return;
+    }
+    deletePresetById(presetSelect.value);
+  });
+
+  manageRow.append(loadBtn, deleteBtn);
+  elements.settingsContent.append(manageRow);
 }
 
 function renderBackgroundSettings() {
@@ -1086,6 +1535,7 @@ function renderBackgroundSettings() {
       type: "text",
       placeholder: "https://.../loop.mp4"
     },
+    { key: "blurAmount", label: "Background blur", type: "number", min: 0, max: 28, step: 1 },
     { key: "overlayOpacity", label: "Overlay opacity", type: "number", min: 0, max: 0.85, step: 0.05 }
   ];
 
@@ -1116,13 +1566,34 @@ function getWidgetModalFields(def) {
       ]
     },
     {
+      key: "surfaceMode",
+      label: "Surface mode",
+      type: "select",
+      group: "base",
+      options: [
+        { value: "normal", label: "Normal" },
+        { value: "transparent", label: "Transparent" }
+      ]
+    },
+    {
       key: "transparency",
       label: "Transparency",
       type: "number",
       group: "base",
-      min: 0.15,
+      min: 0,
       max: 1,
       step: 0.05
+    },
+    {
+      key: "contentAlignY",
+      label: "Content vertical align",
+      type: "select",
+      group: "base",
+      options: [
+        { value: "top", label: "Top" },
+        { value: "center", label: "Center" },
+        { value: "bottom", label: "Bottom" }
+      ]
     },
     { key: "x", label: "X", type: "number", group: "layout" },
     { key: "y", label: "Y", type: "number", group: "layout" },
@@ -1167,6 +1638,11 @@ function closeWidgetModal(rerender = true) {
   modalState.open = false;
   modalState.widgetId = "";
   modalState.draft = null;
+  modalState.dismissPointerId = null;
+  modalState.dismissMoved = false;
+  modalState.dismissStartedOnOverlay = false;
+
+  setModalInteractionLock(false);
   elements.widgetModalOverlay?.classList.remove("open");
   elements.widgetModalOverlay?.setAttribute("aria-hidden", "true");
   elements.widgetModalBody?.replaceChildren();
@@ -1203,6 +1679,12 @@ function renderWidgetModal() {
 
   elements.widgetModalOverlay.classList.add("open");
   elements.widgetModalOverlay.setAttribute("aria-hidden", "false");
+  setModalInteractionLock(true);
+
+  const firstInput = elements.widgetModalBody.querySelector("input, textarea, select, button");
+  if (firstInput instanceof HTMLElement) {
+    firstInput.focus();
+  }
 }
 
 function openWidgetModal(instanceId) {
@@ -1216,7 +1698,9 @@ function openWidgetModal(instanceId) {
   modalState.draft = {
     title: instance.title,
     viewMode: instance.viewMode || "window",
-    transparency: clamp(Number(instance.transparency) || 0.94, 0.15, 1),
+    surfaceMode: normalizeSurfaceMode(instance.surfaceMode, "normal"),
+    transparency: normalizeTransparency(instance.transparency, 0.94),
+    contentAlignY: normalizeAlign(instance.contentAlignY, "top"),
     layout: {
       ...instance.layout
     },
@@ -1244,7 +1728,9 @@ function applyWidgetModal() {
 
   instance.title = normalizeText(draft.title, def.title);
   instance.viewMode = draft.viewMode === "headless" ? "headless" : "window";
-  instance.transparency = clamp(Number(draft.transparency) || 0.94, 0.15, 1);
+  instance.surfaceMode = normalizeSurfaceMode(draft.surfaceMode, "normal");
+  instance.transparency = normalizeTransparency(draft.transparency, 0.94);
+  instance.contentAlignY = normalizeAlign(draft.contentAlignY, "top");
   instance.layout = cloneLayout(draft.layout);
   instance.config = {
     ...instance.config,
@@ -1302,7 +1788,9 @@ function addWidget(type) {
     type,
     title: def.title,
     viewMode: "window",
+    surfaceMode: "normal",
     transparency: 0.94,
+    contentAlignY: "top",
     enabled: true,
     config: structuredClone(def.defaultConfig || {}),
     layout: cloneLayout(def.defaultLayout)
@@ -1320,7 +1808,9 @@ function addWidget(type) {
 }
 
 function resetState() {
+  const keptPresets = Array.isArray(state?.presets) ? state.presets : [];
   state = defaultState();
+  state.presets = keptPresets;
   applyTheme();
   applyBackground();
   renderBoard();
@@ -1390,15 +1880,93 @@ function wireEvents() {
     applyWidgetModal();
   });
 
-  elements.widgetModalOverlay?.addEventListener("click", (event) => {
-    if (event.target === elements.widgetModalOverlay) {
+  elements.widgetModalOverlay?.addEventListener("pointerdown", (event) => {
+    modalState.dismissPointerId = event.pointerId;
+    modalState.dismissStartX = event.clientX;
+    modalState.dismissStartY = event.clientY;
+    modalState.dismissMoved = false;
+    modalState.dismissStartedOnOverlay = event.target === elements.widgetModalOverlay;
+  });
+
+  elements.widgetModalOverlay?.addEventListener("pointermove", (event) => {
+    if (event.pointerId !== modalState.dismissPointerId) {
+      return;
+    }
+    const dx = event.clientX - modalState.dismissStartX;
+    const dy = event.clientY - modalState.dismissStartY;
+    if (Math.hypot(dx, dy) > 7) {
+      modalState.dismissMoved = true;
+    }
+  });
+
+  elements.widgetModalOverlay?.addEventListener("pointerup", (event) => {
+    if (event.pointerId !== modalState.dismissPointerId) {
+      return;
+    }
+
+    const endedOnOverlay = event.target === elements.widgetModalOverlay;
+    const enoughTimeSinceDrag = Date.now() - lastDragEndAt > 240;
+    const shouldClose =
+      modalState.dismissStartedOnOverlay && endedOnOverlay && !modalState.dismissMoved && enoughTimeSinceDrag;
+
+    modalState.dismissPointerId = null;
+    modalState.dismissMoved = false;
+    modalState.dismissStartedOnOverlay = false;
+
+    if (shouldClose) {
       closeWidgetModal(false);
     }
   });
 
+  elements.widgetModalOverlay?.addEventListener("pointercancel", () => {
+    modalState.dismissPointerId = null;
+    modalState.dismissMoved = false;
+    modalState.dismissStartedOnOverlay = false;
+  });
+
+  document.addEventListener("pointerdown", blockOutsideModalEvent, true);
+  document.addEventListener("wheel", blockOutsideModalEvent, { capture: true, passive: false });
+  document.addEventListener("touchmove", blockOutsideModalEvent, { capture: true, passive: false });
+
   window.addEventListener("keydown", (event) => {
-    if (event.key === "Escape" && modalState.open) {
+    if (!modalState.open) {
+      return;
+    }
+
+    if (!isInsideModalOverlay(event.target)) {
+      event.preventDefault();
+      event.stopPropagation();
+      return;
+    }
+
+    if (event.key === "Escape") {
+      event.preventDefault();
       closeWidgetModal(false);
+      return;
+    }
+
+    if (event.key === "Tab") {
+      const focusable = elements.widgetModalOverlay?.querySelectorAll(
+        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+      );
+      if (!focusable || !focusable.length) {
+        return;
+      }
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      const active = document.activeElement;
+
+      if (event.shiftKey && active === first) {
+        event.preventDefault();
+        if (last instanceof HTMLElement) {
+          last.focus();
+        }
+      } else if (!event.shiftKey && active === last) {
+        event.preventDefault();
+        if (first instanceof HTMLElement) {
+          first.focus();
+        }
+      }
     }
   });
 }

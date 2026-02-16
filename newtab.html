@@ -27,8 +27,15 @@
         <rect x="3" y="13" width="8" height="8" rx="1.5" />
       </symbol>
       <symbol id="i-settings" viewBox="0 0 24 24">
-        <path d="M10 3h4l.7 2.3 2.2.9 2-1.2 2.8 2.8-1.2 2 .9 2.2L23 12v4l-2.3.7-.9 2.2 1.2 2-2.8 2.8-2-1.2-2.2.9L14 23h-4l-.7-2.3-2.2-.9-2 1.2L2.3 18l1.2-2-.9-2.2L1 14v-4l2.3-.7.9-2.2-1.2-2L5.9 2.3l2 1.2 2.2-.9L10 3z" />
-        <circle cx="12" cy="12" r="3.3" />
+        <circle cx="12" cy="12" r="3.2" />
+        <path d="M12 2.8v2.2" />
+        <path d="M12 19v2.2" />
+        <path d="M4.8 4.8l1.6 1.6" />
+        <path d="M17.6 17.6l1.6 1.6" />
+        <path d="M2.8 12h2.2" />
+        <path d="M19 12h2.2" />
+        <path d="M4.8 19.2l1.6-1.6" />
+        <path d="M17.6 6.4l1.6-1.6" />
       </symbol>
       <symbol id="i-trash" viewBox="0 0 24 24">
         <path d="M4 7h16" />
@@ -60,6 +67,7 @@
 
     <div id="bgLayer" class="bg-layer" aria-hidden="true">
       <img id="bgImage" class="bg-image" alt="" />
+      <img id="bgBlurImage" class="bg-blur-image" alt="" />
       <video id="bgVideo" class="bg-video" muted autoplay loop playsinline></video>
       <div id="bgOverlay" class="bg-overlay"></div>
     </div>
@@ -120,29 +128,35 @@
 
     <template id="widgetTemplate">
       <article class="widget-card">
-        <header class="widget-head drag-handle">
-          <div class="widget-title"></div>
-          <div class="widget-head-actions">
-            <button class="icon-btn widget-select-btn" title="Select widget">
-              <svg class="icon"><use href="#i-settings"></use></svg>
-            </button>
-            <button class="icon-btn widget-remove-btn" title="Remove widget">
-              <svg class="icon"><use href="#i-trash"></use></svg>
-            </button>
-          </div>
-        </header>
-        <div class="widget-floating-actions">
-          <button class="icon-btn widget-drag-btn" title="Move widget">
-            <svg class="icon"><use href="#i-move"></use></svg>
-          </button>
-          <button class="icon-btn widget-float-select" title="Widget settings">
-            <svg class="icon"><use href="#i-settings"></use></svg>
-          </button>
-          <button class="icon-btn widget-float-remove" title="Remove widget">
-            <svg class="icon"><use href="#i-trash"></use></svg>
-          </button>
+        <div class="widget-shell">
+          <header class="widget-head drag-handle">
+            <div class="widget-title"></div>
+            <div class="widget-head-actions">
+              <button class="icon-btn widget-select-btn" title="Select widget">
+                <svg class="icon"><use href="#i-settings"></use></svg>
+              </button>
+              <button class="icon-btn widget-remove-btn" title="Remove widget">
+                <svg class="icon"><use href="#i-trash"></use></svg>
+              </button>
+            </div>
+          </header>
+          <section class="widget-body">
+            <div class="widget-content-host">
+              <div class="widget-inline-actions">
+                <button class="icon-btn widget-drag-btn" title="Move widget">
+                  <svg class="icon"><use href="#i-move"></use></svg>
+                </button>
+                <button class="icon-btn widget-float-select" title="Widget settings">
+                  <svg class="icon"><use href="#i-settings"></use></svg>
+                </button>
+                <button class="icon-btn widget-float-remove" title="Remove widget">
+                  <svg class="icon"><use href="#i-trash"></use></svg>
+                </button>
+              </div>
+              <div class="widget-content-slot"></div>
+            </div>
+          </section>
         </div>
-        <section class="widget-body"></section>
         <div class="widget-resize-handle" title="Resize widget" aria-hidden="true"></div>
       </article>
     </template>

@@ -47,7 +47,6 @@ export const labelWidget = {
       text.style.fontSize = `${clamp(Number(cfg.fontSize) || 36, 12, 128)}px`;
       text.style.fontWeight = String(clamp(Number(cfg.fontWeight) || 700, 200, 900));
       text.style.textAlign = align;
-      text.style.justifyContent = align === "left" ? "flex-start" : align === "right" ? "flex-end" : "center";
     }
 
     render();
