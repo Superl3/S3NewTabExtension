@@ -2,6 +2,8 @@ import { loadState, saveState } from "./storage.js";
 import { widgetRegistry, widgetList } from "./widgets/index.js";
 
 const SNAP = 20;
+const LONG_PRESS_DRAG_MS = 320;
+const GRID_MAX_ROW_SPAN = 24;
 
 const FONT_OPTIONS = [
   {
@@ -88,6 +90,84 @@ function cloneLayout(layout) {
     y: Number(layout?.y ?? 40),
     w: Number(layout?.w ?? 340),
     h: Number(layout?.h ?? 220)
+  };
+}
+
+function widgetDefaultGridSize(type, def) {
+  const rawW = Number(def?.defaultGridSize?.w);
+  const rawH = Number(def?.defaultGridSize?.h);
+  if (Number.isFinite(rawW) && Number.isFinite(rawH) && rawW >= 1 && rawH >= 1) {
+    return {
+      colSpan: Math.max(1, Math.floor(rawW)),
+      rowSpan: Math.max(1, Math.floor(rawH))
+    };
+  }
+  if (type === "shortcut") {
+    return { colSpan: 1, rowSpan: 1 };
+  }
+  return { colSpan: 2, rowSpan: 2 };
+}
+
+function normalizeGridLayout(layout, fallback) {
+  const rawCol = Number(layout?.col);
+  const rawRow = Number(layout?.row);
+  const rawColSpan = Number(layout?.colSpan);
+  const rawRowSpan = Number(layout?.rowSpan);
+  const fallbackCol = Number(fallback?.col) || 0;
+  const fallbackRow = Number(fallback?.row) || 0;
+  const fallbackColSpan = Number(fallback?.colSpan) || 1;
+  const fallbackRowSpan = Number(fallback?.rowSpan) || 1;
+
+  return {
+    col: Math.max(0, Math.floor(Number.isFinite(rawCol) ? rawCol : fallbackCol)),
+    row: Math.max(0, Math.floor(Number.isFinite(rawRow) ? rawRow : fallbackRow)),
+    colSpan: Math.max(1, Math.floor(Number.isFinite(rawColSpan) ? rawColSpan : fallbackColSpan)),
+    rowSpan: Math.max(1, Math.floor(Number.isFinite(rawRowSpan) ? rawRowSpan : fallbackRowSpan))
+  };
+}
+
+function gridMetrics(instances = state.instances) {
+  const home = normalizeHomeLayout(state.ui.home);
+  state.ui.home = home;
+
+  const boardW = Math.max(1, Math.floor(elements.board.clientWidth));
+  const boardH = Math.max(1, Math.floor(elements.board.clientHeight));
+  const cols = clamp(Number(home.gridColumns) || 4, 1, 8);
+  const baseRows = clamp(Number(home.gridRows) || 3, 1, 8);
+  const marginX = marginPresetToPx(home.marginHorizontal);
+  const marginY = marginPresetToPx(home.marginVertical);
+  const gapX = boardW < 900 ? 8 : 12;
+  const gapY = boardW < 900 ? 8 : 12;
+
+  let rows = baseRows;
+  for (const instance of instances) {
+    const def = widgetRegistry[instance.type];
+    const defaultSize = widgetDefaultGridSize(instance.type, def);
+    const grid = normalizeGridLayout(instance.gridLayout, {
+      col: 0,
+      row: 0,
+      colSpan: defaultSize.colSpan,
+      rowSpan: defaultSize.rowSpan
+    });
+    rows = Math.max(rows, grid.row + grid.rowSpan);
+  }
+
+  const availableW = Math.max(1, boardW - marginX * 2 - gapX * (cols - 1));
+  const availableH = Math.max(1, boardH - marginY * 2 - gapY * (rows - 1));
+  const cellW = Math.max(1, Math.floor(availableW / cols));
+  const cellH = Math.max(1, Math.floor(availableH / rows));
+
+  return {
+    boardW,
+    boardH,
+    cols,
+    rows,
+    marginX,
+    marginY,
+    gapX,
+    gapY,
+    cellW,
+    cellH
   };
 }
 
@@ -211,11 +291,12 @@ function normalizeHomeLayout(layout) {
 }
 
 function defaultInstances() {
-  const order = ["clock", "search", "aiChat", "bookmarks", "todo", "notes", "label"];
+  const order = ["clock", "search", "aiChat", "bookmarks", "shortcut", "todo", "notes", "label"];
   return order
     .filter((type) => widgetRegistry[type])
     .map((type, idx) => {
       const def = widgetRegistry[type];
+      const defaultSize = widgetDefaultGridSize(type, def);
       return {
         id: `${type}-${idx + 1}`,
         type,
@@ -226,6 +307,12 @@ function defaultInstances() {
         transparency: 0.94,
         contentAlignY: "top",
         config: structuredClone(def.defaultConfig || {}),
+        gridLayout: {
+          col: idx % 4,
+          row: Math.floor(idx / 4),
+          colSpan: defaultSize.colSpan,
+          rowSpan: defaultSize.rowSpan
+        },
         layout: cloneLayout(def.defaultLayout),
         enabled: true
       };
@@ -423,6 +510,11 @@ function hydrate(raw) {
       transparency: normalizeTransparency(item.transparency, 0.94),
       contentAlignY: normalizeAlign(item.contentAlignY, "top"),
       enabled: item.enabled !== false,
+      gridLayout: normalizeGridLayout(item.gridLayout, {
+        col: normalized.length % 4,
+        row: Math.floor(normalized.length / 4),
+        ...widgetDefaultGridSize(item.type, def)
+      }),
       layout: cloneLayout(item.layout || def.defaultLayout),
       config: {
         ...(structuredClone(def.defaultConfig || {})),
@@ -1003,32 +1095,29 @@ function applyGridLayout({ commitFreeLayout = false, shouldSave = false } = {}) 
     return;
   }
 
-  const home = normalizeHomeLayout(state.ui.home);
-  state.ui.home = home;
-
-  const boardW = Math.max(1, Math.floor(elements.board.clientWidth));
-  const boardH = Math.max(1, Math.floor(elements.board.clientHeight));
-  const cols = clamp(Number(home.gridColumns) || 4, 1, 8);
-  const rows = Math.max(clamp(Number(home.gridRows) || 3, 1, 8), Math.ceil(items.length / cols));
-  const marginX = marginPresetToPx(home.marginHorizontal);
-  const marginY = marginPresetToPx(home.marginVertical);
-  const gapX = boardW < 900 ? 8 : 12;
-  const gapY = boardW < 900 ? 8 : 12;
-
-  const availableW = Math.max(1, boardW - marginX * 2 - gapX * (cols - 1));
-  const availableH = Math.max(1, boardH - marginY * 2 - gapY * (rows - 1));
-  const cellW = Math.max(1, Math.floor(availableW / cols));
-  const cellH = Math.max(1, Math.floor(availableH / rows));
+  const metrics = gridMetrics(items);
 
   for (let i = 0; i < items.length; i += 1) {
     const instance = items[i];
-    const row = Math.floor(i / cols);
-    const col = i % cols;
+    const def = widgetRegistry[instance.type];
+    const defaultSize = widgetDefaultGridSize(instance.type, def);
+    const grid = normalizeGridLayout(instance.gridLayout, {
+      col: i % metrics.cols,
+      row: Math.floor(i / metrics.cols),
+      colSpan: defaultSize.colSpan,
+      rowSpan: defaultSize.rowSpan
+    });
 
-    instance.layout.x = marginX + col * (cellW + gapX);
-    instance.layout.y = marginY + row * (cellH + gapY);
-    instance.layout.w = cellW;
-    instance.layout.h = cellH;
+    grid.colSpan = clamp(grid.colSpan, 1, metrics.cols);
+    grid.rowSpan = clamp(grid.rowSpan, 1, GRID_MAX_ROW_SPAN);
+    grid.col = clamp(grid.col, 0, Math.max(0, metrics.cols - grid.colSpan));
+    grid.row = Math.max(0, grid.row);
+    instance.gridLayout = grid;
+
+    instance.layout.x = metrics.marginX + grid.col * (metrics.cellW + metrics.gapX);
+    instance.layout.y = metrics.marginY + grid.row * (metrics.cellH + metrics.gapY);
+    instance.layout.w = metrics.cellW * grid.colSpan + metrics.gapX * (grid.colSpan - 1);
+    instance.layout.h = metrics.cellH * grid.rowSpan + metrics.gapY * (grid.rowSpan - 1);
 
     const rt = runtime.get(instance.id);
     if (rt?.card) {
@@ -1051,8 +1140,8 @@ function updateBoardBounds() {
   const boardH = Math.max(1, Math.floor(elements.board.clientHeight));
 
   for (const instance of state.instances) {
-    const minW = Math.min(220, boardW);
-    const minH = Math.min(120, boardH);
+    const minW = Math.min(80, boardW);
+    const minH = Math.min(80, boardH);
 
     instance.layout.w = clamp(Number(instance.layout.w) || minW, minW, boardW);
     instance.layout.h = clamp(Number(instance.layout.h) || minH, minH, boardH);
@@ -1359,34 +1448,71 @@ function createWidgetCard(instance) {
     }
   });
 
-  const startDrag = (event, fromHandleButton = false) => {
+  const startDrag = ({ event = null, target = null, fromHandleButton = false, startX = null, startY = null } = {}) => {
     if (state.mode !== "edit") {
-      return;
+      return false;
     }
-    if (isGridLayoutMode()) {
-      return;
+    if (event && event.button !== 0) {
+      return false;
     }
-    if (event.button !== 0) {
-      return;
-    }
-    if (!fromHandleButton && event.target.closest("button, input, textarea, select, a")) {
-      return;
+    if (!fromHandleButton && target?.closest("button, input, textarea, select, a")) {
+      return false;
     }
 
-    event.stopPropagation();
-    event.preventDefault();
+    event?.stopPropagation();
+    event?.preventDefault();
 
     setSelected(instance.id);
 
-    const startX = event.clientX;
-    const startY = event.clientY;
+    const dragStartX = Number.isFinite(startX) ? startX : event?.clientX;
+    const dragStartY = Number.isFinite(startY) ? startY : event?.clientY;
+    if (!Number.isFinite(dragStartX) || !Number.isFinite(dragStartY)) {
+      return false;
+    }
+
+    if (isGridLayoutMode()) {
+      const metrics = gridMetrics();
+      const defForGrid = widgetRegistry[instance.type];
+      const startGrid = normalizeGridLayout(instance.gridLayout, {
+        col: 0,
+        row: 0,
+        ...widgetDefaultGridSize(instance.type, defForGrid)
+      });
+      const stepX = Math.max(1, metrics.cellW + metrics.gapX);
+      const stepY = Math.max(1, metrics.cellH + metrics.gapY);
+
+      const move = (moveEvent) => {
+        const dCol = Math.round((moveEvent.clientX - dragStartX) / stepX);
+        const dRow = Math.round((moveEvent.clientY - dragStartY) / stepY);
+
+        instance.gridLayout = {
+          ...startGrid,
+          col: clamp(startGrid.col + dCol, 0, Math.max(0, metrics.cols - startGrid.colSpan)),
+          row: Math.max(0, startGrid.row + dRow)
+        };
+        applyGridLayout({ commitFreeLayout: false, shouldSave: false });
+      };
+
+      const up = () => {
+        window.removeEventListener("pointermove", move);
+        window.removeEventListener("pointerup", up);
+        lastDragEndAt = Date.now();
+        applyGridLayout({ commitFreeLayout: false, shouldSave: false });
+        queueSave();
+      };
+
+      window.addEventListener("pointermove", move);
+      window.addEventListener("pointerup", up);
+      return true;
+    }
+
     const startLeft = instance.layout.x;
     const startTop = instance.layout.y;
     const boardRect = elements.board.getBoundingClientRect();
 
     const move = (moveEvent) => {
-      const dx = moveEvent.clientX - startX;
-      const dy = moveEvent.clientY - startY;
+      const dx = moveEvent.clientX - dragStartX;
+      const dy = moveEvent.clientY - dragStartY;
       const maxX = Math.max(0, boardRect.width - instance.layout.w);
       const maxY = Math.max(0, boardRect.height - instance.layout.h);
 
@@ -1411,25 +1537,96 @@ function createWidgetCard(instance) {
 
     window.addEventListener("pointermove", move);
     window.addEventListener("pointerup", up);
+    return true;
   };
 
   head.addEventListener("pointerdown", (event) => {
     if (instance.viewMode === "headless") {
       return;
     }
-    startDrag(event);
+    startDrag({ event, target: event.target, fromHandleButton: false });
+  });
+
+  title?.addEventListener("pointerdown", (event) => {
+    if (instance.viewMode === "headless") {
+      return;
+    }
+    startDrag({ event, target: event.target, fromHandleButton: false });
   });
 
   dragBtn?.addEventListener("pointerdown", (event) => {
-    startDrag(event, true);
+    startDrag({ event, target: event.target, fromHandleButton: true });
+  });
+
+  let longPressTimer = null;
+  let longPressPointerId = null;
+  let longPressStartX = 0;
+  let longPressStartY = 0;
+
+  const clearLongPress = () => {
+    if (longPressTimer) {
+      clearTimeout(longPressTimer);
+      longPressTimer = null;
+    }
+    longPressPointerId = null;
+  };
+
+  card.addEventListener("pointerdown", (event) => {
+    if (state.mode !== "edit" || event.button !== 0) {
+      return;
+    }
+    if (event.target.closest("button, input, textarea, select, a")) {
+      return;
+    }
+    if (event.target.closest(".widget-head")) {
+      return;
+    }
+
+    clearLongPress();
+    longPressPointerId = event.pointerId;
+    longPressStartX = event.clientX;
+    longPressStartY = event.clientY;
+
+    const cancelLongPressByMove = (moveEvent) => {
+      if (moveEvent.pointerId !== longPressPointerId) {
+        return;
+      }
+      const dist = Math.hypot(moveEvent.clientX - longPressStartX, moveEvent.clientY - longPressStartY);
+      if (dist > 6) {
+        clearLongPress();
+      }
+    };
+
+    const cancelLongPress = (endEvent) => {
+      if (!endEvent || endEvent.pointerId === longPressPointerId) {
+        window.removeEventListener("pointermove", cancelLongPressByMove, true);
+        window.removeEventListener("pointerup", cancelLongPress, true);
+        window.removeEventListener("pointercancel", cancelLongPress, true);
+        clearLongPress();
+      }
+    };
+
+    window.addEventListener("pointermove", cancelLongPressByMove, true);
+    window.addEventListener("pointerup", cancelLongPress, true);
+    window.addEventListener("pointercancel", cancelLongPress, true);
+
+    longPressTimer = setTimeout(() => {
+      window.removeEventListener("pointermove", cancelLongPressByMove, true);
+      window.removeEventListener("pointerup", cancelLongPress, true);
+      window.removeEventListener("pointercancel", cancelLongPress, true);
+      clearLongPress();
+      startDrag({
+        target: card,
+        fromHandleButton: true,
+        startX: longPressStartX,
+        startY: longPressStartY
+      });
+    }, LONG_PRESS_DRAG_MS);
   });
 
   if (resizeHandle) {
     resizeHandle.addEventListener("pointerdown", (event) => {
       if (state.mode !== "edit") {
-        return;
-      }
-      if (isGridLayoutMode()) {
         return;
       }
       if (event.button !== 0) {
@@ -1445,14 +1642,50 @@ function createWidgetCard(instance) {
       const startW = instance.layout.w;
       const startH = instance.layout.h;
 
+      if (isGridLayoutMode()) {
+        const metrics = gridMetrics();
+        const startGrid = normalizeGridLayout(instance.gridLayout, {
+          col: 0,
+          row: 0,
+          ...widgetDefaultGridSize(instance.type, widgetRegistry[instance.type])
+        });
+        const stepX = Math.max(1, metrics.cellW + metrics.gapX);
+        const stepY = Math.max(1, metrics.cellH + metrics.gapY);
+
+        const moveGrid = (moveEvent) => {
+          const dCol = Math.round((moveEvent.clientX - startX) / stepX);
+          const dRow = Math.round((moveEvent.clientY - startY) / stepY);
+
+          instance.gridLayout = {
+            ...startGrid,
+            colSpan: clamp(startGrid.colSpan + dCol, 1, metrics.cols),
+            rowSpan: clamp(startGrid.rowSpan + dRow, 1, GRID_MAX_ROW_SPAN)
+          };
+
+          applyGridLayout({ commitFreeLayout: false, shouldSave: false });
+        };
+
+        const upGrid = () => {
+          window.removeEventListener("pointermove", moveGrid);
+          window.removeEventListener("pointerup", upGrid);
+          lastDragEndAt = Date.now();
+          applyGridLayout({ commitFreeLayout: false, shouldSave: false });
+          queueSave();
+        };
+
+        window.addEventListener("pointermove", moveGrid);
+        window.addEventListener("pointerup", upGrid);
+        return;
+      }
+
       const move = (moveEvent) => {
         const dx = moveEvent.clientX - startX;
         const dy = moveEvent.clientY - startY;
         const boardRect = elements.board.getBoundingClientRect();
         const maxW = Math.max(1, Math.floor(boardRect.width - instance.layout.x));
         const maxH = Math.max(1, Math.floor(boardRect.height - instance.layout.y));
-        const minW = Math.min(220, maxW);
-        const minH = Math.min(120, maxH);
+        const minW = Math.min(80, maxW);
+        const minH = Math.min(80, maxH);
 
         patchWidgetLayout(instance.id, {
           w: clamp(startW + dx, minW, maxW),
@@ -2096,6 +2329,11 @@ function addWidget(type) {
     contentAlignY: "top",
     enabled: true,
     config: structuredClone(def.defaultConfig || {}),
+    gridLayout: normalizeGridLayout(null, {
+      col: state.instances.length % 4,
+      row: Math.floor(state.instances.length / 4),
+      ...widgetDefaultGridSize(type, def)
+    }),
     layout: cloneLayout(def.defaultLayout)
   };
 
