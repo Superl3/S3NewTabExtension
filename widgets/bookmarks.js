@@ -179,7 +179,7 @@ function setMapValue(map, key, value) {
 
 export const bookmarksWidget = {
   type: "bookmarks",
-  title: "Bookmarks",
+  title: "Bookmarks Collection",
   defaultConfig: {
     folderPath: "",
     folderId: "",
@@ -195,6 +195,10 @@ export const bookmarksWidget = {
     y: 40,
     w: 360,
     h: 490
+  },
+  defaultGridSize: {
+    w: 2,
+    h: 2
   },
   settingsSchema: [
     {

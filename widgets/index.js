@@ -5,6 +5,7 @@ import { bookmarksWidget } from "./bookmarks.js";
 import { todoWidget } from "./todo.js";
 import { notesWidget } from "./notes.js";
 import { labelWidget } from "./label.js";
+import { shortcutWidget } from "./shortcut.js";
 
 export const widgetRegistry = {
   [clockWidget.type]: clockWidget,
@@ -13,7 +14,8 @@ export const widgetRegistry = {
   [bookmarksWidget.type]: bookmarksWidget,
   [todoWidget.type]: todoWidget,
   [notesWidget.type]: notesWidget,
-  [labelWidget.type]: labelWidget
+  [labelWidget.type]: labelWidget,
+  [shortcutWidget.type]: shortcutWidget
 };
 
 export const widgetList = Object.values(widgetRegistry);
