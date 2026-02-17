@@ -6,7 +6,6 @@ export const todoWidget = {
   type: "todo",
   title: "TODO",
   defaultConfig: {
-    title: "Tasks",
     items: []
   },
   defaultLayout: {
@@ -15,15 +14,13 @@ export const todoWidget = {
     w: 370,
     h: 290
   },
-  settingsSchema: [{ key: "title", label: "Title", type: "text", placeholder: "Tasks" }],
+  settingsSchema: [],
   create({ container, getConfig, patchConfig }) {
-    const chip = document.createElement("div");
     const form = document.createElement("form");
     const input = document.createElement("input");
     const addBtn = document.createElement("button");
     const list = document.createElement("ul");
 
-    chip.className = "chip";
     form.className = "search-form";
     list.className = "todo-list";
 
@@ -34,7 +31,7 @@ export const todoWidget = {
     addBtn.textContent = "Add";
 
     form.append(input, addBtn);
-    container.append(chip, form, list);
+    container.append(form, list);
 
     function saveItems(items) {
       patchConfig({ items });
@@ -42,7 +39,6 @@ export const todoWidget = {
 
     function render() {
       const cfg = getConfig();
-      chip.textContent = cfg.title || "Tasks";
       const items = Array.isArray(cfg.items) ? cfg.items : [];
       list.replaceChildren();
 
@@ -62,9 +58,10 @@ export const todoWidget = {
         text.textContent = item.text;
 
         const del = document.createElement("button");
-        del.className = "icon-btn";
+        del.className = "todo-delete-btn";
         del.type = "button";
-        del.textContent = "✕";
+        del.textContent = "×";
+        del.setAttribute("aria-label", "Delete task");
 
         checkbox.addEventListener("change", () => {
           const next = items.map((entry) => {

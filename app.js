@@ -5,6 +5,21 @@ const SNAP = 20;
 const GRID_MAX_ROW_SPAN = 24;
 const GRID_MAX_COLUMNS = 16;
 const GRID_MAX_ROWS = 16;
+const WIDGET_COMMON_MASTER_KEYS = [
+  "viewMode",
+  "surfaceMode",
+  "backdropBlur",
+  "edgeRoundness",
+  "transparency",
+  "contentAlignY",
+  "contentFillParent",
+  "contentPadding",
+  "widgetThemeMode",
+  "useCustomColors",
+  "customTextColor",
+  "customAccentColor",
+  "customSurfaceColor"
+];
 
 const FONT_OPTIONS = [
   {
@@ -32,6 +47,7 @@ const FONT_OPTIONS = [
 const elements = {
   appRoot: document.getElementById("app"),
   board: document.getElementById("board"),
+  bgRefreshBtn: document.getElementById("bgRefreshBtn"),
   modeToggleBtn: document.getElementById("modeToggleBtn"),
   addWidgetBtn: document.getElementById("addWidgetBtn"),
   resetBtn: document.getElementById("resetBtn"),
@@ -47,6 +63,7 @@ const elements = {
   addWidgetModalCloseBtn: document.getElementById("addWidgetModalCloseBtn"),
   addWidgetModalCancelBtn: document.getElementById("addWidgetModalCancelBtn"),
   addWidgetModalOkBtn: document.getElementById("addWidgetModalOkBtn"),
+  addWidgetTitleInput: document.getElementById("addWidgetTitleInput"),
   addWidgetColSpanInput: document.getElementById("addWidgetColSpanInput"),
   addWidgetRowSpanInput: document.getElementById("addWidgetRowSpanInput"),
   settingsContent: document.getElementById("settingsContent"),
@@ -58,10 +75,14 @@ const elements = {
   bgOverlay: document.getElementById("bgOverlay"),
   widgetModalOverlay: document.getElementById("widgetModalOverlay"),
   widgetModalTitle: document.getElementById("widgetModalTitle"),
+  widgetModalTabs: document.getElementById("widgetModalTabs"),
   widgetModalBody: document.getElementById("widgetModalBody"),
+  widgetModalDefaultBtn: document.getElementById("widgetModalDefaultBtn"),
   widgetModalCloseBtn: document.getElementById("widgetModalCloseBtn"),
   widgetModalCancelBtn: document.getElementById("widgetModalCancelBtn"),
-  widgetModalOkBtn: document.getElementById("widgetModalOkBtn")
+  widgetModalOkBtn: document.getElementById("widgetModalOkBtn"),
+  editDock: document.querySelector(".edit-dock"),
+  editDockGrip: document.getElementById("editDockGrip")
 };
 
 const runtime = new Map();
@@ -88,6 +109,20 @@ let wallpaperSourceSignature = "";
 let zCounter = 1;
 let addWidgetModalOpen = false;
 let wallpaperLoadToken = 0;
+const dockDragState = {
+  active: false,
+  pointerId: null,
+  startX: 0,
+  startY: 0,
+  startLeft: 0,
+  startTop: 0
+};
+const HISTORY_LIMIT = 80;
+const undoState = {
+  undoStack: [],
+  redoStack: [],
+  isRestoring: false
+};
 
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
@@ -146,24 +181,12 @@ function gridMetrics(instances = state.instances) {
   const boardW = Math.max(1, Math.floor(elements.board.clientWidth));
   const boardH = Math.max(1, Math.floor(elements.board.clientHeight));
   const cols = clamp(Number(home.gridColumns) || 4, 1, GRID_MAX_COLUMNS);
-  const baseRows = clamp(Number(home.gridRows) || 3, 1, GRID_MAX_ROWS);
+  const rows = clamp(Number(home.gridRows) || 3, 1, GRID_MAX_ROWS);
   const marginX = marginPresetToPx(home.marginHorizontal);
   const marginY = marginPresetToPx(home.marginVertical);
-  const gapX = boardW < 900 ? 8 : 12;
-  const gapY = boardW < 900 ? 8 : 12;
-
-  let rows = baseRows;
-  for (const instance of instances) {
-    const def = widgetRegistry[instance.type];
-    const defaultSize = widgetDefaultGridSize(instance.type, def);
-    const grid = normalizeGridLayout(instance.gridLayout, {
-      col: 0,
-      row: 0,
-      colSpan: defaultSize.colSpan,
-      rowSpan: defaultSize.rowSpan
-    });
-    rows = Math.max(rows, grid.row + grid.rowSpan);
-  }
+  const gap = gapPresetToPx(home.itemGap);
+  const gapX = gap;
+  const gapY = gap;
 
   const availableW = Math.max(1, boardW - marginX * 2 - gapX * (cols - 1));
   const availableH = Math.max(1, boardH - marginY * 2 - gapY * (rows - 1));
@@ -225,7 +248,11 @@ function defaultUi() {
     settingsOpen: false,
     theme: defaultTheme(),
     background: defaultBackground(),
-    home: defaultHomeLayout()
+    home: defaultHomeLayout(),
+    widgetCommonMaster: defaultWidgetCommonMaster(),
+    shortcuts: {
+      iconSizePercent: 100
+    }
   };
 }
 
@@ -235,7 +262,27 @@ function defaultHomeLayout() {
     gridColumns: 4,
     gridRows: 3,
     marginHorizontal: "medium",
-    marginVertical: "medium"
+    marginVertical: "medium",
+    itemGap: "narrow",
+    widgetBackdropBlur: true
+  };
+}
+
+function defaultWidgetCommonMaster() {
+  return {
+    viewMode: "window",
+    surfaceMode: "normal",
+    backdropBlur: true,
+    edgeRoundness: 12,
+    transparency: 0.94,
+    contentAlignY: "top",
+    contentFillParent: false,
+    contentPadding: 10,
+    widgetThemeMode: "inherit",
+    useCustomColors: false,
+    customTextColor: "#1F2226",
+    customAccentColor: "#1F4F9F",
+    customSurfaceColor: "#FFFAF2"
   };
 }
 
@@ -254,9 +301,48 @@ function normalizeTransparency(value, fallback = 0.94) {
 function normalizeContentPadding(value, fallback = 10) {
   const num = Number(value);
   if (!Number.isFinite(num)) {
-    return clamp(fallback, 0, 48);
+    return clamp(Math.round(fallback), 0, 48);
   }
-  return clamp(num, 0, 48);
+  return clamp(Math.round(num), 0, 48);
+}
+
+function normalizeEdgeRoundness(value, fallback = 12) {
+  const num = Number(value);
+  if (!Number.isFinite(num)) {
+    return clamp(Math.round(fallback), 0, 40);
+  }
+  return clamp(Math.round(num), 0, 40);
+}
+
+function widgetPaddingFallback(type) {
+  return type === "shortcut" || type === "aiChat" ? 8 : 10;
+}
+
+function isHeadlessTransparentDefaultType(type) {
+  return type === "shortcut" || type === "clock" || type === "search";
+}
+
+function defaultWidgetContentAlign(type) {
+  return isHeadlessTransparentDefaultType(type) ? "center" : "top";
+}
+
+function defaultWidgetBackdropBlur(type) {
+  return !isHeadlessTransparentDefaultType(type);
+}
+
+function resolveWidgetPadding(instance) {
+  const fallback = widgetPaddingFallback(instance?.type);
+  const uniform = normalizeContentPadding(instance?.contentPadding, fallback);
+
+  const legacyTopRight = normalizeContentPadding(instance?.contentPaddingTopRight, uniform);
+  const legacyBottomLeft = normalizeContentPadding(instance?.contentPaddingBottomLeft, uniform);
+
+  const top = normalizeContentPadding(instance?.contentPaddingTop, legacyTopRight);
+  const right = normalizeContentPadding(instance?.contentPaddingRight, legacyTopRight);
+  const bottom = normalizeContentPadding(instance?.contentPaddingBottom, legacyBottomLeft);
+  const left = normalizeContentPadding(instance?.contentPaddingLeft, legacyBottomLeft);
+
+  return { top, right, bottom, left, uniform };
 }
 
 function normalizeAlign(value, fallback = "top") {
@@ -273,6 +359,187 @@ function normalizeSurfaceMode(value, fallback = "normal") {
   return fallback;
 }
 
+function normalizeWidgetThemeMode(value, fallback = "inherit") {
+  if (value === "inherit" || value === "light" || value === "dark") {
+    return value;
+  }
+  return fallback;
+}
+
+function normalizeWidgetColor(value, fallback) {
+  const normalized = normalizeHexColor(value, fallback);
+  return typeof normalized === "string" ? normalized.toUpperCase() : fallback;
+}
+
+function normalizeWidgetCommonMaster(value) {
+  const base = {
+    ...defaultWidgetCommonMaster(),
+    ...(value && typeof value === "object" ? value : {})
+  };
+
+  return {
+    viewMode: base.viewMode === "headless" ? "headless" : "window",
+    surfaceMode: normalizeSurfaceMode(base.surfaceMode, "normal"),
+    backdropBlur: base.backdropBlur !== false,
+    edgeRoundness: normalizeEdgeRoundness(base.edgeRoundness, 12),
+    transparency: normalizeTransparency(base.transparency, 0.94),
+    contentAlignY: normalizeAlign(base.contentAlignY, "top"),
+    contentFillParent: Boolean(base.contentFillParent),
+    contentPadding: normalizeContentPadding(base.contentPadding, 10),
+    widgetThemeMode: normalizeWidgetThemeMode(base.widgetThemeMode, "inherit"),
+    useCustomColors: Boolean(base.useCustomColors),
+    customTextColor: normalizeWidgetColor(base.customTextColor, "#1F2226"),
+    customAccentColor: normalizeWidgetColor(base.customAccentColor, "#1F4F9F"),
+    customSurfaceColor: normalizeWidgetColor(base.customSurfaceColor, "#FFFAF2")
+  };
+}
+
+function normalizeCommonOverrides(value) {
+  const out = {};
+  const raw = value && typeof value === "object" ? value : {};
+  for (const key of WIDGET_COMMON_MASTER_KEYS) {
+    out[key] = Boolean(raw[key]);
+  }
+  return out;
+}
+
+function instanceCommonValue(instance, key) {
+  if (key === "contentPadding") {
+    const padding = resolveWidgetPadding(instance);
+    return normalizeContentPadding((padding.top + padding.right + padding.bottom + padding.left) / 4, padding.uniform);
+  }
+  if (key === "transparency") {
+    return normalizeTransparency(instance.transparency, 0.94);
+  }
+  if (key === "backdropBlur") {
+    return instance.backdropBlur !== false;
+  }
+  if (key === "edgeRoundness") {
+    return normalizeEdgeRoundness(instance.edgeRoundness, 12);
+  }
+  if (key === "contentAlignY") {
+    return instance.type === "aiChat" ? "top" : normalizeAlign(instance.contentAlignY, defaultWidgetContentAlign(instance.type));
+  }
+  if (key === "contentFillParent") {
+    return instance.type === "aiChat" ? true : Boolean(instance.contentFillParent);
+  }
+  if (key === "viewMode") {
+    return instance.viewMode === "headless" ? "headless" : "window";
+  }
+  if (key === "surfaceMode") {
+    return normalizeSurfaceMode(instance.surfaceMode, "normal");
+  }
+  if (key === "widgetThemeMode") {
+    return normalizeWidgetThemeMode(instance.widgetThemeMode, "inherit");
+  }
+  if (key === "useCustomColors") {
+    return Boolean(instance.useCustomColors);
+  }
+  if (key === "customTextColor") {
+    return normalizeWidgetColor(instance.customTextColor, "#1F2226");
+  }
+  if (key === "customAccentColor") {
+    return normalizeWidgetColor(instance.customAccentColor, "#1F4F9F");
+  }
+  if (key === "customSurfaceColor") {
+    return normalizeWidgetColor(instance.customSurfaceColor, "#FFFAF2");
+  }
+  return instance[key];
+}
+
+function setInstanceCommonValue(instance, key, value) {
+  if (key === "contentPadding") {
+    const fallback = widgetPaddingFallback(instance.type);
+    const padding = normalizeContentPadding(value, fallback);
+    instance.contentPadding = padding;
+    instance.contentPaddingTop = padding;
+    instance.contentPaddingRight = padding;
+    instance.contentPaddingBottom = padding;
+    instance.contentPaddingLeft = padding;
+    instance.contentPaddingTopRight = padding;
+    instance.contentPaddingBottomLeft = padding;
+    return;
+  }
+
+  if (key === "contentAlignY") {
+    instance.contentAlignY = instance.type === "aiChat" ? "top" : normalizeAlign(value, defaultWidgetContentAlign(instance.type));
+    return;
+  }
+
+  if (key === "contentFillParent") {
+    instance.contentFillParent = instance.type === "aiChat" ? true : Boolean(value);
+    return;
+  }
+
+  if (key === "backdropBlur") {
+    instance.backdropBlur = value !== false;
+    return;
+  }
+
+  if (key === "edgeRoundness") {
+    instance.edgeRoundness = normalizeEdgeRoundness(value, 12);
+    return;
+  }
+
+  if (key === "viewMode") {
+    instance.viewMode = value === "headless" ? "headless" : "window";
+    return;
+  }
+
+  if (key === "surfaceMode") {
+    instance.surfaceMode = normalizeSurfaceMode(value, "normal");
+    return;
+  }
+
+  if (key === "transparency") {
+    instance.transparency = normalizeTransparency(value, 0.94);
+    return;
+  }
+
+  if (key === "widgetThemeMode") {
+    instance.widgetThemeMode = normalizeWidgetThemeMode(value, "inherit");
+    return;
+  }
+
+  if (key === "useCustomColors") {
+    instance.useCustomColors = Boolean(value);
+    return;
+  }
+
+  if (key === "customTextColor") {
+    instance.customTextColor = normalizeWidgetColor(value, "#1F2226");
+    return;
+  }
+
+  if (key === "customAccentColor") {
+    instance.customAccentColor = normalizeWidgetColor(value, "#1F4F9F");
+    return;
+  }
+
+  if (key === "customSurfaceColor") {
+    instance.customSurfaceColor = normalizeWidgetColor(value, "#FFFAF2");
+  }
+}
+
+function inferCommonOverrides(instance, master) {
+  const out = {};
+  for (const key of WIDGET_COMMON_MASTER_KEYS) {
+    out[key] = instanceCommonValue(instance, key) !== master[key];
+  }
+  return out;
+}
+
+function applyWidgetCommonMaster(instance, master, force = false) {
+  const overrides = normalizeCommonOverrides(instance.commonOverrides);
+  for (const key of WIDGET_COMMON_MASTER_KEYS) {
+    if (!force && overrides[key]) {
+      continue;
+    }
+    setInstanceCommonValue(instance, key, master[key]);
+  }
+  instance.commonOverrides = normalizeCommonOverrides(instance.commonOverrides);
+}
+
 function normalizeHomeMode(value, fallback = "grid") {
   if (value === "grid" || value === "free") {
     return value;
@@ -282,6 +549,13 @@ function normalizeHomeMode(value, fallback = "grid") {
 
 function normalizeMarginPreset(value, fallback = "medium") {
   if (value === "wide" || value === "medium" || value === "narrow" || value === "none") {
+    return value;
+  }
+  return fallback;
+}
+
+function normalizeGapPreset(value, fallback = "narrow") {
+  if (value === "wide" || value === "narrow" || value === "none") {
     return value;
   }
   return fallback;
@@ -300,6 +574,16 @@ function marginPresetToPx(value) {
   return 26;
 }
 
+function gapPresetToPx(value) {
+  if (value === "wide") {
+    return 16;
+  }
+  if (value === "none") {
+    return 0;
+  }
+  return 8;
+}
+
 function normalizeHomeLayout(layout) {
   const base = {
     ...defaultHomeLayout(),
@@ -311,7 +595,9 @@ function normalizeHomeLayout(layout) {
     gridColumns: clamp(Number(base.gridColumns) || 4, 1, GRID_MAX_COLUMNS),
     gridRows: clamp(Number(base.gridRows) || 3, 1, GRID_MAX_ROWS),
     marginHorizontal: normalizeMarginPreset(base.marginHorizontal, "medium"),
-    marginVertical: normalizeMarginPreset(base.marginVertical, "medium")
+    marginVertical: normalizeMarginPreset(base.marginVertical, "medium"),
+    itemGap: normalizeGapPreset(base.itemGap, "narrow"),
+    widgetBackdropBlur: base.widgetBackdropBlur !== false
   };
 }
 
@@ -322,17 +608,32 @@ function defaultInstances() {
     .map((type, idx) => {
       const def = widgetRegistry[type];
       const defaultSize = widgetDefaultGridSize(type, def);
+      const defaultPadding = widgetPaddingFallback(type);
       return {
         id: `${type}-${idx + 1}`,
         type,
         title: def.title,
         zIndex: idx + 1,
-        viewMode: "window",
-        surfaceMode: "normal",
+        viewMode: isHeadlessTransparentDefaultType(type) ? "headless" : "window",
+        surfaceMode: isHeadlessTransparentDefaultType(type) ? "transparent" : "normal",
+        backdropBlur: defaultWidgetBackdropBlur(type),
+        edgeRoundness: 12,
         transparency: 0.94,
-        contentAlignY: "top",
-        contentFillParent: false,
-        contentPadding: 10,
+        contentAlignY: defaultWidgetContentAlign(type),
+        contentFillParent: type === "aiChat",
+        contentPadding: defaultPadding,
+        contentPaddingTop: defaultPadding,
+        contentPaddingRight: defaultPadding,
+        contentPaddingBottom: defaultPadding,
+        contentPaddingLeft: defaultPadding,
+        contentPaddingTopRight: defaultPadding,
+        contentPaddingBottomLeft: defaultPadding,
+        widgetThemeMode: "inherit",
+        useCustomColors: false,
+        customTextColor: "#1F2226",
+        customAccentColor: "#1F4F9F",
+        customSurfaceColor: "#FFFAF2",
+        commonOverrides: normalizeCommonOverrides({}),
         config: structuredClone(def.defaultConfig || {}),
         gridLayout: {
           col: idx % 4,
@@ -362,7 +663,9 @@ function clonePresetSnapshot(snapshot) {
     ui: {
       theme: { ...(snapshot?.ui?.theme || {}) },
       background: { ...(snapshot?.ui?.background || {}) },
-      home: { ...(snapshot?.ui?.home || {}) }
+      home: { ...(snapshot?.ui?.home || {}) },
+      widgetCommonMaster: { ...(snapshot?.ui?.widgetCommonMaster || {}) },
+      shortcuts: { ...(snapshot?.ui?.shortcuts || {}) }
     },
     instances: Array.isArray(snapshot?.instances)
       ? snapshot.instances.map((instance) => ({ ...instance, config: { ...(instance.config || {}) } }))
@@ -375,13 +678,16 @@ function createStateSnapshot() {
     ui: {
       theme: structuredClone(state.ui.theme),
       background: structuredClone(state.ui.background),
-      home: structuredClone(state.ui.home)
+      home: structuredClone(state.ui.home),
+      widgetCommonMaster: structuredClone(state.ui.widgetCommonMaster),
+      shortcuts: structuredClone(state.ui.shortcuts)
     },
     instances: state.instances.map((instance) => ({
       ...structuredClone(instance),
       zIndex: Math.max(1, Number(instance.zIndex) || 1),
       surfaceMode: normalizeSurfaceMode(instance.surfaceMode, "normal"),
-      contentAlignY: normalizeAlign(instance.contentAlignY, "top"),
+      edgeRoundness: normalizeEdgeRoundness(instance.edgeRoundness, 12),
+      contentAlignY: normalizeAlign(instance.contentAlignY, defaultWidgetContentAlign(instance.type)),
       transparency: normalizeTransparency(instance.transparency, 0.94)
     }))
   };
@@ -404,6 +710,7 @@ function inferNextId(instances, fallback) {
 }
 
 function savePreset(nameInput) {
+  recordHistorySnapshot("Save preset");
   const name = normalizeText(nameInput, "Preset");
   const now = Date.now();
   const snapshot = createStateSnapshot();
@@ -428,6 +735,7 @@ function savePreset(nameInput) {
 }
 
 function loadPresetById(presetId, scope = "all") {
+  recordHistorySnapshot("Load preset");
   const preset = state.presets.find((entry) => entry.id === presetId);
   if (!preset) {
     return;
@@ -453,6 +761,14 @@ function loadPresetById(presetId, scope = "all") {
       home: {
         ...state.ui.home,
         ...(applyGlobal ? snapshot.ui?.home || {} : {})
+      },
+      widgetCommonMaster: {
+        ...state.ui.widgetCommonMaster,
+        ...(applyGlobal ? snapshot.ui?.widgetCommonMaster || {} : {})
+      },
+      shortcuts: {
+        ...state.ui.shortcuts,
+        ...(applyGlobal ? snapshot.ui?.shortcuts || {} : {})
       }
     },
     instances:
@@ -465,11 +781,21 @@ function loadPresetById(presetId, scope = "all") {
   state.ui.theme = hydrated.ui.theme;
   state.ui.background = hydrated.ui.background;
   state.ui.home = normalizeHomeLayout(hydrated.ui.home);
+  state.ui.widgetCommonMaster = normalizeWidgetCommonMaster(hydrated.ui.widgetCommonMaster);
+  state.ui.shortcuts = {
+    iconSizePercent: clamp(Number(hydrated.ui.shortcuts?.iconSizePercent) || 100, 40, 220)
+  };
 
   if (applyWidgets) {
     state.instances = hydrated.instances;
     state.selectedWidgetId = "";
     state.nextId = inferNextId(state.instances, hydrated.nextId);
+    for (const instance of state.instances) {
+      applyWidgetCommonMaster(instance, state.ui.widgetCommonMaster, false);
+      if (!instance.commonOverrides || !Object.keys(instance.commonOverrides).length) {
+        instance.commonOverrides = inferCommonOverrides(instance, state.ui.widgetCommonMaster);
+      }
+    }
   }
 
   closeWidgetModal(false);
@@ -481,6 +807,14 @@ function loadPresetById(presetId, scope = "all") {
   if (applyWidgets) {
     renderBoard();
   } else {
+    for (const instance of state.instances) {
+      applyWidgetCommonMaster(instance, state.ui.widgetCommonMaster, false);
+      instance.commonOverrides = inferCommonOverrides(instance, state.ui.widgetCommonMaster);
+      const rt = runtime.get(instance.id);
+      if (rt?.card) {
+        applyCardVisual(rt.card, instance);
+      }
+    }
     refreshAllWidgets();
     if (state.ui.home.mode === "grid") {
       applyGridLayout({ commitFreeLayout: false });
@@ -492,6 +826,7 @@ function loadPresetById(presetId, scope = "all") {
 }
 
 function deletePresetById(presetId) {
+  recordHistorySnapshot("Delete preset");
   const index = state.presets.findIndex((entry) => entry.id === presetId);
   if (index < 0) {
     return;
@@ -527,17 +862,71 @@ function hydrate(raw) {
     if (!def) {
       continue;
     }
+
+    const isShortcut = item.type === "shortcut";
+    const headlessTransparentByDefault = isHeadlessTransparentDefaultType(item.type);
+    const isAiChat = item.type === "aiChat";
+    const padding = resolveWidgetPadding({ type: item.type, ...item });
+    const mergedConfig = {
+      ...(structuredClone(def.defaultConfig || {})),
+      ...(item.config || {})
+    };
+
+    if (isShortcut) {
+      if (typeof mergedConfig.useGlobalIconSize !== "boolean") {
+        mergedConfig.useGlobalIconSize = true;
+      }
+      const iconSize = Number(mergedConfig.iconSizePercent);
+      mergedConfig.iconSizePercent = clamp(Number.isFinite(iconSize) ? iconSize : 100, 40, 220);
+    }
+
+    if (isAiChat) {
+      mergedConfig.providerMode = mergedConfig.providerMode === "browser" ? "browser" : "chatgpt";
+      if (!normalizeText(mergedConfig.endpoint)) {
+        mergedConfig.endpoint =
+          mergedConfig.providerMode === "browser"
+            ? "https://api.openai.com/v1/responses"
+            : "https://api.openai.com/v1/chat/completions";
+      }
+      mergedConfig.model = normalizeText(mergedConfig.model, mergedConfig.providerMode === "browser" ? "gpt-4.1-mini" : "gpt-4o-mini");
+    }
+
     normalized.push({
       id: item.id || `${item.type}-${idSuffix()}`,
       type: item.type,
       title: item.title || def.title,
       zIndex: Math.max(1, Number(item.zIndex) || normalized.length + 1),
-      viewMode: item.viewMode === "headless" ? "headless" : "window",
-      surfaceMode: normalizeSurfaceMode(item.surfaceMode, "normal"),
+      viewMode:
+        item.viewMode === "headless" || item.viewMode === "window"
+          ? item.viewMode
+          : headlessTransparentByDefault
+            ? "headless"
+            : "window",
+      surfaceMode: normalizeSurfaceMode(item.surfaceMode, headlessTransparentByDefault ? "transparent" : "normal"),
+      backdropBlur: typeof item.backdropBlur === "boolean" ? item.backdropBlur : defaultWidgetBackdropBlur(item.type),
+      edgeRoundness: normalizeEdgeRoundness(item.edgeRoundness, 12),
       transparency: normalizeTransparency(item.transparency, 0.94),
-      contentAlignY: normalizeAlign(item.contentAlignY, "top"),
-      contentFillParent: Boolean(item.contentFillParent),
-      contentPadding: normalizeContentPadding(item.contentPadding, 10),
+      contentAlignY:
+        isAiChat
+          ? "top"
+          : headlessTransparentByDefault &&
+        (item.contentAlignY === undefined || item.contentAlignY === null || item.contentAlignY === "" || item.contentAlignY === "top")
+            ? "center"
+            : normalizeAlign(item.contentAlignY, defaultWidgetContentAlign(item.type)),
+      contentFillParent: isShortcut ? false : isAiChat ? true : Boolean(item.contentFillParent),
+      contentPadding: normalizeContentPadding((padding.top + padding.right + padding.bottom + padding.left) / 4, padding.uniform),
+      contentPaddingTop: padding.top,
+      contentPaddingRight: padding.right,
+      contentPaddingBottom: padding.bottom,
+      contentPaddingLeft: padding.left,
+      contentPaddingTopRight: normalizeContentPadding((padding.top + padding.right) / 2, padding.uniform),
+      contentPaddingBottomLeft: normalizeContentPadding((padding.bottom + padding.left) / 2, padding.uniform),
+      widgetThemeMode: normalizeWidgetThemeMode(item.widgetThemeMode, "inherit"),
+      useCustomColors: Boolean(item.useCustomColors),
+      customTextColor: normalizeWidgetColor(item.customTextColor, "#1F2226"),
+      customAccentColor: normalizeWidgetColor(item.customAccentColor, "#1F4F9F"),
+      customSurfaceColor: normalizeWidgetColor(item.customSurfaceColor, "#FFFAF2"),
+      commonOverrides: normalizeCommonOverrides(item.commonOverrides),
       enabled: item.enabled !== false,
       gridLayout: normalizeGridLayout(item.gridLayout, {
         col: normalized.length % 4,
@@ -545,10 +934,7 @@ function hydrate(raw) {
         ...widgetDefaultGridSize(item.type, def)
       }),
       layout: cloneLayout(item.layout || def.defaultLayout),
-      config: {
-        ...(structuredClone(def.defaultConfig || {})),
-        ...(item.config || {})
-      }
+      config: mergedConfig
     });
   }
 
@@ -562,6 +948,10 @@ function hydrate(raw) {
     ...(rawUi.background || {})
   };
   const home = normalizeHomeLayout(rawUi.home || {});
+  const widgetCommonMaster = normalizeWidgetCommonMaster(rawUi.widgetCommonMaster || {});
+  const shortcuts = {
+    iconSizePercent: clamp(Number(rawUi.shortcuts?.iconSizePercent) || 100, 40, 220)
+  };
   const rawPresets = Array.isArray(raw?.presets) ? raw.presets : [];
   const presets = rawPresets
     .map((preset) => {
@@ -580,7 +970,10 @@ function hydrate(raw) {
         snapshot: {
           ui: {
             theme: { ...(snapshot.ui?.theme || {}) },
-            background: { ...(snapshot.ui?.background || {}) }
+            background: { ...(snapshot.ui?.background || {}) },
+            home: { ...(snapshot.ui?.home || {}) },
+            widgetCommonMaster: { ...(snapshot.ui?.widgetCommonMaster || {}) },
+            shortcuts: { ...(snapshot.ui?.shortcuts || {}) }
           },
           instances: Array.isArray(snapshot.instances)
             ? snapshot.instances.map((instance) => ({ ...instance }))
@@ -614,6 +1007,14 @@ function hydrate(raw) {
   background.blurAmount = clamp(Number(background.blurAmount) || 0, 0, 28);
   background.overlayOpacity = clamp(Number(background.overlayOpacity) || 0.24, 0, 0.85);
 
+  for (const instance of normalized) {
+    const hasSavedOverrides = Boolean(instance.commonOverrides && Object.values(instance.commonOverrides).some(Boolean));
+    if (!hasSavedOverrides) {
+      instance.commonOverrides = inferCommonOverrides(instance, widgetCommonMaster);
+    }
+    applyWidgetCommonMaster(instance, widgetCommonMaster, false);
+  }
+
   return {
     mode: raw.mode === "edit" ? "edit" : "use",
     selectedWidgetId: raw.selectedWidgetId || "",
@@ -628,7 +1029,9 @@ function hydrate(raw) {
       settingsOpen: Boolean(rawUi.settingsOpen),
       theme,
       background,
-      home
+      home,
+      widgetCommonMaster,
+      shortcuts
     },
     presets,
     instances: normalized.length ? normalized : base.instances
@@ -645,6 +1048,118 @@ function queueSave() {
   }, 150);
 }
 
+function buildHistorySnapshot() {
+  return structuredClone({
+    mode: state.mode,
+    selectedWidgetId: state.selectedWidgetId,
+    nextId: state.nextId,
+    ui: state.ui,
+    presets: state.presets,
+    instances: state.instances
+  });
+}
+
+function snapshotFingerprint(snapshot) {
+  try {
+    return JSON.stringify(snapshot);
+  } catch {
+    return `${Date.now()}-${Math.random().toString(16).slice(2, 8)}`;
+  }
+}
+
+function recordHistorySnapshot(label = "Update") {
+  if (undoState.isRestoring || !state) {
+    return;
+  }
+
+  const snapshot = buildHistorySnapshot();
+  const fingerprint = snapshotFingerprint(snapshot);
+  const last = undoState.undoStack[undoState.undoStack.length - 1];
+  if (last?.fingerprint === fingerprint) {
+    return;
+  }
+
+  undoState.undoStack.push({
+    label,
+    snapshot,
+    fingerprint
+  });
+
+  if (undoState.undoStack.length > HISTORY_LIMIT) {
+    undoState.undoStack.shift();
+  }
+
+  undoState.redoStack.length = 0;
+}
+
+function restoreFromSnapshot(snapshot) {
+  state = hydrate(snapshot);
+  closeWidgetModal(false);
+  closeAddWidgetModal();
+  applyTheme();
+  setBodyMode();
+  applyBackground();
+  renderBoard();
+  renderSettings();
+  queueSave();
+}
+
+function undoLastChange() {
+  if (!undoState.undoStack.length || !state) {
+    return;
+  }
+
+  const current = buildHistorySnapshot();
+  undoState.redoStack.push({
+    label: "Redo",
+    snapshot: current,
+    fingerprint: snapshotFingerprint(current)
+  });
+  if (undoState.redoStack.length > HISTORY_LIMIT) {
+    undoState.redoStack.shift();
+  }
+
+  const target = undoState.undoStack.pop();
+  if (!target?.snapshot) {
+    return;
+  }
+
+  undoState.isRestoring = true;
+  try {
+    restoreFromSnapshot(target.snapshot);
+  } finally {
+    undoState.isRestoring = false;
+  }
+}
+
+function redoLastChange() {
+  if (!undoState.redoStack.length || !state) {
+    return;
+  }
+
+  const current = buildHistorySnapshot();
+  undoState.undoStack.push({
+    label: "Undo",
+    snapshot: current,
+    fingerprint: snapshotFingerprint(current)
+  });
+  if (undoState.undoStack.length > HISTORY_LIMIT) {
+    undoState.undoStack.shift();
+  }
+
+  const target = undoState.redoStack.pop();
+  if (!target?.snapshot) {
+    return;
+  }
+
+  undoState.isRestoring = true;
+  try {
+    restoreFromSnapshot(target.snapshot);
+  } finally {
+    undoState.isRestoring = false;
+  }
+}
+
 function setBodyMode() {
   const isEdit = state.mode === "edit";
   document.body.classList.toggle("mode-edit", isEdit);
@@ -655,7 +1170,9 @@ function setBodyMode() {
   if (label) {
     label.textContent = isEdit ? "Use Mode" : "Edit Mode";
   }
-  elements.modeToggleBtn.title = isEdit ? "Switch to use mode" : "Switch to edit mode";
+  const modeTitle = isEdit ? "Switch to Use Mode" : "Switch to Edit Mode";
+  elements.modeToggleBtn.title = modeTitle;
+  elements.modeToggleBtn.setAttribute("aria-label", modeTitle);
 
   if (!isEdit) {
     closeWidgetModal(false);
@@ -666,6 +1183,35 @@ function setBodyMode() {
   }
 
   syncSettingsPanelVisibility();
+}
+
+function clampEditDockPosition(left, top) {
+  const dock = elements.editDock;
+  if (!dock) {
+    return { left: 0, top: 0 };
+  }
+
+  const rect = dock.getBoundingClientRect();
+  const margin = 8;
+  const maxLeft = Math.max(margin, window.innerWidth - rect.width - margin);
+  const maxTop = Math.max(margin, window.innerHeight - rect.height - margin);
+
+  return {
+    left: clamp(Math.round(left), margin, maxLeft),
+    top: clamp(Math.round(top), margin, maxTop)
+  };
+}
+
+function applyEditDockPosition(left, top) {
+  const dock = elements.editDock;
+  if (!dock) {
+    return;
+  }
+  const next = clampEditDockPosition(left, top);
+  dock.style.left = `${next.left}px`;
+  dock.style.top = `${next.top}px`;
+  dock.style.transform = "none";
+  dock.classList.add("is-positioned");
 }
 
 function syncSettingsPanelVisibility() {
@@ -737,15 +1283,52 @@ function blockOutsideModalEvent(event) {
 function applyCardVisual(card, instance) {
   card.classList.toggle("headless", instance.viewMode === "headless");
   const surfaceMode = normalizeSurfaceMode(instance.surfaceMode, "normal");
+  const edgeRoundness = normalizeEdgeRoundness(instance.edgeRoundness, 12);
   const opacity = surfaceMode === "transparent" ? 0 : normalizeTransparency(instance.transparency, 0.94);
+  const globalBlurEnabled = state?.ui?.home?.widgetBackdropBlur !== false;
+  const widgetBlurEnabled = instance.backdropBlur !== false;
+  card.style.setProperty("--widget-backdrop-blur", globalBlurEnabled && widgetBlurEnabled ? "12px" : "0px");
+  card.style.setProperty("--widget-edge-roundness", `${edgeRoundness}px`);
   card.classList.toggle("surface-transparent", surfaceMode === "transparent");
   card.style.setProperty("--widget-opacity", String(opacity));
-  const align = normalizeAlign(instance.contentAlignY, "top");
+  const align = instance.type === "aiChat" ? "top" : normalizeAlign(instance.contentAlignY, defaultWidgetContentAlign(instance.type));
   card.dataset.contentAlignY = align;
   card.dataset.contentFill = instance.contentFillParent ? "true" : "false";
-  card.style.setProperty("--widget-content-padding", `${normalizeContentPadding(instance.contentPadding, 10)}px`);
+  const padding = resolveWidgetPadding(instance);
+  card.style.setProperty(
+    "--widget-content-padding",
+    `${padding.top}px ${padding.right}px ${padding.bottom}px ${padding.left}px`
+  );
+  card.style.setProperty("--widget-pad-top", `${padding.top}px`);
+  card.style.setProperty("--widget-pad-right", `${padding.right}px`);
+  card.style.setProperty("--widget-pad-bottom", `${padding.bottom}px`);
+  card.style.setProperty("--widget-pad-left", `${padding.left}px`);
+  card.style.setProperty("--widget-head-offset", instance.viewMode === "headless" ? "0px" : "40px");
+  instance.contentPaddingTop = padding.top;
+  instance.contentPaddingRight = padding.right;
+  instance.contentPaddingBottom = padding.bottom;
+  instance.contentPaddingLeft = padding.left;
+  instance.contentPaddingTopRight = normalizeContentPadding((padding.top + padding.right) / 2, padding.uniform);
+  instance.contentPaddingBottomLeft = normalizeContentPadding((padding.bottom + padding.left) / 2, padding.uniform);
+  instance.contentPadding = normalizeContentPadding((padding.top + padding.right + padding.bottom + padding.left) / 4, padding.uniform);
+  instance.edgeRoundness = edgeRoundness;
   const justify = align === "center" ? "center" : align === "bottom" ? "flex-end" : "flex-start";
   card.style.setProperty("--widget-content-justify", justify);
+
+  const themeMode = normalizeWidgetThemeMode(instance.widgetThemeMode, "inherit");
+  card.dataset.widgetThemeMode = themeMode;
+
+  const useCustom = Boolean(instance.useCustomColors);
+  card.dataset.useCustomColors = useCustom ? "true" : "false";
+  if (useCustom) {
+    card.style.setProperty("--widget-custom-text", normalizeWidgetColor(instance.customTextColor, "#1F2226"));
+    card.style.setProperty("--widget-custom-accent", normalizeWidgetColor(instance.customAccentColor, "#1F4F9F"));
+    card.style.setProperty("--widget-custom-surface", normalizeWidgetColor(instance.customSurfaceColor, "#FFFAF2"));
+  } else {
+    card.style.removeProperty("--widget-custom-text");
+    card.style.removeProperty("--widget-custom-accent");
+    card.style.removeProperty("--widget-custom-surface");
+  }
 }
 
 function applyCardStack(card, instance) {
@@ -782,6 +1365,7 @@ function bringWidgetToFront(instanceId) {
 function applyTheme() {
   const root = document.documentElement;
   const theme = state.ui.theme;
+  const home = state.ui.home;
 
   root.style.setProperty("--primary", theme.primary);
   root.style.setProperty("--accent", theme.accent);
@@ -792,6 +1376,7 @@ function applyTheme() {
   root.style.setProperty("--line", theme.line);
   root.style.setProperty("--font-family", theme.fontFamily || defaultTheme().fontFamily);
   root.style.setProperty("--font-scale", String(clamp(Number(theme.fontScale) || 1, 0.8, 1.4)));
+  root.style.setProperty("--widget-backdrop-blur", home?.widgetBackdropBlur === false ? "0px" : "12px");
 }
 
 function clearWallpaperTimer() {
@@ -1144,6 +1729,29 @@ function scheduleWallpaperRefresh(signature) {
   }, wait);
 }
 
+function syncBackgroundRefreshButton() {
+  if (!elements.bgRefreshBtn) {
+    return;
+  }
+  const canRefresh = state?.ui?.background?.mode === "wallpaper";
+  elements.bgRefreshBtn.disabled = !canRefresh;
+  elements.bgRefreshBtn.classList.toggle("is-disabled", !canRefresh);
+  elements.bgRefreshBtn.title = canRefresh ? "Refresh wallpaper" : "Wallpaper mode only";
+}
+
+function refreshBackgroundNow() {
+  if (state.ui.background.mode !== "wallpaper") {
+    return;
+  }
+  const signature = wallpaperSignature(state.ui.background);
+  void refreshWallpaper({ signature, force: true }).finally(() => {
+    if (state.ui.background.mode !== "wallpaper") {
+      return;
+    }
+    scheduleWallpaperRefresh(wallpaperSignature(state.ui.background));
+  });
+}
+
 function applyBackground() {
   clearWallpaperTimer();
 
@@ -1154,6 +1762,7 @@ function applyBackground() {
   elements.bgOverlay.style.background = `rgba(8, 11, 16, ${overlay})`;
   elements.bgLayer.style.background = theme.background;
   hideVideo();
+  syncBackgroundRefreshButton();
 
   if (cfg.mode === "solid") {
     wallpaperSourceSignature = "";
@@ -1211,6 +1820,15 @@ function refreshAllWidgets() {
   }
 }
 
+function refreshWidgetsByType(type) {
+  for (const instance of state.instances) {
+    if (instance.type !== type) {
+      continue;
+    }
+    runtime.get(instance.id)?.controller?.refresh?.();
+  }
+}
+
 function populateTypeSelect() {
   elements.widgetTypeSelect.replaceChildren();
   for (const def of widgetList) {
@@ -1242,6 +1860,10 @@ function syncAddWidgetSizeInputs() {
   }
   if (elements.addWidgetRowSpanInput) {
     elements.addWidgetRowSpanInput.value = String(size.rowSpan);
+  }
+  if (elements.addWidgetTitleInput) {
+    elements.addWidgetTitleInput.placeholder = `Default: ${def.title}`;
+    elements.addWidgetTitleInput.value = "";
   }
 }
 
@@ -1297,10 +1919,12 @@ function applyAddWidgetModal() {
   const defaultSize = widgetDefaultGridSize(type, def);
   const colSpan = normalizeGridSpanValue(elements.addWidgetColSpanInput?.value, defaultSize.colSpan, GRID_MAX_COLUMNS);
   const rowSpan = normalizeGridSpanValue(elements.addWidgetRowSpanInput?.value, defaultSize.rowSpan, GRID_MAX_ROW_SPAN);
+  const title = normalizeText(elements.addWidgetTitleInput?.value, def.title);
 
   addWidget(type, {
     colSpan,
-    rowSpan
+    rowSpan,
+    title
   });
   closeAddWidgetModal();
 }
@@ -1364,9 +1988,9 @@ function applyGridLayout({ commitFreeLayout = false, shouldSave = false } = {}) 
     });
 
     grid.colSpan = clamp(grid.colSpan, 1, metrics.cols);
-    grid.rowSpan = clamp(grid.rowSpan, 1, GRID_MAX_ROW_SPAN);
+    grid.rowSpan = clamp(grid.rowSpan, 1, metrics.rows);
     grid.col = clamp(grid.col, 0, Math.max(0, metrics.cols - grid.colSpan));
-    grid.row = Math.max(0, grid.row);
+    grid.row = clamp(grid.row, 0, Math.max(0, metrics.rows - grid.rowSpan));
     instance.gridLayout = grid;
 
     instance.layout.x = metrics.marginX + grid.col * (metrics.cellW + metrics.gapX);
@@ -1501,6 +2125,7 @@ function setSelected(instanceId) {
 }
 
 function patchTheme(patch) {
+  recordHistorySnapshot("Update theme");
   state.ui.theme = {
     ...state.ui.theme,
     ...patch
@@ -1509,11 +2134,13 @@ function patchTheme(patch) {
 
   applyTheme();
   applyBackground();
+  refreshWidgetsByType("label");
   renderSettings();
   queueSave();
 }
 
 function patchHomeLayout(patch) {
+  recordHistorySnapshot("Update layout settings");
   const prevMode = state.ui.home.mode;
   state.ui.home = normalizeHomeLayout({
     ...state.ui.home,
@@ -1534,12 +2161,47 @@ function patchHomeLayout(patch) {
     updateBoardBounds();
   }
 
+  applyTheme();
   setBodyMode();
   renderSettings();
   queueSave();
 }
 
+function patchShortcutsUi(patch) {
+  recordHistorySnapshot("Update shortcut global settings");
+  state.ui.shortcuts = {
+    ...state.ui.shortcuts,
+    ...patch
+  };
+  state.ui.shortcuts.iconSizePercent = clamp(Number(state.ui.shortcuts.iconSizePercent) || 100, 40, 220);
+  refreshAllWidgets();
+  renderSettings();
+  queueSave();
+}
+
+function patchWidgetCommonMaster(patch) {
+  recordHistorySnapshot("Update widget common master settings");
+  state.ui.widgetCommonMaster = normalizeWidgetCommonMaster({
+    ...state.ui.widgetCommonMaster,
+    ...patch
+  });
+
+  for (const instance of state.instances) {
+    applyWidgetCommonMaster(instance, state.ui.widgetCommonMaster, false);
+    instance.commonOverrides = inferCommonOverrides(instance, state.ui.widgetCommonMaster);
+    const rt = runtime.get(instance.id);
+    if (rt?.card) {
+      applyCardVisual(rt.card, instance);
+    }
+  }
+
+  refreshAllWidgets();
+  renderSettings();
+  queueSave();
+}
+
 function patchBackground(patch) {
+  recordHistorySnapshot("Update background settings");
   state.ui.background = {
     ...state.ui.background,
     ...patch
@@ -1570,6 +2232,7 @@ function patchBackground(patch) {
   );
 
   applyBackground();
+  refreshWidgetsByType("label");
   renderSettings();
   queueSave();
 }
@@ -1579,21 +2242,38 @@ function patchWidgetConfig(instanceId, patch) {
   if (!instance) {
     return;
   }
+  recordHistorySnapshot("Update widget settings");
   instance.config = { ...instance.config, ...patch };
   runtime.get(instanceId)?.controller?.refresh?.();
   renderSettings();
   queueSave();
 }
 
-function patchWidgetLayout(instanceId, layoutPatch) {
+function patchWidgetLayout(instanceId, layoutPatch, options = {}) {
   const instance = instanceById(instanceId);
   if (!instance) {
     return;
   }
-  instance.layout = {
+  const nextLayout = {
     ...instance.layout,
     ...layoutPatch
   };
+
+  const changed =
+    nextLayout.x !== instance.layout.x ||
+    nextLayout.y !== instance.layout.y ||
+    nextLayout.w !== instance.layout.w ||
+    nextLayout.h !== instance.layout.h;
+
+  if (!changed) {
+    return;
+  }
+
+  if (options.record !== false) {
+    recordHistorySnapshot(options.label || "Move widget");
+  }
+
+  instance.layout = nextLayout;
   const rt = runtime.get(instanceId);
   if (rt) {
     applyLayout(rt.card, instance.layout);
@@ -1608,6 +2288,7 @@ function removeWidget(instanceId) {
   if (index < 0) {
     return;
   }
+  recordHistorySnapshot("Remove widget");
   runtime.get(instanceId)?.controller?.destroy?.();
   runtime.get(instanceId)?.card.remove();
   runtime.delete(instanceId);
@@ -1632,9 +2313,11 @@ function createWidgetCard(instance) {
   const card = fragment.querySelector(".widget-card");
   const shell = fragment.querySelector(".widget-shell");
   const head = fragment.querySelector(".widget-head");
+  const headActions = fragment.querySelector(".widget-head-actions");
   const title = fragment.querySelector(".widget-title");
   const body = fragment.querySelector(".widget-body");
   const contentHost = fragment.querySelector(".widget-content-host");
+  const inlineActions = fragment.querySelector(".widget-inline-actions");
   const contentSlot = fragment.querySelector(".widget-content-slot");
   const selectBtn = fragment.querySelector(".widget-select-btn");
   const removeBtn = fragment.querySelector(".widget-remove-btn");
@@ -1642,6 +2325,8 @@ function createWidgetCard(instance) {
   const floatRemoveBtn = fragment.querySelector(".widget-float-remove");
   const dragBtn = fragment.querySelector(".widget-drag-btn");
   const resizeHandle = fragment.querySelector(".widget-resize-handle");
+  const paddingHandleTopRight = fragment.querySelector(".widget-padding-handle-top-right");
+  const paddingHandleBottomLeft = fragment.querySelector(".widget-padding-handle-bottom-left");
 
   title.textContent = instance.title || def.title;
   card.dataset.widgetId = instance.id;
@@ -1664,6 +2349,12 @@ function createWidgetCard(instance) {
   if (resizeHandle) {
     resizeHandle.dataset.treeId = `${instance.id}-1-3`;
   }
+  if (paddingHandleTopRight) {
+    paddingHandleTopRight.dataset.treeId = `${instance.id}-1-4`;
+  }
+  if (paddingHandleBottomLeft) {
+    paddingHandleBottomLeft.dataset.treeId = `${instance.id}-1-5`;
+  }
 
   applyLayout(card, instance.layout);
   applyCardVisual(card, instance);
@@ -1672,6 +2363,8 @@ function createWidgetCard(instance) {
   const controller = def.create({
     container: contentSlot || body,
     getConfig: () => instance.config,
+    getUi: () => state.ui,
+    getWidget: () => instance,
     patchConfig: (patch) => patchWidgetConfig(instance.id, patch),
     isEditMode: () => state.mode === "edit",
     openSettings: () => {
@@ -1704,12 +2397,52 @@ function createWidgetCard(instance) {
   removeBtn.addEventListener("click", removeCurrent);
   floatRemoveBtn?.addEventListener("click", removeCurrent);
 
+  if (instance.type === "bookmarks" && typeof controller?.refresh === "function") {
+    const makeRefreshButton = (className, titleText) => {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = className;
+      btn.title = titleText;
+      btn.innerHTML = '<svg class="icon"><use href="#i-reset"></use></svg>';
+      btn.addEventListener("click", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        controller.refresh();
+      });
+      return btn;
+    };
+
+    const headRefresh = makeRefreshButton("icon-btn widget-refresh-btn", "Refresh bookmarks");
+    if (selectBtn?.parentElement === headActions) {
+      headActions.insertBefore(headRefresh, selectBtn);
+    } else {
+      headActions?.prepend(headRefresh);
+    }
+
+    const floatRefresh = makeRefreshButton("icon-btn widget-float-refresh", "Refresh bookmarks");
+    if (floatSelectBtn?.parentElement === inlineActions) {
+      inlineActions.insertBefore(floatRefresh, floatSelectBtn);
+    } else {
+      inlineActions?.prepend(floatRefresh);
+    }
+    card.classList.add("supports-headless-refresh");
+  }
+
   card.addEventListener("click", (event) => {
     if (state.mode !== "edit") {
       return;
     }
     setSelected(instance.id);
     if (instance.type === "shortcut" && event.target.closest(".shortcut-tile")) {
+      event.preventDefault();
+      event.stopPropagation();
+      openWidgetModal(instance.id);
+      return;
+    }
+    if (instance.type === "aiChat" && event.target.closest(".ai-chat-widget")) {
+      if (event.target.closest("form, input, textarea, button, a, [contenteditable='true']")) {
+        return;
+      }
       event.preventDefault();
       event.stopPropagation();
       openWidgetModal(instance.id);
@@ -1720,7 +2453,7 @@ function createWidgetCard(instance) {
     if (state.mode !== "edit") {
       return false;
     }
-    if (event && event.button !== 0) {
+    if (event && Number.isFinite(event.button) && event.button !== 0 && event.button !== -1) {
       return false;
     }
     if (!fromHandleButton && target?.closest("button, input, textarea, select, a")) {
@@ -1739,6 +2472,7 @@ function createWidgetCard(instance) {
     }
 
     if (isGridLayoutMode()) {
+      recordHistorySnapshot("Move widget");
       const metrics = gridMetrics();
       const defForGrid = widgetRegistry[instance.type];
       const startGrid = normalizeGridLayout(instance.gridLayout, {
@@ -1756,7 +2490,7 @@ function createWidgetCard(instance) {
         instance.gridLayout = {
           ...startGrid,
           col: clamp(startGrid.col + dCol, 0, Math.max(0, metrics.cols - startGrid.colSpan)),
-          row: Math.max(0, startGrid.row + dRow)
+          row: clamp(startGrid.row + dRow, 0, Math.max(0, metrics.rows - startGrid.rowSpan))
         };
         applyGridLayout({ commitFreeLayout: false, shouldSave: false });
       };
@@ -1790,7 +2524,7 @@ function createWidgetCard(instance) {
       patchWidgetLayout(instance.id, {
         x: nextX,
         y: nextY
-      });
+      }, { record: false });
     };
 
     const up = () => {
@@ -1800,7 +2534,7 @@ function createWidgetCard(instance) {
       patchWidgetLayout(instance.id, {
         x: Math.round(instance.layout.x / SNAP) * SNAP,
         y: Math.round(instance.layout.y / SNAP) * SNAP
-      });
+      }, { label: "Move widget" });
     };
 
     window.addEventListener("pointermove", move);
@@ -1808,7 +2542,122 @@ function createWidgetCard(instance) {
     return true;
   };
 
+  const startPaddingDrag = (event, corner) => {
+    if (state.mode !== "edit") {
+      return;
+    }
+    if (event.button !== 0) {
+      return;
+    }
+
+    event.stopPropagation();
+    event.preventDefault();
+    setSelected(instance.id);
+
+    const startX = event.clientX;
+    const startY = event.clientY;
+    const fallbackPadding = widgetPaddingFallback(instance.type);
+    const startPadding = resolveWidgetPadding(instance);
+    instance.contentPaddingTop = startPadding.top;
+    instance.contentPaddingRight = startPadding.right;
+    instance.contentPaddingBottom = startPadding.bottom;
+    instance.contentPaddingLeft = startPadding.left;
+    let changed = false;
+    let recorded = false;
+
+    const move = (moveEvent) => {
+      const dx = moveEvent.clientX - startX;
+      const dy = moveEvent.clientY - startY;
+
+      const proportional = moveEvent.shiftKey;
+      let nextTop = startPadding.top;
+      let nextRight = startPadding.right;
+      let nextBottom = startPadding.bottom;
+      let nextLeft = startPadding.left;
+
+      if (corner === "topRight") {
+        if (proportional) {
+          const delta = (-dx + dy) / 2.5;
+          nextTop = normalizeContentPadding(startPadding.top + delta, fallbackPadding);
+          nextRight = normalizeContentPadding(startPadding.right + delta, fallbackPadding);
+        } else {
+          nextTop = normalizeContentPadding(startPadding.top + dy / 2.5, fallbackPadding);
+          nextRight = normalizeContentPadding(startPadding.right - dx / 2.5, fallbackPadding);
+        }
+      } else if (proportional) {
+        const delta = (dx - dy) / 2.5;
+        nextBottom = normalizeContentPadding(startPadding.bottom + delta, fallbackPadding);
+        nextLeft = normalizeContentPadding(startPadding.left + delta, fallbackPadding);
+      } else {
+        nextBottom = normalizeContentPadding(startPadding.bottom - dy / 2.5, fallbackPadding);
+        nextLeft = normalizeContentPadding(startPadding.left + dx / 2.5, fallbackPadding);
+      }
+
+      const currentTop = normalizeContentPadding(instance.contentPaddingTop, fallbackPadding);
+      const currentRight = normalizeContentPadding(instance.contentPaddingRight, fallbackPadding);
+      const currentBottom = normalizeContentPadding(instance.contentPaddingBottom, fallbackPadding);
+      const currentLeft = normalizeContentPadding(instance.contentPaddingLeft, fallbackPadding);
+
+      if (nextTop === currentTop && nextRight === currentRight && nextBottom === currentBottom && nextLeft === currentLeft) {
+        return;
+      }
+
+      if (!recorded) {
+        recordHistorySnapshot("Adjust content padding");
+        recorded = true;
+      }
+
+      changed = true;
+      instance.contentPaddingTop = nextTop;
+      instance.contentPaddingRight = nextRight;
+      instance.contentPaddingBottom = nextBottom;
+      instance.contentPaddingLeft = nextLeft;
+      instance.contentPaddingTopRight = normalizeContentPadding((nextTop + nextRight) / 2, fallbackPadding);
+      instance.contentPaddingBottomLeft = normalizeContentPadding((nextBottom + nextLeft) / 2, fallbackPadding);
+      instance.contentPadding = normalizeContentPadding((nextTop + nextRight + nextBottom + nextLeft) / 4, fallbackPadding);
+
+      const rt = runtime.get(instance.id);
+      if (rt?.card) {
+        applyCardVisual(rt.card, instance);
+      }
+
+      if (modalState.open && modalState.widgetId === instance.id && modalState.draft) {
+        modalState.draft.contentPaddingTop = instance.contentPaddingTop;
+        modalState.draft.contentPaddingRight = instance.contentPaddingRight;
+        modalState.draft.contentPaddingBottom = instance.contentPaddingBottom;
+        modalState.draft.contentPaddingLeft = instance.contentPaddingLeft;
+        modalState.draft.contentPaddingTopRight = instance.contentPaddingTopRight;
+        modalState.draft.contentPaddingBottomLeft = instance.contentPaddingBottomLeft;
+        modalState.draft.contentPadding = instance.contentPadding;
+      }
+    };
+
+    const up = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      if (!changed) {
+        return;
+      }
+      lastDragEndAt = Date.now();
+      renderSettings();
+      queueSave();
+    };
+
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+  };
+
   head.addEventListener("pointerdown", (event) => {
+    if (instance.viewMode === "headless") {
+      return;
+    }
+    startDrag({ event, target: event.target, fromHandleButton: false });
+  });
+
+  head.addEventListener("mousedown", (event) => {
+    if (typeof window.PointerEvent !== "undefined") {
+      return;
+    }
     if (instance.viewMode === "headless") {
       return;
     }
@@ -1822,8 +2671,33 @@ function createWidgetCard(instance) {
     startDrag({ event, target: event.target, fromHandleButton: false });
   });
 
+  title?.addEventListener("mousedown", (event) => {
+    if (typeof window.PointerEvent !== "undefined") {
+      return;
+    }
+    if (instance.viewMode === "headless") {
+      return;
+    }
+    startDrag({ event, target: event.target, fromHandleButton: false });
+  });
+
   dragBtn?.addEventListener("pointerdown", (event) => {
     startDrag({ event, target: event.target, fromHandleButton: true });
+  });
+
+  dragBtn?.addEventListener("mousedown", (event) => {
+    if (typeof window.PointerEvent !== "undefined") {
+      return;
+    }
+    startDrag({ event, target: event.target, fromHandleButton: true });
+  });
+
+  paddingHandleTopRight?.addEventListener("pointerdown", (event) => {
+    startPaddingDrag(event, "topRight");
+  });
+
+  paddingHandleBottomLeft?.addEventListener("pointerdown", (event) => {
+    startPaddingDrag(event, "bottomLeft");
   });
 
   if (resizeHandle) {
@@ -1845,6 +2719,7 @@ function createWidgetCard(instance) {
       const startH = instance.layout.h;
 
       if (isGridLayoutMode()) {
+        recordHistorySnapshot("Resize widget");
         const metrics = gridMetrics();
         const startGrid = normalizeGridLayout(instance.gridLayout, {
           col: 0,
@@ -1860,8 +2735,8 @@ function createWidgetCard(instance) {
 
           instance.gridLayout = {
             ...startGrid,
-            colSpan: clamp(startGrid.colSpan + dCol, 1, metrics.cols),
-            rowSpan: clamp(startGrid.rowSpan + dRow, 1, GRID_MAX_ROW_SPAN)
+            colSpan: clamp(startGrid.colSpan + dCol, 1, Math.max(1, metrics.cols - startGrid.col)),
+            rowSpan: clamp(startGrid.rowSpan + dRow, 1, Math.max(1, metrics.rows - startGrid.row))
           };
 
           applyGridLayout({ commitFreeLayout: false, shouldSave: false });
@@ -1892,7 +2767,7 @@ function createWidgetCard(instance) {
         patchWidgetLayout(instance.id, {
           w: clamp(startW + dx, minW, maxW),
           h: clamp(startH + dy, minH, maxH)
-        });
+        }, { record: false });
       };
 
       const up = () => {
@@ -1902,7 +2777,7 @@ function createWidgetCard(instance) {
         patchWidgetLayout(instance.id, {
           w: Math.round(instance.layout.w / SNAP) * SNAP,
           h: Math.round(instance.layout.h / SNAP) * SNAP
-        });
+        }, { label: "Resize widget" });
       };
 
       window.addEventListener("pointermove", move);
@@ -1937,12 +2812,28 @@ function renderBoard() {
   updateBoardBounds();
 }
 
-function createFormRow(labelText) {
+function createFormRow(labelText, helpText = "") {
   const row = document.createElement("label");
   row.className = "form-row";
+
+  const titleWrap = document.createElement("span");
+  titleWrap.className = "form-row-label";
+
   const text = document.createElement("span");
   text.textContent = labelText;
-  row.append(text);
+  titleWrap.append(text);
+
+  const help = normalizeText(helpText);
+  if (help) {
+    const tip = document.createElement("span");
+    tip.className = "field-help";
+    tip.textContent = "?";
+    tip.title = help;
+    tip.setAttribute("aria-label", help);
+    titleWrap.append(tip);
+  }
+
+  row.append(titleWrap);
   return row;
 }
 
@@ -1991,8 +2882,27 @@ function createSectionChip(text) {
   return chip;
 }
 
+function isThemeFieldKey(key) {
+  return (
+    key === "primary" ||
+    key === "accent" ||
+    key === "secondary" ||
+    key === "background" ||
+    key === "surface" ||
+    key === "text" ||
+    key === "line" ||
+    key === "fontFamily" ||
+    key === "fontScale" ||
+    key === "widgetThemeMode" ||
+    key === "useCustomColors" ||
+    key === "customTextColor" ||
+    key === "customAccentColor" ||
+    key === "customSurfaceColor"
+  );
+}
+
 function settingsEventName(schema) {
-  if (schema.type === "checkbox" || schema.type === "select") {
+  if (schema.type === "checkbox" || schema.type === "select" || schema.type === "bookmark-folder-select") {
     return "change";
   }
   if (schema.type === "color") {
@@ -2021,6 +2931,59 @@ function createInputBySchema(schema, value) {
       select.append(option);
     }
     select.value = String(value ?? "");
+    return select;
+  }
+
+  if (schema.type === "bookmark-folder-select") {
+    const select = document.createElement("select");
+    const targetValue = String(value ?? "");
+
+    chrome.bookmarks
+      .getTree()
+      .then((tree) => {
+        const root = tree?.[0];
+        if (!root) {
+          select.value = targetValue;
+          return;
+        }
+
+        const rootOption = document.createElement("option");
+        rootOption.value = String(root.id);
+        rootOption.textContent = "Everything";
+        select.append(rootOption);
+
+        const walk = (node, pathParts) => {
+          const title = normalizeText(node.title, "Untitled");
+          const nextParts = [...pathParts, title];
+          if (!node.url) {
+            const option = document.createElement("option");
+            option.value = String(node.id);
+            option.textContent = nextParts.join("/");
+            select.append(option);
+          }
+          for (const child of node.children || []) {
+            if (!child.url) {
+              walk(child, nextParts);
+            }
+          }
+        };
+
+        for (const child of root.children || []) {
+          if (!child.url) {
+            walk(child, []);
+          }
+        }
+
+        const nextValue = targetValue || String(root.id);
+        select.value = nextValue;
+        if (select.value !== nextValue) {
+          select.value = String(root.id);
+        }
+      })
+      .catch(() => {
+        select.value = targetValue;
+      });
+
     return select;
   }
 
@@ -2079,6 +3042,7 @@ function renderGlobalSettings() {
 
   for (const schema of themeFields) {
     const row = createFormRow(schema.label);
+    row.classList.add("theme-row");
     const value = state.ui.theme[schema.key];
     if (schema.type === "color") {
       row.append(
@@ -2146,6 +3110,21 @@ function renderGlobalSettings() {
         { value: "narrow", label: "Narrow" },
         { value: "none", label: "None" }
       ]
+    },
+    {
+      key: "itemGap",
+      label: "Item gap",
+      type: "select",
+      options: [
+        { value: "narrow", label: "Narrow (Default)" },
+        { value: "wide", label: "Wide" },
+        { value: "none", label: "None" }
+      ]
+    },
+    {
+      key: "widgetBackdropBlur",
+      label: "Blur behind widgets",
+      type: "checkbox"
     }
   ];
 
@@ -2161,6 +3140,62 @@ function renderGlobalSettings() {
     row.append(input);
     elements.settingsContent.append(row);
   }
+
+  appendDivider();
+  const shortcutRow = createFormRow("Global shortcut icon size (%)");
+  const shortcutInput = createInputBySchema(
+    {
+      key: "iconSizePercent",
+      type: "number",
+      min: 40,
+      max: 220,
+      step: 5
+    },
+    state.ui.shortcuts?.iconSizePercent ?? 100
+  );
+  shortcutInput.addEventListener("change", () => {
+    patchShortcutsUi({ iconSizePercent: readFieldValue(shortcutInput, { type: "number" }) });
+  });
+  shortcutRow.append(shortcutInput);
+  elements.settingsContent.append(shortcutRow);
+
+  appendDivider();
+  elements.settingsContent.append(createSectionChip("Widget Common Master"));
+
+  const master = normalizeWidgetCommonMaster(state.ui.widgetCommonMaster);
+  for (const schema of getWidgetCommonMasterFields()) {
+    const row = createFormRow(schema.label);
+    if (isThemeFieldKey(schema.key)) {
+      row.classList.add("theme-row");
+    }
+    const value = master[schema.key];
+    if (schema.type === "color") {
+      row.append(
+        createColorControl(value, (next) => {
+          patchWidgetCommonMaster({ [schema.key]: next });
+        })
+      );
+    } else {
+      const input = createInputBySchema(schema, value);
+      input.addEventListener(settingsEventName(schema), () => {
+        patchWidgetCommonMaster({ [schema.key]: readFieldValue(input, schema) });
+      });
+      row.append(input);
+    }
+    elements.settingsContent.append(row);
+  }
+
+  const masterResetRow = document.createElement("div");
+  masterResetRow.className = "preset-actions";
+  const masterResetBtn = document.createElement("button");
+  masterResetBtn.type = "button";
+  masterResetBtn.className = "btn";
+  masterResetBtn.textContent = "Reset Widget Common Master";
+  masterResetBtn.addEventListener("click", () => {
+    patchWidgetCommonMaster(defaultWidgetCommonMaster());
+  });
+  masterResetRow.append(masterResetBtn);
+  elements.settingsContent.append(masterResetRow);
 }
 
 function renderProfileSettings() {
@@ -2372,6 +3407,21 @@ function getWidgetModalCommonFields() {
       ]
     },
     {
+      key: "backdropBlur",
+      label: "Blur background",
+      type: "checkbox",
+      group: "base"
+    },
+    {
+      key: "edgeRoundness",
+      label: "Edge roundness",
+      type: "number",
+      group: "base",
+      min: 0,
+      max: 40,
+      step: 1
+    },
+    {
       key: "transparency",
       label: "Transparency",
       type: "number",
@@ -2406,6 +3456,26 @@ function getWidgetModalCommonFields() {
       step: 1,
       group: "base"
     },
+    {
+      key: "widgetThemeMode",
+      label: "Widget theme override",
+      type: "select",
+      group: "base",
+      options: [
+        { value: "inherit", label: "Inherit global" },
+        { value: "light", label: "Force light" },
+        { value: "dark", label: "Force dark" }
+      ]
+    },
+    {
+      key: "useCustomColors",
+      label: "Use custom colors",
+      type: "checkbox",
+      group: "base"
+    },
+    { key: "customTextColor", label: "Custom text color", type: "color", group: "base" },
+    { key: "customAccentColor", label: "Custom accent color", type: "color", group: "base" },
+    { key: "customSurfaceColor", label: "Custom surface color", type: "color", group: "base" },
     ...(isGridLayoutMode()
       ? []
       : [
@@ -2424,6 +3494,99 @@ function getWidgetModalSpecificFields(def) {
   return specific.map((field) => ({ ...field, group: "config" }));
 }
 
+function getWidgetCommonMasterFields() {
+  return [
+    {
+      key: "viewMode",
+      label: "Default display mode",
+      type: "select",
+      options: [
+        { value: "window", label: "Window" },
+        { value: "headless", label: "Headless" }
+      ]
+    },
+    {
+      key: "surfaceMode",
+      label: "Default surface mode",
+      type: "select",
+      options: [
+        { value: "normal", label: "Normal" },
+        { value: "transparent", label: "Transparent" }
+      ]
+    },
+    { key: "backdropBlur", label: "Default blur behind widget", type: "checkbox" },
+    { key: "edgeRoundness", label: "Default edge roundness", type: "number", min: 0, max: 40, step: 1 },
+    { key: "transparency", label: "Default transparency", type: "number", min: 0, max: 1, step: 0.05 },
+    {
+      key: "contentAlignY",
+      label: "Default content vertical align",
+      type: "select",
+      options: [
+        { value: "top", label: "Top" },
+        { value: "center", label: "Center" },
+        { value: "bottom", label: "Bottom" }
+      ]
+    },
+    { key: "contentFillParent", label: "Default fill content", type: "checkbox" },
+    { key: "contentPadding", label: "Default content padding", type: "number", min: 0, max: 48, step: 1 },
+    {
+      key: "widgetThemeMode",
+      label: "Default widget theme override",
+      type: "select",
+      options: [
+        { value: "inherit", label: "Inherit global" },
+        { value: "light", label: "Force light" },
+        { value: "dark", label: "Force dark" }
+      ]
+    },
+    { key: "useCustomColors", label: "Default use custom colors", type: "checkbox" },
+    { key: "customTextColor", label: "Default custom text color", type: "color" },
+    { key: "customAccentColor", label: "Default custom accent color", type: "color" },
+    { key: "customSurfaceColor", label: "Default custom surface color", type: "color" }
+  ];
+}
+
+function applyCommonMasterToDraft(draft, instanceType, master) {
+  draft.viewMode = master.viewMode === "headless" ? "headless" : "window";
+  draft.surfaceMode = normalizeSurfaceMode(master.surfaceMode, "normal");
+  draft.backdropBlur = master.backdropBlur !== false;
+  draft.edgeRoundness = normalizeEdgeRoundness(master.edgeRoundness, 12);
+  draft.transparency = normalizeTransparency(master.transparency, 0.94);
+  draft.contentAlignY = instanceType === "aiChat" ? "top" : normalizeAlign(master.contentAlignY, defaultWidgetContentAlign(instanceType));
+  draft.contentFillParent = instanceType === "aiChat" ? true : Boolean(master.contentFillParent);
+  const padding = normalizeContentPadding(master.contentPadding, widgetPaddingFallback(instanceType));
+  draft.contentPadding = padding;
+  draft.contentPaddingTop = padding;
+  draft.contentPaddingRight = padding;
+  draft.contentPaddingBottom = padding;
+  draft.contentPaddingLeft = padding;
+  draft.contentPaddingTopRight = padding;
+  draft.contentPaddingBottomLeft = padding;
+  draft.widgetThemeMode = normalizeWidgetThemeMode(master.widgetThemeMode, "inherit");
+  draft.useCustomColors = Boolean(master.useCustomColors);
+  draft.customTextColor = normalizeWidgetColor(master.customTextColor, "#1F2226");
+  draft.customAccentColor = normalizeWidgetColor(master.customAccentColor, "#1F4F9F");
+  draft.customSurfaceColor = normalizeWidgetColor(master.customSurfaceColor, "#FFFAF2");
+}
+
+function resetWidgetTabDraftToDefaults(def) {
+  if (!modalState.draft) {
+    return;
+  }
+  modalState.draft.config = structuredClone(def.defaultConfig || {});
+}
+
+function resetCommonTabDraftToGlobal(instance, def) {
+  if (!modalState.draft) {
+    return;
+  }
+  const master = normalizeWidgetCommonMaster(state.ui.widgetCommonMaster);
+  const draft = modalState.draft;
+  draft.title = def.title;
+  draft.layout = cloneLayout(def.defaultLayout);
+  applyCommonMasterToDraft(draft, instance.type, master);
+}
+
 function setWidgetModalActiveTab(tab) {
   const next = tab === "common" ? "common" : "widget";
   modalState.activeTab = next;
@@ -2432,11 +3595,29 @@ function setWidgetModalActiveTab(tab) {
 
 function renderWidgetModalFields(fields) {
   const frag = document.createDocumentFragment();
+  const current = modalState.widgetId ? instanceById(modalState.widgetId) : null;
   for (const field of fields) {
-    const row = createFormRow(field.label);
+    if (current?.type === "aiChat" && (field.key === "contentFillParent" || field.key === "contentAlignY")) {
+      continue;
+    }
+
+    if (
+      !modalState?.draft?.useCustomColors &&
+      (field.key === "customTextColor" || field.key === "customAccentColor" || field.key === "customSurfaceColor")
+    ) {
+      continue;
+    }
+
+    const row = createFormRow(field.label, field.helpText || "");
+    if (isThemeFieldKey(field.key)) {
+      row.classList.add("theme-row");
+    }
     const input = createInputBySchema(field, modalFieldValue(field));
     input.addEventListener(settingsEventName(field), () => {
       setModalFieldValue(field, readFieldValue(input, field));
+      if (field.key === "useCustomColors") {
+        renderWidgetModal();
+      }
     });
     row.append(input);
     frag.append(row);
@@ -2453,6 +3634,14 @@ function modalFieldValue(field) {
     return draft.layout[field.key];
   }
   if (field.group === "base") {
+    if (field.key === "contentPadding") {
+      const fallback = normalizeContentPadding(draft.contentPadding, 10);
+      const top = normalizeContentPadding(draft.contentPaddingTop, fallback);
+      const right = normalizeContentPadding(draft.contentPaddingRight, fallback);
+      const bottom = normalizeContentPadding(draft.contentPaddingBottom, fallback);
+      const left = normalizeContentPadding(draft.contentPaddingLeft, fallback);
+      return normalizeContentPadding((top + right + bottom + left) / 4, fallback);
+    }
     return draft[field.key];
   }
   return draft.config[field.key];
@@ -2468,6 +3657,19 @@ function setModalFieldValue(field, value) {
     return;
   }
   if (field.group === "base") {
+    if (field.key === "contentPadding") {
+      const current = modalState.widgetId ? instanceById(modalState.widgetId) : null;
+      const fallback = widgetPaddingFallback(current?.type);
+      const padding = normalizeContentPadding(value, fallback);
+      draft.contentPadding = padding;
+      draft.contentPaddingTop = padding;
+      draft.contentPaddingRight = padding;
+      draft.contentPaddingBottom = padding;
+      draft.contentPaddingLeft = padding;
+      draft.contentPaddingTopRight = padding;
+      draft.contentPaddingBottomLeft = padding;
+      return;
+    }
     draft[field.key] = value;
     return;
   }
@@ -2486,7 +3688,14 @@ function closeWidgetModal(rerender = true) {
   setModalInteractionLock(false);
   elements.widgetModalOverlay?.classList.remove("open");
   elements.widgetModalOverlay?.setAttribute("aria-hidden", "true");
+  elements.widgetModalTabs?.replaceChildren();
+  if (elements.widgetModalTabs) {
+    elements.widgetModalTabs.style.display = "none";
+  }
   elements.widgetModalBody?.replaceChildren();
+  if (elements.widgetModalDefaultBtn) {
+    elements.widgetModalDefaultBtn.onclick = null;
+  }
 
   if (rerender) {
     renderSettings();
@@ -2505,6 +3714,10 @@ function renderWidgetModal() {
 
   const def = widgetRegistry[instance.type];
   elements.widgetModalTitle.textContent = `${def.title} Settings`;
+  if (elements.widgetModalTabs) {
+    elements.widgetModalTabs.replaceChildren();
+    elements.widgetModalTabs.style.display = "none";
+  }
   elements.widgetModalBody.replaceChildren();
 
   const commonFields = getWidgetModalCommonFields();
@@ -2514,42 +3727,41 @@ function renderWidgetModal() {
   modalState.activeTab = active;
 
   if (hasWidgetTab) {
-    const tablist = document.createElement("div");
-    tablist.className = "widget-modal-tabs";
-    tablist.setAttribute("role", "tablist");
-    tablist.setAttribute("aria-label", "Widget settings tabs");
+    const tablist = elements.widgetModalTabs;
+    if (tablist) {
+      tablist.style.display = "flex";
 
-    const widgetBtn = document.createElement("button");
-    widgetBtn.type = "button";
-    widgetBtn.className = "settings-tab-btn";
-    widgetBtn.setAttribute("role", "tab");
-    widgetBtn.id = "widgetModalTabWidget";
-    widgetBtn.setAttribute("aria-controls", "widgetModalTabPanelWidget");
-    widgetBtn.textContent = "Widget";
+      const widgetBtn = document.createElement("button");
+      widgetBtn.type = "button";
+      widgetBtn.className = "settings-tab-btn";
+      widgetBtn.setAttribute("role", "tab");
+      widgetBtn.id = "widgetModalTabWidget";
+      widgetBtn.setAttribute("aria-controls", "widgetModalTabPanelWidget");
+      widgetBtn.textContent = "Widget";
 
-    const commonBtn = document.createElement("button");
-    commonBtn.type = "button";
-    commonBtn.className = "settings-tab-btn";
-    commonBtn.setAttribute("role", "tab");
-    commonBtn.id = "widgetModalTabCommon";
-    commonBtn.setAttribute("aria-controls", "widgetModalTabPanelCommon");
-    commonBtn.textContent = "Common";
+      const commonBtn = document.createElement("button");
+      commonBtn.type = "button";
+      commonBtn.className = "settings-tab-btn";
+      commonBtn.setAttribute("role", "tab");
+      commonBtn.id = "widgetModalTabCommon";
+      commonBtn.setAttribute("aria-controls", "widgetModalTabPanelCommon");
+      commonBtn.textContent = "Common";
 
-    const widgetOn = active === "widget";
-    widgetBtn.classList.toggle("active", widgetOn);
-    widgetBtn.setAttribute("aria-selected", String(widgetOn));
-    commonBtn.classList.toggle("active", !widgetOn);
-    commonBtn.setAttribute("aria-selected", String(!widgetOn));
+      const widgetOn = active === "widget";
+      widgetBtn.classList.toggle("active", widgetOn);
+      widgetBtn.setAttribute("aria-selected", String(widgetOn));
+      commonBtn.classList.toggle("active", !widgetOn);
+      commonBtn.setAttribute("aria-selected", String(!widgetOn));
 
-    widgetBtn.addEventListener("click", () => {
-      setWidgetModalActiveTab("widget");
-    });
-    commonBtn.addEventListener("click", () => {
-      setWidgetModalActiveTab("common");
-    });
+      widgetBtn.addEventListener("click", () => {
+        setWidgetModalActiveTab("widget");
+      });
+      commonBtn.addEventListener("click", () => {
+        setWidgetModalActiveTab("common");
+      });
 
-    tablist.append(widgetBtn, commonBtn);
-    elements.widgetModalBody.append(tablist);
+      tablist.append(widgetBtn, commonBtn);
+    }
   }
 
   const activeFields = active === "widget" ? widgetFields : commonFields;
@@ -2562,6 +3774,19 @@ function renderWidgetModal() {
   }
   panel.append(renderWidgetModalFields(activeFields));
   elements.widgetModalBody.append(panel);
+
+  if (elements.widgetModalDefaultBtn) {
+    elements.widgetModalDefaultBtn.textContent = "Reset to default";
+    elements.widgetModalDefaultBtn.title = active === "widget" ? "Reset widget tab to defaults" : "Reset common tab to global defaults";
+    elements.widgetModalDefaultBtn.onclick = () => {
+      if (active === "widget") {
+        resetWidgetTabDraftToDefaults(def);
+      } else {
+        resetCommonTabDraftToGlobal(instance, def);
+      }
+      renderWidgetModal();
+    };
+  }
 
   elements.widgetModalOverlay.classList.add("open");
   elements.widgetModalOverlay.setAttribute("aria-hidden", "false");
@@ -2579,6 +3804,8 @@ function openWidgetModal(instanceId) {
     return;
   }
 
+  const padding = resolveWidgetPadding(instance);
+
   modalState.open = true;
   modalState.widgetId = instance.id;
   modalState.activeTab = "widget";
@@ -2586,10 +3813,26 @@ function openWidgetModal(instanceId) {
     title: instance.title,
     viewMode: instance.viewMode || "window",
     surfaceMode: normalizeSurfaceMode(instance.surfaceMode, "normal"),
+    backdropBlur: instance.backdropBlur !== false,
+    edgeRoundness: normalizeEdgeRoundness(instance.edgeRoundness, 12),
     transparency: normalizeTransparency(instance.transparency, 0.94),
-    contentAlignY: normalizeAlign(instance.contentAlignY, "top"),
+    contentAlignY:
+      instance.type === "aiChat"
+        ? "top"
+        : normalizeAlign(instance.contentAlignY, defaultWidgetContentAlign(instance.type)),
     contentFillParent: Boolean(instance.contentFillParent),
-    contentPadding: normalizeContentPadding(instance.contentPadding, 10),
+    contentPadding: normalizeContentPadding((padding.top + padding.right + padding.bottom + padding.left) / 4, padding.uniform),
+    contentPaddingTop: padding.top,
+    contentPaddingRight: padding.right,
+    contentPaddingBottom: padding.bottom,
+    contentPaddingLeft: padding.left,
+    contentPaddingTopRight: normalizeContentPadding((padding.top + padding.right) / 2, padding.uniform),
+    contentPaddingBottomLeft: normalizeContentPadding((padding.bottom + padding.left) / 2, padding.uniform),
+    widgetThemeMode: normalizeWidgetThemeMode(instance.widgetThemeMode, "inherit"),
+    useCustomColors: Boolean(instance.useCustomColors),
+    customTextColor: normalizeWidgetColor(instance.customTextColor, "#1F2226"),
+    customAccentColor: normalizeWidgetColor(instance.customAccentColor, "#1F4F9F"),
+    customSurfaceColor: normalizeWidgetColor(instance.customSurfaceColor, "#FFFAF2"),
     layout: {
       ...instance.layout
     },
@@ -2615,18 +3858,43 @@ function applyWidgetModal() {
   const def = widgetRegistry[instance.type];
   const draft = modalState.draft;
 
+  recordHistorySnapshot("Apply widget settings");
+
   instance.title = normalizeText(draft.title, def.title);
   instance.viewMode = draft.viewMode === "headless" ? "headless" : "window";
   instance.surfaceMode = normalizeSurfaceMode(draft.surfaceMode, "normal");
+  instance.backdropBlur = draft.backdropBlur !== false;
+  instance.edgeRoundness = normalizeEdgeRoundness(draft.edgeRoundness, 12);
   instance.transparency = normalizeTransparency(draft.transparency, 0.94);
-  instance.contentAlignY = normalizeAlign(draft.contentAlignY, "top");
-  instance.contentFillParent = Boolean(draft.contentFillParent);
-  instance.contentPadding = normalizeContentPadding(draft.contentPadding, 10);
+  instance.contentAlignY =
+    instance.type === "aiChat"
+      ? "top"
+      : normalizeAlign(draft.contentAlignY, defaultWidgetContentAlign(instance.type));
+  instance.contentFillParent = instance.type === "aiChat" ? true : Boolean(draft.contentFillParent);
+  const paddingFallback = widgetPaddingFallback(instance.type);
+  const uniformPadding = normalizeContentPadding(draft.contentPadding, paddingFallback);
+  const topPadding = normalizeContentPadding(draft.contentPaddingTop ?? draft.contentPaddingTopRight ?? uniformPadding, uniformPadding);
+  const rightPadding = normalizeContentPadding(draft.contentPaddingRight ?? draft.contentPaddingTopRight ?? uniformPadding, uniformPadding);
+  const bottomPadding = normalizeContentPadding(draft.contentPaddingBottom ?? draft.contentPaddingBottomLeft ?? uniformPadding, uniformPadding);
+  const leftPadding = normalizeContentPadding(draft.contentPaddingLeft ?? draft.contentPaddingBottomLeft ?? uniformPadding, uniformPadding);
+  instance.contentPaddingTop = topPadding;
+  instance.contentPaddingRight = rightPadding;
+  instance.contentPaddingBottom = bottomPadding;
+  instance.contentPaddingLeft = leftPadding;
+  instance.contentPaddingTopRight = normalizeContentPadding((topPadding + rightPadding) / 2, uniformPadding);
+  instance.contentPaddingBottomLeft = normalizeContentPadding((bottomPadding + leftPadding) / 2, uniformPadding);
+  instance.contentPadding = normalizeContentPadding((topPadding + rightPadding + bottomPadding + leftPadding) / 4, uniformPadding);
+  instance.widgetThemeMode = normalizeWidgetThemeMode(draft.widgetThemeMode, "inherit");
+  instance.useCustomColors = Boolean(draft.useCustomColors);
+  instance.customTextColor = normalizeWidgetColor(draft.customTextColor, "#1F2226");
+  instance.customAccentColor = normalizeWidgetColor(draft.customAccentColor, "#1F4F9F");
+  instance.customSurfaceColor = normalizeWidgetColor(draft.customSurfaceColor, "#FFFAF2");
   instance.layout = cloneLayout(draft.layout);
   instance.config = {
     ...instance.config,
     ...draft.config
   };
+  instance.commonOverrides = inferCommonOverrides(instance, state.ui.widgetCommonMaster);
 
   const rt = runtime.get(instance.id);
   if (rt) {
@@ -2652,7 +3920,7 @@ function renderSettings() {
   if (state.mode !== "edit") {
     const p = document.createElement("p");
     p.className = "muted";
-    p.textContent = "Use Mode에서는 설정 편집이 잠깁니다. 상단 가장자리에 커서를 올려 Edit Mode로 전환하세요.";
+    p.textContent = "Use Mode에서는 설정 편집이 잠깁니다. 우측 상단의 톱니 버튼으로 Edit Mode로 전환하세요.";
     elements.settingsContent.append(p);
     return;
   }
@@ -2680,21 +3948,38 @@ function addWidget(type, options = {}) {
     return;
   }
 
+  recordHistorySnapshot("Add widget");
+
   const defaultSize = widgetDefaultGridSize(type, def);
   const colSpan = normalizeGridSpanValue(options.colSpan, defaultSize.colSpan, GRID_MAX_COLUMNS);
   const rowSpan = normalizeGridSpanValue(options.rowSpan, defaultSize.rowSpan, GRID_MAX_ROW_SPAN);
+  const defaultPadding = widgetPaddingFallback(type);
 
   const instance = {
     id: `${type}-${state.nextId}`,
     type,
-    title: def.title,
+    title: normalizeText(options.title, def.title),
     zIndex: zCounter + 1,
-    viewMode: "window",
-    surfaceMode: "normal",
+    viewMode: isHeadlessTransparentDefaultType(type) ? "headless" : "window",
+    surfaceMode: isHeadlessTransparentDefaultType(type) ? "transparent" : "normal",
+    backdropBlur: defaultWidgetBackdropBlur(type),
+    edgeRoundness: 12,
     transparency: 0.94,
-    contentAlignY: "top",
-    contentFillParent: false,
-    contentPadding: 10,
+    contentAlignY: defaultWidgetContentAlign(type),
+    contentFillParent: type === "aiChat",
+    contentPadding: defaultPadding,
+    contentPaddingTop: defaultPadding,
+    contentPaddingRight: defaultPadding,
+    contentPaddingBottom: defaultPadding,
+    contentPaddingLeft: defaultPadding,
+    contentPaddingTopRight: defaultPadding,
+    contentPaddingBottomLeft: defaultPadding,
+    widgetThemeMode: "inherit",
+    useCustomColors: false,
+    customTextColor: "#1F2226",
+    customAccentColor: "#1F4F9F",
+    customSurfaceColor: "#FFFAF2",
+    commonOverrides: normalizeCommonOverrides({}),
     enabled: true,
     config: structuredClone(def.defaultConfig || {}),
     gridLayout: normalizeGridLayout(null, {
@@ -2705,6 +3990,9 @@ function addWidget(type, options = {}) {
     }),
     layout: cloneLayout(def.defaultLayout)
   };
+
+  instance.commonOverrides = inferCommonOverrides(instance, state.ui.widgetCommonMaster);
+  applyWidgetCommonMaster(instance, state.ui.widgetCommonMaster, false);
 
   state.nextId += 1;
   zCounter = instance.zIndex;
@@ -2732,6 +4020,7 @@ function addWidget(type, options = {}) {
 }
 
 function resetState() {
+  recordHistorySnapshot("Reset state");
   const keptPresets = Array.isArray(state?.presets) ? state.presets : [];
   state = defaultState();
   state.presets = keptPresets;
@@ -2742,6 +4031,61 @@ function resetState() {
 }
 
 function wireEvents() {
+  if (elements.editDock) {
+    requestAnimationFrame(() => {
+      applyEditDockPosition(window.innerWidth / 2 - 170, 10);
+    });
+  }
+
+  elements.editDockGrip?.addEventListener("pointerdown", (event) => {
+    if (!elements.editDock) {
+      return;
+    }
+    if (event.button !== 0) {
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+
+    const rect = elements.editDock.getBoundingClientRect();
+    dockDragState.active = true;
+    dockDragState.pointerId = event.pointerId;
+    dockDragState.startX = event.clientX;
+    dockDragState.startY = event.clientY;
+    dockDragState.startLeft = rect.left;
+    dockDragState.startTop = rect.top;
+    elements.editDock.classList.add("is-dragging");
+    elements.editDockGrip.setPointerCapture?.(event.pointerId);
+  });
+
+  window.addEventListener("pointermove", (event) => {
+    if (!dockDragState.active || event.pointerId !== dockDragState.pointerId) {
+      return;
+    }
+    const nextLeft = dockDragState.startLeft + (event.clientX - dockDragState.startX);
+    const nextTop = dockDragState.startTop + (event.clientY - dockDragState.startY);
+    applyEditDockPosition(nextLeft, nextTop);
+  });
+
+  window.addEventListener("pointerup", (event) => {
+    if (!dockDragState.active || event.pointerId !== dockDragState.pointerId) {
+      return;
+    }
+    dockDragState.active = false;
+    dockDragState.pointerId = null;
+    elements.editDock?.classList.remove("is-dragging");
+  });
+
+  window.addEventListener("pointercancel", (event) => {
+    if (!dockDragState.active || event.pointerId !== dockDragState.pointerId) {
+      return;
+    }
+    dockDragState.active = false;
+    dockDragState.pointerId = null;
+    elements.editDock?.classList.remove("is-dragging");
+  });
+
   elements.settingsRailToggleBtn?.addEventListener("click", () => {
     if (state.mode !== "edit") {
       return;
@@ -2760,7 +4104,12 @@ function wireEvents() {
     queueSave();
   });
 
+  elements.bgRefreshBtn?.addEventListener("click", () => {
+    refreshBackgroundNow();
+  });
+
   elements.modeToggleBtn.addEventListener("click", () => {
+    recordHistorySnapshot("Toggle mode");
     state.mode = state.mode === "edit" ? "use" : "edit";
     if (state.mode === "use") {
       state.selectedWidgetId = "";
@@ -2838,6 +4187,11 @@ function wireEvents() {
   });
 
   window.addEventListener("resize", () => {
+    if (elements.editDock?.classList.contains("is-positioned")) {
+      const left = Number.parseFloat(elements.editDock.style.left) || 0;
+      const top = Number.parseFloat(elements.editDock.style.top) || 0;
+      applyEditDockPosition(left, top);
+    }
     updateBoardBounds();
   });
 
@@ -2902,6 +4256,24 @@ function wireEvents() {
   document.addEventListener("touchmove", blockOutsideModalEvent, { capture: true, passive: false });
 
   window.addEventListener("keydown", (event) => {
+    const key = event.key.toLowerCase();
+    const withMod = event.ctrlKey || event.metaKey;
+    const isTypingTarget =
+      event.target instanceof HTMLElement &&
+      Boolean(event.target.closest('input, textarea, select, [contenteditable="true"]'));
+    const isUndo = withMod && !event.altKey && !event.shiftKey && key === "z";
+    const isRedo = withMod && !event.altKey && (key === "y" || (event.shiftKey && key === "z"));
+
+    if ((isUndo || isRedo) && !isTypingTarget) {
+      event.preventDefault();
+      if (isUndo) {
+        undoLastChange();
+      } else {
+        redoLastChange();
+      }
+      return;
+    }
+
     if (addWidgetModalOpen) {
       if (!isInsideAddWidgetModalOverlay(event.target)) {
         event.preventDefault();

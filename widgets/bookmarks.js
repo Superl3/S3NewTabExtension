@@ -86,87 +86,6 @@ function createEditButton(onClick) {
   return button;
 }
 
-function appendNode({ parent, node, cfg, isEditMode, onEdit, depth }) {
-  if (node.url) {
-    const li = document.createElement("li");
-    const row = document.createElement("div");
-    const link = document.createElement("a");
-
-    row.className = "bookmark-row";
-    link.className = "bookmark-link";
-    link.href = buildNodeUrl(node, cfg);
-    link.textContent = buildNodeLabel(node, cfg);
-    if (cfg.openInNewTab) {
-      link.target = "_blank";
-      link.rel = "noreferrer";
-    }
-
-    row.append(buildIconNode(node, cfg), link);
-
-    if (isEditMode()) {
-      row.append(
-        createEditButton(() => {
-          onEdit(node);
-        })
-      );
-    }
-
-    li.append(row);
-    parent.append(li);
-    return;
-  }
-
-  if (!cfg.showFolders && depth > 0) {
-    for (const child of node.children || []) {
-      appendNode({
-        parent,
-        node: child,
-        cfg,
-        isEditMode,
-        onEdit,
-        depth: depth + 1
-      });
-    }
-    return;
-  }
-
-  const li = document.createElement("li");
-  li.className = "bookmark-folder";
-
-  const row = document.createElement("div");
-  row.className = "bookmark-row";
-
-  const folderName = document.createElement("span");
-  folderName.className = "bookmark-folder-name";
-  folderName.textContent = buildNodeLabel(node, cfg);
-  row.append(buildIconNode(node, cfg), folderName);
-
-  if (isEditMode()) {
-    row.append(
-      createEditButton(() => {
-        onEdit(node);
-      })
-    );
-  }
-
-  li.append(row);
-
-  const children = document.createElement("ul");
-  for (const child of node.children || []) {
-    appendNode({
-      parent: children,
-      node: child,
-      cfg,
-      isEditMode,
-      onEdit,
-      depth: depth + 1
-    });
-  }
-
-  li.append(children);
-  parent.append(li);
-}
-
 function setMapValue(map, key, value) {
   const next = { ...asRecord(map) };
   if (value) {
@@ -177,18 +96,56 @@ function setMapValue(map, key, value) {
   return next;
 }
 
+function findNodeById(node, targetId) {
+  if (!node || !targetId) {
+    return null;
+  }
+  if (node.id === targetId) {
+    return node;
+  }
+  for (const child of node.children || []) {
+    const found = findNodeById(child, targetId);
+    if (found) {
+      return found;
+    }
+  }
+  return null;
+}
+
+function buildParentMap(node, map = {}) {
+  for (const child of node.children || []) {
+    map[child.id] = node.id;
+    buildParentMap(child, map);
+  }
+  return map;
+}
+
+function flattenLinks(node, out = []) {
+  for (const child of node.children || []) {
+    if (child.url) {
+      out.push(child);
+      continue;
+    }
+    flattenLinks(child, out);
+  }
+  return out;
+}
+
 export const bookmarksWidget = {
   type: "bookmarks",
   title: "Bookmarks Collection",
   defaultConfig: {
     folderPath: "",
-    folderId: "",
+    folderId: "0",
     showFolders: true,
+    showLabels: true,
     openInNewTab: false,
     faviconMode: "site",
+    fontScale: 1,
     labelMap: {},
     iconMap: {},
-    urlMap: {}
+    urlMap: {},
+    collapsedMap: {}
   },
   defaultLayout: {
     x: 840,
@@ -202,16 +159,16 @@ export const bookmarksWidget = {
   },
   settingsSchema: [
     {
-      key: "folderPath",
-      label: "Folder path",
-      type: "text",
-      placeholder: "Bookmarks bar/Work"
+      key: "folderId",
+      label: "Folder",
+      type: "bookmark-folder-select",
+      helpText: "Choose folder directly from bookmarks tree."
     },
     {
-      key: "folderId",
-      label: "Folder ID",
+      key: "folderPath",
+      label: "Folder path (optional fallback)",
       type: "text",
-      placeholder: "Leave empty to use path"
+      placeholder: "Bookmarks bar/Work"
     },
     {
       key: "faviconMode",
@@ -223,43 +180,36 @@ export const bookmarksWidget = {
       ]
     },
     { key: "showFolders", label: "Show folders", type: "checkbox" },
-    { key: "openInNewTab", label: "Open links in new tab", type: "checkbox" }
+    { key: "showLabels", label: "Show labels", type: "checkbox" },
+    { key: "openInNewTab", label: "Open links in new tab", type: "checkbox" },
+    { key: "fontScale", label: "Grid font scale", type: "number", min: 0.75, max: 1.6, step: 0.05 }
   ],
   create({ container, getConfig, patchConfig, isEditMode }) {
-    const chip = document.createElement("div");
-    const refreshBtn = document.createElement("button");
+    const nav = document.createElement("div");
     const editor = document.createElement("div");
-    const list = document.createElement("ul");
+    const grid = document.createElement("div");
 
-    chip.className = "chip";
-    refreshBtn.className = "btn";
-    refreshBtn.type = "button";
-    refreshBtn.innerHTML = '<svg class="icon"><use href="#i-reset"></use></svg><span class="btn-label">Refresh</span>';
+    nav.className = "bookmark-nav";
     editor.className = "bookmark-editor";
-    list.className = "bookmark-tree";
+    grid.className = "bookmark-grid";
 
-    container.append(chip, refreshBtn, editor, list);
+    container.append(nav, editor, grid);
 
     let renderToken = 0;
     let editingNode = null;
+    let currentFolderId = "";
+    let rootNode = null;
+    let parentMap = {};
 
     function renderEditor() {
       editor.replaceChildren();
-      if (!isEditMode()) {
+      if (!isEditMode() || !editingNode) {
         editor.style.display = "none";
         return;
       }
 
       editor.style.display = "block";
       const cfg = getConfig();
-
-      if (!editingNode) {
-        const title = document.createElement("p");
-        title.className = "bookmark-editor-title";
-        title.textContent = "Click the pencil icon on any bookmark/folder to customize its label, icon, and URL.";
-        editor.append(title);
-        return;
-      }
 
       const title = document.createElement("p");
       title.className = "bookmark-editor-title";
@@ -348,59 +298,237 @@ export const bookmarksWidget = {
       editor.append(actions);
     }
 
+    function buildFolderChain(activeFolder, root) {
+      const chain = [];
+      let cursor = activeFolder;
+      let guard = 0;
+
+      while (cursor && guard < 1000) {
+        chain.unshift(cursor);
+        if (cursor.id === root.id) {
+          break;
+        }
+        const parentId = parentMap[cursor.id];
+        cursor = parentId ? findNodeById(root, parentId) : null;
+        guard += 1;
+      }
+
+      if (!chain.length || chain[0].id !== root.id) {
+        return [root];
+      }
+
+      return chain;
+    }
+
+    function renderNav(activeFolder, root) {
+      nav.replaceChildren();
+      if (!activeFolder || !root) {
+        nav.style.display = "none";
+        return;
+      }
+
+      nav.style.display = "flex";
+
+      const path = document.createElement("div");
+      path.className = "bookmark-nav-path";
+
+      const chain = buildFolderChain(activeFolder, root);
+      const relative = chain.slice(1);
+
+      const rootBtn = document.createElement("button");
+      rootBtn.type = "button";
+      rootBtn.className = "bookmark-nav-link";
+      rootBtn.textContent = ".";
+      rootBtn.disabled = relative.length === 0;
+      rootBtn.addEventListener("click", () => {
+        currentFolderId = root.id;
+        void render();
+      });
+      path.append(rootBtn);
+
+      if (!relative.length) {
+        const current = document.createElement("span");
+        current.className = "bookmark-nav-current";
+        current.textContent = " /";
+        path.append(current);
+      } else {
+        for (let i = 0; i < relative.length; i += 1) {
+          const node = relative[i];
+          const sep = document.createElement("span");
+          sep.className = "bookmark-nav-sep";
+          sep.textContent = "/";
+          path.append(sep);
+
+          const isCurrent = i === relative.length - 1;
+          if (isCurrent) {
+            const current = document.createElement("span");
+            current.className = "bookmark-nav-current";
+            current.textContent = node.title || "Untitled";
+            path.append(current);
+            continue;
+          }
+
+          const jump = document.createElement("button");
+          jump.type = "button";
+          jump.className = "bookmark-nav-link";
+          jump.textContent = node.title || "Untitled";
+          jump.addEventListener("click", () => {
+            currentFolderId = node.id;
+            void render();
+          });
+          path.append(jump);
+        }
+      }
+
+      const backBtn = document.createElement("button");
+      backBtn.type = "button";
+      backBtn.className = "bookmark-nav-back";
+      backBtn.textContent = "Back";
+      backBtn.title = "Go back";
+      const canGoBack = activeFolder.id !== root.id;
+      backBtn.disabled = !canGoBack;
+      backBtn.classList.toggle("is-hidden", !canGoBack);
+      backBtn.addEventListener("click", () => {
+        if (!canGoBack) {
+          return;
+        }
+        const parentId = parentMap[activeFolder.id] || root.id;
+        currentFolderId = parentId;
+        void render();
+      });
+
+      nav.append(path, backBtn);
+    }
+
+    function createFolderCard(node, cfg) {
+      const card = document.createElement("button");
+      card.type = "button";
+      card.className = "bookmark-grid-card bookmark-folder-card";
+
+      const icon = buildIconNode(node, cfg);
+      card.append(icon);
+      if (cfg.showLabels !== false) {
+        const label = document.createElement("span");
+        label.className = "bookmark-grid-label";
+        label.textContent = buildNodeLabel(node, cfg);
+        card.append(label);
+      }
+      card.addEventListener("click", (event) => {
+        event.preventDefault();
+        currentFolderId = node.id;
+        void render();
+      });
+
+      return card;
+    }
+
+    function createBookmarkCard(node, cfg) {
+      const card = document.createElement("a");
+      card.className = "bookmark-grid-card bookmark-link-card";
+      card.href = buildNodeUrl(node, cfg);
+
+      if (cfg.openInNewTab) {
+        card.target = "_blank";
+        card.rel = "noreferrer";
+      }
+
+      const icon = buildIconNode(node, cfg);
+      card.append(icon);
+      if (cfg.showLabels !== false) {
+        const label = document.createElement("span");
+        label.className = "bookmark-grid-label";
+        label.textContent = buildNodeLabel(node, cfg);
+        card.append(label);
+      }
+      return card;
+    }
+
+    function buildVisibleItems(activeFolder, cfg) {
+      if (!activeFolder) {
+        return [];
+      }
+
+      if (cfg.showFolders) {
+        return [...(activeFolder.children || [])];
+      }
+
+      return flattenLinks(activeFolder, []);
+    }
+
     async function render() {
       const token = ++renderToken;
       const cfg = getConfig();
-      const locationLabel = cfg.folderPath || cfg.folderId || "Default bookmark root";
-      const editLabel = isEditMode() ? " · per-item customize enabled" : "";
-      chip.textContent = `${locationLabel}${editLabel}`;
-      list.replaceChildren();
+      const fontScale = Number.isFinite(Number(cfg.fontScale)) ? Number(cfg.fontScale) : 1;
+      grid.style.setProperty("--bookmarks-font-scale", `${Math.min(1.6, Math.max(0.75, fontScale))}`);
+      grid.replaceChildren();
 
       try {
         const root = await resolveBookmarkRoot(cfg);
         if (token !== renderToken) {
           return;
         }
+
         if (!root) {
-          const item = document.createElement("li");
+          const item = document.createElement("p");
           item.className = "muted";
           item.textContent = "Bookmark folder not found.";
-          list.append(item);
+          grid.append(item);
           renderEditor();
           return;
         }
 
-        appendNode({
-          parent: list,
-          node: root,
-          cfg,
-          isEditMode,
-          onEdit: (node) => {
-            editingNode = {
-              id: node.id,
-              title: node.title || "",
-              url: node.url || ""
-            };
-            renderEditor();
-          },
-          depth: 0
-        });
+        rootNode = root;
+        parentMap = buildParentMap(root, {});
+
+        if (!currentFolderId || !findNodeById(root, currentFolderId)) {
+          currentFolderId = root.id;
+        }
+
+        const activeFolder = findNodeById(root, currentFolderId) || root;
+        renderNav(activeFolder, root);
+
+        const items = buildVisibleItems(activeFolder, cfg);
+        if (!items.length) {
+          const empty = document.createElement("p");
+          empty.className = "muted";
+          empty.textContent = "No bookmarks in this folder.";
+          grid.append(empty);
+        }
+
+        for (const node of items) {
+          const cell = document.createElement("div");
+          cell.className = "bookmark-grid-cell";
+          const card = node.url ? createBookmarkCard(node, cfg) : createFolderCard(node, cfg);
+          cell.append(card);
+
+          if (isEditMode()) {
+            cell.append(
+              createEditButton(() => {
+                editingNode = {
+                  id: node.id,
+                  title: node.title || "",
+                  url: node.url || ""
+                };
+                renderEditor();
+              })
+            );
+          }
+
+          grid.append(cell);
+        }
       } catch {
         if (token !== renderToken) {
           return;
         }
-        const item = document.createElement("li");
+        nav.style.display = "none";
+        const item = document.createElement("p");
         item.className = "muted";
         item.textContent = "Failed to load bookmarks.";
-        list.append(item);
+        grid.append(item);
       }
 
       renderEditor();
     }
-
-    refreshBtn.addEventListener("click", () => {
-      void render();
-    });
 
     const reload = () => {
       void render();

@@ -87,8 +87,13 @@ export async function resolveBookmarkRoot(config) {
 
   const rawId = (config?.folderId || "").trim();
   if (rawId) {
-    const subTree = await getSubTree(rawId);
-    return subTree?.[0] || null;
+    try {
+      const subTree = await getSubTree(rawId);
+      if (subTree?.[0]) {
+        return subTree[0];
+      }
+    } catch {
+    }
   }
 
   const segments = normalizePath(config?.folderPath || "");

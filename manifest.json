@@ -3,6 +3,12 @@
   "name": "S3 New Tab",
   "version": "0.1.0",
   "description": "Customizable New Tab dashboard with draggable widgets and recursive bookmarks.",
+  "icons": {
+    "16": "icons/icon-16.png",
+    "32": "icons/icon-32.png",
+    "48": "icons/icon-48.png",
+    "128": "icons/icon-128.png"
+  },
   "permissions": ["storage", "bookmarks"],
   "host_permissions": ["https://*/*", "http://*/*"],
   "chrome_url_overrides": {
