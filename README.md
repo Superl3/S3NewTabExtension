@@ -114,23 +114,6 @@ node --check app.js
 node --check widgets/index.js
 ```
 
-## 아이콘 생성 (512 마스터 -> 다운사이징)
-
-확장 아이콘은 `512x512` 마스터를 먼저 생성하고, 그 이미지를 기준으로 작은 사이즈를 다운사이징해서 만듭니다.
-
-```bash
-python tools/generate_icons.py
-```
-
-생성 파일:
-
-- `icons/icon-512.png` (master)
-- `icons/icon-256.png`
-- `icons/icon-128.png`
-- `icons/icon-48.png`
-- `icons/icon-32.png`
-- `icons/icon-16.png`
-
 ## 라이선스
 
 필요 시 프로젝트 정책에 맞춰 추가하세요.

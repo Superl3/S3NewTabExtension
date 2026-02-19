@@ -171,6 +171,12 @@ export const shortcutWidget = {
       placeholder: "⭐ or https://example.com/icon.png"
     },
     {
+      key: "iconEditor",
+      label: "Icon editor",
+      type: "shortcut-icon-editor",
+      helpText: "Draw or import an image and apply it as icon."
+    },
+    {
       key: "faviconMode",
       label: "Icon source",
       type: "select",

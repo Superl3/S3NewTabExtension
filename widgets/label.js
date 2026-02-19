@@ -109,6 +109,9 @@ export const labelWidget = {
   create({ container, getConfig, getUi, getWidget }) {
     const text = document.createElement("div");
     text.className = "label-widget-text";
+    const value = document.createElement("span");
+    value.className = "label-widget-value";
+    text.append(value);
     container.append(text);
 
     function render() {
@@ -121,17 +124,17 @@ export const labelWidget = {
       const manualColor = normalizeHex(cfg.color, "#ffffff");
       const resolvedColor = isTransparent && useAutoContrast ? resolveAutoColor(ui) : manualColor;
 
-      text.textContent = cfg.text || "";
-      text.style.color = resolvedColor;
-      text.style.fontSize = `${clamp(Number(cfg.fontSize) || 36, 12, 128)}px`;
-      text.style.fontWeight = String(clamp(Number(cfg.fontWeight) || 700, 200, 900));
+      value.textContent = cfg.text || "";
+      value.style.color = resolvedColor;
+      value.style.fontSize = `${clamp(Number(cfg.fontSize) || 36, 12, 128)}px`;
+      value.style.fontWeight = String(clamp(Number(cfg.fontWeight) || 700, 200, 900));
       text.style.textAlign = align;
 
       if (isTransparent && useAutoContrast) {
-        text.style.textShadow =
+        value.style.textShadow =
           resolvedColor === AUTO_DARK_TEXT ? "0 2px 10px rgba(255, 255, 255, 0.34)" : "0 2px 12px rgba(2, 6, 9, 0.5)";
       } else {
-        text.style.removeProperty("text-shadow");
+        value.style.removeProperty("text-shadow");
       }
     }
 

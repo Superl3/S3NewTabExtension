@@ -240,6 +240,63 @@
       </section>
     </div>
 
+    <div id="shortcutIconEditorOverlay" class="widget-modal-overlay" aria-hidden="true">
+      <section class="widget-modal shortcut-icon-editor-modal" role="dialog" aria-modal="true" aria-label="Shortcut Icon Editor">
+        <header class="widget-modal-head">
+          <div class="widget-modal-head-top">
+            <h3>Shortcut Icon Editor</h3>
+            <button id="shortcutIconEditorCloseBtn" class="icon-btn" title="Close icon editor">
+              <svg class="icon"><use href="#i-close"></use></svg>
+            </button>
+          </div>
+        </header>
+        <div class="widget-modal-body shortcut-icon-editor-body">
+          <div class="shortcut-icon-editor-toolbar">
+            <label class="form-row">
+              <span>Shape</span>
+              <select id="shortcutIconEditorShape">
+                <option value="roundSquared">Round squared</option>
+                <option value="flatSquared">Flat squared</option>
+                <option value="round">Round</option>
+              </select>
+            </label>
+            <label class="form-row">
+              <span>Icon scale (%)</span>
+              <input id="shortcutIconEditorScale" type="range" min="60" max="160" step="5" value="100" />
+            </label>
+            <label class="form-row">
+              <span>Text</span>
+              <input id="shortcutIconEditorText" type="text" maxlength="4" placeholder="A, B, 12, etc" />
+            </label>
+            <label class="form-row">
+              <span>Text size</span>
+              <input id="shortcutIconEditorFontSize" type="range" min="24" max="92" step="2" value="58" />
+            </label>
+            <div class="preset-actions">
+              <button id="shortcutIconEditorImportBtn" class="btn" type="button">Import image</button>
+              <button id="shortcutIconEditorClearBtn" class="btn" type="button">Reset source</button>
+            </div>
+            <div class="shortcut-icon-editor-source-block">
+              <p class="shortcut-icon-editor-source-title">Preset icons</p>
+              <div id="shortcutIconEditorPresetGrid" class="shortcut-icon-editor-grid"></div>
+            </div>
+            <div class="shortcut-icon-editor-source-block">
+              <p class="shortcut-icon-editor-source-title">Cached icons</p>
+              <div id="shortcutIconEditorCachedGrid" class="shortcut-icon-editor-grid shortcut-icon-editor-grid-cached"></div>
+            </div>
+            <input id="shortcutIconEditorFile" type="file" accept="image/*" hidden />
+          </div>
+          <div class="shortcut-icon-editor-canvas-wrap">
+            <canvas id="shortcutIconEditorCanvas" width="128" height="128" aria-label="Shortcut icon editor canvas"></canvas>
+          </div>
+        </div>
+        <footer class="widget-modal-actions">
+          <button id="shortcutIconEditorCancelBtn" class="btn" type="button">Cancel</button>
+          <button id="shortcutIconEditorApplyBtn" class="btn btn-primary" type="button">Apply icon</button>
+        </footer>
+      </section>
+    </div>
+
     <div id="addWidgetModalOverlay" class="widget-modal-overlay" aria-hidden="true">
       <section class="widget-modal add-widget-modal" role="dialog" aria-modal="true" aria-label="Add Widget Modal">
         <header class="widget-modal-head">

@@ -8,6 +8,8 @@ const GRID_MAX_ROWS = 16;
 const WIDGET_COMMON_MASTER_KEYS = [
   "viewMode",
   "surfaceMode",
+  "transparentAutoContrast",
+  "transparentGhostStrength",
   "backdropBlur",
   "edgeRoundness",
   "transparency",
@@ -81,6 +83,20 @@ const elements = {
   widgetModalCloseBtn: document.getElementById("widgetModalCloseBtn"),
   widgetModalCancelBtn: document.getElementById("widgetModalCancelBtn"),
   widgetModalOkBtn: document.getElementById("widgetModalOkBtn"),
+  shortcutIconEditorOverlay: document.getElementById("shortcutIconEditorOverlay"),
+  shortcutIconEditorCanvas: document.getElementById("shortcutIconEditorCanvas"),
+  shortcutIconEditorShape: document.getElementById("shortcutIconEditorShape"),
+  shortcutIconEditorScale: document.getElementById("shortcutIconEditorScale"),
+  shortcutIconEditorText: document.getElementById("shortcutIconEditorText"),
+  shortcutIconEditorFontSize: document.getElementById("shortcutIconEditorFontSize"),
+  shortcutIconEditorPresetGrid: document.getElementById("shortcutIconEditorPresetGrid"),
+  shortcutIconEditorCachedGrid: document.getElementById("shortcutIconEditorCachedGrid"),
+  shortcutIconEditorImportBtn: document.getElementById("shortcutIconEditorImportBtn"),
+  shortcutIconEditorClearBtn: document.getElementById("shortcutIconEditorClearBtn"),
+  shortcutIconEditorFile: document.getElementById("shortcutIconEditorFile"),
+  shortcutIconEditorCloseBtn: document.getElementById("shortcutIconEditorCloseBtn"),
+  shortcutIconEditorCancelBtn: document.getElementById("shortcutIconEditorCancelBtn"),
+  shortcutIconEditorApplyBtn: document.getElementById("shortcutIconEditorApplyBtn"),
   editDock: document.querySelector(".edit-dock"),
   editDockGrip: document.getElementById("editDockGrip")
 };
@@ -117,12 +133,48 @@ const dockDragState = {
   startLeft: 0,
   startTop: 0
 };
+const shortcutIconEditorState = {
+  open: false,
+  shape: "roundSquared",
+  scale: 100,
+  text: "",
+  textSize: 58,
+  source: "none",
+  selectedPreset: "search",
+  selectedCache: "",
+  importedDataUrl: "",
+  cacheEntries: [],
+  previewDataUrl: "",
+  onApply: null
+};
 const HISTORY_LIMIT = 80;
 const undoState = {
   undoStack: [],
   redoStack: [],
   isRestoring: false
 };
+
+const SHORTCUT_ICON_CACHE_KEY = "s3newtab-shortcut-favicon-cache-v1";
+const SHORTCUT_ICON_PRESETS = [
+  { id: "search", label: "Search", viewBox: "0 0 24 24", markup: '<circle cx="10.5" cy="10.5" r="5.8" /><path d="M15 15 20.2 20.2" />' },
+  {
+    id: "settings",
+    label: "Settings",
+    viewBox: "0 0 24 24",
+    markup:
+      '<circle cx="12" cy="12" r="2.6" /><circle cx="12" cy="12" r="6.1" /><path d="M12 3.8v2.1" /><path d="M12 18.1v2.1" /><path d="M5.9 5.9l1.5 1.5" /><path d="M16.6 16.6l1.5 1.5" /><path d="M3.8 12h2.1" /><path d="M18.1 12h2.1" /><path d="M5.9 18.1l1.5-1.5" /><path d="M16.6 7.4l1.5-1.5" />'
+  },
+  { id: "grid", label: "Grid", viewBox: "0 0 24 24", markup: '<rect x="3" y="4" width="8" height="6" rx="1.2" /><rect x="13" y="4" width="8" height="6" rx="1.2" /><rect x="3" y="12" width="8" height="8" rx="1.2" /><rect x="13" y="12" width="8" height="8" rx="1.2" />' },
+  { id: "folder", label: "Folder", viewBox: "0 0 24 24", markup: '<path d="M3.5 7h6.8l1.7 2H20a1.5 1.5 0 0 1 1.5 1.5V18A1.5 1.5 0 0 1 20 19.5H4A1.5 1.5 0 0 1 2.5 18V8.5A1.5 1.5 0 0 1 4 7z" />' },
+  { id: "clock", label: "Clock", viewBox: "0 0 24 24", markup: '<circle cx="12" cy="12" r="8" /><path d="M12 8v4l2.8 1.8" />' },
+  { id: "bookmark", label: "Bookmark", viewBox: "0 0 24 24", markup: '<path d="M6 4.5h12a1 1 0 0 1 1 1V20l-7-4.3L5 20V5.5a1 1 0 0 1 1-1z" />' },
+  { id: "check", label: "Check", viewBox: "0 0 24 24", markup: '<path d="m5 12 4.1 4.1L19 6.2" />' },
+  { id: "note", label: "Note", viewBox: "0 0 24 24", markup: '<rect x="4" y="4" width="16" height="16" rx="2" /><path d="M8 9h8" /><path d="M8 13h8" /><path d="M8 17h5" />' },
+  { id: "chat", label: "Chat", viewBox: "0 0 24 24", markup: '<path d="M4.5 6.5h15a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-8l-4.5 3V17h-2a2 2 0 0 1-2-2v-6.5a2 2 0 0 1 2-2z" />' },
+  { id: "star", label: "Star", viewBox: "0 0 24 24", markup: '<path d="m12 4.5 2.3 4.7 5.2.8-3.8 3.7.9 5.2L12 16.5l-4.6 2.4.9-5.2-3.8-3.7 5.2-.8z" />' },
+  { id: "bolt", label: "Bolt", viewBox: "0 0 24 24", markup: '<path d="M13.8 3.8 6.5 13h4.8l-1.1 7.2 7.3-9.1h-4.8z" />' },
+  { id: "link", label: "Link", viewBox: "0 0 24 24", markup: '<path d="M10 14 8.2 15.8a3.2 3.2 0 0 1-4.6-4.6L6 8.8a3.2 3.2 0 0 1 4.6 0" /><path d="M14 10l1.8-1.8a3.2 3.2 0 0 1 4.6 4.6L18 15.2a3.2 3.2 0 0 1-4.6 0" /><path d="M8.8 15.2 15.2 8.8" />' }
+];
 
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
@@ -252,7 +304,9 @@ function defaultUi() {
     widgetCommonMaster: defaultWidgetCommonMaster(),
     shortcuts: {
       iconSizePercent: 100
-    }
+    },
+    defaultProfileSnapshot: null,
+    defaultProfileUpdatedAt: 0
   };
 }
 
@@ -272,6 +326,8 @@ function defaultWidgetCommonMaster() {
   return {
     viewMode: "window",
     surfaceMode: "normal",
+    transparentAutoContrast: true,
+    transparentGhostStrength: 100,
     backdropBlur: true,
     edgeRoundness: 12,
     transparency: 0.94,
@@ -371,6 +427,106 @@ function normalizeWidgetColor(value, fallback) {
   return typeof normalized === "string" ? normalized.toUpperCase() : fallback;
 }
 
+function normalizeTransparentGhostStrength(value, fallback = 100) {
+  const num = Number(value);
+  if (!Number.isFinite(num)) {
+    return clamp(Math.round(fallback), 40, 180);
+  }
+  return clamp(Math.round(num), 40, 180);
+}
+
+const AUTO_LIGHT_WIDGET_TEXT = "#F3F7FF";
+const AUTO_DARK_WIDGET_TEXT = "#151A23";
+
+function hexToRgb(hex, fallback = "#000000") {
+  const value = normalizeHexColor(hex, fallback).slice(1);
+  if (value.length === 3) {
+    return {
+      r: Number.parseInt(value[0] + value[0], 16),
+      g: Number.parseInt(value[1] + value[1], 16),
+      b: Number.parseInt(value[2] + value[2], 16)
+    };
+  }
+  return {
+    r: Number.parseInt(value.slice(0, 2), 16),
+    g: Number.parseInt(value.slice(2, 4), 16),
+    b: Number.parseInt(value.slice(4, 6), 16)
+  };
+}
+
+function srgbToLinear(channel) {
+  const c = clamp(channel, 0, 255) / 255;
+  if (c <= 0.04045) {
+    return c / 12.92;
+  }
+  return ((c + 0.055) / 1.055) ** 2.4;
+}
+
+function luminanceFromHex(hex, fallback = "#000000") {
+  const rgb = hexToRgb(hex, fallback);
+  return 0.2126 * srgbToLinear(rgb.r) + 0.7152 * srgbToLinear(rgb.g) + 0.0722 * srgbToLinear(rgb.b);
+}
+
+function contrastRatio(lumA, lumB) {
+  const lighter = Math.max(lumA, lumB);
+  const darker = Math.min(lumA, lumB);
+  return (lighter + 0.05) / (darker + 0.05);
+}
+
+function estimateTransparentBackdropLuminance(ui) {
+  const mode = String(ui?.background?.mode || "gradient");
+  const overlay = clamp(Number(ui?.background?.overlayOpacity) || 0.24, 0, 0.85);
+  const overlayLum = luminanceFromHex("#080B10");
+
+  const themeBackgroundLum = luminanceFromHex(normalizeHexColor(ui?.theme?.background, "#F3EFE6"));
+  const themeSurfaceLum = luminanceFromHex(normalizeHexColor(ui?.theme?.surface, "#FFFAF2"));
+  const themeAccentLum = luminanceFromHex(normalizeHexColor(ui?.theme?.accent, "#1F4F9F"));
+
+  let baseLum = themeBackgroundLum;
+  if (mode === "solid") {
+    baseLum = luminanceFromHex(normalizeHexColor(ui?.background?.solidColor, "#1F2937"));
+  } else if (mode === "gradient") {
+    baseLum = (themeBackgroundLum + themeSurfaceLum + themeAccentLum) / 3;
+  } else if (mode === "wallpaper" || mode === "video") {
+    baseLum = clamp((themeBackgroundLum + 0.58) / 2, 0, 1);
+  }
+
+  return baseLum * (1 - overlay) + overlayLum * overlay;
+}
+
+function resolveTransparentWidgetText(instance, ui) {
+  const mode = String(ui?.background?.mode || "gradient");
+  const shouldAutoAdjust = mode === "wallpaper" || mode === "video";
+  const autoContrastEnabled = instance?.transparentAutoContrast !== false;
+  const themeText = normalizeWidgetColor(ui?.theme?.text, "#1F2226");
+  const manualText = instance.useCustomColors
+    ? normalizeWidgetColor(instance.customTextColor, themeText)
+    : themeText;
+
+  if (!shouldAutoAdjust || !autoContrastEnabled) {
+    return manualText;
+  }
+
+  const backdropLum = estimateTransparentBackdropLuminance(ui);
+  const manualLum = luminanceFromHex(manualText);
+  const manualContrast = contrastRatio(manualLum, backdropLum);
+
+  if (manualContrast >= 3.2) {
+    return manualText;
+  }
+
+  return backdropLum >= 0.5 ? AUTO_DARK_WIDGET_TEXT : AUTO_LIGHT_WIDGET_TEXT;
+}
+
+function resolveTransparentGhostOpacity(ui, strengthPercent = 100) {
+  const mode = String(ui?.background?.mode || "gradient");
+  const overlay = clamp(Number(ui?.background?.overlayOpacity) || 0.24, 0, 0.85);
+  const base = mode === "wallpaper" || mode === "video" ? 0.16 : 0.08;
+  const compensation = overlay < 0.16 ? (0.16 - overlay) * 0.35 : 0;
+  const strength = normalizeTransparentGhostStrength(strengthPercent, 100) / 100;
+  return clamp((base + compensation) * strength, 0.04, 0.32);
+}
+
 function normalizeWidgetCommonMaster(value) {
   const base = {
     ...defaultWidgetCommonMaster(),
@@ -380,6 +536,8 @@ function normalizeWidgetCommonMaster(value) {
   return {
     viewMode: base.viewMode === "headless" ? "headless" : "window",
     surfaceMode: normalizeSurfaceMode(base.surfaceMode, "normal"),
+    transparentAutoContrast: base.transparentAutoContrast !== false,
+    transparentGhostStrength: normalizeTransparentGhostStrength(base.transparentGhostStrength, 100),
     backdropBlur: base.backdropBlur !== false,
     edgeRoundness: normalizeEdgeRoundness(base.edgeRoundness, 12),
     transparency: normalizeTransparency(base.transparency, 0.94),
@@ -428,6 +586,12 @@ function instanceCommonValue(instance, key) {
   }
   if (key === "surfaceMode") {
     return normalizeSurfaceMode(instance.surfaceMode, "normal");
+  }
+  if (key === "transparentAutoContrast") {
+    return instance.transparentAutoContrast !== false;
+  }
+  if (key === "transparentGhostStrength") {
+    return normalizeTransparentGhostStrength(instance.transparentGhostStrength, 100);
   }
   if (key === "widgetThemeMode") {
     return normalizeWidgetThemeMode(instance.widgetThemeMode, "inherit");
@@ -488,6 +652,16 @@ function setInstanceCommonValue(instance, key, value) {
 
   if (key === "surfaceMode") {
     instance.surfaceMode = normalizeSurfaceMode(value, "normal");
+    return;
+  }
+
+  if (key === "transparentAutoContrast") {
+    instance.transparentAutoContrast = value !== false;
+    return;
+  }
+
+  if (key === "transparentGhostStrength") {
+    instance.transparentGhostStrength = normalizeTransparentGhostStrength(value, 100);
     return;
   }
 
@@ -616,6 +790,8 @@ function defaultInstances() {
         zIndex: idx + 1,
         viewMode: isHeadlessTransparentDefaultType(type) ? "headless" : "window",
         surfaceMode: isHeadlessTransparentDefaultType(type) ? "transparent" : "normal",
+        transparentAutoContrast: true,
+        transparentGhostStrength: 100,
         backdropBlur: defaultWidgetBackdropBlur(type),
         edgeRoundness: 12,
         transparency: 0.94,
@@ -734,18 +910,12 @@ function savePreset(nameInput) {
   queueSave();
 }
 
-function loadPresetById(presetId, scope = "all") {
-  recordHistorySnapshot("Load preset");
-  const preset = state.presets.find((entry) => entry.id === presetId);
-  if (!preset) {
-    return;
-  }
-
+function applyProfileSnapshot(snapshotInput, scope = "all") {
   const applyGlobal = scope === "all" || scope === "global";
   const applyBackgroundOnly = scope === "all" || scope === "background";
   const applyWidgets = scope === "all" || scope === "widgets";
 
-  const snapshot = clonePresetSnapshot(preset.snapshot);
+  const snapshot = clonePresetSnapshot(snapshotInput);
   const hydrated = hydrate({
     ...state,
     ui: {
@@ -769,7 +939,9 @@ function loadPresetById(presetId, scope = "all") {
       shortcuts: {
         ...state.ui.shortcuts,
         ...(applyGlobal ? snapshot.ui?.shortcuts || {} : {})
-      }
+      },
+      defaultProfileSnapshot: state.ui.defaultProfileSnapshot,
+      defaultProfileUpdatedAt: state.ui.defaultProfileUpdatedAt
     },
     instances:
       applyWidgets && Array.isArray(snapshot.instances) && snapshot.instances.length
@@ -821,6 +993,43 @@ function loadPresetById(presetId, scope = "all") {
     }
   }
 
+  renderSettings();
+  queueSave();
+}
+
+function loadPresetById(presetId, scope = "all") {
+  recordHistorySnapshot("Load preset");
+  const preset = state.presets.find((entry) => entry.id === presetId);
+  if (!preset) {
+    return;
+  }
+  applyProfileSnapshot(preset.snapshot, scope);
+}
+
+function saveCurrentAsDefaultProfile() {
+  recordHistorySnapshot("Set default profile");
+  state.ui.defaultProfileSnapshot = clonePresetSnapshot(createStateSnapshot());
+  state.ui.defaultProfileUpdatedAt = Date.now();
+  renderSettings();
+  queueSave();
+}
+
+function loadDefaultProfile(scope = "all") {
+  const snapshot = state?.ui?.defaultProfileSnapshot;
+  if (!snapshot || typeof snapshot !== "object") {
+    return;
+  }
+  recordHistorySnapshot("Load default profile");
+  applyProfileSnapshot(snapshot, scope);
+}
+
+function clearDefaultProfile() {
+  if (!state?.ui?.defaultProfileSnapshot) {
+    return;
+  }
+  recordHistorySnapshot("Clear default profile");
+  state.ui.defaultProfileSnapshot = null;
+  state.ui.defaultProfileUpdatedAt = 0;
   renderSettings();
   queueSave();
 }
@@ -903,6 +1112,8 @@ function hydrate(raw) {
             ? "headless"
             : "window",
       surfaceMode: normalizeSurfaceMode(item.surfaceMode, headlessTransparentByDefault ? "transparent" : "normal"),
+      transparentAutoContrast: item.transparentAutoContrast !== false,
+      transparentGhostStrength: normalizeTransparentGhostStrength(item.transparentGhostStrength, 100),
       backdropBlur: typeof item.backdropBlur === "boolean" ? item.backdropBlur : defaultWidgetBackdropBlur(item.type),
       edgeRoundness: normalizeEdgeRoundness(item.edgeRoundness, 12),
       transparency: normalizeTransparency(item.transparency, 0.94),
@@ -952,6 +1163,11 @@ function hydrate(raw) {
   const shortcuts = {
     iconSizePercent: clamp(Number(rawUi.shortcuts?.iconSizePercent) || 100, 40, 220)
   };
+  const defaultProfileSnapshot =
+    rawUi.defaultProfileSnapshot && typeof rawUi.defaultProfileSnapshot === "object" && !Array.isArray(rawUi.defaultProfileSnapshot)
+      ? clonePresetSnapshot(rawUi.defaultProfileSnapshot)
+      : null;
+  const defaultProfileUpdatedAt = Math.max(0, Number(rawUi.defaultProfileUpdatedAt) || 0);
   const rawPresets = Array.isArray(raw?.presets) ? raw.presets : [];
   const presets = rawPresets
     .map((preset) => {
@@ -1031,7 +1247,9 @@ function hydrate(raw) {
       background,
       home,
       widgetCommonMaster,
-      shortcuts
+      shortcuts,
+      defaultProfileSnapshot,
+      defaultProfileUpdatedAt
     },
     presets,
     instances: normalized.length ? normalized : base.instances
@@ -1266,8 +1484,345 @@ function isInsideAddWidgetModalOverlay(target) {
   return target instanceof Element && Boolean(target.closest("#addWidgetModalOverlay"));
 }
 
+function isInsideShortcutIconEditorOverlay(target) {
+  return target instanceof Element && Boolean(target.closest("#shortcutIconEditorOverlay"));
+}
+
+function shortcutEditorContext() {
+  const canvas = elements.shortcutIconEditorCanvas;
+  if (!(canvas instanceof HTMLCanvasElement)) {
+    return null;
+  }
+  const ctx = canvas.getContext("2d");
+  if (!ctx) {
+    return null;
+  }
+  return { canvas, ctx };
+}
+
+function normalizeShortcutIconShape(value) {
+  const raw = normalizeText(value);
+  if (raw === "round" || raw === "flatSquared" || raw === "roundSquared") {
+    return raw;
+  }
+  return "roundSquared";
+}
+
+function normalizeShortcutIconCache(raw) {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+    return {};
+  }
+  const out = {};
+  for (const [key, value] of Object.entries(raw)) {
+    const normalizedKey = normalizeText(key);
+    const normalizedValue = normalizeText(value);
+    if (!normalizedKey || !normalizedValue.startsWith("data:image/")) {
+      continue;
+    }
+    out[normalizedKey] = normalizedValue;
+  }
+  return out;
+}
+
+function escapeXml(text) {
+  return String(text)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
+function shortcutEditorThemeColors() {
+  const fallback = defaultTheme();
+  return {
+    surface: normalizeDisplayColor(state?.ui?.theme?.surface, fallback.surface),
+    line: normalizeDisplayColor(state?.ui?.theme?.line, fallback.line),
+    text: normalizeDisplayColor(state?.ui?.theme?.text, fallback.text),
+    accent: normalizeDisplayColor(state?.ui?.theme?.accent, fallback.accent)
+  };
+}
+
+function shortcutEditorShapeSvg(shape, inset, fill, stroke, strokeWidth = 6) {
+  if (shape === "round") {
+    const radius = Math.max(1, 64 - inset);
+    return `<circle cx="64" cy="64" r="${radius}" fill="${fill}" stroke="${stroke}" stroke-width="${strokeWidth}" />`;
+  }
+
+  const size = Math.max(1, 128 - inset * 2);
+  const radius = shape === "roundSquared" ? 24 : 0;
+  return `<rect x="${inset}" y="${inset}" width="${size}" height="${size}" rx="${radius}" fill="${fill}" stroke="${stroke}" stroke-width="${strokeWidth}" />`;
+}
+
+function shortcutEditorClipShapeSvg(shape, inset) {
+  if (shape === "round") {
+    const radius = Math.max(1, 64 - inset);
+    return `<circle cx="64" cy="64" r="${radius}" />`;
+  }
+
+  const size = Math.max(1, 128 - inset * 2);
+  const radius = shape === "roundSquared" ? 20 : 0;
+  return `<rect x="${inset}" y="${inset}" width="${size}" height="${size}" rx="${radius}" />`;
+}
+
+function shortcutEditorSelectedPreset() {
+  const target = normalizeText(shortcutIconEditorState.selectedPreset, SHORTCUT_ICON_PRESETS[0].id);
+  return SHORTCUT_ICON_PRESETS.find((item) => item.id === target) || SHORTCUT_ICON_PRESETS[0];
+}
+
+function renderShortcutEditorPreviewDataUrl(dataUrl) {
+  const context = shortcutEditorContext();
+  if (!context) {
+    return;
+  }
+
+  const { canvas, ctx } = context;
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  if (!dataUrl) {
+    return;
+  }
+
+  const image = new Image();
+  image.onload = () => {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
+  };
+  image.src = dataUrl;
+}
+
+function shortcutEditorBuildDataUrl() {
+  const shape = normalizeShortcutIconShape(shortcutIconEditorState.shape);
+  const scale = clamp(Number(shortcutIconEditorState.scale) || 100, 60, 160);
+  const textValue = normalizeText(shortcutIconEditorState.text).slice(0, 4);
+  const textSize = clamp(Number(shortcutIconEditorState.textSize) || 58, 24, 92);
+  const colors = shortcutEditorThemeColors();
+
+  const containerSize = clamp(Math.round(86 * (scale / 100)), 44, 112);
+  const contentX = Math.round((128 - containerSize) / 2);
+  const contentY = Math.round((128 - containerSize) / 2);
+
+  let contentSvg = "";
+  if (shortcutIconEditorState.source === "text" && textValue) {
+    const fontSize = clamp(Math.round(textSize * (scale / 100)), 18, 100);
+    const fontFamily = escapeXml(state?.ui?.theme?.fontFamily || defaultTheme().fontFamily);
+    contentSvg = `<text x="64" y="64" text-anchor="middle" dominant-baseline="middle" font-family="${fontFamily}" font-size="${fontSize}" font-weight="700" fill="${colors.text}">${escapeXml(textValue)}</text>`;
+  } else if (shortcutIconEditorState.source === "cache" || shortcutIconEditorState.source === "image") {
+    const sourceData = shortcutIconEditorState.source === "cache"
+      ? normalizeText(shortcutIconEditorState.cacheEntries.find((entry) => entry.key === shortcutIconEditorState.selectedCache)?.data)
+      : normalizeText(shortcutIconEditorState.importedDataUrl);
+    if (sourceData) {
+      const clipShape = shortcutEditorClipShapeSvg(shape, 14);
+      contentSvg =
+        `<defs><clipPath id="shortcutClipShape">${clipShape}</clipPath></defs>` +
+        `<image href="${escapeXml(sourceData)}" x="${contentX}" y="${contentY}" width="${containerSize}" height="${containerSize}" preserveAspectRatio="xMidYMid slice" clip-path="url(#shortcutClipShape)" />`;
+    }
+  } else {
+    const preset = shortcutEditorSelectedPreset();
+    contentSvg =
+      `<svg x="${contentX}" y="${contentY}" width="${containerSize}" height="${containerSize}" viewBox="${preset.viewBox}" fill="none" stroke="${colors.text}" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">` +
+      `${preset.markup}</svg>`;
+  }
+
+  if (!contentSvg) {
+    return "";
+  }
+
+  const shell = shortcutEditorShapeSvg(shape, 6, colors.surface, colors.line, 6);
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">${shell}${contentSvg}</svg>`;
+  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+}
+
+function shortcutEditorRefreshPreview() {
+  shortcutIconEditorState.shape = normalizeShortcutIconShape(elements.shortcutIconEditorShape?.value);
+  shortcutIconEditorState.scale = clamp(Number(elements.shortcutIconEditorScale?.value) || 100, 60, 160);
+  shortcutIconEditorState.text = normalizeText(elements.shortcutIconEditorText?.value).slice(0, 4);
+  shortcutIconEditorState.textSize = clamp(Number(elements.shortcutIconEditorFontSize?.value) || 58, 24, 92);
+
+  if (shortcutIconEditorState.source === "text" && shortcutIconEditorState.text.length === 0) {
+    shortcutIconEditorState.source = "preset";
+  }
+
+  const nextDataUrl = shortcutEditorBuildDataUrl();
+  shortcutIconEditorState.previewDataUrl = nextDataUrl;
+  renderShortcutEditorPreviewDataUrl(nextDataUrl);
+  renderShortcutIconEditorPresetGrid();
+  renderShortcutIconEditorCachedGrid();
+}
+
+function renderShortcutIconEditorPresetGrid() {
+  const host = elements.shortcutIconEditorPresetGrid;
+  if (!host) {
+    return;
+  }
+  host.replaceChildren();
+
+  for (const preset of SHORTCUT_ICON_PRESETS) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "shortcut-icon-editor-pick";
+    button.classList.toggle("active", shortcutIconEditorState.source === "preset" && shortcutIconEditorState.selectedPreset === preset.id);
+    button.title = preset.label;
+    button.innerHTML = `<svg class="icon" viewBox="${preset.viewBox}">${preset.markup}</svg>`;
+    button.addEventListener("click", () => {
+      shortcutIconEditorState.source = "preset";
+      shortcutIconEditorState.selectedPreset = preset.id;
+      shortcutEditorRefreshPreview();
+    });
+    host.append(button);
+  }
+}
+
+function renderShortcutIconEditorCachedGrid() {
+  const host = elements.shortcutIconEditorCachedGrid;
+  if (!host) {
+    return;
+  }
+  host.replaceChildren();
+
+  if (!shortcutIconEditorState.cacheEntries.length) {
+    const muted = document.createElement("span");
+    muted.className = "muted";
+    muted.textContent = "No cached icons yet";
+    host.append(muted);
+    return;
+  }
+
+  for (const entry of shortcutIconEditorState.cacheEntries) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "shortcut-icon-editor-pick";
+    button.classList.toggle("active", shortcutIconEditorState.source === "cache" && shortcutIconEditorState.selectedCache === entry.key);
+    button.title = entry.key;
+    const img = document.createElement("img");
+    img.src = entry.data;
+    img.alt = "";
+    button.append(img);
+    button.addEventListener("click", () => {
+      shortcutIconEditorState.source = "cache";
+      shortcutIconEditorState.selectedCache = entry.key;
+      shortcutEditorRefreshPreview();
+    });
+    host.append(button);
+  }
+}
+
+async function loadShortcutIconEditorCacheEntries() {
+  try {
+    const raw = await chrome.storage.local.get(SHORTCUT_ICON_CACHE_KEY);
+    const normalized = normalizeShortcutIconCache(raw?.[SHORTCUT_ICON_CACHE_KEY]);
+    shortcutIconEditorState.cacheEntries = Object.entries(normalized)
+      .slice(-48)
+      .reverse()
+      .map(([key, data]) => ({ key, data }));
+  } catch {
+    shortcutIconEditorState.cacheEntries = [];
+  }
+  renderShortcutIconEditorCachedGrid();
+}
+
+function clearShortcutIconEditorCanvas() {
+  const context = shortcutEditorContext();
+  if (!context) {
+    return;
+  }
+  context.ctx.clearRect(0, 0, context.canvas.width, context.canvas.height);
+}
+
+function resetShortcutIconEditorSource() {
+  shortcutIconEditorState.source = "none";
+  shortcutIconEditorState.selectedCache = "";
+  shortcutIconEditorState.importedDataUrl = "";
+  shortcutIconEditorState.text = "";
+  if (elements.shortcutIconEditorText) {
+    elements.shortcutIconEditorText.value = "";
+  }
+  shortcutEditorRefreshPreview();
+}
+
+function closeShortcutIconEditor() {
+  shortcutIconEditorState.open = false;
+  shortcutIconEditorState.source = "none";
+  shortcutIconEditorState.onApply = null;
+  shortcutIconEditorState.previewDataUrl = "";
+  shortcutIconEditorState.importedDataUrl = "";
+  clearShortcutIconEditorCanvas();
+  elements.shortcutIconEditorOverlay?.classList.remove("open");
+  elements.shortcutIconEditorOverlay?.setAttribute("aria-hidden", "true");
+}
+
+function openShortcutIconEditor(iconValue, onApply) {
+  const initial = normalizeText(iconValue);
+  shortcutIconEditorState.open = true;
+  shortcutIconEditorState.onApply = typeof onApply === "function" ? onApply : null;
+  shortcutIconEditorState.shape = "roundSquared";
+  shortcutIconEditorState.scale = 100;
+  shortcutIconEditorState.textSize = 58;
+  shortcutIconEditorState.selectedPreset = SHORTCUT_ICON_PRESETS[0].id;
+  shortcutIconEditorState.selectedCache = "";
+  shortcutIconEditorState.importedDataUrl = "";
+
+  if (elements.shortcutIconEditorShape) {
+    elements.shortcutIconEditorShape.value = "roundSquared";
+  }
+  if (elements.shortcutIconEditorScale) {
+    elements.shortcutIconEditorScale.value = "100";
+  }
+  if (elements.shortcutIconEditorFontSize) {
+    elements.shortcutIconEditorFontSize.value = "58";
+  }
+  if (elements.shortcutIconEditorText) {
+    elements.shortcutIconEditorText.value = "";
+  }
+
+  if (initial.startsWith("data:image/")) {
+    shortcutIconEditorState.source = "image";
+    shortcutIconEditorState.importedDataUrl = initial;
+  } else if (initial && !initial.startsWith("http://") && !initial.startsWith("https://") && !initial.startsWith("chrome-extension://")) {
+    shortcutIconEditorState.source = "text";
+    shortcutIconEditorState.text = initial.slice(0, 4);
+    if (elements.shortcutIconEditorText) {
+      elements.shortcutIconEditorText.value = shortcutIconEditorState.text;
+    }
+  } else {
+    shortcutIconEditorState.source = "preset";
+  }
+
+  elements.shortcutIconEditorOverlay?.classList.add("open");
+  elements.shortcutIconEditorOverlay?.setAttribute("aria-hidden", "false");
+  void loadShortcutIconEditorCacheEntries();
+  renderShortcutIconEditorPresetGrid();
+  renderShortcutIconEditorCachedGrid();
+  shortcutEditorRefreshPreview();
+}
+
+function applyShortcutIconEditor() {
+  const dataUrl = shortcutEditorBuildDataUrl();
+  shortcutIconEditorState.onApply?.(dataUrl || "");
+  closeShortcutIconEditor();
+}
+
+function loadImageIntoShortcutEditor(file) {
+  if (!file || !String(file.type || "").startsWith("image/")) {
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = () => {
+    const raw = String(reader.result || "");
+    if (!raw.startsWith("data:image/")) {
+      return;
+    }
+    shortcutIconEditorState.source = "image";
+    shortcutIconEditorState.importedDataUrl = raw;
+    shortcutEditorRefreshPreview();
+  };
+  reader.readAsDataURL(file);
+}
+
 function blockOutsideModalEvent(event) {
-  if (!modalState.open && !addWidgetModalOpen) {
+  if (!modalState.open && !addWidgetModalOpen && !shortcutIconEditorState.open) {
+    return;
+  }
+  if (shortcutIconEditorState.open && isInsideShortcutIconEditorOverlay(event.target)) {
     return;
   }
   if (modalState.open && isInsideModalOverlay(event.target)) {
@@ -1328,6 +1883,19 @@ function applyCardVisual(card, instance) {
     card.style.removeProperty("--widget-custom-text");
     card.style.removeProperty("--widget-custom-accent");
     card.style.removeProperty("--widget-custom-surface");
+  }
+
+  if (surfaceMode === "transparent") {
+    const ui = state?.ui || null;
+    const textColor = resolveTransparentWidgetText(instance, ui);
+    card.style.setProperty("--widget-transparent-text", textColor);
+    card.style.setProperty(
+      "--widget-transparent-ghost-opacity",
+      String(resolveTransparentGhostOpacity(ui, instance.transparentGhostStrength))
+    );
+  } else {
+    card.style.removeProperty("--widget-transparent-text");
+    card.style.removeProperty("--widget-transparent-ghost-opacity");
   }
 }
 
@@ -1820,6 +2388,16 @@ function refreshAllWidgets() {
   }
 }
 
+function refreshAllWidgetCardsVisual() {
+  for (const instance of state.instances) {
+    const rt = runtime.get(instance.id);
+    if (!rt?.card) {
+      continue;
+    }
+    applyCardVisual(rt.card, instance);
+  }
+}
+
 function refreshWidgetsByType(type) {
   for (const instance of state.instances) {
     if (instance.type !== type) {
@@ -2134,6 +2712,7 @@ function patchTheme(patch) {
 
   applyTheme();
   applyBackground();
+  refreshAllWidgetCardsVisual();
   refreshWidgetsByType("label");
   renderSettings();
   queueSave();
@@ -2232,6 +2811,7 @@ function patchBackground(patch) {
   );
 
   applyBackground();
+  refreshAllWidgetCardsVisual();
   refreshWidgetsByType("label");
   renderSettings();
   queueSave();
@@ -3219,6 +3799,61 @@ function renderProfileSettings() {
   actionRow.append(saveBtn);
   elements.settingsContent.append(actionRow);
 
+  appendDivider();
+  elements.settingsContent.append(createSectionChip("Default Profile"));
+
+  const hasDefaultProfile = Boolean(
+    state?.ui?.defaultProfileSnapshot &&
+      Array.isArray(state.ui.defaultProfileSnapshot.instances) &&
+      state.ui.defaultProfileSnapshot.instances.length
+  );
+  const defaultProfileInfo = document.createElement("p");
+  defaultProfileInfo.className = "muted";
+  if (hasDefaultProfile) {
+    const updatedAt = Number(state?.ui?.defaultProfileUpdatedAt) || 0;
+    const stamp = updatedAt > 0 ? new Date(updatedAt).toLocaleString() : "saved";
+    defaultProfileInfo.textContent = `Current state is saved as default profile (${stamp}).`;
+  } else {
+    defaultProfileInfo.textContent = "No default profile yet.";
+  }
+  elements.settingsContent.append(defaultProfileInfo);
+
+  const defaultProfileRow = document.createElement("div");
+  defaultProfileRow.className = "preset-actions";
+
+  const setDefaultBtn = document.createElement("button");
+  setDefaultBtn.type = "button";
+  setDefaultBtn.className = "btn";
+  setDefaultBtn.textContent = "Use current as default";
+  setDefaultBtn.addEventListener("click", () => {
+    saveCurrentAsDefaultProfile();
+  });
+
+  const loadDefaultBtn = document.createElement("button");
+  loadDefaultBtn.type = "button";
+  loadDefaultBtn.className = "btn";
+  loadDefaultBtn.textContent = "Load default";
+  loadDefaultBtn.disabled = !hasDefaultProfile;
+  loadDefaultBtn.addEventListener("click", () => {
+    loadDefaultProfile("all");
+  });
+
+  const clearDefaultBtn = document.createElement("button");
+  clearDefaultBtn.type = "button";
+  clearDefaultBtn.className = "btn";
+  clearDefaultBtn.textContent = "Clear default";
+  clearDefaultBtn.disabled = !hasDefaultProfile;
+  clearDefaultBtn.addEventListener("click", () => {
+    const ok = window.confirm("Clear saved default profile?");
+    if (!ok) {
+      return;
+    }
+    clearDefaultProfile();
+  });
+
+  defaultProfileRow.append(setDefaultBtn, loadDefaultBtn, clearDefaultBtn);
+  elements.settingsContent.append(defaultProfileRow);
+
   const presets = Array.isArray(state.presets) ? state.presets : [];
   if (!presets.length) {
     const hint = document.createElement("p");
@@ -3407,6 +4042,21 @@ function getWidgetModalCommonFields() {
       ]
     },
     {
+      key: "transparentAutoContrast",
+      label: "Auto contrast in transparent mode",
+      type: "checkbox",
+      group: "base"
+    },
+    {
+      key: "transparentGhostStrength",
+      label: "Transparent ghost strength (%)",
+      type: "number",
+      min: 40,
+      max: 180,
+      step: 5,
+      group: "base"
+    },
+    {
       key: "backdropBlur",
       label: "Blur background",
       type: "checkbox",
@@ -3514,6 +4164,15 @@ function getWidgetCommonMasterFields() {
         { value: "transparent", label: "Transparent" }
       ]
     },
+    { key: "transparentAutoContrast", label: "Default auto contrast in transparent mode", type: "checkbox" },
+    {
+      key: "transparentGhostStrength",
+      label: "Default transparent ghost strength (%)",
+      type: "number",
+      min: 40,
+      max: 180,
+      step: 5
+    },
     { key: "backdropBlur", label: "Default blur behind widget", type: "checkbox" },
     { key: "edgeRoundness", label: "Default edge roundness", type: "number", min: 0, max: 40, step: 1 },
     { key: "transparency", label: "Default transparency", type: "number", min: 0, max: 1, step: 0.05 },
@@ -3549,6 +4208,8 @@ function getWidgetCommonMasterFields() {
 function applyCommonMasterToDraft(draft, instanceType, master) {
   draft.viewMode = master.viewMode === "headless" ? "headless" : "window";
   draft.surfaceMode = normalizeSurfaceMode(master.surfaceMode, "normal");
+  draft.transparentAutoContrast = master.transparentAutoContrast !== false;
+  draft.transparentGhostStrength = normalizeTransparentGhostStrength(master.transparentGhostStrength, 100);
   draft.backdropBlur = master.backdropBlur !== false;
   draft.edgeRoundness = normalizeEdgeRoundness(master.edgeRoundness, 12);
   draft.transparency = normalizeTransparency(master.transparency, 0.94);
@@ -3612,6 +4273,41 @@ function renderWidgetModalFields(fields) {
     if (isThemeFieldKey(field.key)) {
       row.classList.add("theme-row");
     }
+
+    if (field.type === "shortcut-icon-editor") {
+      const actionWrap = document.createElement("div");
+      actionWrap.className = "shortcut-icon-editor-inline-actions";
+
+      const editBtn = document.createElement("button");
+      editBtn.type = "button";
+      editBtn.className = "btn";
+      editBtn.textContent = "Edit icon";
+      editBtn.addEventListener("click", () => {
+        const current = normalizeText(modalState?.draft?.config?.icon);
+        openShortcutIconEditor(current, (nextDataUrl) => {
+          if (!modalState.draft) {
+            return;
+          }
+          setModalFieldValue({ group: "config", key: "icon" }, nextDataUrl);
+          renderWidgetModal();
+        });
+      });
+
+      const clearBtn = document.createElement("button");
+      clearBtn.type = "button";
+      clearBtn.className = "btn";
+      clearBtn.textContent = "Remove custom icon";
+      clearBtn.addEventListener("click", () => {
+        setModalFieldValue({ group: "config", key: "icon" }, "");
+        renderWidgetModal();
+      });
+
+      actionWrap.append(editBtn, clearBtn);
+      row.append(actionWrap);
+      frag.append(row);
+      continue;
+    }
+
     const input = createInputBySchema(field, modalFieldValue(field));
     input.addEventListener(settingsEventName(field), () => {
       setModalFieldValue(field, readFieldValue(input, field));
@@ -3677,6 +4373,10 @@ function setModalFieldValue(field, value) {
 }
 
 function closeWidgetModal(rerender = true) {
+  if (shortcutIconEditorState.open) {
+    closeShortcutIconEditor();
+  }
+
   modalState.open = false;
   modalState.widgetId = "";
   modalState.draft = null;
@@ -3813,6 +4513,8 @@ function openWidgetModal(instanceId) {
     title: instance.title,
     viewMode: instance.viewMode || "window",
     surfaceMode: normalizeSurfaceMode(instance.surfaceMode, "normal"),
+    transparentAutoContrast: instance.transparentAutoContrast !== false,
+    transparentGhostStrength: normalizeTransparentGhostStrength(instance.transparentGhostStrength, 100),
     backdropBlur: instance.backdropBlur !== false,
     edgeRoundness: normalizeEdgeRoundness(instance.edgeRoundness, 12),
     transparency: normalizeTransparency(instance.transparency, 0.94),
@@ -3863,6 +4565,8 @@ function applyWidgetModal() {
   instance.title = normalizeText(draft.title, def.title);
   instance.viewMode = draft.viewMode === "headless" ? "headless" : "window";
   instance.surfaceMode = normalizeSurfaceMode(draft.surfaceMode, "normal");
+  instance.transparentAutoContrast = draft.transparentAutoContrast !== false;
+  instance.transparentGhostStrength = normalizeTransparentGhostStrength(draft.transparentGhostStrength, 100);
   instance.backdropBlur = draft.backdropBlur !== false;
   instance.edgeRoundness = normalizeEdgeRoundness(draft.edgeRoundness, 12);
   instance.transparency = normalizeTransparency(draft.transparency, 0.94);
@@ -3962,6 +4666,8 @@ function addWidget(type, options = {}) {
     zIndex: zCounter + 1,
     viewMode: isHeadlessTransparentDefaultType(type) ? "headless" : "window",
     surfaceMode: isHeadlessTransparentDefaultType(type) ? "transparent" : "normal",
+    transparentAutoContrast: true,
+    transparentGhostStrength: 100,
     backdropBlur: defaultWidgetBackdropBlur(type),
     edgeRoundness: 12,
     transparency: 0.94,
@@ -4022,8 +4728,21 @@ function addWidget(type, options = {}) {
 function resetState() {
   recordHistorySnapshot("Reset state");
   const keptPresets = Array.isArray(state?.presets) ? state.presets : [];
+  const keptDefaultProfileSnapshot =
+    state?.ui?.defaultProfileSnapshot && typeof state.ui.defaultProfileSnapshot === "object"
+      ? clonePresetSnapshot(state.ui.defaultProfileSnapshot)
+      : null;
+  const keptDefaultProfileUpdatedAt = Math.max(0, Number(state?.ui?.defaultProfileUpdatedAt) || 0);
   state = defaultState();
   state.presets = keptPresets;
+
+  if (keptDefaultProfileSnapshot) {
+    state.ui.defaultProfileSnapshot = keptDefaultProfileSnapshot;
+    state.ui.defaultProfileUpdatedAt = keptDefaultProfileUpdatedAt;
+    applyProfileSnapshot(keptDefaultProfileSnapshot, "all");
+    return;
+  }
+
   applyTheme();
   applyBackground();
   renderBoard();
@@ -4207,6 +4926,61 @@ function wireEvents() {
     applyWidgetModal();
   });
 
+  elements.shortcutIconEditorCloseBtn?.addEventListener("click", () => {
+    closeShortcutIconEditor();
+  });
+
+  elements.shortcutIconEditorCancelBtn?.addEventListener("click", () => {
+    closeShortcutIconEditor();
+  });
+
+  elements.shortcutIconEditorApplyBtn?.addEventListener("click", () => {
+    applyShortcutIconEditor();
+  });
+
+  elements.shortcutIconEditorClearBtn?.addEventListener("click", () => {
+    resetShortcutIconEditorSource();
+  });
+
+  elements.shortcutIconEditorShape?.addEventListener("change", () => {
+    shortcutEditorRefreshPreview();
+  });
+
+  elements.shortcutIconEditorScale?.addEventListener("input", () => {
+    shortcutEditorRefreshPreview();
+  });
+
+  elements.shortcutIconEditorText?.addEventListener("input", () => {
+    shortcutIconEditorState.source = normalizeText(elements.shortcutIconEditorText?.value) ? "text" : "preset";
+    shortcutEditorRefreshPreview();
+  });
+
+  elements.shortcutIconEditorFontSize?.addEventListener("input", () => {
+    if (normalizeText(elements.shortcutIconEditorText?.value)) {
+      shortcutIconEditorState.source = "text";
+    }
+    shortcutEditorRefreshPreview();
+  });
+
+  elements.shortcutIconEditorImportBtn?.addEventListener("click", () => {
+    elements.shortcutIconEditorFile?.click();
+  });
+
+  elements.shortcutIconEditorFile?.addEventListener("change", (event) => {
+    const input = event.target;
+    if (!(input instanceof HTMLInputElement) || !input.files?.length) {
+      return;
+    }
+    loadImageIntoShortcutEditor(input.files[0]);
+    input.value = "";
+  });
+
+  elements.shortcutIconEditorOverlay?.addEventListener("pointerdown", (event) => {
+    if (event.target === elements.shortcutIconEditorOverlay) {
+      closeShortcutIconEditor();
+    }
+  });
+
   elements.widgetModalOverlay?.addEventListener("pointerdown", (event) => {
     modalState.dismissPointerId = event.pointerId;
     modalState.dismissStartX = event.clientX;
@@ -4295,6 +5069,18 @@ function wireEvents() {
     }
 
     if (!modalState.open) {
+      if (shortcutIconEditorState.open && event.key === "Escape") {
+        event.preventDefault();
+        closeShortcutIconEditor();
+      }
+      return;
+    }
+
+    if (shortcutIconEditorState.open) {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        closeShortcutIconEditor();
+      }
       return;
     }
 
