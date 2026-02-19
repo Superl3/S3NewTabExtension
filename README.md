@@ -15,6 +15,7 @@
 - 우측 설정 패널 탭
   - `Global` (테마/폰트)
   - `Background` (배경)
+  - `Profile` (프리셋/기본 프로필)
 - 배경 모드
   - Gradient / Solid color / Wallpaper rotation / Loop video
   - Wallpaper 소스: Picsum, Unsplash Source, Wallhaven, Reddit
@@ -29,9 +30,31 @@
 - Search
 - AI Chat
 - Bookmarks
+- Shortcut
 - TODO
 - Notes
 - Label
+- Gmail
+- RSS Feed
+
+## RSS Feed 위젯
+
+- Feed URL을 입력하면 최신 항목 목록을 표시합니다.
+- RSS(2.0)와 Atom 포맷을 지원합니다.
+
+## Gmail 연동 설정 (필수)
+
+Gmail 위젯은 Google OAuth 설정이 있어야 동작합니다.
+
+1. Google Cloud Console에서 프로젝트 생성
+2. `Gmail API` 활성화
+3. OAuth 동의 화면 구성
+4. OAuth 클라이언트 생성 (Chrome Extension용)
+   - 확장 프로그램 ID 기준으로 발급
+5. `manifest.json`의 `oauth2.client_id` 값을 발급받은 Client ID로 교체
+6. 확장 프로그램 Reload 후 Gmail 위젯에서 `Connect` 클릭
+
+> 참고: 확장 ID가 바뀌면 OAuth가 실패할 수 있습니다. 개발 환경에서 ID를 고정하려면 `manifest.key`를 설정하세요.
 
 ## 설치 방법 (개발자 모드)
 
@@ -80,6 +103,7 @@
 - Permissions
   - `storage`: 사용자 설정/레이아웃 저장
   - `bookmarks`: 북마크 트리 조회/갱신 반영
+  - `identity`, `identity.email`: Google 계정 OAuth 토큰/프로필 조회
 - Host permissions: `http://*/*`, `https://*/*`
 
 > 참고: AI Chat 위젯의 엔드포인트/API key를 설정하면 해당 값도 로컬 스토리지에 저장됩니다. 민감 정보 취급에 주의하세요.
@@ -100,9 +124,12 @@
     ├── search.js
     ├── aiChat.js
     ├── bookmarks.js
+    ├── shortcut.js
     ├── todo.js
     ├── notes.js
-    └── label.js
+    ├── label.js
+    ├── gmail.js
+    └── rss.js
 ```
 
 ## 로컬 점검
