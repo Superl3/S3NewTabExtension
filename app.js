@@ -125,6 +125,9 @@ let wallpaperSourceSignature = "";
 let zCounter = 1;
 let addWidgetModalOpen = false;
 let wallpaperLoadToken = 0;
+let sampledWallpaperBaseLuminance = null;
+let sampledWallpaperSource = "";
+let wallpaperSampleToken = 0;
 const dockDragState = {
   active: false,
   pointerId: null,
@@ -318,7 +321,8 @@ function defaultHomeLayout() {
     marginHorizontal: "medium",
     marginVertical: "medium",
     itemGap: "narrow",
-    widgetBackdropBlur: true
+    widgetBackdropBlur: true,
+    legacyHeadlessSurfaceMigrated: false
   };
 }
 
@@ -473,10 +477,20 @@ function contrastRatio(lumA, lumB) {
   return (lighter + 0.05) / (darker + 0.05);
 }
 
-function estimateTransparentBackdropLuminance(ui) {
-  const mode = String(ui?.background?.mode || "gradient");
+function applyBackdropOverlayLuminance(baseLum, ui) {
   const overlay = clamp(Number(ui?.background?.overlayOpacity) || 0.24, 0, 0.85);
   const overlayLum = luminanceFromHex("#080B10");
+  return clamp(baseLum, 0, 1) * (1 - overlay) + overlayLum * overlay;
+}
+
+function pickBestAutoTextColor(backdropLum) {
+  const lightContrast = contrastRatio(luminanceFromHex(AUTO_LIGHT_WIDGET_TEXT), backdropLum);
+  const darkContrast = contrastRatio(luminanceFromHex(AUTO_DARK_WIDGET_TEXT), backdropLum);
+  return lightContrast >= darkContrast ? AUTO_LIGHT_WIDGET_TEXT : AUTO_DARK_WIDGET_TEXT;
+}
+
+function estimateTransparentBackdropLuminance(ui) {
+  const mode = String(ui?.background?.mode || "gradient");
 
   const themeBackgroundLum = luminanceFromHex(normalizeHexColor(ui?.theme?.background, "#F3EFE6"));
   const themeSurfaceLum = luminanceFromHex(normalizeHexColor(ui?.theme?.surface, "#FFFAF2"));
@@ -491,31 +505,37 @@ function estimateTransparentBackdropLuminance(ui) {
     baseLum = clamp((themeBackgroundLum + 0.58) / 2, 0, 1);
   }
 
-  return baseLum * (1 - overlay) + overlayLum * overlay;
+  return applyBackdropOverlayLuminance(baseLum, ui);
 }
 
 function resolveTransparentWidgetText(instance, ui) {
   const mode = String(ui?.background?.mode || "gradient");
-  const shouldAutoAdjust = mode === "wallpaper" || mode === "video";
   const autoContrastEnabled = instance?.transparentAutoContrast !== false;
   const themeText = normalizeWidgetColor(ui?.theme?.text, "#1F2226");
   const manualText = instance.useCustomColors
     ? normalizeWidgetColor(instance.customTextColor, themeText)
     : themeText;
 
-  if (!shouldAutoAdjust || !autoContrastEnabled) {
+  if (!autoContrastEnabled) {
     return manualText;
   }
 
-  const backdropLum = estimateTransparentBackdropLuminance(ui);
+  const sampledBackdropLum =
+    mode === "wallpaper" && Number.isFinite(sampledWallpaperBaseLuminance)
+      ? applyBackdropOverlayLuminance(sampledWallpaperBaseLuminance, ui)
+      : null;
+  const backdropLum = Number.isFinite(sampledBackdropLum)
+    ? sampledBackdropLum
+    : estimateTransparentBackdropLuminance(ui);
   const manualLum = luminanceFromHex(manualText);
   const manualContrast = contrastRatio(manualLum, backdropLum);
+  const minimumContrast = mode === "wallpaper" || mode === "video" ? 4.1 : 3.4;
 
-  if (manualContrast >= 3.2) {
+  if (manualContrast >= minimumContrast) {
     return manualText;
   }
 
-  return backdropLum >= 0.5 ? AUTO_DARK_WIDGET_TEXT : AUTO_LIGHT_WIDGET_TEXT;
+  return pickBestAutoTextColor(backdropLum);
 }
 
 function resolveTransparentGhostOpacity(ui, strengthPercent = 100) {
@@ -771,7 +791,8 @@ function normalizeHomeLayout(layout) {
     marginHorizontal: normalizeMarginPreset(base.marginHorizontal, "medium"),
     marginVertical: normalizeMarginPreset(base.marginVertical, "medium"),
     itemGap: normalizeGapPreset(base.itemGap, "narrow"),
-    widgetBackdropBlur: base.widgetBackdropBlur !== false
+    widgetBackdropBlur: base.widgetBackdropBlur !== false,
+    legacyHeadlessSurfaceMigrated: base.legacyHeadlessSurfaceMigrated === true
   };
 }
 
@@ -1064,6 +1085,8 @@ function normalizeText(value, fallback = "") {
 function hydrate(raw) {
   const base = defaultState();
   const instances = Array.isArray(raw.instances) ? raw.instances : base.instances;
+  const legacyHeadlessSurfaceMigrated = raw?.ui?.home?.legacyHeadlessSurfaceMigrated === true;
+  let didLegacyHeadlessSurfaceMigration = false;
   const normalized = [];
 
   for (const item of instances) {
@@ -1075,6 +1098,18 @@ function hydrate(raw) {
     const isShortcut = item.type === "shortcut";
     const headlessTransparentByDefault = isHeadlessTransparentDefaultType(item.type);
     const isAiChat = item.type === "aiChat";
+    const viewMode =
+      item.viewMode === "headless" || item.viewMode === "window"
+        ? item.viewMode
+        : headlessTransparentByDefault
+          ? "headless"
+          : "window";
+    const legacySurfaceFallback = viewMode === "headless" || headlessTransparentByDefault ? "transparent" : "normal";
+    let surfaceMode = normalizeSurfaceMode(item.surfaceMode, legacySurfaceFallback);
+    if (!legacyHeadlessSurfaceMigrated && viewMode === "headless" && item.surfaceMode === "normal") {
+      surfaceMode = "transparent";
+      didLegacyHeadlessSurfaceMigration = true;
+    }
     const padding = resolveWidgetPadding({ type: item.type, ...item });
     const mergedConfig = {
       ...(structuredClone(def.defaultConfig || {})),
@@ -1105,13 +1140,8 @@ function hydrate(raw) {
       type: item.type,
       title: item.title || def.title,
       zIndex: Math.max(1, Number(item.zIndex) || normalized.length + 1),
-      viewMode:
-        item.viewMode === "headless" || item.viewMode === "window"
-          ? item.viewMode
-          : headlessTransparentByDefault
-            ? "headless"
-            : "window",
-      surfaceMode: normalizeSurfaceMode(item.surfaceMode, headlessTransparentByDefault ? "transparent" : "normal"),
+      viewMode,
+      surfaceMode,
       transparentAutoContrast: item.transparentAutoContrast !== false,
       transparentGhostStrength: normalizeTransparentGhostStrength(item.transparentGhostStrength, 100),
       backdropBlur: typeof item.backdropBlur === "boolean" ? item.backdropBlur : defaultWidgetBackdropBlur(item.type),
@@ -1159,6 +1189,9 @@ function hydrate(raw) {
     ...(rawUi.background || {})
   };
   const home = normalizeHomeLayout(rawUi.home || {});
+  if (didLegacyHeadlessSurfaceMigration) {
+    home.legacyHeadlessSurfaceMigrated = true;
+  }
   const widgetCommonMaster = normalizeWidgetCommonMaster(rawUi.widgetCommonMaster || {});
   const shortcuts = {
     iconSizePercent: clamp(Number(rawUi.shortcuts?.iconSizePercent) || 100, 40, 220)
@@ -1842,7 +1875,9 @@ function applyCardVisual(card, instance) {
   const opacity = surfaceMode === "transparent" ? 0 : normalizeTransparency(instance.transparency, 0.94);
   const globalBlurEnabled = state?.ui?.home?.widgetBackdropBlur !== false;
   const widgetBlurEnabled = instance.backdropBlur !== false;
-  card.style.setProperty("--widget-backdrop-blur", globalBlurEnabled && widgetBlurEnabled ? "12px" : "0px");
+  const cardBlurActive = globalBlurEnabled && widgetBlurEnabled;
+  card.style.setProperty("--widget-backdrop-blur", cardBlurActive ? "12px" : "0px");
+  card.style.setProperty("--widget-label-backdrop-blur", cardBlurActive ? "0px" : "11px");
   card.style.setProperty("--widget-edge-roundness", `${edgeRoundness}px`);
   card.classList.toggle("surface-transparent", surfaceMode === "transparent");
   card.style.setProperty("--widget-opacity", String(opacity));
@@ -1986,6 +2021,94 @@ function loadImageForBlur(url) {
   });
 }
 
+async function sampleImageBaseLuminanceFromUrl(url) {
+  const response = await fetch(url, {
+    cache: "force-cache"
+  });
+  if (!response.ok) {
+    throw new Error(`backdrop-luminance:${response.status}`);
+  }
+
+  const blob = await response.blob();
+  if (!blob || !String(blob.type || "").startsWith("image/")) {
+    throw new Error("backdrop-luminance:invalid-image");
+  }
+
+  const sampleSize = 24;
+  const canvas = document.createElement("canvas");
+  canvas.width = sampleSize;
+  canvas.height = sampleSize;
+  const ctx = canvas.getContext("2d", { willReadFrequently: true });
+  if (!ctx) {
+    throw new Error("backdrop-luminance:no-canvas");
+  }
+
+  if (typeof createImageBitmap === "function") {
+    const bitmap = await createImageBitmap(blob);
+    try {
+      ctx.drawImage(bitmap, 0, 0, sampleSize, sampleSize);
+    } finally {
+      if (typeof bitmap.close === "function") {
+        bitmap.close();
+      }
+    }
+  } else {
+    const objectUrl = URL.createObjectURL(blob);
+    try {
+      const image = await loadImageForBlur(objectUrl);
+      ctx.drawImage(image, 0, 0, sampleSize, sampleSize);
+    } finally {
+      URL.revokeObjectURL(objectUrl);
+    }
+  }
+
+  const pixels = ctx.getImageData(0, 0, sampleSize, sampleSize).data;
+  let luminanceSum = 0;
+  let alphaWeight = 0;
+  for (let i = 0; i < pixels.length; i += 4) {
+    const alpha = pixels[i + 3] / 255;
+    if (alpha <= 0.01) {
+      continue;
+    }
+    const lum = 0.2126 * srgbToLinear(pixels[i]) + 0.7152 * srgbToLinear(pixels[i + 1]) + 0.0722 * srgbToLinear(pixels[i + 2]);
+    luminanceSum += lum * alpha;
+    alphaWeight += alpha;
+  }
+
+  if (alphaWeight <= 0) {
+    throw new Error("backdrop-luminance:no-pixels");
+  }
+
+  return clamp(luminanceSum / alphaWeight, 0, 1);
+}
+
+function requestWallpaperLuminanceSample(url) {
+  const source = normalizeText(url);
+  if (!source || sampledWallpaperSource === source) {
+    return;
+  }
+
+  const token = ++wallpaperSampleToken;
+  void (async () => {
+    try {
+      const baseLum = await sampleImageBaseLuminanceFromUrl(source);
+      if (token !== wallpaperSampleToken || state?.ui?.background?.mode !== "wallpaper") {
+        return;
+      }
+      sampledWallpaperBaseLuminance = baseLum;
+      sampledWallpaperSource = source;
+    } catch {
+      if (token !== wallpaperSampleToken) {
+        return;
+      }
+      sampledWallpaperBaseLuminance = null;
+      sampledWallpaperSource = source;
+    }
+    refreshAllWidgetCardsVisual();
+    refreshWidgetsByType("label");
+  })();
+}
+
 async function buildPrecomputedBlurData(url, amount) {
   const source = await loadImageForBlur(url);
   const targetMax = 820;
@@ -2096,6 +2219,7 @@ function applyWallpaperSwap(url, token) {
   elements.bgImage.src = url;
   elements.bgImage.classList.add("visible");
   void updateBlurFromImage(url);
+  requestWallpaperLuminanceSample(url);
   return true;
 }
 
@@ -2221,6 +2345,7 @@ async function refreshWallpaper({ signature = null, force = false } = {}) {
         hasVisibleSource = true;
         cachedShown = true;
         void updateBlurFromImage(cachedUrl);
+        requestWallpaperLuminanceSample(cachedUrl);
       } else {
         try {
           const swapped = await preloadAndSwapWallpaper(cachedUrl, token);
@@ -5127,6 +5252,9 @@ async function init() {
   syncAddWidgetSizeInputs();
   const loaded = await loadState(defaultState());
   state = hydrate(loaded);
+  if (state.ui.home.legacyHeadlessSurfaceMigrated && loaded?.ui?.home?.legacyHeadlessSurfaceMigrated !== true) {
+    queueSave();
+  }
 
   applyTheme();
   applyBackground();

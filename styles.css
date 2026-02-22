@@ -434,6 +434,7 @@ body.mode-edit.settings-open .settings-rail-toggle {
   --widget-pad-bottom: 10px;
   --widget-pad-left: 10px;
   --widget-head-offset: 40px;
+  --widget-label-backdrop-blur: 0px;
   --widget-effective-text: var(--widget-transparent-text, var(--widget-custom-text, var(--widget-theme-text, var(--text))));
   --widget-effective-accent: var(--widget-custom-accent, var(--widget-theme-accent, var(--accent)));
   --widget-effective-surface: var(--widget-custom-surface, var(--widget-theme-surface, var(--surface)));
@@ -993,7 +994,10 @@ body.mode-edit .widget-float-remove:hover {
 
 .clock-date {
   margin-top: 2px;
-  color: var(--muted);
+  color: color-mix(in srgb, var(--widget-effective-text), var(--widget-effective-accent) 14%);
+  font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
+  font-weight: 540;
+  letter-spacing: 0.02em;
   line-height: 1.1;
 }
 
@@ -1034,8 +1038,12 @@ body.mode-edit .widget-float-remove:hover {
 }
 
 .clock-variant-minimal .clock-date {
-  opacity: 0.8;
+  opacity: 0.96;
   font-size: 0.92em;
+}
+
+.widget-card.surface-transparent .clock-date {
+  text-shadow: 0 1px 2px rgba(2, 6, 9, 0.5), 0 0 1px rgba(243, 247, 255, 0.28);
 }
 
 .clock-shadowed .clock-time {
@@ -1609,6 +1617,7 @@ body.mode-edit .widget-float-remove:hover {
 }
 
 .shortcut-label {
+  display: inline-block;
   max-width: 100%;
   font-size: 0.86em;
   font-weight: 650;
@@ -1616,6 +1625,17 @@ body.mode-edit .widget-float-remove:hover {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.widget-card.surface-transparent .shortcut-label {
+  padding: 0.08em 0.38em;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--widget-effective-surface), transparent 100%);
+  backdrop-filter: blur(var(--widget-label-backdrop-blur, 0px));
+  -webkit-backdrop-filter: blur(var(--widget-label-backdrop-blur, 0px));
+  border: none;
+  box-shadow: none;
+  text-shadow: 0 1px 2px rgba(2, 6, 9, 0.56), 0 0 1px rgba(243, 247, 255, 0.32);
 }
 
 .shortcut-icon-editor-inline-actions {
@@ -1937,8 +1957,8 @@ body.mode-edit .widget-float-remove:hover {
   inset: -0.2em -0.34em;
   border-radius: 12px;
   background: color-mix(in srgb, var(--widget-effective-surface), transparent 76%);
-  backdrop-filter: blur(11px);
-  -webkit-backdrop-filter: blur(11px);
+  backdrop-filter: blur(var(--widget-label-backdrop-blur, 0px));
+  -webkit-backdrop-filter: blur(var(--widget-label-backdrop-blur, 0px));
   opacity: var(--widget-transparent-ghost-opacity, 0.14);
   border: 1px solid color-mix(in srgb, var(--line), transparent 75%);
   pointer-events: none;

@@ -122,17 +122,18 @@ export const labelWidget = {
       const isTransparent = widget?.surfaceMode === "transparent";
       const align = ["left", "center", "right"].includes(cfg.align) ? cfg.align : "center";
       const manualColor = normalizeHex(cfg.color, "#ffffff");
-      const resolvedColor = isTransparent && useAutoContrast ? resolveAutoColor(ui) : manualColor;
+      const autoFallbackColor = resolveAutoColor(ui);
 
       value.textContent = cfg.text || "";
-      value.style.color = resolvedColor;
+      value.style.color = isTransparent && useAutoContrast
+        ? `var(--widget-transparent-text, ${autoFallbackColor})`
+        : manualColor;
       value.style.fontSize = `${clamp(Number(cfg.fontSize) || 36, 12, 128)}px`;
       value.style.fontWeight = String(clamp(Number(cfg.fontWeight) || 700, 200, 900));
       text.style.textAlign = align;
 
       if (isTransparent && useAutoContrast) {
-        value.style.textShadow =
-          resolvedColor === AUTO_DARK_TEXT ? "0 2px 10px rgba(255, 255, 255, 0.34)" : "0 2px 12px rgba(2, 6, 9, 0.5)";
+        value.style.textShadow = "0 1px 2px rgba(2, 6, 9, 0.56), 0 0 1px rgba(243, 247, 255, 0.34)";
       } else {
         value.style.removeProperty("text-shadow");
       }
