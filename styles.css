@@ -2200,6 +2200,53 @@ body.mode-edit .widget-float-remove:hover {
   overflow: hidden;
 }
 
+.ai-chat-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 10px 6px 12px;
+  border-radius: 12px;
+  border: 1px solid color-mix(in srgb, var(--line), transparent 28%);
+  background: color-mix(in srgb, var(--surface), transparent 18%);
+  flex: 0 0 auto;
+}
+
+.ai-chat-toolbar .ai-chat-status {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 0.82em;
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.ai-chat-toolbar .ai-chat-status.is-error {
+  color: var(--warn);
+}
+
+.ai-chat-toolbar .ai-chat-actions {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.ai-chat-toolbar .btn {
+  padding: 6px 12px;
+  font-size: 0.82em;
+}
+
+@media (max-width: 660px) {
+  .ai-chat-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .ai-chat-toolbar .ai-chat-actions {
+    justify-content: flex-end;
+  }
+}
+
 .widget-card[data-content-fill="true"] .widget-content-slot.ai-chat-widget {
   display: flex;
   flex-direction: column;

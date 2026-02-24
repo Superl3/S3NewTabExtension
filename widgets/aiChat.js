@@ -90,17 +90,123 @@ function extractAssistantText(data) {
   return "";
 }
 
+const AI_CHAT_AUTH_STORAGE_KEY = "s3newtab-ai-chat-auth-session-v1";
+
+function normalizeConnectorUrl(value, fallback = "") {
+  const text = normalizeText(value, fallback);
+  if (!text) {
+    return "";
+  }
+
+  try {
+    const parsed = new URL(text);
+    const isLocalhost = parsed.hostname === "localhost" || parsed.hostname === "127.0.0.1";
+    if (parsed.protocol !== "https:" && !(isLocalhost && parsed.protocol === "http:")) {
+      return "";
+    }
+    parsed.hash = "";
+    return parsed.toString();
+  } catch {
+    return "";
+  }
+}
+
+function createAuthState() {
+  const bytes = new Uint8Array(16);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+function buildAuthConnectorStartUrl(connectorUrl, redirectUri, state) {
+  const url = new URL(connectorUrl);
+  url.searchParams.set("redirect_uri", redirectUri);
+  url.searchParams.set("state", state);
+  return url.toString();
+}
+
+function parseAuthFlowResult(callbackUrl) {
+  const parsed = new URL(callbackUrl);
+  const hashText = parsed.hash.startsWith("#") ? parsed.hash.slice(1) : parsed.hash;
+  const hashParams = new URLSearchParams(hashText);
+  const queryParams = parsed.searchParams;
+  const read = (key) => normalizeText(queryParams.get(key) || hashParams.get(key));
+
+  return {
+    state: read("state"),
+    accessToken: read("access_token") || read("token"),
+    accountLabel: read("account") || read("email") || read("user"),
+    error: read("error"),
+    errorDescription: read("error_description")
+  };
+}
+
+function normalizeStoredAuthSession(raw) {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+    return null;
+  }
+
+  const connectorUrl = normalizeConnectorUrl(raw.connectorUrl);
+  const accessToken = normalizeText(raw.accessToken);
+  if (!connectorUrl || !accessToken) {
+    return null;
+  }
+
+  return {
+    connectorUrl,
+    accessToken,
+    accountLabel: normalizeText(raw.accountLabel)
+  };
+}
+
+async function loadStoredAuthSession() {
+  try {
+    const stored = await chrome.storage.local.get(AI_CHAT_AUTH_STORAGE_KEY);
+    return normalizeStoredAuthSession(stored?.[AI_CHAT_AUTH_STORAGE_KEY]);
+  } catch {
+    return null;
+  }
+}
+
+async function saveStoredAuthSession(session) {
+  await chrome.storage.local.set({
+    [AI_CHAT_AUTH_STORAGE_KEY]: {
+      connectorUrl: normalizeConnectorUrl(session?.connectorUrl),
+      accessToken: normalizeText(session?.accessToken),
+      accountLabel: normalizeText(session?.accountLabel)
+    }
+  });
+}
+
+async function clearStoredAuthSession() {
+  try {
+    await chrome.storage.local.remove(AI_CHAT_AUTH_STORAGE_KEY);
+  } catch {
+  }
+}
+
+function isAuthCancelledMessage(message) {
+  const text = normalizeText(message).toLowerCase();
+  return (
+    text.includes("cancel") ||
+    text.includes("canceled") ||
+    text.includes("cancelled") ||
+    text.includes("did not approve") ||
+    text.includes("closed") ||
+    text.includes("interaction")
+  );
+}
+
 async function throwHttpError(response) {
   const body = normalizeText(await response.text());
   throw new Error(body ? `HTTP ${response.status}: ${body}` : `HTTP ${response.status}`);
 }
 
-async function callOpenAIStyleApi(cfg, history, text) {
+async function callOpenAIStyleApi(cfg, history, text, accessToken) {
   const headers = {
     "Content-Type": "application/json"
   };
-  if (cfg.apiKey) {
-    headers.Authorization = `Bearer ${cfg.apiKey}`;
+  if (accessToken) {
+    headers.Authorization = `Bearer ${accessToken}`;
   }
 
   const messages = [];
@@ -136,12 +242,12 @@ async function callOpenAIStyleApi(cfg, history, text) {
   return String(content);
 }
 
-async function callOpenAIBrowserMode(cfg, history, text) {
+async function callOpenAIBrowserMode(cfg, history, text, accessToken) {
   const headers = {
     "Content-Type": "application/json"
   };
-  if (cfg.apiKey) {
-    headers.Authorization = `Bearer ${cfg.apiKey}`;
+  if (accessToken) {
+    headers.Authorization = `Bearer ${accessToken}`;
   }
 
   const input = [];
@@ -184,7 +290,7 @@ export const aiChatWidget = {
   defaultConfig: {
     providerMode: "chatgpt",
     endpoint: "",
-    apiKey: "",
+    connectorUrl: "",
     model: "gpt-4o-mini",
     systemPrompt: "You are a concise assistant in a browser new tab widget.",
     temperature: 0.7,
@@ -207,7 +313,13 @@ export const aiChatWidget = {
       ]
     },
     { key: "endpoint", label: "Endpoint (optional override)", type: "text", placeholder: "https://..." },
-    { key: "apiKey", label: "API key", type: "password", placeholder: "sk-..." },
+    {
+      key: "connectorUrl",
+      label: "Auth connector URL",
+      type: "url",
+      placeholder: "https://example.com/connector/auth",
+      helpText: "Connector should redirect to this extension with access_token (optionally account/email/user)."
+    },
     { key: "model", label: "Model", type: "text", placeholder: "gpt-4o-mini" },
     { key: "temperature", label: "Temperature", type: "number", min: 0, max: 2, step: 0.1 },
     { key: "systemPrompt", label: "System prompt", type: "textarea" }
@@ -216,6 +328,11 @@ export const aiChatWidget = {
     const log = document.createElement("div");
     const list = document.createElement("ul");
     const form = document.createElement("form");
+    const toolbar = document.createElement("div");
+    const status = document.createElement("div");
+    const actions = document.createElement("div");
+    const connectBtn = document.createElement("button");
+    const disconnectBtn = document.createElement("button");
     const input = document.createElement("input");
     const send = document.createElement("button");
 
@@ -223,6 +340,9 @@ export const aiChatWidget = {
     log.className = "chat-log";
     list.className = "chat-list";
     form.className = "chat-form";
+    toolbar.className = "ai-chat-toolbar";
+    status.className = "ai-chat-status";
+    actions.className = "ai-chat-actions";
 
     input.type = "text";
     input.placeholder = "Ask something";
@@ -230,16 +350,138 @@ export const aiChatWidget = {
     send.className = "btn btn-primary";
     send.textContent = "Send";
 
+    connectBtn.type = "button";
+    connectBtn.className = "btn btn-primary";
+    connectBtn.textContent = "Connect";
+
+    disconnectBtn.type = "button";
+    disconnectBtn.className = "btn";
+    disconnectBtn.textContent = "Disconnect";
+
+    actions.append(connectBtn, disconnectBtn);
+    toolbar.append(status, actions);
     form.append(input, send);
     log.append(list);
-    container.append(log, form);
+    container.append(toolbar, log, form);
+
+    let storedSession = null;
+    let activeSession = null;
+    let isConnecting = false;
+    let connectionError = "";
 
     function getHistory() {
       const cfg = getConfig();
       return Array.isArray(cfg.history) ? cfg.history : [];
     }
 
+    function getConnectorUrl() {
+      const cfg = getConfig();
+      return normalizeConnectorUrl(cfg.connectorUrl);
+    }
+
+    function updateActiveSessionFromStorage() {
+      const connectorUrl = getConnectorUrl();
+      activeSession = connectorUrl && storedSession?.connectorUrl === connectorUrl ? storedSession : null;
+    }
+
+    function renderToolbar() {
+      const connectorUrl = getConnectorUrl();
+      let text = "";
+      if (isConnecting) {
+        text = "Connecting...";
+      } else if (connectionError) {
+        text = connectionError;
+      } else if (!connectorUrl) {
+        text = "Auth connector URL is required.";
+      } else if (!activeSession) {
+        text = "Connect to authenticate.";
+      } else {
+        text = activeSession.accountLabel ? `Connected as ${activeSession.accountLabel}` : "Connected";
+      }
+
+      status.textContent = text;
+      status.classList.toggle("is-error", Boolean(connectionError));
+      connectBtn.disabled = isConnecting || !connectorUrl;
+      disconnectBtn.disabled = isConnecting || !activeSession;
+    }
+
+    async function connectConnector() {
+      const connectorUrl = getConnectorUrl();
+      if (!connectorUrl) {
+        connectionError = "Set auth connector URL in widget settings first.";
+        render();
+        return;
+      }
+
+      if (!chrome.identity?.launchWebAuthFlow || !chrome.identity?.getRedirectURL) {
+        connectionError = "chrome.identity.launchWebAuthFlow is not available.";
+        render();
+        return;
+      }
+
+      isConnecting = true;
+      connectionError = "";
+      render();
+
+      try {
+        const state = createAuthState();
+        const redirectUri = chrome.identity.getRedirectURL("ai-chat-auth");
+        const startUrl = buildAuthConnectorStartUrl(connectorUrl, redirectUri, state);
+        const callbackUrl = await chrome.identity.launchWebAuthFlow({
+          url: startUrl,
+          interactive: true
+        });
+
+        const result = parseAuthFlowResult(callbackUrl);
+        if (result.error || result.errorDescription) {
+          throw new Error(result.errorDescription || result.error || "Authentication failed.");
+        }
+        if (result.state && result.state !== state) {
+          throw new Error("Authentication failed (invalid state).");
+        }
+
+        const token = normalizeText(result.accessToken);
+        if (!token) {
+          throw new Error("Auth connector did not return access_token.");
+        }
+
+        storedSession = {
+          connectorUrl,
+          accessToken: token,
+          accountLabel: normalizeText(result.accountLabel)
+        };
+        await saveStoredAuthSession(storedSession);
+        updateActiveSessionFromStorage();
+        connectionError = "";
+      } catch (error) {
+        const message = normalizeText(error?.message);
+        if (message && isAuthCancelledMessage(message)) {
+          connectionError = "Connector authentication was cancelled.";
+        } else if (message) {
+          connectionError = message;
+        } else {
+          connectionError = "Connector authentication failed.";
+        }
+      } finally {
+        isConnecting = false;
+        render();
+      }
+    }
+
+    async function disconnectConnector() {
+      if (isConnecting) {
+        return;
+      }
+      storedSession = null;
+      activeSession = null;
+      connectionError = "";
+      await clearStoredAuthSession();
+      render();
+    }
+
     function render() {
+      updateActiveSessionFromStorage();
+      renderToolbar();
       list.replaceChildren();
 
       for (const msg of getHistory()) {
@@ -268,9 +510,18 @@ export const aiChatWidget = {
         return;
       }
 
-      if (!normalizeText(cfg.apiKey)) {
+      const connectorUrl = getConnectorUrl();
+      if (!connectorUrl) {
         patchConfig({
-          history: [...next, toMessage("assistant", "API key is required.")].slice(-40)
+          history: [...next, toMessage("assistant", "Auth connector URL is required in settings.")].slice(-40)
+        });
+        return;
+      }
+
+      const token = activeSession?.accessToken;
+      if (!token) {
+        patchConfig({
+          history: [...next, toMessage("assistant", "Tap Connect above to authenticate before sending messages.")].slice(-40)
         });
         return;
       }
@@ -278,8 +529,8 @@ export const aiChatWidget = {
       try {
         const reply =
           cfg.providerMode === "browser"
-            ? await callOpenAIBrowserMode(cfg, history, text)
-            : await callOpenAIStyleApi(cfg, history, text);
+            ? await callOpenAIBrowserMode(cfg, history, text, token)
+            : await callOpenAIStyleApi(cfg, history, text, token);
 
         patchConfig({ history: [...next, toMessage("assistant", reply)].slice(-40) });
       } catch (error) {
@@ -298,6 +549,19 @@ export const aiChatWidget = {
       input.value = "";
       void sendMessage(text);
     });
+
+    connectBtn.addEventListener("click", () => {
+      void connectConnector();
+    });
+
+    disconnectBtn.addEventListener("click", () => {
+      void disconnectConnector();
+    });
+
+    void (async () => {
+      storedSession = await loadStoredAuthSession();
+      render();
+    })();
 
     render();
 

@@ -1,5 +1,6 @@
 const MONDAY_API_URL = "https://api.monday.com/v2";
 const MONDAY_WEB_URL = "https://monday.com/";
+const MONDAY_AUTH_STORAGE_KEY = "s3newtab-monday-auth-session-v1";
 
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
@@ -38,6 +39,25 @@ function normalizeColumnId(value, fallback = "") {
   return normalizeText(value, fallback).slice(0, 80);
 }
 
+function normalizeConnectorUrl(value, fallback = "") {
+  const text = normalizeText(value, fallback);
+  if (!text) {
+    return "";
+  }
+
+  try {
+    const parsed = new URL(text);
+    const isLocalhost = parsed.hostname === "localhost" || parsed.hostname === "127.0.0.1";
+    if (parsed.protocol !== "https:" && !(isLocalhost && parsed.protocol === "http:")) {
+      return "";
+    }
+    parsed.hash = "";
+    return parsed.toString();
+  } catch {
+    return "";
+  }
+}
+
 function normalizeErrorMessage(error) {
   if (!error) {
     return "Unknown error";
@@ -49,6 +69,29 @@ function normalizeErrorMessage(error) {
     return normalizeText(error.message, "Unknown error");
   }
   return "Unknown error";
+}
+
+function isAuthErrorMessage(message) {
+  const text = normalizeText(message).toLowerCase();
+  return (
+    text.includes("unauthorized") ||
+    text.includes("not authenticated") ||
+    text.includes("invalid token") ||
+    text.includes("forbidden") ||
+    text.includes("access denied")
+  );
+}
+
+function isAuthCancelledMessage(message) {
+  const text = normalizeText(message).toLowerCase();
+  return (
+    text.includes("cancel") ||
+    text.includes("canceled") ||
+    text.includes("cancelled") ||
+    text.includes("did not approve") ||
+    text.includes("closed") ||
+    text.includes("interaction")
+  );
 }
 
 function toLocalDayKey(date) {
@@ -98,6 +141,79 @@ function formatTimeLabel(date) {
   });
 }
 
+function createAuthState() {
+  const bytes = new Uint8Array(16);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+function buildAuthConnectorStartUrl(connectorUrl, redirectUri, state) {
+  const url = new URL(connectorUrl);
+  url.searchParams.set("redirect_uri", redirectUri);
+  url.searchParams.set("state", state);
+  return url.toString();
+}
+
+function parseAuthFlowResult(callbackUrl) {
+  const parsed = new URL(callbackUrl);
+  const hashText = parsed.hash.startsWith("#") ? parsed.hash.slice(1) : parsed.hash;
+  const hashParams = new URLSearchParams(hashText);
+  const queryParams = parsed.searchParams;
+  const read = (key) => normalizeText(queryParams.get(key) || hashParams.get(key));
+
+  return {
+    state: read("state"),
+    accessToken: read("access_token") || read("token"),
+    accountLabel: read("account") || read("email") || read("user"),
+    error: read("error"),
+    errorDescription: read("error_description")
+  };
+}
+
+function normalizeStoredAuthSession(raw) {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+    return null;
+  }
+
+  const connectorUrl = normalizeConnectorUrl(raw.connectorUrl);
+  const accessToken = normalizeText(raw.accessToken);
+  if (!connectorUrl || !accessToken) {
+    return null;
+  }
+
+  return {
+    connectorUrl,
+    accessToken,
+    accountLabel: normalizeText(raw.accountLabel)
+  };
+}
+
+async function loadStoredAuthSession() {
+  try {
+    const stored = await chrome.storage.local.get(MONDAY_AUTH_STORAGE_KEY);
+    return normalizeStoredAuthSession(stored?.[MONDAY_AUTH_STORAGE_KEY]);
+  } catch {
+    return null;
+  }
+}
+
+async function saveStoredAuthSession(session) {
+  await chrome.storage.local.set({
+    [MONDAY_AUTH_STORAGE_KEY]: {
+      connectorUrl: normalizeConnectorUrl(session?.connectorUrl),
+      accessToken: normalizeText(session?.accessToken),
+      accountLabel: normalizeText(session?.accountLabel)
+    }
+  });
+}
+
+async function clearStoredAuthSession() {
+  try {
+    await chrome.storage.local.remove(MONDAY_AUTH_STORAGE_KEY);
+  } catch {
+  }
+}
+
 function normalizedConfig(config) {
   let workStartHour = normalizeHour(config?.workStartHour, 9, 0, 23);
   let workEndHour = normalizeHour(config?.workEndHour, 18, 1, 24);
@@ -110,7 +226,7 @@ function normalizedConfig(config) {
   }
 
   return {
-    apiToken: normalizeText(config?.apiToken),
+    connectorUrl: normalizeConnectorUrl(config?.connectorUrl),
     boardId: normalizeBoardId(config?.boardId, 0),
     peopleColumnId: normalizeColumnId(config?.peopleColumnId),
     maxItems: normalizeMaxItems(config?.maxItems, 15),
@@ -124,7 +240,7 @@ function normalizedConfig(config) {
 
 function configSignature(config) {
   return [
-    config.apiToken,
+    config.connectorUrl,
     config.boardId,
     config.peopleColumnId,
     config.maxItems,
@@ -134,8 +250,12 @@ function configSignature(config) {
   ].join("|");
 }
 
-function hasRequiredConfig(config) {
-  return Boolean(config.apiToken) && config.boardId > 0;
+function hasConnectorConfig(config) {
+  return Boolean(config.connectorUrl);
+}
+
+function hasBoardConfig(config) {
+  return config.boardId > 0;
 }
 
 function autoSlotMinutes(config) {
@@ -248,11 +368,11 @@ function updateDoneSlotsForToday(config, now, indicesToMark) {
   };
 }
 
-async function mondayFetchGraphql(apiToken, query) {
+async function mondayFetchGraphql(accessToken, query) {
   const response = await fetch(MONDAY_API_URL, {
     method: "POST",
     headers: {
-      Authorization: apiToken,
+      Authorization: accessToken,
       "Content-Type": "application/json"
     },
     body: JSON.stringify({ query }),
@@ -266,7 +386,11 @@ async function mondayFetchGraphql(apiToken, query) {
       normalizeText(payload?.errors?.[0]?.message) ||
       normalizeText(payload?.error_message) ||
       `HTTP ${response.status}`;
-    throw new Error(message);
+    const error = new Error(message);
+    if (response.status === 401 || response.status === 403) {
+      error.code = "auth";
+    }
+    throw error;
   }
 
   if (!payload || typeof payload !== "object") {
@@ -275,13 +399,17 @@ async function mondayFetchGraphql(apiToken, query) {
 
   if (Array.isArray(payload.errors) && payload.errors.length) {
     const message = normalizeText(payload.errors[0]?.message, "Monday API request failed.");
-    throw new Error(message);
+    const error = new Error(message);
+    if (isAuthErrorMessage(message)) {
+      error.code = "auth";
+    }
+    throw error;
   }
 
   return payload.data || {};
 }
 
-async function fetchContext(config) {
+async function fetchContext(config, accessToken) {
   const query = `
     query {
       me {
@@ -300,15 +428,15 @@ async function fetchContext(config) {
     }
   `;
 
-  const data = await mondayFetchGraphql(config.apiToken, query);
+  const data = await mondayFetchGraphql(accessToken, query);
   const meId = Number(data?.me?.id);
   if (!Number.isFinite(meId) || meId <= 0) {
-    throw new Error("Unable to read your Monday profile from the API token.");
+    throw new Error("Unable to read your Monday profile from the connected account.");
   }
 
   const board = Array.isArray(data?.boards) ? data.boards[0] : null;
   if (!board) {
-    throw new Error("Board not found or access denied for this token.");
+    throw new Error("Board not found or access denied for this account.");
   }
 
   const allColumns = Array.isArray(board?.columns) ? board.columns : [];
@@ -366,7 +494,7 @@ function mapAssignedIssues(rawItems, maxItems) {
   return mapped.slice(0, maxItems);
 }
 
-async function fetchAssignedIssues(config, meId, peopleColumnId) {
+async function fetchAssignedIssues(config, meId, peopleColumnId, accessToken) {
   const personFilter = JSON.stringify({
     personsAndTeams: [{ id: meId, kind: "person" }]
   });
@@ -389,7 +517,7 @@ async function fetchAssignedIssues(config, meId, peopleColumnId) {
     }
   `;
 
-  const data = await mondayFetchGraphql(config.apiToken, query);
+  const data = await mondayFetchGraphql(accessToken, query);
   const rawItems = Array.isArray(data?.items_by_column_values)
     ? data.items_by_column_values
     : [];
@@ -400,7 +528,7 @@ export const mondayAssignedWidget = {
   type: "mondayAssigned",
   title: "Monday Assigned Issues",
   defaultConfig: {
-    apiToken: "",
+    connectorUrl: "",
     boardId: 0,
     peopleColumnId: "",
     maxItems: 15,
@@ -422,23 +550,26 @@ export const mondayAssignedWidget = {
   },
   settingsSchema: [
     {
-      key: "apiToken",
-      label: "Monday API token",
-      type: "password",
-      placeholder: "Your Monday API token"
+      key: "connectorUrl",
+      label: "Auth connector URL",
+      type: "url",
+      placeholder: "https://your-backend.example.com/api/monday/oauth/start",
+      helpText: "Backend OAuth start endpoint. It must return to this extension with access_token."
     },
     {
       key: "boardId",
       label: "Board ID",
       type: "number",
       min: 1,
-      step: 1
+      step: 1,
+      helpText: "Use the numeric board id from your board URL, for example /boards/123456789."
     },
     {
       key: "peopleColumnId",
       label: "People column ID",
       type: "text",
-      placeholder: "Optional, ex: person"
+      placeholder: "Optional, ex: person",
+      helpText: "Optional. If empty, the first People column in the board is used."
     },
     {
       key: "maxItems",
@@ -482,17 +613,27 @@ export const mondayAssignedWidget = {
     const actions = document.createElement("div");
     actions.className = "monday-widget-actions";
 
+    const connectBtn = document.createElement("button");
+    connectBtn.type = "button";
+    connectBtn.className = "btn btn-primary";
+    connectBtn.textContent = "Connect";
+
     const refreshBtn = document.createElement("button");
     refreshBtn.type = "button";
     refreshBtn.className = "btn";
     refreshBtn.textContent = "Refresh";
+
+    const disconnectBtn = document.createElement("button");
+    disconnectBtn.type = "button";
+    disconnectBtn.className = "btn";
+    disconnectBtn.textContent = "Disconnect";
 
     const openMondayBtn = document.createElement("a");
     openMondayBtn.className = "btn";
     openMondayBtn.textContent = "Open Monday";
     openMondayBtn.rel = "noreferrer";
 
-    actions.append(refreshBtn, openMondayBtn);
+    actions.append(connectBtn, refreshBtn, disconnectBtn, openMondayBtn);
     toolbar.append(status, actions);
 
     const list = document.createElement("ul");
@@ -505,12 +646,17 @@ export const mondayAssignedWidget = {
     let errorMessage = "";
     let boardName = "";
     let assigneeName = "";
+    let connected = false;
+    let accountLabel = "";
+    let accessToken = "";
+    let sessionConnectorUrl = "";
     let issues = [];
     let hasFetched = false;
     let nextAutoRunAt = null;
     let lastSignature = "";
     let requestSerial = 0;
     let timer = null;
+    let sessionSyncSerial = 0;
 
     function clearRefreshTimer() {
       if (timer) {
@@ -525,6 +671,134 @@ export const mondayAssignedWidget = {
       openMondayBtn.target = cfg.openInNewTab ? "_blank" : "_self";
     }
 
+    function hasActiveConnection(config) {
+      return (
+        connected &&
+        Boolean(accessToken) &&
+        Boolean(sessionConnectorUrl) &&
+        config.connectorUrl === sessionConnectorUrl
+      );
+    }
+
+    async function clearConnectionState({ clearStored = true } = {}) {
+      connected = false;
+      accountLabel = "";
+      accessToken = "";
+      sessionConnectorUrl = "";
+      if (clearStored) {
+        await clearStoredAuthSession();
+      }
+    }
+
+    async function syncStoredSessionForConfig(config) {
+      const syncId = ++sessionSyncSerial;
+      const connectorUrl = normalizeConnectorUrl(config?.connectorUrl);
+      if (!connectorUrl) {
+        await clearConnectionState({ clearStored: false });
+        return false;
+      }
+
+      const stored = await loadStoredAuthSession();
+      if (syncId !== sessionSyncSerial) {
+        return false;
+      }
+
+      if (stored && stored.connectorUrl === connectorUrl) {
+        connected = true;
+        accessToken = stored.accessToken;
+        accountLabel = stored.accountLabel;
+        sessionConnectorUrl = stored.connectorUrl;
+        return true;
+      }
+
+      await clearConnectionState({ clearStored: false });
+      return false;
+    }
+
+    async function connectAccount() {
+      const cfg = normalizedConfig(getConfig());
+      if (!hasConnectorConfig(cfg)) {
+        errorMessage = "Set auth connector URL in widget settings first.";
+        render();
+        return;
+      }
+
+      loading = true;
+      errorMessage = "";
+      render();
+
+      try {
+        if (!chrome.identity?.launchWebAuthFlow || !chrome.identity?.getRedirectURL) {
+          throw new Error("chrome.identity.launchWebAuthFlow is not available.");
+        }
+
+        const state = createAuthState();
+        const redirectUri = chrome.identity.getRedirectURL("monday-auth");
+        const startUrl = buildAuthConnectorStartUrl(cfg.connectorUrl, redirectUri, state);
+        const callbackUrl = await chrome.identity.launchWebAuthFlow({
+          url: startUrl,
+          interactive: true
+        });
+
+        const result = parseAuthFlowResult(callbackUrl);
+        if (result.error || result.errorDescription) {
+          throw new Error(result.errorDescription || result.error || "Monday connection failed.");
+        }
+        if (result.state && result.state !== state) {
+          throw new Error("Monday connection failed (invalid state).");
+        }
+
+        const token = normalizeText(result.accessToken);
+        if (!token) {
+          throw new Error("Auth connector did not return access_token.");
+        }
+
+        connected = true;
+        accessToken = token;
+        accountLabel = normalizeText(result.accountLabel);
+        sessionConnectorUrl = cfg.connectorUrl;
+        await saveStoredAuthSession({
+          connectorUrl: cfg.connectorUrl,
+          accessToken: token,
+          accountLabel
+        });
+
+        errorMessage = "";
+        hasFetched = false;
+      } catch (error) {
+        await clearConnectionState({ clearStored: true });
+        const message = normalizeErrorMessage(error);
+        if (isAuthCancelledMessage(message)) {
+          errorMessage = "Monday connection was cancelled.";
+        } else {
+          errorMessage = message;
+        }
+      } finally {
+        loading = false;
+        render();
+        scheduleRefresh();
+      }
+
+      if (connected && hasBoardConfig(normalizedConfig(getConfig()))) {
+        void loadIssues({ reason: "manual" });
+      }
+    }
+
+    async function disconnectAccount() {
+      loading = true;
+      render();
+      await clearConnectionState({ clearStored: true });
+      errorMessage = "";
+      boardName = "";
+      assigneeName = "";
+      issues = [];
+      hasFetched = false;
+      nextAutoRunAt = null;
+      loading = false;
+      render();
+      scheduleRefresh();
+    }
+
     function renderList() {
       list.replaceChildren();
 
@@ -534,8 +808,13 @@ export const mondayAssignedWidget = {
         empty.className = "monday-issue-empty";
         if (loading) {
           empty.textContent = "Loading assigned issues...";
-        } else if (!hasRequiredConfig(cfg)) {
-          empty.textContent = "Set Monday API token and board ID in widget settings.";
+        } else if (!hasConnectorConfig(cfg)) {
+          empty.textContent =
+            "Set auth connector URL in widget settings to enable Monday connection.";
+        } else if (!hasActiveConnection(cfg)) {
+          empty.textContent = "Connect Monday account to load assigned issues.";
+        } else if (!hasBoardConfig(cfg)) {
+          empty.textContent = "Set Board ID in widget settings. Use the numeric ID from /boards/<id>.";
         } else if (errorMessage) {
           empty.textContent = "Assigned issue list is not available.";
         } else if (!hasFetched) {
@@ -601,8 +880,12 @@ export const mondayAssignedWidget = {
         text = "Syncing Monday issues...";
       } else if (errorMessage) {
         text = errorMessage;
-      } else if (!hasRequiredConfig(cfg)) {
-        text = "Set API token and board ID";
+      } else if (!hasConnectorConfig(cfg)) {
+        text = "Set auth connector URL";
+      } else if (!hasActiveConnection(cfg)) {
+        text = "Monday not connected";
+      } else if (!hasBoardConfig(cfg)) {
+        text = `${accountLabel || "Connected"} · Set board ID (from /boards/<id>)`;
       } else if (issues.length) {
         text = `${boardName || `Board ${cfg.boardId}`} · ${assigneeName || "me"} · ${issues.length} assigned`;
       } else if (hasFetched) {
@@ -612,12 +895,14 @@ export const mondayAssignedWidget = {
       }
 
       const nextAutoLabel = formatTimeLabel(nextAutoRunAt);
-      if (!loading && nextAutoLabel) {
+      if (!loading && nextAutoLabel && hasBoardConfig(cfg) && hasActiveConnection(cfg)) {
         text = `${text} · Next auto ${nextAutoLabel}`;
       }
 
       status.textContent = text;
-      refreshBtn.disabled = loading || !hasRequiredConfig(cfg);
+      connectBtn.disabled = loading || !hasConnectorConfig(cfg);
+      refreshBtn.disabled = loading || !hasBoardConfig(cfg) || !hasActiveConnection(cfg);
+      disconnectBtn.disabled = loading || !connected;
     }
 
     function render() {
@@ -629,6 +914,11 @@ export const mondayAssignedWidget = {
     function scheduleRefresh() {
       clearRefreshTimer();
       const cfg = normalizedConfig(getConfig());
+      if (!hasBoardConfig(cfg) || !hasActiveConnection(cfg)) {
+        nextAutoRunAt = null;
+        renderStatus();
+        return;
+      }
       const next = nextAutoSlot(cfg, new Date());
       nextAutoRunAt = next?.runAt || null;
       renderStatus();
@@ -664,7 +954,7 @@ export const mondayAssignedWidget = {
 
     function shouldRunAutoNow() {
       const cfg = normalizedConfig(getConfig());
-      if (!hasRequiredConfig(cfg) || loading) {
+      if (!hasBoardConfig(cfg) || !hasActiveConnection(cfg) || loading) {
         return false;
       }
       return dueAutoSlotIndices(cfg, new Date()).length > 0;
@@ -678,8 +968,14 @@ export const mondayAssignedWidget = {
 
       try {
         const cfg = normalizedConfig(getConfig());
-        if (!hasRequiredConfig(cfg)) {
-          throw new Error("Set Monday API token and board ID first.");
+        if (!hasConnectorConfig(cfg)) {
+          throw new Error("Set auth connector URL first.");
+        }
+        if (!hasActiveConnection(cfg)) {
+          throw new Error("Connect Monday account first.");
+        }
+        if (!hasBoardConfig(cfg)) {
+          throw new Error("Set Board ID first. Use the numeric ID from /boards/<id>.");
         }
 
         if (reason === "auto") {
@@ -691,9 +987,9 @@ export const mondayAssignedWidget = {
           persistAutoSlots(cfg, now, dueIndices);
         }
 
-        const context = await fetchContext(cfg);
+        const context = await fetchContext(cfg, accessToken);
         const peopleColumnId = resolvePeopleColumnId(cfg, context.peopleColumns);
-        const assigned = await fetchAssignedIssues(cfg, context.meId, peopleColumnId);
+        const assigned = await fetchAssignedIssues(cfg, context.meId, peopleColumnId, accessToken);
 
         if (requestId !== requestSerial) {
           return;
@@ -710,7 +1006,13 @@ export const mondayAssignedWidget = {
         }
 
         issues = [];
-        errorMessage = normalizeErrorMessage(error);
+        hasFetched = false;
+        if (error?.code === "auth") {
+          await clearConnectionState({ clearStored: true });
+          errorMessage = "Session expired. Connect Monday again.";
+        } else {
+          errorMessage = normalizeErrorMessage(error);
+        }
       } finally {
         if (requestId !== requestSerial) {
           return;
@@ -721,8 +1023,16 @@ export const mondayAssignedWidget = {
       }
     }
 
+    connectBtn.addEventListener("click", () => {
+      void connectAccount();
+    });
+
     refreshBtn.addEventListener("click", () => {
       void loadIssues({ reason: "manual" });
+    });
+
+    disconnectBtn.addEventListener("click", () => {
+      void disconnectAccount();
     });
 
     openMondayBtn.addEventListener("click", (event) => {
@@ -737,11 +1047,14 @@ export const mondayAssignedWidget = {
     const initialCfg = normalizedConfig(getConfig());
     lastSignature = configSignature(initialCfg);
     render();
-    if (shouldRunAutoNow()) {
-      void loadIssues({ reason: "auto" });
-    } else {
-      scheduleRefresh();
-    }
+    void syncStoredSessionForConfig(initialCfg).finally(() => {
+      render();
+      if (shouldRunAutoNow()) {
+        void loadIssues({ reason: "auto" });
+      } else {
+        scheduleRefresh();
+      }
+    });
 
     return {
       refresh() {
@@ -750,7 +1063,26 @@ export const mondayAssignedWidget = {
         render();
 
         if (!loading && nextSignature !== lastSignature) {
-          void loadIssues({ reason: "config" });
+          lastSignature = nextSignature;
+
+          if (cfg.connectorUrl !== sessionConnectorUrl || (cfg.connectorUrl && !connected)) {
+            void syncStoredSessionForConfig(cfg).finally(() => {
+              render();
+              if (shouldRunAutoNow()) {
+                void loadIssues({ reason: "auto" });
+              } else {
+                scheduleRefresh();
+              }
+            });
+            return;
+          }
+
+          if (hasBoardConfig(cfg) && hasActiveConnection(cfg)) {
+            void loadIssues({ reason: "config" });
+            return;
+          }
+
+          scheduleRefresh();
           return;
         }
 

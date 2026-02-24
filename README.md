@@ -18,7 +18,8 @@
   - `Profile` (프리셋/기본 프로필)
 - 배경 모드
   - Gradient / Solid color / Wallpaper rotation / Loop video
-  - Wallpaper 소스: Picsum, Unsplash Source, Wallhaven, Reddit
+  - Wallpaper 소스: Picsum, Unsplash Source, Reddit
+  - Loop video는 수동 URL 또는 Reddit loop 영상(무료 서브레딧)을 쓰며, 가져온 클립을 로컬에 캐시한 뒤 재생합니다.
 - 북마크 연동
   - 폴더 경로/ID 지정
   - 재귀 렌더링(하위 폴더 포함)
@@ -37,6 +38,13 @@
 - Gmail
 - Calendar
 - RSS Feed
+- Monday Assigned Issues
+
+## AI Chat 위젯
+
+- 위젯 설정에서 `Auth connector URL`에 인증 백엔드 시작 엔드포인트를 입력하세요.
+- `Connect` 버튼(채팅 기록 위 도구 모음)을 누르면 `chrome.identity.launchWebAuthFlow`로 OAuth가 시작되고, 리다이렉트에서 `access_token`과 선택적으로 `account`/`email`/`user`를 받아옵니다.
+- 연결된 액세스 토큰이 자동으로 API 요청에 쓰입니다. `Disconnect` 버튼으로 세션을 지울 수 있고, 연결되지 않으면 채팅 전송 시 안내 메시지가 표시됩니다.
 
 ## RSS Feed 위젯
 
@@ -48,6 +56,15 @@
 - 월간 달력과 다가오는 일정 목록을 함께 표시합니다.
 - 위젯 설정에서 달력 뷰를 `Monthly` / `Weekly`로 전환할 수 있습니다.
 - Google Calendar 연동 시 `Connect`로 OAuth 동의를 진행한 뒤 일정을 불러옵니다.
+
+## Monday Assigned Issues 위젯
+
+- 위젯 설정에서 `Auth connector URL`(백엔드 OAuth 시작 엔드포인트)과 `Board ID`를 입력합니다.
+- 위젯의 `Connect` 버튼을 눌러 Monday OAuth 인증을 진행합니다.
+- `People column ID`는 선택값이며, 비워두면 보드의 첫 번째 People 계열 컬럼을 자동으로 사용합니다.
+- `Board ID`는 Monday 보드 URL의 숫자 ID에서 확인할 수 있습니다. 예: `/boards/123456789`
+- Auth connector 콜백은 확장 프로그램 redirect URL로 `access_token`(선택: `account`/`email`)을 반환해야 합니다.
+- OAuth 결과 토큰은 브라우저 로컬 스토리지에 저장되므로 민감 정보로 관리하세요.
 
 ## Gmail / Google Calendar 연동 설정 (선택)
 
@@ -114,7 +131,7 @@ Gmail 위젯과 Calendar 위젯은 Google OAuth 설정이 있어야 동작합니
   - OAuth scopes: Gmail 읽기, Google Calendar 일정 읽기
 - Host permissions: `http://*/*`, `https://*/*`
 
-> 참고: AI Chat 위젯의 엔드포인트/API key를 설정하면 해당 값도 로컬 스토리지에 저장됩니다. 민감 정보 취급에 주의하세요.
+> 참고: AI Chat 위젯의 Auth connector로 받은 액세스 토큰이 chrome.storage.local에 저장됩니다. 민감 정보 취급에 주의하세요.
 
 ## 프로젝트 구조
 

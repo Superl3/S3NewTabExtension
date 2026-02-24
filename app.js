@@ -46,6 +46,9 @@ const FONT_OPTIONS = [
   }
 ];
 
+const VIDEO_CACHE_NAME = "s3newtab-loop-video-cache-v1";
+const VIDEO_CACHE_KEY_PREFIX = "https://s3newtab.local/loop-video/";
+
 const elements = {
   appRoot: document.getElementById("app"),
   board: document.getElementById("board"),
@@ -125,9 +128,11 @@ let wallpaperSourceSignature = "";
 let zCounter = 1;
 let addWidgetModalOpen = false;
 let wallpaperLoadToken = 0;
+let videoLoadToken = 0;
 let sampledWallpaperBaseLuminance = null;
 let sampledWallpaperSource = "";
 let wallpaperSampleToken = 0;
+let currentVideoObjectUrl = "";
 const dockDragState = {
   active: false,
   pointerId: null,
@@ -282,16 +287,18 @@ function defaultBackground() {
     solidColor: "#1f2937",
     wallpaperProvider: "picsum",
     wallpaperTheme: "nature",
-    wallhavenPurity: "100",
-    wallhavenCategories: "111",
-    wallhavenApiKey: "",
     redditSubreddit: "EarthPorn",
     redditTime: "week",
     rotateMinutes: 15,
     wallpaperCachedUrl: "",
     wallpaperCachedAt: 0,
     wallpaperCachedSignature: "",
+    videoSource: "manual",
     videoUrl: "",
+    redditVideoSubreddit: "loopingvideos",
+    redditVideoTime: "week",
+    videoCacheSignature: "",
+    videoCacheStoredAt: 0,
     blurAmount: 0,
     overlayOpacity: 0.24
   };
@@ -1242,17 +1249,20 @@ function hydrate(raw) {
   theme.fontScale = clamp(Number(theme.fontScale) || 1, 0.8, 1.4);
 
   background.solidColor = normalizeHexColor(background.solidColor, defaultBackground().solidColor);
-  background.wallpaperProvider = normalizeText(background.wallpaperProvider, "picsum");
+  background.wallpaperProvider = normalizeWallpaperProvider(background.wallpaperProvider, "picsum");
   background.wallpaperTheme = normalizeText(background.wallpaperTheme, "nature");
-  background.wallhavenPurity = normalizeText(background.wallhavenPurity, "100");
-  background.wallhavenCategories = normalizeText(background.wallhavenCategories, "111");
-  background.wallhavenApiKey = normalizeText(background.wallhavenApiKey);
   background.redditSubreddit = normalizeText(background.redditSubreddit, "EarthPorn");
   background.redditTime = normalizeText(background.redditTime, "week");
   background.rotateMinutes = clamp(Number(background.rotateMinutes) || 15, 1, 240);
   background.wallpaperCachedUrl = normalizeText(background.wallpaperCachedUrl);
   background.wallpaperCachedSignature = normalizeText(background.wallpaperCachedSignature);
   background.wallpaperCachedAt = Math.max(0, Number(background.wallpaperCachedAt) || 0);
+  background.videoSource = normalizeVideoSource(background.videoSource, "manual");
+  background.videoUrl = normalizeText(background.videoUrl);
+  background.redditVideoSubreddit = normalizeText(background.redditVideoSubreddit, "loopingvideos");
+  background.redditVideoTime = normalizeText(background.redditVideoTime, "week");
+  background.videoCacheSignature = normalizeText(background.videoCacheSignature);
+  background.videoCacheStoredAt = Math.max(0, Number(background.videoCacheStoredAt) || 0);
   background.blurAmount = clamp(Number(background.blurAmount) || 0, 0, 28);
   background.overlayOpacity = clamp(Number(background.overlayOpacity) || 0.24, 0, 0.85);
 
@@ -1997,6 +2007,7 @@ function hideVideo() {
     elements.bgVideo.removeAttribute("src");
     elements.bgVideo.load();
   }
+  releaseVideoObjectUrl();
 }
 
 function clearBlurLayer() {
@@ -2170,20 +2181,42 @@ function pickRandom(list) {
   return list[randomInt(list.length)] || null;
 }
 
-function sanitizeWallhavenCode(value, fallback, allowedRegex, maxLength) {
-  const text = normalizeText(value, fallback).slice(0, maxLength);
-  if (!allowedRegex.test(text)) {
-    return fallback;
+function normalizeVideoSource(value, fallback = "manual") {
+  const normalized = normalizeText(value, fallback);
+  return normalized === "reddit" ? "reddit" : "manual";
+}
+
+function videoConfigSignature(cfg) {
+  const source = normalizeVideoSource(cfg?.videoSource, "manual");
+  const manualUrl = source === "manual" ? normalizeText(cfg?.videoUrl) : "";
+  const redditSubreddit = source === "reddit" ? normalizeText(cfg?.redditVideoSubreddit, "loopingvideos") : "";
+  const redditTime = source === "reddit" ? normalizeText(cfg?.redditVideoTime, "week") : "";
+  return [source, manualUrl, redditSubreddit, redditTime].join("|");
+}
+
+function buildVideoCacheKey(signature) {
+  const normalized = normalizeText(signature);
+  if (!normalized) {
+    return "";
   }
-  return text;
+  return `${VIDEO_CACHE_KEY_PREFIX}${encodeURIComponent(normalized)}`;
+}
+
+function normalizeWallpaperProvider(value, fallback = "picsum") {
+  const provider = normalizeText(value, fallback);
+  if (provider === "picsum" || provider === "unsplash" || provider === "reddit") {
+    return provider;
+  }
+  if (provider === "wallhaven") {
+    return "picsum";
+  }
+  return "picsum";
 }
 
 function wallpaperSignature(cfg) {
   return [
     cfg.wallpaperProvider,
     cfg.wallpaperTheme,
-    cfg.wallhavenPurity,
-    cfg.wallhavenCategories,
     cfg.redditSubreddit,
     cfg.redditTime
   ].join("|");
@@ -2240,33 +2273,6 @@ function buildSimpleWallpaperUrl(provider, themeTag) {
   return `https://picsum.photos/seed/${seed}/1920/1080`;
 }
 
-async function fetchWallhavenUrl(cfg) {
-  const params = new URLSearchParams();
-  params.set("q", normalizeText(cfg.wallpaperTheme, "nature"));
-  params.set("sorting", "random");
-  params.set("atleast", "1920x1080");
-  params.set("page", String(randomInt(8) + 1));
-  params.set("purity", sanitizeWallhavenCode(cfg.wallhavenPurity, "100", /^[01]{3}$/, 3));
-  params.set("categories", sanitizeWallhavenCode(cfg.wallhavenCategories, "111", /^[01]{3}$/, 3));
-
-  const apiKey = normalizeText(cfg.wallhavenApiKey);
-  if (apiKey) {
-    params.set("apikey", apiKey);
-  }
-
-  const response = await fetch(`https://wallhaven.cc/api/v1/search?${params.toString()}`);
-  if (!response.ok) {
-    throw new Error(`wallhaven:${response.status}`);
-  }
-
-  const data = await response.json();
-  const first = data?.data?.[0];
-  if (!first?.path) {
-    throw new Error("wallhaven:no-image");
-  }
-  return String(first.path);
-}
-
 function parseRedditImage(post) {
   const raw = post?.url_overridden_by_dest || post?.url || post?.preview?.images?.[0]?.source?.url || "";
   const decoded = String(raw).replaceAll("&amp;", "&");
@@ -2310,15 +2316,181 @@ async function fetchRedditWallpaperUrl(cfg) {
 async function resolveWallpaperUrl(cfg) {
   const provider = normalizeText(cfg.wallpaperProvider, "picsum");
 
-  if (provider === "wallhaven") {
-    return fetchWallhavenUrl(cfg);
-  }
-
   if (provider === "reddit") {
     return fetchRedditWallpaperUrl(cfg);
   }
 
   return buildSimpleWallpaperUrl(provider, cfg.wallpaperTheme);
+}
+
+function parseRedditLoopVideoUrl(post) {
+  if (!post || typeof post !== "object") {
+    return "";
+  }
+
+  const candidates = [];
+  const redditVideo = post?.secure_media?.reddit_video || post?.media?.reddit_video;
+  if (redditVideo?.fallback_url) {
+    candidates.push(redditVideo.fallback_url);
+  }
+
+  const previewVideo = post?.preview?.videos?.[0];
+  if (previewVideo) {
+    const variants = Array.isArray(previewVideo?.variants) ? previewVideo.variants : [];
+    for (const variant of variants) {
+      if (variant?.url) {
+        candidates.push(variant.url);
+      }
+    }
+  }
+
+  if (typeof post.url_overridden_by_dest === "string") {
+    candidates.push(post.url_overridden_by_dest);
+  }
+  if (typeof post.url === "string") {
+    candidates.push(post.url);
+  }
+
+  for (const raw of candidates) {
+    if (!raw) {
+      continue;
+    }
+    const decoded = String(raw).replaceAll("&amp;", "&");
+    if (!decoded.startsWith("http")) {
+      continue;
+    }
+    if (/\.mp4(\?.*)?$/i.test(decoded) || decoded.includes("v.redd.it")) {
+      return decoded;
+    }
+  }
+
+  return "";
+}
+
+async function fetchRedditLoopVideoUrl(cfg) {
+  const subreddit = normalizeText(cfg.redditVideoSubreddit, "loopingvideos").replace(/^r\//i, "");
+  const allowedTimes = new Set(["hour", "day", "week", "month", "year", "all"]);
+  const timeRange = allowedTimes.has(cfg.redditVideoTime) ? cfg.redditVideoTime : "week";
+  const endpoint = `https://www.reddit.com/r/${encodeURIComponent(subreddit)}/top.json?t=${timeRange}&limit=80`;
+  const response = await fetch(endpoint, {
+    headers: {
+      Accept: "application/json"
+    }
+  });
+  if (!response.ok) {
+    throw new Error(`reddit-video:${response.status}`);
+  }
+
+  const data = await response.json();
+  const candidates = (data?.data?.children || [])
+    .map((entry) => parseRedditLoopVideoUrl(entry?.data || {}))
+    .filter(Boolean);
+  const pick = pickRandom(candidates);
+  if (!pick) {
+    throw new Error("reddit:video-not-found");
+  }
+  return pick;
+}
+
+function releaseVideoObjectUrl() {
+  if (!currentVideoObjectUrl) {
+    return;
+  }
+  try {
+    URL.revokeObjectURL(currentVideoObjectUrl);
+  } catch {
+  }
+  currentVideoObjectUrl = "";
+}
+
+async function resolveVideoRemoteUrl(cfg) {
+  const source = normalizeVideoSource(cfg?.videoSource, "manual");
+  if (source === "reddit") {
+    return fetchRedditLoopVideoUrl(cfg);
+  }
+  const manualUrl = normalizeText(cfg?.videoUrl);
+  if (!manualUrl) {
+    throw new Error("video:missing-url");
+  }
+  return manualUrl;
+}
+
+async function fetchLoopVideoResponse(url) {
+  const response = await fetch(url, {
+    cache: "no-store"
+  });
+  if (!response.ok) {
+    throw new Error(`loop-video:${response.status}`);
+  }
+  return response;
+}
+
+async function ensureCachedLoopVideoResponse(cfg, signature, { force = false } = {}) {
+  const remoteUrl = await resolveVideoRemoteUrl(cfg);
+  const cacheKey = buildVideoCacheKey(signature);
+  if (!cacheKey || typeof caches === "undefined") {
+    return fetchLoopVideoResponse(remoteUrl);
+  }
+
+  const cache = await caches.open(VIDEO_CACHE_NAME);
+  if (force) {
+    await cache.delete(cacheKey);
+  }
+
+  if (!force) {
+    const cached = await cache.match(cacheKey);
+    if (cached) {
+      return cached.clone();
+    }
+  }
+
+  const response = await fetchLoopVideoResponse(remoteUrl);
+  const clone = response.clone();
+  await cache.put(cacheKey, clone);
+  return response;
+}
+
+async function loadVideoLoop({ force = false } = {}) {
+  const cfg = state.ui.background;
+  if (cfg.mode !== "video") {
+    return;
+  }
+
+  const signature = videoConfigSignature(cfg);
+  const token = ++videoLoadToken;
+  hideVideo();
+  releaseVideoObjectUrl();
+
+  try {
+    const response = await ensureCachedLoopVideoResponse(cfg, signature, { force });
+    if (token !== videoLoadToken) {
+      return;
+    }
+    const blob = await response.blob();
+    if (token !== videoLoadToken) {
+      return;
+    }
+    const objectUrl = URL.createObjectURL(blob);
+    if (token !== videoLoadToken) {
+      URL.revokeObjectURL(objectUrl);
+      return;
+    }
+    releaseVideoObjectUrl();
+    currentVideoObjectUrl = objectUrl;
+    elements.bgVideo.src = objectUrl;
+    elements.bgVideo.load();
+    void elements.bgVideo.play().catch(() => {});
+    elements.bgVideo.classList.add("visible");
+    elements.bgVideo.style.filter = "none";
+    state.ui.background.videoCacheSignature = signature;
+    state.ui.background.videoCacheStoredAt = Date.now();
+    queueSave();
+  } catch (error) {
+    if (token !== videoLoadToken) {
+      return;
+    }
+    console.warn("Loop video load failed", error);
+  }
 }
 
 function preloadImage(url) {
@@ -2426,23 +2598,31 @@ function syncBackgroundRefreshButton() {
   if (!elements.bgRefreshBtn) {
     return;
   }
-  const canRefresh = state?.ui?.background?.mode === "wallpaper";
+  const bgMode = state?.ui?.background?.mode;
+  const manualUrl = normalizeText(state?.ui?.background?.videoUrl);
+  const videoReady = bgMode === "video" && (state?.ui?.background?.videoSource === "reddit" || Boolean(manualUrl));
+  const canRefresh = bgMode === "wallpaper" || videoReady;
   elements.bgRefreshBtn.disabled = !canRefresh;
   elements.bgRefreshBtn.classList.toggle("is-disabled", !canRefresh);
-  elements.bgRefreshBtn.title = canRefresh ? "Refresh wallpaper" : "Wallpaper mode only";
+  const title = bgMode === "video" ? "Refresh loop video" : "Refresh wallpaper";
+  elements.bgRefreshBtn.title = title;
 }
 
 function refreshBackgroundNow() {
-  if (state.ui.background.mode !== "wallpaper") {
+  const mode = state.ui.background.mode;
+  if (mode === "wallpaper") {
+    const signature = wallpaperSignature(state.ui.background);
+    void refreshWallpaper({ signature, force: true }).finally(() => {
+      if (state.ui.background.mode !== "wallpaper") {
+        return;
+      }
+      scheduleWallpaperRefresh(wallpaperSignature(state.ui.background));
+    });
     return;
   }
-  const signature = wallpaperSignature(state.ui.background);
-  void refreshWallpaper({ signature, force: true }).finally(() => {
-    if (state.ui.background.mode !== "wallpaper") {
-      return;
-    }
-    scheduleWallpaperRefresh(wallpaperSignature(state.ui.background));
-  });
+  if (mode === "video") {
+    void loadVideoLoop({ force: true });
+  }
 }
 
 function applyBackground() {
@@ -2455,6 +2635,9 @@ function applyBackground() {
   elements.bgOverlay.style.background = `rgba(8, 11, 16, ${overlay})`;
   elements.bgLayer.style.background = theme.background;
   hideVideo();
+  if (cfg.mode !== "video") {
+    videoLoadToken += 1;
+  }
   syncBackgroundRefreshButton();
 
   if (cfg.mode === "solid") {
@@ -2472,14 +2655,7 @@ function applyBackground() {
     elements.bgImage.classList.remove("visible");
     clearBlurLayer();
     elements.bgLayer.style.background = theme.background;
-    const src = (cfg.videoUrl || "").trim();
-    if (!src) {
-      return;
-    }
-    elements.bgVideo.src = src;
-    elements.bgVideo.play().catch(() => {});
-    elements.bgVideo.classList.add("visible");
-    elements.bgVideo.style.filter = "none";
+    void loadVideoLoop({ force: false });
     return;
   }
 
@@ -2910,24 +3086,23 @@ function patchBackground(patch) {
     ...state.ui.background,
     ...patch
   };
-  state.ui.background.wallpaperProvider = normalizeText(state.ui.background.wallpaperProvider, "picsum");
+  state.ui.background.wallpaperProvider = normalizeWallpaperProvider(state.ui.background.wallpaperProvider, "picsum");
   state.ui.background.wallpaperTheme = normalizeText(state.ui.background.wallpaperTheme, "nature");
-  state.ui.background.wallhavenPurity = sanitizeWallhavenCode(
-    state.ui.background.wallhavenPurity,
-    "100",
-    /^[01]{3}$/,
-    3
-  );
-  state.ui.background.wallhavenCategories = sanitizeWallhavenCode(
-    state.ui.background.wallhavenCategories,
-    "111",
-    /^[01]{3}$/,
-    3
-  );
-  state.ui.background.wallhavenApiKey = normalizeText(state.ui.background.wallhavenApiKey);
   state.ui.background.redditSubreddit = normalizeText(state.ui.background.redditSubreddit, "EarthPorn");
   state.ui.background.redditTime = normalizeText(state.ui.background.redditTime, "week");
   state.ui.background.rotateMinutes = clamp(Number(state.ui.background.rotateMinutes) || 15, 1, 240);
+  state.ui.background.videoSource = normalizeVideoSource(state.ui.background.videoSource, "manual");
+  state.ui.background.videoUrl = normalizeText(state.ui.background.videoUrl);
+  state.ui.background.redditVideoSubreddit = normalizeText(state.ui.background.redditVideoSubreddit, "loopingvideos");
+  state.ui.background.redditVideoTime = normalizeText(state.ui.background.redditVideoTime, "week");
+  const videoFieldsTouched =
+    patch && typeof patch === "object"
+      ? ["videoSource", "videoUrl", "redditVideoSubreddit", "redditVideoTime"].some((key) => key in patch)
+      : false;
+  if (videoFieldsTouched) {
+    state.ui.background.videoCacheSignature = "";
+    state.ui.background.videoCacheStoredAt = 0;
+  }
   state.ui.background.blurAmount = clamp(Number(state.ui.background.blurAmount) || 0, 0, 28);
   state.ui.background.overlayOpacity = clamp(
     Number(state.ui.background.overlayOpacity) || 0.24,
@@ -4064,27 +4239,18 @@ function renderBackgroundSettings() {
 
   if (bg.mode === "wallpaper") {
     bgFields.push(
-      {
-        key: "wallpaperProvider",
-        label: "Wallpaper source",
-        type: "select",
-        options: [
-          { value: "picsum", label: "Picsum" },
-          { value: "unsplash", label: "Unsplash Source" },
-          { value: "wallhaven", label: "Wallhaven" },
-          { value: "reddit", label: "Reddit" }
-        ]
-      },
+        {
+          key: "wallpaperProvider",
+          label: "Wallpaper source",
+          type: "select",
+          options: [
+            { value: "picsum", label: "Picsum" },
+            { value: "unsplash", label: "Unsplash Source" },
+            { value: "reddit", label: "Reddit" }
+          ]
+        },
       { key: "wallpaperTheme", label: "Wallpaper theme", type: "text", placeholder: "nature, city, sea" }
     );
-
-    if (bg.wallpaperProvider === "wallhaven") {
-      bgFields.push(
-        { key: "wallhavenPurity", label: "Wallhaven purity (SFW=100)", type: "text", placeholder: "100" },
-        { key: "wallhavenCategories", label: "Wallhaven categories", type: "text", placeholder: "111" },
-        { key: "wallhavenApiKey", label: "Wallhaven API key", type: "password", placeholder: "optional" }
-      );
-    }
 
     if (bg.wallpaperProvider === "reddit") {
       bgFields.push(
@@ -4113,11 +4279,45 @@ function renderBackgroundSettings() {
 
   if (bg.mode === "video") {
     bgFields.push({
-      key: "videoUrl",
-      label: "Video URL (mp4/webm)",
-      type: "text",
-      placeholder: "https://.../loop.mp4"
+      key: "videoSource",
+      label: "Video source",
+      type: "select",
+      options: [
+        { value: "manual", label: "Manual URL" },
+        { value: "reddit", label: "Reddit loop videos" }
+      ]
     });
+
+    if (bg.videoSource === "manual") {
+      bgFields.push({
+        key: "videoUrl",
+        label: "Video URL (mp4/webm)",
+        type: "text",
+        placeholder: "https://.../loop.mp4"
+      });
+    } else {
+      bgFields.push(
+        {
+          key: "redditVideoSubreddit",
+          label: "Reddit subreddit",
+          type: "text",
+          placeholder: "loopingvideos"
+        },
+        {
+          key: "redditVideoTime",
+          label: "Reddit time range",
+          type: "select",
+          options: [
+            { value: "hour", label: "hour" },
+            { value: "day", label: "day" },
+            { value: "week", label: "week" },
+            { value: "month", label: "month" },
+            { value: "year", label: "year" },
+            { value: "all", label: "all" }
+          ]
+        }
+      );
+    }
   }
 
   bgFields.push({ key: "overlayOpacity", label: "Overlay opacity", type: "number", min: 0, max: 0.85, step: 0.05 });
