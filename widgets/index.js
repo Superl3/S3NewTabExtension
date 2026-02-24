@@ -8,6 +8,8 @@ import { labelWidget } from "./label.js";
 import { shortcutWidget } from "./shortcut.js";
 import { gmailWidget } from "./gmail.js";
 import { rssWidget } from "./rss.js";
+import { calendarWidget } from "./calendar.js";
+import { mondayAssignedWidget } from "./mondayAssigned.js";
 
 export const widgetRegistry = {
   [clockWidget.type]: clockWidget,
@@ -19,7 +21,9 @@ export const widgetRegistry = {
   [labelWidget.type]: labelWidget,
   [shortcutWidget.type]: shortcutWidget,
   [gmailWidget.type]: gmailWidget,
-  [rssWidget.type]: rssWidget
+  [rssWidget.type]: rssWidget,
+  [calendarWidget.type]: calendarWidget,
+  [mondayAssignedWidget.type]: mondayAssignedWidget
 };
 
 export const widgetList = Object.values(widgetRegistry);
