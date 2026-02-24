@@ -147,10 +147,13 @@ function createAuthState() {
   return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
-function buildAuthConnectorStartUrl(connectorUrl, redirectUri, state) {
+function buildAuthConnectorStartUrl(connectorUrl, redirectUri, state, provider = "") {
   const url = new URL(connectorUrl);
   url.searchParams.set("redirect_uri", redirectUri);
   url.searchParams.set("state", state);
+  if (provider) {
+    url.searchParams.set("provider", provider);
+  }
   return url.toString();
 }
 
@@ -163,8 +166,12 @@ function parseAuthFlowResult(callbackUrl) {
 
   return {
     state: read("state"),
-    accessToken: read("access_token") || read("token"),
-    accountLabel: read("account") || read("email") || read("user"),
+    accessToken:
+      read("access_token") ||
+      read("accessToken") ||
+      read("token") ||
+      read("id_token"),
+    accountLabel: read("account") || read("email") || read("user") || read("name"),
     error: read("error"),
     errorDescription: read("error_description")
   };
@@ -734,7 +741,7 @@ export const mondayAssignedWidget = {
 
         const state = createAuthState();
         const redirectUri = chrome.identity.getRedirectURL("monday-auth");
-        const startUrl = buildAuthConnectorStartUrl(cfg.connectorUrl, redirectUri, state);
+        const startUrl = buildAuthConnectorStartUrl(cfg.connectorUrl, redirectUri, state, "monday");
         const callbackUrl = await chrome.identity.launchWebAuthFlow({
           url: startUrl,
           interactive: true

@@ -1,6 +1,6 @@
-const CALENDAR_SCOPE = "https://www.googleapis.com/auth/calendar.events.readonly";
 const CALENDAR_API_BASE = "https://www.googleapis.com/calendar/v3/calendars/primary/events";
 const GOOGLE_CALENDAR_WEB_URL = "https://calendar.google.com/calendar/u/0/r";
+const CALENDAR_AUTH_STORAGE_KEY = "s3newtab-calendar-auth-session-v1";
 
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
@@ -48,68 +48,125 @@ function normalizeErrorMessage(error) {
   return "Unknown error";
 }
 
-function isTokenMissingError(message) {
+function isAuthErrorMessage(message) {
   const text = normalizeText(message).toLowerCase();
   return (
-    text.includes("oauth2 not granted") ||
-    text.includes("user is not signed in") ||
-    text.includes("interaction required") ||
-    text.includes("not granted") ||
-    text.includes("canceled") ||
-    text.includes("cancelled")
+    text.includes("unauthorized") ||
+    text.includes("invalid token") ||
+    text.includes("not authenticated") ||
+    text.includes("forbidden") ||
+    text.includes("access denied")
   );
 }
 
-function hasConfiguredOauthClient() {
-  const manifest = chrome.runtime?.getManifest?.() || {};
-  const clientId = normalizeText(manifest?.oauth2?.client_id);
-  if (!clientId || !clientId.endsWith(".apps.googleusercontent.com")) {
-    return false;
-  }
-  const lower = clientId.toLowerCase();
-  return !lower.includes("your_extension_oauth_client_id") && !lower.includes("replace_with");
+function isAuthCancelledMessage(message) {
+  const text = normalizeText(message).toLowerCase();
+  return (
+    text.includes("cancel") ||
+    text.includes("canceled") ||
+    text.includes("cancelled") ||
+    text.includes("did not approve") ||
+    text.includes("closed") ||
+    text.includes("interaction")
+  );
 }
 
-function getTokenString(tokenResult) {
-  if (typeof tokenResult === "string") {
-    return normalizeText(tokenResult);
+function normalizeConnectorUrl(value, fallback = "") {
+  const text = normalizeText(value, fallback);
+  if (!text) {
+    return "";
   }
-  return normalizeText(tokenResult?.token);
-}
 
-async function getAuthToken(interactive = false) {
-  const result = await chrome.identity.getAuthToken({
-    interactive,
-    scopes: [CALENDAR_SCOPE],
-    enableGranularPermissions: true
-  });
-  return getTokenString(result);
-}
-
-async function removeCachedToken(token) {
-  const normalized = normalizeText(token);
-  if (!normalized) {
-    return;
-  }
   try {
-    await chrome.identity.removeCachedAuthToken({ token: normalized });
-  } catch {
-  }
-}
-
-async function clearCachedTokens() {
-  try {
-    await chrome.identity.clearAllCachedAuthTokens();
-  } catch {
-  }
-}
-
-async function getProfileEmail() {
-  try {
-    const info = await chrome.identity.getProfileUserInfo();
-    return normalizeText(info?.email);
+    const parsed = new URL(text);
+    const isLocalhost = parsed.hostname === "localhost" || parsed.hostname === "127.0.0.1";
+    if (parsed.protocol !== "https:" && !(isLocalhost && parsed.protocol === "http:")) {
+      return "";
+    }
+    parsed.hash = "";
+    return parsed.toString();
   } catch {
     return "";
+  }
+}
+
+function createAuthState() {
+  const bytes = new Uint8Array(16);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+function buildAuthConnectorStartUrl(connectorUrl, redirectUri, state, provider = "") {
+  const url = new URL(connectorUrl);
+  url.searchParams.set("redirect_uri", redirectUri);
+  url.searchParams.set("state", state);
+  if (provider) {
+    url.searchParams.set("provider", provider);
+  }
+  return url.toString();
+}
+
+function parseAuthFlowResult(callbackUrl) {
+  const parsed = new URL(callbackUrl);
+  const hashText = parsed.hash.startsWith("#") ? parsed.hash.slice(1) : parsed.hash;
+  const hashParams = new URLSearchParams(hashText);
+  const queryParams = parsed.searchParams;
+  const read = (key) => normalizeText(queryParams.get(key) || hashParams.get(key));
+
+  return {
+    state: read("state"),
+    accessToken:
+      read("access_token") ||
+      read("accessToken") ||
+      read("token") ||
+      read("id_token"),
+    accountLabel: read("account") || read("email") || read("user") || read("name"),
+    error: read("error"),
+    errorDescription: read("error_description")
+  };
+}
+
+function normalizeStoredAuthSession(raw) {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+    return null;
+  }
+
+  const connectorUrl = normalizeConnectorUrl(raw.connectorUrl);
+  const accessToken = normalizeText(raw.accessToken);
+  if (!connectorUrl || !accessToken) {
+    return null;
+  }
+
+  return {
+    connectorUrl,
+    accessToken,
+    accountLabel: normalizeText(raw.accountLabel)
+  };
+}
+
+async function loadStoredAuthSession() {
+  try {
+    const stored = await chrome.storage.local.get(CALENDAR_AUTH_STORAGE_KEY);
+    return normalizeStoredAuthSession(stored?.[CALENDAR_AUTH_STORAGE_KEY]);
+  } catch {
+    return null;
+  }
+}
+
+async function saveStoredAuthSession(session) {
+  await chrome.storage.local.set({
+    [CALENDAR_AUTH_STORAGE_KEY]: {
+      connectorUrl: normalizeConnectorUrl(session?.connectorUrl),
+      accessToken: normalizeText(session?.accessToken),
+      accountLabel: normalizeText(session?.accountLabel)
+    }
+  });
+}
+
+async function clearStoredAuthSession() {
+  try {
+    await chrome.storage.local.remove(CALENDAR_AUTH_STORAGE_KEY);
+  } catch {
   }
 }
 
@@ -178,6 +235,7 @@ function parseEventStartInfo(start) {
 
 function normalizeFetchConfig(config) {
   return {
+    connectorUrl: normalizeConnectorUrl(config?.connectorUrl),
     maxResults: normalizeMaxResults(config?.maxResults, 8),
     daysAhead: normalizeDaysAhead(config?.daysAhead, 21),
     viewMode: normalizeViewMode(config?.viewMode),
@@ -187,7 +245,11 @@ function normalizeFetchConfig(config) {
 }
 
 function fetchSignature(config) {
-  return `${config.maxResults}|${config.daysAhead}`;
+  return `${config.connectorUrl}|${config.maxResults}|${config.daysAhead}|${config.viewMode}|${config.weekStartsOn}|${config.showLocation ? 1 : 0}`;
+}
+
+function hasConnectorConfig(config) {
+  return Boolean(normalizeConnectorUrl(config?.connectorUrl));
 }
 
 function buildEventsUrl(config) {
@@ -217,19 +279,16 @@ async function calendarFetchJson(url, token) {
     }
   });
 
-  if (response.status === 401 || response.status === 403) {
-    const body = normalizeText(await response.text());
+  const body = normalizeText(await response.text());
+  if (!response.ok) {
     const error = new Error(body || `HTTP ${response.status}`);
-    error.code = "auth";
+    if (response.status === 401 || response.status === 403 || isAuthErrorMessage(body)) {
+      error.code = "auth";
+    }
     throw error;
   }
 
-  if (!response.ok) {
-    const body = normalizeText(await response.text());
-    throw new Error(body || `HTTP ${response.status}`);
-  }
-
-  return response.json();
+  return body ? JSON.parse(body) : {};
 }
 
 function mapCalendarEvent(entry) {
@@ -361,6 +420,7 @@ export const calendarWidget = {
   type: "calendar",
   title: "Calendar",
   defaultConfig: {
+    connectorUrl: "",
     maxResults: 8,
     daysAhead: 21,
     viewMode: "month",
@@ -378,6 +438,13 @@ export const calendarWidget = {
     h: 2
   },
   settingsSchema: [
+    {
+      key: "connectorUrl",
+      label: "Auth connector URL",
+      type: "url",
+      placeholder: "https://your-backend.example.com/api/google/oauth/start",
+      helpText: "Connector should redirect with access_token and optional account/email/user."
+    },
     {
       key: "maxResults",
       label: "Upcoming event count",
@@ -491,15 +558,130 @@ export const calendarWidget = {
     shell.append(toolbar, monthPanel, eventList);
     container.append(shell);
 
-    let accountEmail = "";
     let loading = false;
     let connected = false;
+    let accountLabel = "";
+    let accessToken = "";
+    let sessionConnectorUrl = "";
     let errorMessage = "";
     let eventItems = [];
     let eventDayCountMap = new Map();
     let lastFetchSig = "";
     let requestSerial = 0;
     let viewDate = new Date();
+    let sessionSyncSerial = 0;
+
+    function hasActiveConnection(config) {
+      const connectorUrl = normalizeConnectorUrl(config?.connectorUrl);
+      return (
+        connected &&
+        Boolean(accessToken) &&
+        Boolean(sessionConnectorUrl) &&
+        connectorUrl === sessionConnectorUrl
+      );
+    }
+
+    async function clearConnectionState({ clearStored = true } = {}) {
+      connected = false;
+      accountLabel = "";
+      accessToken = "";
+      sessionConnectorUrl = "";
+      if (clearStored) {
+        await clearStoredAuthSession();
+      }
+    }
+
+    async function syncStoredSessionForConfig(config) {
+      const syncId = ++sessionSyncSerial;
+      const connectorUrl = normalizeConnectorUrl(config?.connectorUrl);
+      if (!connectorUrl) {
+        await clearConnectionState({ clearStored: false });
+        return false;
+      }
+
+      const stored = await loadStoredAuthSession();
+      if (syncId !== sessionSyncSerial) {
+        return false;
+      }
+
+      if (stored && stored.connectorUrl === connectorUrl) {
+        connected = true;
+        accessToken = stored.accessToken;
+        accountLabel = stored.accountLabel;
+        sessionConnectorUrl = stored.connectorUrl;
+        return true;
+      }
+
+      await clearConnectionState({ clearStored: false });
+      return false;
+    }
+
+    async function connectAccount() {
+      const cfg = normalizeFetchConfig(getConfig());
+      if (!hasConnectorConfig(cfg)) {
+        errorMessage = "Set auth connector URL in widget settings first.";
+        render();
+        return;
+      }
+
+      loading = true;
+      errorMessage = "";
+      render();
+
+      try {
+        if (!chrome.identity?.launchWebAuthFlow || !chrome.identity?.getRedirectURL) {
+          throw new Error("chrome.identity.launchWebAuthFlow is not available.");
+        }
+
+        const state = createAuthState();
+        const redirectUri = chrome.identity.getRedirectURL("calendar-auth");
+        const startUrl = buildAuthConnectorStartUrl(cfg.connectorUrl, redirectUri, state, "google-calendar");
+        const callbackUrl = await chrome.identity.launchWebAuthFlow({
+          url: startUrl,
+          interactive: true
+        });
+
+        const result = parseAuthFlowResult(callbackUrl);
+        if (result.error || result.errorDescription) {
+          throw new Error(result.errorDescription || result.error || "Google Calendar connection failed.");
+        }
+        if (result.state && result.state !== state) {
+          throw new Error("Google Calendar connection failed (invalid state).");
+        }
+
+        const token = normalizeText(result.accessToken);
+        if (!token) {
+          throw new Error("Auth connector did not return access_token.");
+        }
+
+        connected = true;
+        accessToken = token;
+        accountLabel = normalizeText(result.accountLabel);
+        sessionConnectorUrl = cfg.connectorUrl;
+        await saveStoredAuthSession({
+          connectorUrl: cfg.connectorUrl,
+          accessToken: token,
+          accountLabel
+        });
+
+        errorMessage = "";
+      } catch (error) {
+        await clearConnectionState({ clearStored: true });
+        const message = normalizeErrorMessage(error);
+        if (isAuthCancelledMessage(message)) {
+          errorMessage = "Google Calendar connection was cancelled.";
+        } else {
+          errorMessage = message;
+        }
+      } finally {
+        loading = false;
+        render();
+      }
+
+      if (connected) {
+        void loadEvents(false);
+      }
+    }
 
     function renderCalendarPanel() {
       const cfg = normalizeFetchConfig(getConfig());
@@ -569,7 +751,9 @@ export const calendarWidget = {
         empty.className = "calendar-event-empty";
         if (loading) {
           empty.textContent = "Loading upcoming events...";
-        } else if (!connected) {
+        } else if (!hasConnectorConfig(cfg)) {
+          empty.textContent = "Set auth connector URL in widget settings to enable Google Calendar connection.";
+        } else if (!hasActiveConnection(cfg)) {
           empty.textContent = "Connect Google Calendar to show upcoming events.";
         } else {
           empty.textContent = "No upcoming events in this range.";
@@ -629,19 +813,22 @@ export const calendarWidget = {
     }
 
     function renderStatus() {
+      const cfg = normalizeFetchConfig(getConfig());
       status.classList.toggle("is-error", Boolean(errorMessage));
       if (loading) {
         status.textContent = "Syncing Google Calendar...";
       } else if (errorMessage) {
         status.textContent = errorMessage;
+      } else if (!hasConnectorConfig(cfg)) {
+        status.textContent = "Set auth connector URL";
       } else if (connected) {
-        status.textContent = accountEmail || "Connected";
+        status.textContent = accountLabel || "Connected";
       } else {
         status.textContent = "Google Calendar not connected";
       }
 
-      connectBtn.disabled = loading;
-      refreshBtn.disabled = loading || !connected;
+      connectBtn.disabled = loading || !hasConnectorConfig(cfg);
+      refreshBtn.disabled = loading || !hasActiveConnection(cfg);
       disconnectBtn.disabled = loading || !connected;
     }
 
@@ -654,9 +841,7 @@ export const calendarWidget = {
     async function disconnectAccount() {
       loading = true;
       render();
-      await clearCachedTokens();
-      connected = false;
-      accountEmail = "";
+      await clearConnectionState({ clearStored: true });
       errorMessage = "";
       eventItems = [];
       eventDayCountMap = new Map();
@@ -671,43 +856,36 @@ export const calendarWidget = {
       render();
 
       try {
-        if (!hasConfiguredOauthClient()) {
-          throw new Error("Set oauth2.client_id in manifest.json to enable Google Calendar connection.");
+        const cfg = normalizeFetchConfig(getConfig());
+        if (!hasConnectorConfig(cfg)) {
+          throw new Error("Set auth connector URL first.");
+        }
+        if (!hasActiveConnection(cfg)) {
+          throw new Error("Connect Google Calendar first.");
         }
 
-        const token = await getAuthToken(interactive);
+        const token = normalizeText(accessToken);
         if (!token) {
-          throw new Error("Failed to obtain an OAuth token.");
+          throw new Error("Missing connector access token.");
         }
 
-        const fetchConfig = normalizeFetchConfig(getConfig());
-        let upcoming = [];
-        try {
-          upcoming = await fetchUpcomingEvents(fetchConfig, token);
-        } catch (error) {
-          if (error?.code === "auth") {
-            await removeCachedToken(token);
-          }
-          throw error;
-        }
+        const upcoming = await fetchUpcomingEvents(cfg, token);
 
         if (requestId !== requestSerial) {
           return;
         }
 
         connected = true;
-        accountEmail = await getProfileEmail();
         eventItems = upcoming;
         eventDayCountMap = buildDayCountMap(upcoming);
-        lastFetchSig = fetchSignature(fetchConfig);
+        lastFetchSig = fetchSignature(cfg);
       } catch (error) {
         if (requestId !== requestSerial) {
           return;
         }
 
         if (error?.code === "auth") {
-          connected = false;
-          accountEmail = "";
+          await clearConnectionState({ clearStored: true });
           eventItems = [];
           eventDayCountMap = new Map();
           errorMessage = "Session expired. Connect Google Calendar again.";
@@ -715,14 +893,7 @@ export const calendarWidget = {
         }
 
         const message = normalizeErrorMessage(error);
-        if (!interactive && isTokenMissingError(message)) {
-          connected = false;
-          accountEmail = "";
-          eventItems = [];
-          eventDayCountMap = new Map();
-          errorMessage = "";
-        } else if (interactive && isTokenMissingError(message)) {
-          connected = false;
+        if (interactive && isAuthCancelledMessage(message)) {
           errorMessage = "Google Calendar connection was cancelled.";
         } else {
           errorMessage = message;
@@ -747,7 +918,7 @@ export const calendarWidget = {
     }
 
     connectBtn.addEventListener("click", () => {
-      void loadEvents(true);
+      void connectAccount();
     });
 
     refreshBtn.addEventListener("click", () => {
@@ -778,13 +949,30 @@ export const calendarWidget = {
     const initialFetchConfig = normalizeFetchConfig(getConfig());
     lastFetchSig = fetchSignature(initialFetchConfig);
     render();
-    void loadEvents(false);
+    void syncStoredSessionForConfig(getConfig()).finally(() => {
+      render();
+      if (hasActiveConnection(getConfig())) {
+        void loadEvents(false);
+      }
+    });
 
     return {
       refresh() {
-        const nextConfig = normalizeFetchConfig(getConfig());
+        const cfg = getConfig();
+        const nextConfig = normalizeFetchConfig(cfg);
         const nextSig = fetchSignature(nextConfig);
         render();
+
+        if (!loading) {
+          const connectorUrl = normalizeConnectorUrl(cfg.connectorUrl);
+          if (connectorUrl !== sessionConnectorUrl || (connectorUrl && !connected)) {
+            void syncStoredSessionForConfig(cfg).finally(() => {
+              render();
+            });
+            return;
+          }
+        }
+
         if (connected && !loading && nextSig !== lastFetchSig) {
           void loadEvents(false);
         }

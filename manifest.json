@@ -9,15 +9,8 @@
     "48": "icons/icon-48.png",
     "128": "icons/icon-128.png"
   },
-  "permissions": ["storage", "bookmarks", "identity", "identity.email"],
+  "permissions": ["storage", "bookmarks", "identity"],
   "host_permissions": ["https://*/*", "http://*/*"],
-  "oauth2": {
-    "client_id": "YOUR_EXTENSION_OAUTH_CLIENT_ID.apps.googleusercontent.com",
-    "scopes": [
-      "https://www.googleapis.com/auth/gmail.readonly",
-      "https://www.googleapis.com/auth/calendar.events.readonly"
-    ]
-  },
   "chrome_url_overrides": {
     "newtab": "newtab.html"
   }

@@ -1,6 +1,6 @@
-const GMAIL_SCOPE = "https://www.googleapis.com/auth/gmail.readonly";
 const GMAIL_API_BASE = "https://gmail.googleapis.com/gmail/v1/users/me/messages";
 const GMAIL_WEB_INBOX_URL = "https://mail.google.com/mail/u/0/#inbox";
+const GMAIL_AUTH_STORAGE_KEY = "s3newtab-gmail-auth-session-v1";
 
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
@@ -9,6 +9,25 @@ function clamp(value, min, max) {
 function normalizeText(value, fallback = "") {
   const text = String(value || "").trim();
   return text || fallback;
+}
+
+function normalizeConnectorUrl(value, fallback = "") {
+  const text = normalizeText(value, fallback);
+  if (!text) {
+    return "";
+  }
+
+  try {
+    const parsed = new URL(text);
+    const isLocalhost = parsed.hostname === "localhost" || parsed.hostname === "127.0.0.1";
+    if (parsed.protocol !== "https:" && !(isLocalhost && parsed.protocol === "http:")) {
+      return "";
+    }
+    parsed.hash = "";
+    return parsed.toString();
+  } catch {
+    return "";
+  }
 }
 
 function normalizeMaxResults(value, fallback = 6) {
@@ -36,26 +55,107 @@ function normalizeErrorMessage(error) {
   return "Unknown error";
 }
 
-function isTokenMissingError(message) {
+function isAuthErrorMessage(message) {
   const text = normalizeText(message).toLowerCase();
   return (
-    text.includes("oauth2 not granted") ||
-    text.includes("user is not signed in") ||
-    text.includes("interaction required") ||
-    text.includes("not granted") ||
-    text.includes("canceled") ||
-    text.includes("cancelled")
+    text.includes("unauthorized") ||
+    text.includes("invalid token") ||
+    text.includes("not authenticated") ||
+    text.includes("forbidden") ||
+    text.includes("access denied")
   );
 }
 
-function hasConfiguredOauthClient() {
-  const manifest = chrome.runtime?.getManifest?.() || {};
-  const clientId = normalizeText(manifest?.oauth2?.client_id);
-  if (!clientId || !clientId.endsWith(".apps.googleusercontent.com")) {
-    return false;
+function isAuthCancelledMessage(message) {
+  const text = normalizeText(message).toLowerCase();
+  return (
+    text.includes("cancel") ||
+    text.includes("canceled") ||
+    text.includes("cancelled") ||
+    text.includes("did not approve") ||
+    text.includes("closed") ||
+    text.includes("interaction")
+  );
+}
+
+function createAuthState() {
+  const bytes = new Uint8Array(16);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+function buildAuthConnectorStartUrl(connectorUrl, redirectUri, state, provider = "") {
+  const url = new URL(connectorUrl);
+  url.searchParams.set("redirect_uri", redirectUri);
+  url.searchParams.set("state", state);
+  if (provider) {
+    url.searchParams.set("provider", provider);
   }
-  const lower = clientId.toLowerCase();
-  return !lower.includes("your_extension_oauth_client_id") && !lower.includes("replace_with");
+  return url.toString();
+}
+
+function parseAuthFlowResult(callbackUrl) {
+  const parsed = new URL(callbackUrl);
+  const hashText = parsed.hash.startsWith("#") ? parsed.hash.slice(1) : parsed.hash;
+  const hashParams = new URLSearchParams(hashText);
+  const queryParams = parsed.searchParams;
+  const read = (key) => normalizeText(queryParams.get(key) || hashParams.get(key));
+
+  return {
+    state: read("state"),
+    accessToken:
+      read("access_token") ||
+      read("accessToken") ||
+      read("token") ||
+      read("id_token"),
+    accountLabel: read("account") || read("email") || read("user") || read("name"),
+    error: read("error"),
+    errorDescription: read("error_description")
+  };
+}
+
+function normalizeStoredAuthSession(raw) {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+    return null;
+  }
+
+  const connectorUrl = normalizeConnectorUrl(raw.connectorUrl);
+  const accessToken = normalizeText(raw.accessToken);
+  if (!connectorUrl || !accessToken) {
+    return null;
+  }
+
+  return {
+    connectorUrl,
+    accessToken,
+    accountLabel: normalizeText(raw.accountLabel)
+  };
+}
+
+async function loadStoredAuthSession() {
+  try {
+    const stored = await chrome.storage.local.get(GMAIL_AUTH_STORAGE_KEY);
+    return normalizeStoredAuthSession(stored?.[GMAIL_AUTH_STORAGE_KEY]);
+  } catch {
+    return null;
+  }
+}
+
+async function saveStoredAuthSession(session) {
+  await chrome.storage.local.set({
+    [GMAIL_AUTH_STORAGE_KEY]: {
+      connectorUrl: normalizeConnectorUrl(session?.connectorUrl),
+      accessToken: normalizeText(session?.accessToken),
+      accountLabel: normalizeText(session?.accountLabel)
+    }
+  });
+}
+
+async function clearStoredAuthSession() {
+  try {
+    await chrome.storage.local.remove(GMAIL_AUTH_STORAGE_KEY);
+  } catch {
+  }
 }
 
 function readHeader(headers, headerName) {
@@ -113,49 +213,6 @@ function buildMessageLink(messageId, threadId) {
   return GMAIL_WEB_INBOX_URL;
 }
 
-function getTokenString(tokenResult) {
-  if (typeof tokenResult === "string") {
-    return normalizeText(tokenResult);
-  }
-  return normalizeText(tokenResult?.token);
-}
-
-async function getAuthToken(interactive = false) {
-  const result = await chrome.identity.getAuthToken({
-    interactive,
-    scopes: [GMAIL_SCOPE],
-    enableGranularPermissions: true
-  });
-  return getTokenString(result);
-}
-
-async function removeCachedToken(token) {
-  const normalized = normalizeText(token);
-  if (!normalized) {
-    return;
-  }
-  try {
-    await chrome.identity.removeCachedAuthToken({ token: normalized });
-  } catch {
-  }
-}
-
-async function clearCachedTokens() {
-  try {
-    await chrome.identity.clearAllCachedAuthTokens();
-  } catch {
-  }
-}
-
-async function getProfileEmail() {
-  try {
-    const info = await chrome.identity.getProfileUserInfo();
-    return normalizeText(info?.email);
-  } catch {
-    return "";
-  }
-}
-
 function buildListUrl(config) {
   const params = new URLSearchParams();
   params.set("maxResults", String(normalizeMaxResults(config.maxResults, 6)));
@@ -182,19 +239,16 @@ async function gmailFetchJson(url, token) {
     }
   });
 
-  if (response.status === 401 || response.status === 403) {
-    const body = normalizeText(await response.text());
+  const body = normalizeText(await response.text());
+  if (!response.ok) {
     const error = new Error(body || `HTTP ${response.status}`);
-    error.code = "auth";
+    if (response.status === 401 || response.status === 403 || isAuthErrorMessage(body)) {
+      error.code = "auth";
+    }
     throw error;
   }
 
-  if (!response.ok) {
-    const body = normalizeText(await response.text());
-    throw new Error(body || `HTTP ${response.status}`);
-  }
-
-  return response.json();
+  return body ? JSON.parse(body) : {};
 }
 
 async function fetchRecentMessages(config, token) {
@@ -232,19 +286,25 @@ async function fetchRecentMessages(config, token) {
 
 function normalizeFetchConfig(config) {
   return {
+    connectorUrl: normalizeConnectorUrl(config?.connectorUrl),
     maxResults: normalizeMaxResults(config?.maxResults, 6),
     query: normalizeQuery(config?.query)
   };
 }
 
 function fetchSignature(config) {
-  return `${config.maxResults}|${config.query}`;
+  return `${config.connectorUrl}|${config.maxResults}|${config.query}`;
+}
+
+function hasConnectorConfig(config) {
+  return Boolean(normalizeConnectorUrl(config?.connectorUrl));
 }
 
 export const gmailWidget = {
   type: "gmail",
   title: "Gmail",
   defaultConfig: {
+    connectorUrl: "",
     maxResults: 6,
     query: "in:inbox",
     showSnippet: true
@@ -260,6 +320,13 @@ export const gmailWidget = {
     h: 2
   },
   settingsSchema: [
+    {
+      key: "connectorUrl",
+      label: "Auth connector URL",
+      type: "url",
+      placeholder: "https://your-backend.example.com/api/google/oauth/start",
+      helpText: "Connector should redirect with access_token and optional account/email/user."
+    },
     { key: "maxResults", label: "Recent mail count", type: "number", min: 1, max: 20, step: 1 },
     {
       key: "query",
@@ -315,25 +382,152 @@ export const gmailWidget = {
     shell.append(toolbar, list);
     container.append(shell);
 
-    let accountEmail = "";
     let loading = false;
     let connected = false;
+    let accountLabel = "";
+    let accessToken = "";
+    let sessionConnectorUrl = "";
     let errorMessage = "";
     let messageItems = [];
     let lastFetchSig = "";
     let requestSerial = 0;
+    let sessionSyncSerial = 0;
+
+    function hasActiveConnection(config) {
+      const connectorUrl = normalizeConnectorUrl(config?.connectorUrl);
+      return (
+        connected &&
+        Boolean(accessToken) &&
+        Boolean(sessionConnectorUrl) &&
+        connectorUrl === sessionConnectorUrl
+      );
+    }
+
+    async function clearConnectionState({ clearStored = true } = {}) {
+      connected = false;
+      accountLabel = "";
+      accessToken = "";
+      sessionConnectorUrl = "";
+      if (clearStored) {
+        await clearStoredAuthSession();
+      }
+    }
+
+    async function syncStoredSessionForConfig(config) {
+      const syncId = ++sessionSyncSerial;
+      const connectorUrl = normalizeConnectorUrl(config?.connectorUrl);
+      if (!connectorUrl) {
+        await clearConnectionState({ clearStored: false });
+        return false;
+      }
+
+      const stored = await loadStoredAuthSession();
+      if (syncId !== sessionSyncSerial) {
+        return false;
+      }
+
+      if (stored && stored.connectorUrl === connectorUrl) {
+        connected = true;
+        accessToken = stored.accessToken;
+        accountLabel = stored.accountLabel;
+        sessionConnectorUrl = stored.connectorUrl;
+        return true;
+      }
+
+      await clearConnectionState({ clearStored: false });
+      return false;
+    }
+
+    async function connectAccount() {
+      const cfg = normalizeFetchConfig(getConfig());
+      if (!hasConnectorConfig(cfg)) {
+        errorMessage = "Set auth connector URL in widget settings first.";
+        render();
+        return;
+      }
+
+      loading = true;
+      errorMessage = "";
+      render();
+
+      try {
+        if (!chrome.identity?.launchWebAuthFlow || !chrome.identity?.getRedirectURL) {
+          throw new Error("chrome.identity.launchWebAuthFlow is not available.");
+        }
+
+        const state = createAuthState();
+        const redirectUri = chrome.identity.getRedirectURL("gmail-auth");
+        const startUrl = buildAuthConnectorStartUrl(cfg.connectorUrl, redirectUri, state, "google-gmail");
+        const callbackUrl = await chrome.identity.launchWebAuthFlow({
+          url: startUrl,
+          interactive: true
+        });
+
+        const result = parseAuthFlowResult(callbackUrl);
+        if (result.error || result.errorDescription) {
+          throw new Error(result.errorDescription || result.error || "Gmail connection failed.");
+        }
+        if (result.state && result.state !== state) {
+          throw new Error("Gmail connection failed (invalid state).");
+        }
+
+        const token = normalizeText(result.accessToken);
+        if (!token) {
+          throw new Error("Auth connector did not return access_token.");
+        }
+
+        connected = true;
+        accessToken = token;
+        accountLabel = normalizeText(result.accountLabel);
+        sessionConnectorUrl = cfg.connectorUrl;
+        await saveStoredAuthSession({
+          connectorUrl: cfg.connectorUrl,
+          accessToken: token,
+          accountLabel
+        });
+
+        errorMessage = "";
+      } catch (error) {
+        await clearConnectionState({ clearStored: true });
+        const message = normalizeErrorMessage(error);
+        if (isAuthCancelledMessage(message)) {
+          errorMessage = "Gmail connection was cancelled.";
+        } else {
+          errorMessage = message;
+        }
+      } finally {
+        loading = false;
+        render();
+      }
+
+      if (connected) {
+        void loadMessages(false);
+      }
+    }
+
+    async function disconnectAccount() {
+      loading = true;
+      render();
+      await clearConnectionState({ clearStored: true });
+      errorMessage = "";
+      messageItems = [];
+      loading = false;
+      render();
+    }
 
     function renderList() {
       list.replaceChildren();
-      const cfg = getConfig();
-      const showSnippet = cfg.showSnippet !== false;
+      const cfg = normalizeFetchConfig(getConfig());
+      const showSnippet = getConfig().showSnippet !== false;
 
       if (!messageItems.length) {
         const empty = document.createElement("li");
         empty.className = "gmail-mail-empty";
         if (loading) {
           empty.textContent = "Loading recent mail...";
-        } else if (!connected) {
+        } else if (!hasConnectorConfig(cfg)) {
+          empty.textContent = "Set auth connector URL in widget settings to enable Gmail connection.";
+        } else if (!hasActiveConnection(cfg)) {
           empty.textContent = "Connect Gmail to show your latest mail list.";
         } else {
           empty.textContent = "No messages found for this query.";
@@ -393,37 +587,29 @@ export const gmailWidget = {
     }
 
     function renderStatus() {
+      const cfg = normalizeFetchConfig(getConfig());
       status.classList.toggle("is-error", Boolean(errorMessage));
+
       if (loading) {
         status.textContent = "Syncing Gmail...";
       } else if (errorMessage) {
         status.textContent = errorMessage;
+      } else if (!hasConnectorConfig(cfg)) {
+        status.textContent = "Set auth connector URL";
       } else if (connected) {
-        status.textContent = accountEmail ? `${accountEmail}` : "Connected";
+        status.textContent = accountLabel || "Connected";
       } else {
         status.textContent = "Gmail not connected";
       }
 
-      connectBtn.disabled = loading;
-      refreshBtn.disabled = loading || !connected;
+      connectBtn.disabled = loading || !hasConnectorConfig(cfg);
+      refreshBtn.disabled = loading || !hasActiveConnection(cfg);
       disconnectBtn.disabled = loading || !connected;
     }
 
     function render() {
       renderStatus();
       renderList();
-    }
-
-    async function disconnectAccount() {
-      loading = true;
-      render();
-      await clearCachedTokens();
-      connected = false;
-      accountEmail = "";
-      errorMessage = "";
-      messageItems = [];
-      loading = false;
-      render();
     }
 
     async function loadMessages(interactive) {
@@ -433,55 +619,42 @@ export const gmailWidget = {
       render();
 
       try {
-        if (!hasConfiguredOauthClient()) {
-          throw new Error("Set oauth2.client_id in manifest.json to enable Gmail connection.");
+        const cfg = normalizeFetchConfig(getConfig());
+        if (!hasConnectorConfig(cfg)) {
+          throw new Error("Set auth connector URL first.");
+        }
+        if (!hasActiveConnection(cfg)) {
+          throw new Error("Connect Gmail first.");
         }
 
-        const token = await getAuthToken(interactive);
+        const token = normalizeText(accessToken);
         if (!token) {
-          throw new Error("Failed to obtain an OAuth token.");
+          throw new Error("Missing connector access token.");
         }
 
-        const fetchConfig = normalizeFetchConfig(getConfig());
-        let recent = [];
-        try {
-          recent = await fetchRecentMessages(fetchConfig, token);
-        } catch (error) {
-          if (error?.code === "auth") {
-            await removeCachedToken(token);
-          }
-          throw error;
-        }
+        const recent = await fetchRecentMessages(cfg, token);
 
         if (requestId !== requestSerial) {
           return;
         }
 
         connected = true;
-        accountEmail = await getProfileEmail();
         messageItems = recent;
-        lastFetchSig = fetchSignature(fetchConfig);
+        lastFetchSig = fetchSignature(cfg);
       } catch (error) {
         if (requestId !== requestSerial) {
           return;
         }
 
         if (error?.code === "auth") {
-          connected = false;
-          accountEmail = "";
+          await clearConnectionState({ clearStored: true });
           messageItems = [];
           errorMessage = "Session expired. Connect Gmail again.";
           return;
         }
 
         const message = normalizeErrorMessage(error);
-        if (!interactive && isTokenMissingError(message)) {
-          connected = false;
-          accountEmail = "";
-          messageItems = [];
-          errorMessage = "";
-        } else if (interactive && isTokenMissingError(message)) {
-          connected = false;
+        if (interactive && isAuthCancelledMessage(message)) {
           errorMessage = "Gmail connection was cancelled.";
         } else {
           errorMessage = message;
@@ -496,7 +669,7 @@ export const gmailWidget = {
     }
 
     connectBtn.addEventListener("click", () => {
-      void loadMessages(true);
+      void connectAccount();
     });
 
     refreshBtn.addEventListener("click", () => {
@@ -510,12 +683,29 @@ export const gmailWidget = {
     const initialFetchConfig = normalizeFetchConfig(getConfig());
     lastFetchSig = fetchSignature(initialFetchConfig);
     render();
-    void loadMessages(false);
+    void syncStoredSessionForConfig(getConfig()).finally(() => {
+      render();
+      if (hasActiveConnection(getConfig())) {
+        void loadMessages(false);
+      }
+    });
 
     return {
       refresh() {
-        const nextSig = fetchSignature(normalizeFetchConfig(getConfig()));
+        const cfg = getConfig();
+        const nextSig = fetchSignature(normalizeFetchConfig(cfg));
         render();
+
+        if (!loading) {
+          const connectorUrl = normalizeConnectorUrl(cfg.connectorUrl);
+          if (connectorUrl !== sessionConnectorUrl || (connectorUrl && !connected)) {
+            void syncStoredSessionForConfig(cfg).finally(() => {
+              render();
+            });
+            return;
+          }
+        }
+
         if (connected && !loading && nextSig !== lastFetchSig) {
           void loadMessages(false);
         }

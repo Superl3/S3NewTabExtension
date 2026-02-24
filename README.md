@@ -68,17 +68,14 @@
 
 ## Gmail / Google Calendar 연동 설정 (선택)
 
-Gmail 위젯과 Calendar 위젯은 Google OAuth 설정이 있어야 동작합니다.
+Gmail 위젯과 Calendar 위젯은 Auth connector 기반 OAuth로 동작합니다.
 
-1. Google Cloud Console에서 프로젝트 생성
-2. `Gmail API`, `Google Calendar API` 활성화
-3. OAuth 동의 화면 구성
-4. OAuth 클라이언트 생성 (Chrome Extension용)
-   - 확장 프로그램 ID 기준으로 발급
-5. `manifest.json`의 `oauth2.client_id` 값을 발급받은 Client ID로 교체
-6. 확장 프로그램 Reload 후 Gmail 또는 Calendar 위젯에서 `Connect` 클릭
+1. 각 위젯 설정에서 `Auth connector URL` 입력
+2. 위젯에서 `Connect` 클릭 후 동의 진행
+3. Auth connector 콜백이 확장 redirect URL로 `access_token`(선택: `account`/`email`) 반환
+4. 연결 후 `Refresh`로 메일/일정 동기화
 
-> 참고: 확장 ID가 바뀌면 OAuth가 실패할 수 있습니다. 개발 환경에서 ID를 고정하려면 `manifest.key`를 설정하세요.
+> 참고: Gmail과 Calendar는 각각 connector 세션을 로컬 스토리지에 저장합니다.
 
 ## 설치 방법 (개발자 모드)
 
@@ -127,11 +124,10 @@ Gmail 위젯과 Calendar 위젯은 Google OAuth 설정이 있어야 동작합니
 - Permissions
   - `storage`: 사용자 설정/레이아웃 저장
   - `bookmarks`: 북마크 트리 조회/갱신 반영
-  - `identity`, `identity.email`: Google 계정 OAuth 토큰/프로필 조회
-  - OAuth scopes: Gmail 읽기, Google Calendar 일정 읽기
+  - `identity`: connector OAuth redirect 처리
 - Host permissions: `http://*/*`, `https://*/*`
 
-> 참고: AI Chat 위젯의 Auth connector로 받은 액세스 토큰이 chrome.storage.local에 저장됩니다. 민감 정보 취급에 주의하세요.
+> 참고: AI Chat / Monday / Gmail / Calendar 위젯의 Auth connector 세션 토큰이 chrome.storage.local에 저장됩니다. 민감 정보 취급에 주의하세요.
 
 ## 프로젝트 구조
 
