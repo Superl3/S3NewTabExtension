@@ -91,8 +91,9 @@ function extractAssistantText(data) {
 }
 
 const AI_CHAT_AUTH_STORAGE_KEY = "s3newtab-ai-chat-auth-session-v1";
+const LOCAL_AUTH_CONNECTOR_URL = "http://localhost:8787/api/auth/start";
 
-function normalizeConnectorUrl(value, fallback = "") {
+function normalizeConnectorUrl(value, fallback = LOCAL_AUTH_CONNECTOR_URL) {
   const text = normalizeText(value, fallback);
   if (!text) {
     return "";
@@ -117,10 +118,13 @@ function createAuthState() {
   return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
-function buildAuthConnectorStartUrl(connectorUrl, redirectUri, state) {
+function buildAuthConnectorStartUrl(connectorUrl, redirectUri, state, provider = "") {
   const url = new URL(connectorUrl);
   url.searchParams.set("redirect_uri", redirectUri);
   url.searchParams.set("state", state);
+  if (provider) {
+    url.searchParams.set("provider", provider);
+  }
   return url.toString();
 }
 
@@ -133,8 +137,12 @@ function parseAuthFlowResult(callbackUrl) {
 
   return {
     state: read("state"),
-    accessToken: read("access_token") || read("token"),
-    accountLabel: read("account") || read("email") || read("user"),
+    accessToken:
+      read("access_token") ||
+      read("accessToken") ||
+      read("token") ||
+      read("id_token"),
+    accountLabel: read("account") || read("email") || read("user") || read("name"),
     error: read("error"),
     errorDescription: read("error_description")
   };
@@ -145,7 +153,11 @@ function normalizeStoredAuthSession(raw) {
     return null;
   }
 
-  const connectorUrl = normalizeConnectorUrl(raw.connectorUrl);
+  const rawConnector = normalizeText(raw.connectorUrl);
+  if (!rawConnector) {
+    return null;
+  }
+  const connectorUrl = normalizeConnectorUrl(rawConnector, "");
   const accessToken = normalizeText(raw.accessToken);
   if (!connectorUrl || !accessToken) {
     return null;
@@ -170,7 +182,7 @@ async function loadStoredAuthSession() {
 async function saveStoredAuthSession(session) {
   await chrome.storage.local.set({
     [AI_CHAT_AUTH_STORAGE_KEY]: {
-      connectorUrl: normalizeConnectorUrl(session?.connectorUrl),
+      connectorUrl: normalizeConnectorUrl(session?.connectorUrl, ""),
       accessToken: normalizeText(session?.accessToken),
       accountLabel: normalizeText(session?.accountLabel)
     }
@@ -290,7 +302,7 @@ export const aiChatWidget = {
   defaultConfig: {
     providerMode: "chatgpt",
     endpoint: "",
-    connectorUrl: "",
+    connectorUrl: LOCAL_AUTH_CONNECTOR_URL,
     model: "gpt-4o-mini",
     systemPrompt: "You are a concise assistant in a browser new tab widget.",
     temperature: 0.7,
@@ -317,7 +329,7 @@ export const aiChatWidget = {
       key: "connectorUrl",
       label: "Auth connector URL",
       type: "url",
-      placeholder: "https://example.com/connector/auth",
+      placeholder: "http://localhost:8787/api/auth/start",
       helpText: "Connector should redirect to this extension with access_token (optionally account/email/user)."
     },
     { key: "model", label: "Model", type: "text", placeholder: "gpt-4o-mini" },
@@ -426,7 +438,7 @@ export const aiChatWidget = {
       try {
         const state = createAuthState();
         const redirectUri = chrome.identity.getRedirectURL("ai-chat-auth");
-        const startUrl = buildAuthConnectorStartUrl(connectorUrl, redirectUri, state);
+        const startUrl = buildAuthConnectorStartUrl(connectorUrl, redirectUri, state, "openai");
         const callbackUrl = await chrome.identity.launchWebAuthFlow({
           url: startUrl,
           interactive: true

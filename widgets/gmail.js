@@ -1,6 +1,7 @@
 const GMAIL_API_BASE = "https://gmail.googleapis.com/gmail/v1/users/me/messages";
 const GMAIL_WEB_INBOX_URL = "https://mail.google.com/mail/u/0/#inbox";
 const GMAIL_AUTH_STORAGE_KEY = "s3newtab-gmail-auth-session-v1";
+const LOCAL_AUTH_CONNECTOR_URL = "http://localhost:8787/api/auth/start";
 
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
@@ -11,7 +12,7 @@ function normalizeText(value, fallback = "") {
   return text || fallback;
 }
 
-function normalizeConnectorUrl(value, fallback = "") {
+function normalizeConnectorUrl(value, fallback = LOCAL_AUTH_CONNECTOR_URL) {
   const text = normalizeText(value, fallback);
   if (!text) {
     return "";
@@ -119,7 +120,11 @@ function normalizeStoredAuthSession(raw) {
     return null;
   }
 
-  const connectorUrl = normalizeConnectorUrl(raw.connectorUrl);
+  const rawConnector = normalizeText(raw.connectorUrl);
+  if (!rawConnector) {
+    return null;
+  }
+  const connectorUrl = normalizeConnectorUrl(rawConnector, "");
   const accessToken = normalizeText(raw.accessToken);
   if (!connectorUrl || !accessToken) {
     return null;
@@ -144,7 +149,7 @@ async function loadStoredAuthSession() {
 async function saveStoredAuthSession(session) {
   await chrome.storage.local.set({
     [GMAIL_AUTH_STORAGE_KEY]: {
-      connectorUrl: normalizeConnectorUrl(session?.connectorUrl),
+      connectorUrl: normalizeConnectorUrl(session?.connectorUrl, ""),
       accessToken: normalizeText(session?.accessToken),
       accountLabel: normalizeText(session?.accountLabel)
     }
@@ -304,7 +309,7 @@ export const gmailWidget = {
   type: "gmail",
   title: "Gmail",
   defaultConfig: {
-    connectorUrl: "",
+    connectorUrl: LOCAL_AUTH_CONNECTOR_URL,
     maxResults: 6,
     query: "in:inbox",
     showSnippet: true

@@ -1,6 +1,7 @@
 const MONDAY_API_URL = "https://api.monday.com/v2";
 const MONDAY_WEB_URL = "https://monday.com/";
 const MONDAY_AUTH_STORAGE_KEY = "s3newtab-monday-auth-session-v1";
+const LOCAL_AUTH_CONNECTOR_URL = "http://localhost:8787/api/auth/start";
 
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
@@ -39,7 +40,7 @@ function normalizeColumnId(value, fallback = "") {
   return normalizeText(value, fallback).slice(0, 80);
 }
 
-function normalizeConnectorUrl(value, fallback = "") {
+function normalizeConnectorUrl(value, fallback = LOCAL_AUTH_CONNECTOR_URL) {
   const text = normalizeText(value, fallback);
   if (!text) {
     return "";
@@ -182,7 +183,11 @@ function normalizeStoredAuthSession(raw) {
     return null;
   }
 
-  const connectorUrl = normalizeConnectorUrl(raw.connectorUrl);
+  const rawConnector = normalizeText(raw.connectorUrl);
+  if (!rawConnector) {
+    return null;
+  }
+  const connectorUrl = normalizeConnectorUrl(rawConnector, "");
   const accessToken = normalizeText(raw.accessToken);
   if (!connectorUrl || !accessToken) {
     return null;
@@ -207,7 +212,7 @@ async function loadStoredAuthSession() {
 async function saveStoredAuthSession(session) {
   await chrome.storage.local.set({
     [MONDAY_AUTH_STORAGE_KEY]: {
-      connectorUrl: normalizeConnectorUrl(session?.connectorUrl),
+      connectorUrl: normalizeConnectorUrl(session?.connectorUrl, ""),
       accessToken: normalizeText(session?.accessToken),
       accountLabel: normalizeText(session?.accountLabel)
     }
@@ -535,7 +540,7 @@ export const mondayAssignedWidget = {
   type: "mondayAssigned",
   title: "Monday Assigned Issues",
   defaultConfig: {
-    connectorUrl: "",
+    connectorUrl: LOCAL_AUTH_CONNECTOR_URL,
     boardId: 0,
     peopleColumnId: "",
     maxItems: 15,

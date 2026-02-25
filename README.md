@@ -59,7 +59,8 @@
 
 ## Monday Assigned Issues 위젯
 
-- 위젯 설정에서 `Auth connector URL`(백엔드 OAuth 시작 엔드포인트)과 `Board ID`를 입력합니다.
+- 위젯 설정의 `Auth connector URL`은 기본값 `http://localhost:8787/api/auth/start`가 자동 적용됩니다.
+- `Board ID`만 입력해도 바로 연결을 시작할 수 있습니다.
 - 위젯의 `Connect` 버튼을 눌러 Monday OAuth 인증을 진행합니다.
 - `People column ID`는 선택값이며, 비워두면 보드의 첫 번째 People 계열 컬럼을 자동으로 사용합니다.
 - `Board ID`는 Monday 보드 URL의 숫자 ID에서 확인할 수 있습니다. 예: `/boards/123456789`
@@ -70,12 +71,27 @@
 
 Gmail 위젯과 Calendar 위젯은 Auth connector 기반 OAuth로 동작합니다.
 
-1. 각 위젯 설정에서 `Auth connector URL` 입력
+1. 기본 `Auth connector URL`(`http://localhost:8787/api/auth/start`)을 그대로 사용
 2. 위젯에서 `Connect` 클릭 후 동의 진행
 3. Auth connector 콜백이 확장 redirect URL로 `access_token`(선택: `account`/`email`) 반환
 4. 연결 후 `Refresh`로 메일/일정 동기화
 
 > 참고: Gmail과 Calendar는 각각 connector 세션을 로컬 스토리지에 저장합니다.
+
+## Local Auth Connector (Recommended)
+
+1. Copy `connector/.env.example` to `connector/.env` and set at least one token or OAuth client.
+2. Provide tokens/credentials for the providers you use (see mapping below).
+3. Run `node connector/server.mjs` to start the local connector on port `8787` (override `PORT` in `.env` if needed).
+4. Reload the extension and use each widget's `Connect` button—the default connector URL is already wired to `http://localhost:8787/api/auth/start`.
+
+| Provider | Quick token env | OAuth client envs |
+|----------|----------------|------------------|
+| Monday Assigned | `MONDAY_ACCESS_TOKEN`, optional `MONDAY_ACCOUNT_LABEL` | `MONDAY_CLIENT_ID`, `MONDAY_CLIENT_SECRET` |
+| Gmail / Calendar | `GOOGLE_ACCESS_TOKEN`, optional `GOOGLE_ACCOUNT_LABEL` | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` |
+| AI Chat / OpenAI | `OPENAI_ACCESS_TOKEN`, optional `OPENAI_ACCOUNT_LABEL` | n/a |
+
+Quick tokens immediately relay the env value as `access_token`; supplying OAuth client IDs/secrets lets the connector perform the full OAuth flows for Monday and Google. Because the widgets default to `http://localhost:8787/api/auth/start`, you no longer need to manually enter connector URLs unless you run the backend elsewhere.
 
 ## 설치 방법 (개발자 모드)
 

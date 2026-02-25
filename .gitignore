@@ -1,0 +1,2 @@
+# Ignore local connector environment overrides
+connector/.env

@@ -1,6 +1,7 @@
 const CALENDAR_API_BASE = "https://www.googleapis.com/calendar/v3/calendars/primary/events";
 const GOOGLE_CALENDAR_WEB_URL = "https://calendar.google.com/calendar/u/0/r";
 const CALENDAR_AUTH_STORAGE_KEY = "s3newtab-calendar-auth-session-v1";
+const LOCAL_AUTH_CONNECTOR_URL = "http://localhost:8787/api/auth/start";
 
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
@@ -71,7 +72,7 @@ function isAuthCancelledMessage(message) {
   );
 }
 
-function normalizeConnectorUrl(value, fallback = "") {
+function normalizeConnectorUrl(value, fallback = LOCAL_AUTH_CONNECTOR_URL) {
   const text = normalizeText(value, fallback);
   if (!text) {
     return "";
@@ -131,7 +132,11 @@ function normalizeStoredAuthSession(raw) {
     return null;
   }
 
-  const connectorUrl = normalizeConnectorUrl(raw.connectorUrl);
+  const rawConnector = normalizeText(raw.connectorUrl);
+  if (!rawConnector) {
+    return null;
+  }
+  const connectorUrl = normalizeConnectorUrl(rawConnector, "");
   const accessToken = normalizeText(raw.accessToken);
   if (!connectorUrl || !accessToken) {
     return null;
@@ -156,7 +161,7 @@ async function loadStoredAuthSession() {
 async function saveStoredAuthSession(session) {
   await chrome.storage.local.set({
     [CALENDAR_AUTH_STORAGE_KEY]: {
-      connectorUrl: normalizeConnectorUrl(session?.connectorUrl),
+      connectorUrl: normalizeConnectorUrl(session?.connectorUrl, ""),
       accessToken: normalizeText(session?.accessToken),
       accountLabel: normalizeText(session?.accountLabel)
     }
@@ -420,7 +425,7 @@ export const calendarWidget = {
   type: "calendar",
   title: "Calendar",
   defaultConfig: {
-    connectorUrl: "",
+    connectorUrl: LOCAL_AUTH_CONNECTOR_URL,
     maxResults: 8,
     daysAhead: 21,
     viewMode: "month",
