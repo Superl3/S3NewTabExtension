@@ -68,6 +68,10 @@
 - Auth connector 콜백은 확장 프로그램 redirect URL로 `access_token`(선택: `account`/`email`)을 반환해야 합니다.
 - OAuth 결과 토큰은 브라우저 로컬 스토리지에 저장되므로 민감 정보로 관리하세요.
 
+## Design Memory
+
+- Monday 위젯 UI 스타일 메모: `DESIGN_MEMORY.md`
+
 ## Gmail / Google Calendar 연동 설정 (선택)
 
 Gmail 위젯과 Calendar 위젯은 Auth connector 기반 OAuth로 동작합니다.
