@@ -49,6 +49,14 @@ function normalizeErrorMessage(error) {
   return "Unknown error";
 }
 
+function rewriteAuthorizationLoadError(message) {
+  const text = normalizeText(message).toLowerCase();
+  if (text.includes("authorization page") && (text.includes("load") || text.includes("not loaded"))) {
+    return "Authorization page could not be loaded. Check that connector server is running at http://localhost:8787 and then try Connect again.";
+  }
+  return message;
+}
+
 function isAuthErrorMessage(message) {
   const text = normalizeText(message).toLowerCase();
   return (
@@ -280,6 +288,7 @@ function parseEventStartInfo(start) {
 function normalizeFetchConfig(config) {
   return {
     connectorUrl: normalizeConnectorUrl(config?.connectorUrl),
+    accessToken: normalizeText(config?.accessToken),
     maxResults: normalizeMaxResults(config?.maxResults, 8),
     daysAhead: normalizeDaysAhead(config?.daysAhead, 21),
     viewMode: normalizeViewMode(config?.viewMode),
@@ -289,11 +298,11 @@ function normalizeFetchConfig(config) {
 }
 
 function fetchSignature(config) {
-  return `${config.connectorUrl}|${config.maxResults}|${config.daysAhead}|${config.viewMode}|${config.weekStartsOn}|${config.showLocation ? 1 : 0}`;
+  return `${config.connectorUrl}|${config.accessToken}|${config.maxResults}|${config.daysAhead}|${config.viewMode}|${config.weekStartsOn}|${config.showLocation ? 1 : 0}`;
 }
 
 function hasConnectorConfig(config) {
-  return Boolean(normalizeConnectorUrl(config?.connectorUrl));
+  return Boolean(normalizeConnectorUrl(config?.connectorUrl)) || Boolean(normalizeText(config?.accessToken));
 }
 
 function buildEventsUrl(config) {
@@ -465,6 +474,7 @@ export const calendarWidget = {
   title: "Calendar",
   defaultConfig: {
     connectorUrl: LOCAL_AUTH_CONNECTOR_URL,
+    accessToken: "",
     maxResults: 8,
     daysAhead: 21,
     viewMode: "month",
@@ -488,6 +498,13 @@ export const calendarWidget = {
       type: "url",
       placeholder: "https://your-backend.example.com/api/google/oauth/start",
       helpText: "Connector should redirect with access_token and optional account/email/user."
+    },
+    {
+      key: "accessToken",
+      label: "Access token (optional)",
+      type: "password",
+      placeholder: "Google access token",
+      helpText: "If set, Connect uses this token directly and skips connector popup/relay."
     },
     {
       key: "maxResults",
@@ -617,6 +634,10 @@ export const calendarWidget = {
 
     function hasActiveConnection(config) {
       const connectorUrl = normalizeConnectorUrl(config?.connectorUrl);
+      const configuredToken = normalizeText(config?.accessToken);
+      if (configuredToken && accessToken === configuredToken) {
+        return true;
+      }
       return (
         connected &&
         Boolean(accessToken) &&
@@ -638,6 +659,15 @@ export const calendarWidget = {
     async function syncStoredSessionForConfig(config) {
       const syncId = ++sessionSyncSerial;
       const connectorUrl = normalizeConnectorUrl(config?.connectorUrl);
+      const configuredToken = normalizeText(config?.accessToken);
+      if (configuredToken) {
+        connected = true;
+        accessToken = configuredToken;
+        accountLabel = "Configured token";
+        sessionConnectorUrl = connectorUrl;
+        return true;
+      }
+
       if (!connectorUrl) {
         await clearConnectionState({ clearStored: false });
         return false;
@@ -673,9 +703,20 @@ export const calendarWidget = {
       render();
 
       try {
-        let token = "";
-        let tokenAccount = "";
-        if (chrome.identity?.launchWebAuthFlow && chrome.identity?.getRedirectURL) {
+        let token = normalizeText(cfg.accessToken);
+        let tokenAccount = token ? "Configured token" : "";
+        let tokenRelayFailureMessage = "";
+        if (!token && cfg.connectorUrl) {
+          try {
+            const fallback = await fetchConnectorToken(cfg.connectorUrl, "google-calendar");
+            token = fallback.accessToken;
+            tokenAccount = fallback.accountLabel;
+          } catch (relayError) {
+            tokenRelayFailureMessage = normalizeErrorMessage(relayError);
+          }
+        }
+
+        if (!token && chrome.identity?.launchWebAuthFlow && chrome.identity?.getRedirectURL) {
           const state = createAuthState();
           const redirectUri = chrome.identity.getRedirectURL("calendar-auth");
           const startUrl = buildAuthConnectorStartUrl(cfg.connectorUrl, redirectUri, state, "google-calendar");
@@ -698,26 +739,32 @@ export const calendarWidget = {
           }
 
           tokenAccount = normalizeText(result.accountLabel);
-        } else {
-          const fallback = await fetchConnectorToken(cfg.connectorUrl, "google-calendar");
-          token = fallback.accessToken;
-          tokenAccount = fallback.accountLabel;
+        }
+
+        if (!token) {
+          throw new Error(
+            tokenRelayFailureMessage ||
+              "Unable to obtain Google Calendar connector token. Try Connect again."
+          );
         }
 
         connected = true;
         accessToken = token;
         accountLabel = tokenAccount;
         sessionConnectorUrl = cfg.connectorUrl;
-        await saveStoredAuthSession({
-          connectorUrl: cfg.connectorUrl,
-          accessToken: token,
-          accountLabel
-        });
+        if (!normalizeText(cfg.accessToken)) {
+          await saveStoredAuthSession({
+            connectorUrl: cfg.connectorUrl,
+            accessToken: token,
+            accountLabel
+          });
+        }
 
         errorMessage = "";
       } catch (error) {
         await clearConnectionState({ clearStored: true });
-        const message = normalizeErrorMessage(error);
+        let message = normalizeErrorMessage(error);
+        message = rewriteAuthorizationLoadError(message);
         if (isAuthCancelledMessage(message)) {
           errorMessage = "Google Calendar connection was cancelled.";
         } else {
@@ -889,6 +936,13 @@ export const calendarWidget = {
     }
 
     async function disconnectAccount() {
+      const cfg = normalizeFetchConfig(getConfig());
+      if (normalizeText(cfg.accessToken)) {
+        errorMessage = "Remove Access token in settings to disconnect.";
+        render();
+        return;
+      }
+
       loading = true;
       render();
       await clearConnectionState({ clearStored: true });
@@ -1015,7 +1069,7 @@ export const calendarWidget = {
 
         if (!loading) {
           const connectorUrl = normalizeConnectorUrl(cfg.connectorUrl);
-          if (connectorUrl !== sessionConnectorUrl || (connectorUrl && !connected)) {
+          if (connectorUrl !== sessionConnectorUrl || !hasActiveConnection(cfg)) {
             void syncStoredSessionForConfig(cfg).finally(() => {
               render();
             });

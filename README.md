@@ -60,6 +60,7 @@
 ## Monday Assigned Issues 위젯
 
 - 위젯 설정의 `Auth connector URL`은 기본값 `http://localhost:8787/api/auth/start`가 자동 적용됩니다.
+- 위젯 설정의 `Access token (optional)`에 토큰을 넣으면 Connect 시 해당 토큰을 바로 사용합니다.
 - `Board ID`만 입력해도 바로 연결을 시작할 수 있습니다.
 - 위젯의 `Connect` 버튼을 눌러 Monday OAuth 인증을 진행합니다.
 - `People column ID`는 선택값이며, 비워두면 보드의 첫 번째 People 계열 컬럼을 자동으로 사용합니다.
@@ -72,9 +73,10 @@
 Gmail 위젯과 Calendar 위젯은 Auth connector 기반 OAuth로 동작합니다.
 
 1. 기본 `Auth connector URL`(`http://localhost:8787/api/auth/start`)을 그대로 사용
-2. 위젯에서 `Connect` 클릭 후 동의 진행
-3. Auth connector 콜백이 확장 redirect URL로 `access_token`(선택: `account`/`email`) 반환
-4. 연결 후 `Refresh`로 메일/일정 동기화
+2. 또는 각 위젯의 `Access token (optional)`에 토큰을 직접 입력
+3. 위젯에서 `Connect` 클릭 후 동의 진행
+4. Auth connector 콜백이 확장 redirect URL로 `access_token`(선택: `account`/`email`) 반환
+5. 연결 후 `Refresh`로 메일/일정 동기화
 
 > 참고: Gmail과 Calendar는 각각 connector 세션을 로컬 스토리지에 저장합니다.
 
@@ -91,7 +93,7 @@ Gmail 위젯과 Calendar 위젯은 Auth connector 기반 OAuth로 동작합니�
 | Gmail / Calendar | `GOOGLE_ACCESS_TOKEN`, optional `GOOGLE_ACCOUNT_LABEL` | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` |
 | AI Chat / OpenAI | `OPENAI_ACCESS_TOKEN`, optional `OPENAI_ACCOUNT_LABEL` | n/a |
 
-Quick tokens immediately relay the env value as `access_token`; supplying OAuth client IDs/secrets lets the connector perform the full OAuth flows for Monday and Google. Because the widgets default to `http://localhost:8787/api/auth/start`, you no longer need to manually enter connector URLs unless you run the backend elsewhere.
+Quick tokens immediately relay the env value as `access_token`; supplying OAuth client IDs/secrets lets the connector perform the full OAuth flows for Monday and Google. Because the widgets default to `http://localhost:8787/api/auth/start`, you no longer need to manually enter connector URLs unless you run the backend elsewhere. You can also paste tokens directly into each widget's `Access token (optional)` field to skip popup-based auth.
 
 If Edge reports `chrome.identity.launchWebAuthFlow is not available`, set the appropriate `*_ACCESS_TOKEN` (and optional `*_ACCOUNT_LABEL`) in `connector/.env`; the connector will use the token relay fallback automatically.
 

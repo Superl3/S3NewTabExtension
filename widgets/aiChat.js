@@ -7,6 +7,27 @@ function normalizeText(value, fallback = "") {
   return text || fallback;
 }
 
+function normalizeErrorMessage(error) {
+  if (!error) {
+    return "Unknown error";
+  }
+  if (typeof error === "string") {
+    return normalizeText(error, "Unknown error");
+  }
+  if (typeof error.message === "string") {
+    return normalizeText(error.message, "Unknown error");
+  }
+  return "Unknown error";
+}
+
+function rewriteAuthorizationLoadError(message) {
+  const text = normalizeText(message).toLowerCase();
+  if (text.includes("authorization page") && (text.includes("load") || text.includes("not loaded"))) {
+    return "Authorization page could not be loaded. Check that connector server is running at http://localhost:8787 and then try Connect again.";
+  }
+  return message;
+}
+
 function resolveEndpoint(cfg) {
   const manual = normalizeText(cfg.endpoint);
   if (manual) {
@@ -342,6 +363,7 @@ export const aiChatWidget = {
     providerMode: "chatgpt",
     endpoint: "",
     connectorUrl: LOCAL_AUTH_CONNECTOR_URL,
+    accessToken: "",
     model: "gpt-4o-mini",
     systemPrompt: "You are a concise assistant in a browser new tab widget.",
     temperature: 0.7,
@@ -370,6 +392,13 @@ export const aiChatWidget = {
       type: "url",
       placeholder: "http://localhost:8787/api/auth/start",
       helpText: "Connector should redirect to this extension with access_token (optionally account/email/user)."
+    },
+    {
+      key: "accessToken",
+      label: "Access token (optional)",
+      type: "password",
+      placeholder: "OpenAI access token",
+      helpText: "If set, Connect uses this token directly and skips connector popup/relay."
     },
     { key: "model", label: "Model", type: "text", placeholder: "gpt-4o-mini" },
     { key: "temperature", label: "Temperature", type: "number", min: 0, max: 2, step: 0.1 },
@@ -430,19 +459,34 @@ export const aiChatWidget = {
       return normalizeConnectorUrl(cfg.connectorUrl);
     }
 
+    function getConfiguredAccessToken() {
+      const cfg = getConfig();
+      return normalizeText(cfg.accessToken);
+    }
+
     function updateActiveSessionFromStorage() {
       const connectorUrl = getConnectorUrl();
+      const configuredToken = getConfiguredAccessToken();
+      if (configuredToken) {
+        activeSession = {
+          connectorUrl,
+          accessToken: configuredToken,
+          accountLabel: "Configured token"
+        };
+        return;
+      }
       activeSession = connectorUrl && storedSession?.connectorUrl === connectorUrl ? storedSession : null;
     }
 
     function renderToolbar() {
       const connectorUrl = getConnectorUrl();
+      const configuredToken = getConfiguredAccessToken();
       let text = "";
       if (isConnecting) {
         text = "Connecting...";
       } else if (connectionError) {
         text = connectionError;
-      } else if (!connectorUrl) {
+      } else if (!connectorUrl && !configuredToken) {
         text = "Auth connector URL is required.";
       } else if (!activeSession) {
         text = "Connect to authenticate.";
@@ -452,13 +496,14 @@ export const aiChatWidget = {
 
       status.textContent = text;
       status.classList.toggle("is-error", Boolean(connectionError));
-      connectBtn.disabled = isConnecting || !connectorUrl;
+      connectBtn.disabled = isConnecting || (!connectorUrl && !configuredToken);
       disconnectBtn.disabled = isConnecting || !activeSession;
     }
 
     async function connectConnector() {
       const connectorUrl = getConnectorUrl();
-      if (!connectorUrl) {
+      const configuredToken = getConfiguredAccessToken();
+      if (!connectorUrl && !configuredToken) {
         connectionError = "Set auth connector URL in widget settings first.";
         render();
         return;
@@ -469,9 +514,20 @@ export const aiChatWidget = {
       render();
 
       try {
-        let token = "";
-        let tokenAccount = "";
-        if (chrome.identity?.launchWebAuthFlow && chrome.identity?.getRedirectURL) {
+        let token = configuredToken;
+        let tokenAccount = token ? "Configured token" : "";
+        let tokenRelayFailureMessage = "";
+        if (!token && connectorUrl) {
+          try {
+            const fallback = await fetchConnectorToken(connectorUrl, "openai");
+            token = fallback.accessToken;
+            tokenAccount = fallback.accountLabel;
+          } catch (relayError) {
+            tokenRelayFailureMessage = normalizeErrorMessage(relayError);
+          }
+        }
+
+        if (!token && connectorUrl && chrome.identity?.launchWebAuthFlow && chrome.identity?.getRedirectURL) {
           const state = createAuthState();
           const redirectUri = chrome.identity.getRedirectURL("ai-chat-auth");
           const startUrl = buildAuthConnectorStartUrl(connectorUrl, redirectUri, state, "openai");
@@ -494,28 +550,32 @@ export const aiChatWidget = {
           }
 
           tokenAccount = normalizeText(result.accountLabel);
-        } else {
-          const fallback = await fetchConnectorToken(connectorUrl, "openai");
-          token = fallback.accessToken;
-          tokenAccount = fallback.accountLabel;
         }
 
-        storedSession = {
-          connectorUrl,
-          accessToken: token,
-          accountLabel: tokenAccount
-        };
-        await saveStoredAuthSession(storedSession);
+        if (!token) {
+          throw new Error(
+            tokenRelayFailureMessage || "Unable to obtain connector token. Try Connect again."
+          );
+        }
+
+        if (!configuredToken) {
+          storedSession = {
+            connectorUrl,
+            accessToken: token,
+            accountLabel: tokenAccount
+          };
+          await saveStoredAuthSession(storedSession);
+        }
+
         updateActiveSessionFromStorage();
         connectionError = "";
       } catch (error) {
-        const message = normalizeText(error?.message);
-        if (message && isAuthCancelledMessage(message)) {
+        let message = normalizeErrorMessage(error);
+        message = rewriteAuthorizationLoadError(message);
+        if (isAuthCancelledMessage(message)) {
           connectionError = "Connector authentication was cancelled.";
-        } else if (message) {
-          connectionError = message;
         } else {
-          connectionError = "Connector authentication failed.";
+          connectionError = message || "Connector authentication failed.";
         }
       } finally {
         isConnecting = false;
@@ -525,6 +585,11 @@ export const aiChatWidget = {
 
     async function disconnectConnector() {
       if (isConnecting) {
+        return;
+      }
+      if (getConfiguredAccessToken()) {
+        connectionError = "Remove Access token in settings to disconnect.";
+        render();
         return;
       }
       storedSession = null;
@@ -566,7 +631,7 @@ export const aiChatWidget = {
       }
 
       const connectorUrl = getConnectorUrl();
-      if (!connectorUrl) {
+      if (!connectorUrl && !activeSession?.accessToken) {
         patchConfig({
           history: [...next, toMessage("assistant", "Auth connector URL is required in settings.")].slice(-40)
         });

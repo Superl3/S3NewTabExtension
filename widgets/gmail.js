@@ -56,6 +56,14 @@ function normalizeErrorMessage(error) {
   return "Unknown error";
 }
 
+function rewriteAuthorizationLoadError(message) {
+  const text = normalizeText(message).toLowerCase();
+  if (text.includes("authorization page") && (text.includes("load") || text.includes("not loaded"))) {
+    return "Authorization page could not be loaded. Check that connector server is running at http://localhost:8787 and then try Connect again.";
+  }
+  return message;
+}
+
 function isAuthErrorMessage(message) {
   const text = normalizeText(message).toLowerCase();
   return (
@@ -331,17 +339,18 @@ async function fetchRecentMessages(config, token) {
 function normalizeFetchConfig(config) {
   return {
     connectorUrl: normalizeConnectorUrl(config?.connectorUrl),
+    accessToken: normalizeText(config?.accessToken),
     maxResults: normalizeMaxResults(config?.maxResults, 6),
     query: normalizeQuery(config?.query)
   };
 }
 
 function fetchSignature(config) {
-  return `${config.connectorUrl}|${config.maxResults}|${config.query}`;
+  return `${config.connectorUrl}|${config.accessToken}|${config.maxResults}|${config.query}`;
 }
 
 function hasConnectorConfig(config) {
-  return Boolean(normalizeConnectorUrl(config?.connectorUrl));
+  return Boolean(normalizeConnectorUrl(config?.connectorUrl)) || Boolean(normalizeText(config?.accessToken));
 }
 
 export const gmailWidget = {
@@ -349,6 +358,7 @@ export const gmailWidget = {
   title: "Gmail",
   defaultConfig: {
     connectorUrl: LOCAL_AUTH_CONNECTOR_URL,
+    accessToken: "",
     maxResults: 6,
     query: "in:inbox",
     showSnippet: true
@@ -370,6 +380,13 @@ export const gmailWidget = {
       type: "url",
       placeholder: "https://your-backend.example.com/api/google/oauth/start",
       helpText: "Connector should redirect with access_token and optional account/email/user."
+    },
+    {
+      key: "accessToken",
+      label: "Access token (optional)",
+      type: "password",
+      placeholder: "Google access token",
+      helpText: "If set, Connect uses this token directly and skips connector popup/relay."
     },
     { key: "maxResults", label: "Recent mail count", type: "number", min: 1, max: 20, step: 1 },
     {
@@ -439,6 +456,10 @@ export const gmailWidget = {
 
     function hasActiveConnection(config) {
       const connectorUrl = normalizeConnectorUrl(config?.connectorUrl);
+      const configuredToken = normalizeText(config?.accessToken);
+      if (configuredToken && accessToken === configuredToken) {
+        return true;
+      }
       return (
         connected &&
         Boolean(accessToken) &&
@@ -460,6 +481,15 @@ export const gmailWidget = {
     async function syncStoredSessionForConfig(config) {
       const syncId = ++sessionSyncSerial;
       const connectorUrl = normalizeConnectorUrl(config?.connectorUrl);
+      const configuredToken = normalizeText(config?.accessToken);
+      if (configuredToken) {
+        connected = true;
+        accessToken = configuredToken;
+        accountLabel = "Configured token";
+        sessionConnectorUrl = connectorUrl;
+        return true;
+      }
+
       if (!connectorUrl) {
         await clearConnectionState({ clearStored: false });
         return false;
@@ -495,9 +525,20 @@ export const gmailWidget = {
       render();
 
       try {
-        let token = "";
-        let tokenAccount = "";
-        if (chrome.identity?.launchWebAuthFlow && chrome.identity?.getRedirectURL) {
+        let token = normalizeText(cfg.accessToken);
+        let tokenAccount = token ? "Configured token" : "";
+        let tokenRelayFailureMessage = "";
+        if (!token && cfg.connectorUrl) {
+          try {
+            const fallback = await fetchConnectorToken(cfg.connectorUrl, "google-gmail");
+            token = fallback.accessToken;
+            tokenAccount = fallback.accountLabel;
+          } catch (relayError) {
+            tokenRelayFailureMessage = normalizeErrorMessage(relayError);
+          }
+        }
+
+        if (!token && chrome.identity?.launchWebAuthFlow && chrome.identity?.getRedirectURL) {
           const state = createAuthState();
           const redirectUri = chrome.identity.getRedirectURL("gmail-auth");
           const startUrl = buildAuthConnectorStartUrl(cfg.connectorUrl, redirectUri, state, "google-gmail");
@@ -520,26 +561,32 @@ export const gmailWidget = {
           }
 
           tokenAccount = normalizeText(result.accountLabel);
-        } else {
-          const fallback = await fetchConnectorToken(cfg.connectorUrl, "google-gmail");
-          token = fallback.accessToken;
-          tokenAccount = fallback.accountLabel;
+        }
+
+        if (!token) {
+          throw new Error(
+            tokenRelayFailureMessage ||
+              "Unable to obtain Gmail connector token. Try Connect again."
+          );
         }
 
         connected = true;
         accessToken = token;
         accountLabel = tokenAccount;
         sessionConnectorUrl = cfg.connectorUrl;
-        await saveStoredAuthSession({
-          connectorUrl: cfg.connectorUrl,
-          accessToken: token,
-          accountLabel
-        });
+        if (!normalizeText(cfg.accessToken)) {
+          await saveStoredAuthSession({
+            connectorUrl: cfg.connectorUrl,
+            accessToken: token,
+            accountLabel
+          });
+        }
 
         errorMessage = "";
       } catch (error) {
         await clearConnectionState({ clearStored: true });
-        const message = normalizeErrorMessage(error);
+        let message = normalizeErrorMessage(error);
+        message = rewriteAuthorizationLoadError(message);
         if (isAuthCancelledMessage(message)) {
           errorMessage = "Gmail connection was cancelled.";
         } else {
@@ -556,6 +603,13 @@ export const gmailWidget = {
     }
 
     async function disconnectAccount() {
+      const cfg = normalizeFetchConfig(getConfig());
+      if (normalizeText(cfg.accessToken)) {
+        errorMessage = "Remove Access token in settings to disconnect.";
+        render();
+        return;
+      }
+
       loading = true;
       render();
       await clearConnectionState({ clearStored: true });
@@ -748,7 +802,7 @@ export const gmailWidget = {
 
         if (!loading) {
           const connectorUrl = normalizeConnectorUrl(cfg.connectorUrl);
-          if (connectorUrl !== sessionConnectorUrl || (connectorUrl && !connected)) {
+          if (connectorUrl !== sessionConnectorUrl || !hasActiveConnection(cfg)) {
             void syncStoredSessionForConfig(cfg).finally(() => {
               render();
             });

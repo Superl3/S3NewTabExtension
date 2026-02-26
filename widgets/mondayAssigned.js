@@ -72,6 +72,14 @@ function normalizeErrorMessage(error) {
   return "Unknown error";
 }
 
+function rewriteAuthorizationLoadError(message) {
+  const text = normalizeText(message).toLowerCase();
+  if (text.includes("authorization page") && (text.includes("load") || text.includes("not loaded"))) {
+    return "Authorization page could not be loaded. Check that connector server is running at http://localhost:8787 and then try Connect again.";
+  }
+  return message;
+}
+
 function isAuthErrorMessage(message) {
   const text = normalizeText(message).toLowerCase();
   return (
@@ -278,6 +286,7 @@ function normalizedConfig(config) {
 
   return {
     connectorUrl: normalizeConnectorUrl(config?.connectorUrl),
+    accessToken: normalizeText(config?.accessToken),
     boardId: normalizeBoardId(config?.boardId, 0),
     peopleColumnId: normalizeColumnId(config?.peopleColumnId),
     maxItems: normalizeMaxItems(config?.maxItems, 15),
@@ -292,6 +301,7 @@ function normalizedConfig(config) {
 function configSignature(config) {
   return [
     config.connectorUrl,
+    config.accessToken,
     config.boardId,
     config.peopleColumnId,
     config.maxItems,
@@ -302,7 +312,7 @@ function configSignature(config) {
 }
 
 function hasConnectorConfig(config) {
-  return Boolean(config.connectorUrl);
+  return Boolean(config.connectorUrl) || Boolean(config.accessToken);
 }
 
 function hasBoardConfig(config) {
@@ -580,6 +590,7 @@ export const mondayAssignedWidget = {
   title: "Monday Assigned Issues",
   defaultConfig: {
     connectorUrl: LOCAL_AUTH_CONNECTOR_URL,
+    accessToken: "",
     boardId: 0,
     peopleColumnId: "",
     maxItems: 15,
@@ -606,6 +617,13 @@ export const mondayAssignedWidget = {
       type: "url",
       placeholder: "https://your-backend.example.com/api/monday/oauth/start",
       helpText: "Backend OAuth start endpoint. It must return to this extension with access_token."
+    },
+    {
+      key: "accessToken",
+      label: "Access token (optional)",
+      type: "password",
+      placeholder: "Monday access token",
+      helpText: "If set, Connect uses this token directly and skips connector popup/relay."
     },
     {
       key: "boardId",
@@ -723,6 +741,10 @@ export const mondayAssignedWidget = {
     }
 
     function hasActiveConnection(config) {
+      const configuredToken = normalizeText(config?.accessToken);
+      if (configuredToken && accessToken === configuredToken) {
+        return true;
+      }
       return (
         connected &&
         Boolean(accessToken) &&
@@ -744,6 +766,15 @@ export const mondayAssignedWidget = {
     async function syncStoredSessionForConfig(config) {
       const syncId = ++sessionSyncSerial;
       const connectorUrl = normalizeConnectorUrl(config?.connectorUrl);
+      const configuredToken = normalizeText(config?.accessToken);
+      if (configuredToken) {
+        connected = true;
+        accessToken = configuredToken;
+        accountLabel = "Configured token";
+        sessionConnectorUrl = connectorUrl;
+        return true;
+      }
+
       if (!connectorUrl) {
         await clearConnectionState({ clearStored: false });
         return false;
@@ -779,9 +810,20 @@ export const mondayAssignedWidget = {
       render();
 
       try {
-        let token = "";
-        let tokenAccount = "";
-        if (chrome.identity?.launchWebAuthFlow && chrome.identity?.getRedirectURL) {
+        let token = normalizeText(cfg.accessToken);
+        let tokenAccount = token ? "Configured token" : "";
+        let tokenRelayFailureMessage = "";
+        if (!token && cfg.connectorUrl) {
+          try {
+            const fallback = await fetchConnectorToken(cfg.connectorUrl, "monday");
+            token = fallback.accessToken;
+            tokenAccount = fallback.accountLabel;
+          } catch (relayError) {
+            tokenRelayFailureMessage = normalizeErrorMessage(relayError);
+          }
+        }
+
+        if (!token && chrome.identity?.launchWebAuthFlow && chrome.identity?.getRedirectURL) {
           const state = createAuthState();
           const redirectUri = chrome.identity.getRedirectURL("monday-auth");
           const startUrl = buildAuthConnectorStartUrl(cfg.connectorUrl, redirectUri, state, "monday");
@@ -804,27 +846,33 @@ export const mondayAssignedWidget = {
           }
 
           tokenAccount = normalizeText(result.accountLabel);
-        } else {
-          const fallback = await fetchConnectorToken(cfg.connectorUrl, "monday");
-          token = fallback.accessToken;
-          tokenAccount = fallback.accountLabel;
+        }
+
+        if (!token) {
+          throw new Error(
+            tokenRelayFailureMessage ||
+              "Unable to obtain Monday connector token. Try Connect again."
+          );
         }
 
         connected = true;
         accessToken = token;
         accountLabel = tokenAccount;
         sessionConnectorUrl = cfg.connectorUrl;
-        await saveStoredAuthSession({
-          connectorUrl: cfg.connectorUrl,
-          accessToken: token,
-          accountLabel
-        });
+        if (!normalizeText(cfg.accessToken)) {
+          await saveStoredAuthSession({
+            connectorUrl: cfg.connectorUrl,
+            accessToken: token,
+            accountLabel
+          });
+        }
 
         errorMessage = "";
         hasFetched = false;
       } catch (error) {
         await clearConnectionState({ clearStored: true });
-        const message = normalizeErrorMessage(error);
+        let message = normalizeErrorMessage(error);
+        message = rewriteAuthorizationLoadError(message);
         if (isAuthCancelledMessage(message)) {
           errorMessage = "Monday connection was cancelled.";
         } else {
@@ -842,6 +890,13 @@ export const mondayAssignedWidget = {
     }
 
     async function disconnectAccount() {
+      const cfg = normalizedConfig(getConfig());
+      if (normalizeText(cfg.accessToken)) {
+        errorMessage = "Remove Access token in settings to disconnect.";
+        render();
+        return;
+      }
+
       loading = true;
       render();
       await clearConnectionState({ clearStored: true });
@@ -1122,7 +1177,7 @@ export const mondayAssignedWidget = {
         if (!loading && nextSignature !== lastSignature) {
           lastSignature = nextSignature;
 
-          if (cfg.connectorUrl !== sessionConnectorUrl || (cfg.connectorUrl && !connected)) {
+          if (cfg.connectorUrl !== sessionConnectorUrl || !hasActiveConnection(cfg)) {
             void syncStoredSessionForConfig(cfg).finally(() => {
               render();
               if (shouldRunAutoNow()) {
