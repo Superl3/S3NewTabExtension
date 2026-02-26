@@ -3308,6 +3308,93 @@ function createWidgetCard(instance) {
     card.classList.add("supports-headless-refresh");
   }
 
+  if (instance.type === "mondayAssigned") {
+    const makeActionButton = (className, titleText, iconId, action) => {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = className;
+      btn.title = titleText;
+      btn.innerHTML = `<svg class="icon"><use href="#${iconId}"></use></svg>`;
+      btn.addEventListener("click", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        action();
+      });
+      return btn;
+    };
+
+    const runRefresh = () => {
+      if (typeof controller?.manualRefresh === "function") {
+        controller.manualRefresh();
+      } else if (typeof controller?.refresh === "function") {
+        controller.refresh();
+      }
+    };
+
+    const runOpenMonday = () => {
+      if (typeof controller?.openMonday === "function") {
+        controller.openMonday();
+      }
+    };
+
+    if (
+      typeof controller?.manualRefresh === "function" ||
+      typeof controller?.refresh === "function"
+    ) {
+      const headRefresh = makeActionButton(
+        "icon-btn widget-refresh-btn",
+        "Refresh Monday issues",
+        "i-reset",
+        runRefresh
+      );
+      if (selectBtn?.parentElement === headActions) {
+        headActions.insertBefore(headRefresh, selectBtn);
+      } else {
+        headActions?.prepend(headRefresh);
+      }
+
+      const floatRefresh = makeActionButton(
+        "icon-btn widget-float-refresh",
+        "Refresh Monday issues",
+        "i-reset",
+        runRefresh
+      );
+      if (floatSelectBtn?.parentElement === inlineActions) {
+        inlineActions.insertBefore(floatRefresh, floatSelectBtn);
+      } else {
+        inlineActions?.prepend(floatRefresh);
+      }
+    }
+
+    if (typeof controller?.openMonday === "function") {
+      const headOpen = makeActionButton(
+        "icon-btn widget-open-btn",
+        "Open Monday",
+        "i-open",
+        runOpenMonday
+      );
+      if (selectBtn?.parentElement === headActions) {
+        headActions.insertBefore(headOpen, selectBtn);
+      } else {
+        headActions?.prepend(headOpen);
+      }
+
+      const floatOpen = makeActionButton(
+        "icon-btn widget-float-open",
+        "Open Monday",
+        "i-open",
+        runOpenMonday
+      );
+      if (floatSelectBtn?.parentElement === inlineActions) {
+        inlineActions.insertBefore(floatOpen, floatSelectBtn);
+      } else {
+        inlineActions?.prepend(floatOpen);
+      }
+    }
+
+    card.classList.add("supports-headless-refresh");
+  }
+
   card.addEventListener("click", (event) => {
     if (state.mode !== "edit") {
       return;

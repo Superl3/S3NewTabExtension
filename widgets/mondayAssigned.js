@@ -150,6 +150,14 @@ function formatTimeLabel(date) {
   });
 }
 
+function resolveMondayUrl(config) {
+  const boardId = normalizeBoardId(config?.boardId, 0);
+  if (boardId > 0) {
+    return `${MONDAY_WEB_URL}boards/${boardId}`;
+  }
+  return MONDAY_WEB_URL;
+}
+
 function createAuthState() {
   const bytes = new Uint8Array(16);
   crypto.getRandomValues(bytes);
@@ -990,39 +998,29 @@ export const mondayAssignedWidget = {
     const toolbar = document.createElement("div");
     toolbar.className = "monday-widget-toolbar";
 
+    const actions = document.createElement("div");
+    actions.className = "monday-widget-actions monday-widget-auth-actions";
+
     const status = document.createElement("p");
     status.className = "monday-widget-status";
-
-    const actions = document.createElement("div");
-    actions.className = "monday-widget-actions";
 
     const connectBtn = document.createElement("button");
     connectBtn.type = "button";
     connectBtn.className = "btn btn-primary";
     connectBtn.textContent = "Connect";
 
-    const refreshBtn = document.createElement("button");
-    refreshBtn.type = "button";
-    refreshBtn.className = "btn";
-    refreshBtn.textContent = "Refresh";
-
     const disconnectBtn = document.createElement("button");
     disconnectBtn.type = "button";
-    disconnectBtn.className = "btn";
+    disconnectBtn.className = "btn btn-danger";
     disconnectBtn.textContent = "Disconnect";
 
-    const openMondayBtn = document.createElement("a");
-    openMondayBtn.className = "btn";
-    openMondayBtn.textContent = "Open Monday";
-    openMondayBtn.rel = "noreferrer";
-
-    actions.append(connectBtn, refreshBtn, disconnectBtn, openMondayBtn);
-    toolbar.append(status, actions);
+    actions.append(connectBtn, disconnectBtn);
+    toolbar.append(actions);
 
     const list = document.createElement("ul");
     list.className = "monday-issue-list";
 
-    shell.append(toolbar, list);
+    shell.append(toolbar, list, status);
     container.append(shell);
 
     let loading = false;
@@ -1049,10 +1047,15 @@ export const mondayAssignedWidget = {
       }
     }
 
-    function applyOpenMondayButton() {
+    function openMondayPage() {
       const cfg = normalizedConfig(getConfig());
-      openMondayBtn.href = MONDAY_WEB_URL;
-      openMondayBtn.target = cfg.openInNewTab ? "_blank" : "_self";
+      const href = resolveMondayUrl(cfg);
+      const target = cfg.openInNewTab ? "_blank" : "_self";
+      if (target === "_blank") {
+        window.open(href, "_blank", "noopener,noreferrer");
+      } else {
+        window.location.href = href;
+      }
     }
 
     function hasActiveConnection(config) {
@@ -1318,13 +1321,13 @@ export const mondayAssignedWidget = {
       }
 
       status.textContent = text;
+      const showEditActions = Boolean(isEditMode?.());
+      toolbar.style.display = showEditActions ? "" : "none";
       connectBtn.disabled = loading || !hasConnectorConfig(cfg);
-      refreshBtn.disabled = loading || !hasBoardConfig(cfg) || !hasActiveConnection(cfg);
       disconnectBtn.disabled = loading || !connected;
     }
 
     function render() {
-      applyOpenMondayButton();
       renderStatus();
       renderList();
     }
@@ -1447,21 +1450,8 @@ export const mondayAssignedWidget = {
       void connectAccount();
     });
 
-    refreshBtn.addEventListener("click", () => {
-      void loadIssues({ reason: "manual" });
-    });
-
     disconnectBtn.addEventListener("click", () => {
       void disconnectAccount();
-    });
-
-    openMondayBtn.addEventListener("click", (event) => {
-      if (!isEditMode?.()) {
-        return;
-      }
-      event.preventDefault();
-      event.stopPropagation();
-      openSettings?.();
     });
 
     const initialCfg = normalizedConfig(getConfig());
@@ -1512,6 +1502,12 @@ export const mondayAssignedWidget = {
         }
 
         scheduleRefresh();
+      },
+      manualRefresh() {
+        void loadIssues({ reason: "manual" });
+      },
+      openMonday() {
+        openMondayPage();
       },
       destroy() {
         requestSerial += 1;
