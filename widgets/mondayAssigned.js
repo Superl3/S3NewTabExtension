@@ -562,10 +562,14 @@ async function fetchAssignedIssues(config, meId, peopleColumnId, accessToken) {
   const query = `
     query {
       items_page_by_column_values(
-        board_id: ${config.boardId}
-        column_id: ${JSON.stringify(peopleColumnId)}
-        column_values: [${JSON.stringify(personToken)}]
         limit: ${fetchLimit}
+        board_id: ${config.boardId}
+        columns: [
+          {
+            column_id: ${JSON.stringify(peopleColumnId)}
+            column_values: [${JSON.stringify(personToken)}]
+          }
+        ]
       ) {
         items {
           id
@@ -588,7 +592,7 @@ async function fetchAssignedIssues(config, meId, peopleColumnId, accessToken) {
     return mapAssignedIssues(rawItems, config.maxItems);
   } catch (error) {
     const message = normalizeErrorMessage(error);
-    if (!message.includes("items_page_by_column_values")) {
+    if (!message.includes("Cannot query field \"items_page_by_column_values\"")) {
       throw error;
     }
 
