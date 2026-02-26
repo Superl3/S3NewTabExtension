@@ -1267,6 +1267,15 @@ body.mode-edit .widget-float-remove:hover {
   background: color-mix(in srgb, var(--widget-effective-surface), transparent 12%);
 }
 
+.monday-group-heading {
+  margin: 2px 0 0;
+  padding: 2px 2px;
+  font-size: 0.82em;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: color-mix(in srgb, var(--widget-effective-accent), var(--text) 28%);
+}
+
 .monday-issue-item {
   border: 1px solid color-mix(in srgb, var(--line), transparent 24%);
   border-radius: 10px;

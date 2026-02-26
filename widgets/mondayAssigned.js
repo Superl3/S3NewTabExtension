@@ -480,6 +480,10 @@ async function fetchContext(config, accessToken) {
       boards(ids: ${config.boardId}) {
         id
         name
+        groups {
+          id
+          title
+        }
         columns {
           id
           title
@@ -505,27 +509,62 @@ async function fetchContext(config, accessToken) {
     const type = normalizeText(column?.type).toLowerCase();
     return type === "people" || type === "multiple-person" || type === "person";
   });
+  const boardGroups = Array.isArray(board?.groups)
+    ? board.groups
+        .map((group) => ({
+          id: normalizeText(group?.id),
+          title: normalizeText(group?.title)
+        }))
+        .filter((group) => group.id || group.title)
+    : [];
 
   return {
     meId,
     meName: normalizeText(data?.me?.name),
     boardName: normalizeText(board?.name, `Board ${config.boardId}`),
-    peopleColumns
+    peopleColumns,
+    boardGroups
   };
 }
 
-function resolvePeopleColumnId(config, peopleColumns) {
+function resolvePeopleColumnIds(config, peopleColumns) {
   const configured = normalizeColumnId(config.peopleColumnId);
   if (configured) {
-    return configured;
+    return [configured];
   }
 
-  const first = normalizeText(peopleColumns?.[0]?.id);
-  if (first) {
-    return first;
+  const normalizedColumns = Array.isArray(peopleColumns)
+    ? peopleColumns
+        .map((column) => ({
+          id: normalizeText(column?.id),
+          title: normalizeText(column?.title).toLowerCase()
+        }))
+        .filter((column) => column.id)
+    : [];
+
+  if (!normalizedColumns.length) {
+    throw new Error("No People column detected. Set People column ID in widget settings.");
   }
 
-  throw new Error("No People column detected. Set People column ID in widget settings.");
+  const preferred = normalizedColumns.filter((column) => {
+    return (
+      column.title.includes("owner") ||
+      column.title.includes("assignee") ||
+      column.title.includes("assigned")
+    );
+  });
+
+  const ordered = [...preferred, ...normalizedColumns];
+  const unique = [];
+  const seen = new Set();
+  for (const column of ordered) {
+    if (!column.id || seen.has(column.id)) {
+      continue;
+    }
+    seen.add(column.id);
+    unique.push(column.id);
+  }
+  return unique;
 }
 
 function mapAssignedIssues(rawItems, maxItems) {
@@ -545,6 +584,7 @@ function mapAssignedIssues(rawItems, maxItems) {
       id,
       title: normalizeText(entry?.name, "(Untitled issue)"),
       url: normalizeText(entry?.url, MONDAY_WEB_URL),
+      groupId: normalizeText(entry?.group?.id),
       groupTitle: normalizeText(entry?.group?.title),
       updatedLabel: formatDateLabel(updatedAt),
       updatedTs: Number.isFinite(updatedTs) ? updatedTs : 0
@@ -555,7 +595,7 @@ function mapAssignedIssues(rawItems, maxItems) {
   return mapped.slice(0, maxItems);
 }
 
-async function fetchAssignedIssues(config, meId, peopleColumnId, accessToken) {
+async function fetchAssignedFromColumn(config, meId, peopleColumnId, accessToken) {
   const personToken = `person-${meId}`;
   const fetchLimit = clamp(Math.max(config.maxItems, 50), 1, 500);
 
@@ -564,12 +604,7 @@ async function fetchAssignedIssues(config, meId, peopleColumnId, accessToken) {
       items_page_by_column_values(
         limit: ${fetchLimit}
         board_id: ${config.boardId}
-        columns: [
-          {
-            column_id: ${JSON.stringify(peopleColumnId)}
-            column_values: [${JSON.stringify(personToken)}]
-          }
-        ]
+        columns: [{ column_id: ${JSON.stringify(peopleColumnId)}, column_values: [${JSON.stringify(personToken)}] }]
       ) {
         items {
           id
@@ -577,6 +612,7 @@ async function fetchAssignedIssues(config, meId, peopleColumnId, accessToken) {
           url
           updated_at
           group {
+            id
             title
           }
         }
@@ -589,7 +625,7 @@ async function fetchAssignedIssues(config, meId, peopleColumnId, accessToken) {
     const rawItems = Array.isArray(data?.items_page_by_column_values?.items)
       ? data.items_page_by_column_values.items
       : [];
-    return mapAssignedIssues(rawItems, config.maxItems);
+    return rawItems;
   } catch (error) {
     const message = normalizeErrorMessage(error);
     if (!message.includes("Cannot query field \"items_page_by_column_values\"")) {
@@ -611,6 +647,7 @@ async function fetchAssignedIssues(config, meId, peopleColumnId, accessToken) {
           url
           updated_at
           group {
+            id
             title
           }
         }
@@ -621,8 +658,81 @@ async function fetchAssignedIssues(config, meId, peopleColumnId, accessToken) {
     const legacyItems = Array.isArray(legacyData?.items_by_column_values)
       ? legacyData.items_by_column_values
       : [];
-    return mapAssignedIssues(legacyItems, config.maxItems);
+    return legacyItems;
   }
+}
+
+async function fetchAssignedIssues(config, meId, peopleColumnIds, accessToken) {
+  const columnIds = Array.isArray(peopleColumnIds)
+    ? peopleColumnIds.map((value) => normalizeColumnId(value)).filter(Boolean)
+    : [];
+
+  if (!columnIds.length) {
+    return [];
+  }
+
+  const allItems = [];
+  for (const columnId of columnIds) {
+    const fromColumn = await fetchAssignedFromColumn(config, meId, columnId, accessToken);
+    if (Array.isArray(fromColumn) && fromColumn.length) {
+      allItems.push(...fromColumn);
+    }
+  }
+
+  return mapAssignedIssues(allItems, config.maxItems);
+}
+
+function groupIssuesByGroup(items, boardGroups) {
+  const bucketByKey = new Map();
+
+  for (const issue of items || []) {
+    const groupId = normalizeText(issue?.groupId);
+    const groupTitle = normalizeText(issue?.groupTitle, "Ungrouped");
+    const key = groupId || groupTitle;
+    let bucket = bucketByKey.get(key);
+    if (!bucket) {
+      bucket = {
+        key,
+        groupId,
+        title: groupTitle,
+        items: []
+      };
+      bucketByKey.set(key, bucket);
+    }
+    bucket.items.push(issue);
+  }
+
+  const result = [];
+  const used = new Set();
+  for (const group of boardGroups || []) {
+    const key = normalizeText(group?.id);
+    if (!key || used.has(key)) {
+      continue;
+    }
+    const bucket = bucketByKey.get(key);
+    if (!bucket) {
+      continue;
+    }
+    bucket.title = normalizeText(group?.title, bucket.title);
+    result.push(bucket);
+    used.add(key);
+  }
+
+  const remaining = [];
+  for (const bucket of bucketByKey.values()) {
+    if (used.has(bucket.key)) {
+      continue;
+    }
+    remaining.push(bucket);
+  }
+  remaining.sort((a, b) => a.title.localeCompare(b.title));
+  result.push(...remaining);
+
+  for (const bucket of result) {
+    bucket.items.sort((a, b) => b.updatedTs - a.updatedTs);
+  }
+
+  return result;
 }
 
 export const mondayAssignedWidget = {
@@ -755,6 +865,7 @@ export const mondayAssignedWidget = {
     let errorMessage = "";
     let boardName = "";
     let assigneeName = "";
+    let boardGroups = [];
     let connected = false;
     let accountLabel = "";
     let accessToken = "";
@@ -943,6 +1054,7 @@ export const mondayAssignedWidget = {
       errorMessage = "";
       boardName = "";
       assigneeName = "";
+      boardGroups = [];
       issues = [];
       hasFetched = false;
       nextAutoRunAt = null;
@@ -972,54 +1084,55 @@ export const mondayAssignedWidget = {
         } else if (!hasFetched) {
           empty.textContent = "Waiting for the next auto refresh or manual refresh.";
         } else {
-          empty.textContent = "No assigned issues in this board.";
+          empty.textContent = "No issues assigned to you in Owner/People columns.";
         }
         list.append(empty);
         return;
       }
 
-      for (const issue of issues) {
-        const row = document.createElement("li");
-        row.className = "monday-issue-item";
+      const grouped = groupIssuesByGroup(issues, boardGroups);
+      for (const bucket of grouped) {
+        const heading = document.createElement("li");
+        heading.className = "monday-group-heading";
+        heading.textContent = bucket.title || "Ungrouped";
+        list.append(heading);
 
-        const link = document.createElement("a");
-        link.className = "monday-issue-link";
-        link.href = issue.url || MONDAY_WEB_URL;
-        link.target = cfg.openInNewTab ? "_blank" : "_self";
-        link.rel = "noreferrer";
+        for (const issue of bucket.items) {
+          const row = document.createElement("li");
+          row.className = "monday-issue-item";
 
-        link.addEventListener("click", (event) => {
-          if (!isEditMode?.()) {
-            return;
-          }
-          event.preventDefault();
-          event.stopPropagation();
-          openSettings?.();
-        });
+          const link = document.createElement("a");
+          link.className = "monday-issue-link";
+          link.href = issue.url || MONDAY_WEB_URL;
+          link.target = cfg.openInNewTab ? "_blank" : "_self";
+          link.rel = "noreferrer";
 
-        const top = document.createElement("div");
-        top.className = "monday-issue-top";
+          link.addEventListener("click", (event) => {
+            if (!isEditMode?.()) {
+              return;
+            }
+            event.preventDefault();
+            event.stopPropagation();
+            openSettings?.();
+          });
 
-        const title = document.createElement("span");
-        title.className = "monday-issue-title";
-        title.textContent = issue.title;
+          const top = document.createElement("div");
+          top.className = "monday-issue-top";
 
-        const updated = document.createElement("span");
-        updated.className = "monday-issue-updated";
-        updated.textContent = issue.updatedLabel;
+          const title = document.createElement("span");
+          title.className = "monday-issue-title";
+          title.textContent = issue.title;
 
-        top.append(title, updated);
-        link.append(top);
+          const updated = document.createElement("span");
+          updated.className = "monday-issue-updated";
+          updated.textContent = issue.updatedLabel;
 
-        if (issue.groupTitle) {
-          const group = document.createElement("p");
-          group.className = "monday-issue-group";
-          group.textContent = issue.groupTitle;
-          link.append(group);
+          top.append(title, updated);
+          link.append(top);
+
+          row.append(link);
+          list.append(row);
         }
-
-        row.append(link);
-        list.append(row);
       }
     }
 
@@ -1043,7 +1156,7 @@ export const mondayAssignedWidget = {
       } else if (hasFetched) {
         text = `${boardName || `Board ${cfg.boardId}`} · ${assigneeName || "me"} · 0 assigned`;
       } else {
-        text = `${boardName || `Board ${cfg.boardId}`} ready`;
+        text = `${boardName || `Board ${cfg.boardId}`} connected · press Refresh`;
       }
 
       const nextAutoLabel = formatTimeLabel(nextAutoRunAt);
@@ -1140,8 +1253,8 @@ export const mondayAssignedWidget = {
         }
 
         const context = await fetchContext(cfg, accessToken);
-        const peopleColumnId = resolvePeopleColumnId(cfg, context.peopleColumns);
-        const assigned = await fetchAssignedIssues(cfg, context.meId, peopleColumnId, accessToken);
+        const peopleColumnIds = resolvePeopleColumnIds(cfg, context.peopleColumns);
+        const assigned = await fetchAssignedIssues(cfg, context.meId, peopleColumnIds, accessToken);
 
         if (requestId !== requestSerial) {
           return;
@@ -1149,6 +1262,7 @@ export const mondayAssignedWidget = {
 
         boardName = context.boardName;
         assigneeName = normalizeText(context.meName, "me");
+        boardGroups = Array.isArray(context.boardGroups) ? context.boardGroups : [];
         issues = assigned;
         hasFetched = true;
         lastSignature = configSignature(cfg);
@@ -1158,6 +1272,7 @@ export const mondayAssignedWidget = {
         }
 
         issues = [];
+        boardGroups = [];
         hasFetched = false;
         if (error?.code === "auth") {
           await clearConnectionState({ clearStored: true });
