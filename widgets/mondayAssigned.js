@@ -507,7 +507,15 @@ async function fetchContext(config, accessToken) {
   const allColumns = Array.isArray(board?.columns) ? board.columns : [];
   const peopleColumns = allColumns.filter((column) => {
     const type = normalizeText(column?.type).toLowerCase();
-    return type === "people" || type === "multiple-person" || type === "person";
+    const title = normalizeText(column?.title).toLowerCase();
+    return (
+      type === "people" ||
+      type === "multiple-person" ||
+      type === "person" ||
+      title.includes("owner") ||
+      title.includes("assignee") ||
+      title.includes("assigned")
+    );
   });
   const boardGroups = Array.isArray(board?.groups)
     ? board.groups
@@ -586,6 +594,7 @@ function mapAssignedIssues(rawItems, maxItems) {
       url: normalizeText(entry?.url, MONDAY_WEB_URL),
       groupId: normalizeText(entry?.group?.id),
       groupTitle: normalizeText(entry?.group?.title),
+      isSubitem: entry?.isSubitem === true,
       updatedLabel: formatDateLabel(updatedAt),
       updatedTs: Number.isFinite(updatedTs) ? updatedTs : 0
     });
@@ -595,25 +604,107 @@ function mapAssignedIssues(rawItems, maxItems) {
   return mapped.slice(0, maxItems);
 }
 
+function parsePeopleIdsFromValue(columnValue) {
+  const parsed = tryParseJson(normalizeText(columnValue?.value));
+  const people = Array.isArray(parsed?.personsAndTeams)
+    ? parsed.personsAndTeams
+    : Array.isArray(parsed?.persons_and_teams)
+      ? parsed.persons_and_teams
+      : [];
+
+  const ids = [];
+  for (const person of people) {
+    const id = normalizeText(person?.id);
+    if (id) {
+      ids.push(id);
+    }
+  }
+  return ids;
+}
+
+function isAssignedToMe(columnValues, meId) {
+  const target = normalizeText(meId);
+  if (!target) {
+    return false;
+  }
+
+  const values = Array.isArray(columnValues) ? columnValues : [];
+  for (const value of values) {
+    const ids = parsePeopleIdsFromValue(value);
+    if (ids.includes(target)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function mapAssignedSubitems(parentItems, meId) {
+  const out = [];
+  const parents = Array.isArray(parentItems) ? parentItems : [];
+  for (const parent of parents) {
+    const parentTitle = normalizeText(parent?.name, "(Untitled issue)");
+    const parentGroup = parent?.group;
+    const subitems = Array.isArray(parent?.subitems) ? parent.subitems : [];
+    for (const subitem of subitems) {
+      if (!isAssignedToMe(subitem?.column_values, meId)) {
+        continue;
+      }
+      out.push({
+        id: normalizeText(subitem?.id),
+        name: `${parentTitle} / ${normalizeText(subitem?.name, "(Untitled issue)")}`,
+        url: normalizeText(subitem?.url, parent?.url || MONDAY_WEB_URL),
+        updated_at: normalizeText(subitem?.updated_at, parent?.updated_at),
+        group: subitem?.group || parentGroup,
+        isSubitem: true
+      });
+    }
+  }
+  return out;
+}
+
 async function fetchAssignedFromColumn(config, meId, peopleColumnId, accessToken) {
-  const personToken = `person-${meId}`;
-  const fetchLimit = clamp(Math.max(config.maxItems, 50), 1, 500);
+  const fetchLimit = clamp(Math.max(config.maxItems * 4, 80), 1, 300);
 
   const query = `
     query {
-      items_page_by_column_values(
-        limit: ${fetchLimit}
-        board_id: ${config.boardId}
-        columns: [{ column_id: ${JSON.stringify(peopleColumnId)}, column_values: [${JSON.stringify(personToken)}] }]
-      ) {
-        items {
-          id
-          name
-          url
-          updated_at
-          group {
+      boards(ids: [${config.boardId}]) {
+        items_page(
+          query_params: {
+            limit: ${fetchLimit}
+            rules: [
+              {
+                column_id: ${JSON.stringify(peopleColumnId)}
+                operator: any_of
+                compare_value: ["assigned_to_me"]
+              }
+            ]
+            operator: and
+          }
+        ) {
+          items {
             id
-            title
+            name
+            url
+            updated_at
+            group {
+              id
+              title
+            }
+            subitems {
+              id
+              name
+              url
+              updated_at
+              group {
+                id
+                title
+              }
+              column_values(ids: [${JSON.stringify(peopleColumnId)}]) {
+                id
+                value
+                text
+              }
+            }
           }
         }
       }
@@ -622,13 +713,16 @@ async function fetchAssignedFromColumn(config, meId, peopleColumnId, accessToken
 
   try {
     const data = await mondayFetchGraphql(accessToken, query);
-    const rawItems = Array.isArray(data?.items_page_by_column_values?.items)
-      ? data.items_page_by_column_values.items
-      : [];
-    return rawItems;
+    const board = Array.isArray(data?.boards) ? data.boards[0] : null;
+    const parentItems = Array.isArray(board?.items_page?.items) ? board.items_page.items : [];
+    const assignedSubitems = mapAssignedSubitems(parentItems, meId);
+    return [...parentItems, ...assignedSubitems];
   } catch (error) {
     const message = normalizeErrorMessage(error);
-    if (!message.includes("Cannot query field \"items_page_by_column_values\"")) {
+    const noItemsPage =
+      message.includes("Cannot query field \"items_page\"") ||
+      message.includes("Unknown argument \"query_params\"");
+    if (!noItemsPage) {
       throw error;
     }
 
@@ -662,6 +756,57 @@ async function fetchAssignedFromColumn(config, meId, peopleColumnId, accessToken
   }
 }
 
+async function fetchAssignedSubitemsAcrossBoard(config, meId, peopleColumnIds, accessToken) {
+  const columnIds = Array.isArray(peopleColumnIds)
+    ? peopleColumnIds.map((value) => normalizeColumnId(value)).filter(Boolean)
+    : [];
+
+  if (!columnIds.length) {
+    return [];
+  }
+
+  const scanLimit = clamp(Math.max(config.maxItems * 20, 120), 50, 300);
+  const idsLiteral = columnIds.map((id) => JSON.stringify(id)).join(", ");
+  const query = `
+    query {
+      boards(ids: [${config.boardId}]) {
+        items_page(query_params: { limit: ${scanLimit} }) {
+          items {
+            id
+            name
+            url
+            updated_at
+            group {
+              id
+              title
+            }
+            subitems {
+              id
+              name
+              url
+              updated_at
+              group {
+                id
+                title
+              }
+              column_values(ids: [${idsLiteral}]) {
+                id
+                value
+                text
+              }
+            }
+          }
+        }
+      }
+    }
+  `;
+
+  const data = await mondayFetchGraphql(accessToken, query);
+  const board = Array.isArray(data?.boards) ? data.boards[0] : null;
+  const parentItems = Array.isArray(board?.items_page?.items) ? board.items_page.items : [];
+  return mapAssignedSubitems(parentItems, meId);
+}
+
 async function fetchAssignedIssues(config, meId, peopleColumnIds, accessToken) {
   const columnIds = Array.isArray(peopleColumnIds)
     ? peopleColumnIds.map((value) => normalizeColumnId(value)).filter(Boolean)
@@ -672,11 +817,30 @@ async function fetchAssignedIssues(config, meId, peopleColumnIds, accessToken) {
   }
 
   const allItems = [];
+  let firstColumnError = null;
   for (const columnId of columnIds) {
-    const fromColumn = await fetchAssignedFromColumn(config, meId, columnId, accessToken);
-    if (Array.isArray(fromColumn) && fromColumn.length) {
-      allItems.push(...fromColumn);
+    try {
+      const fromColumn = await fetchAssignedFromColumn(config, meId, columnId, accessToken);
+      if (Array.isArray(fromColumn) && fromColumn.length) {
+        allItems.push(...fromColumn);
+      }
+    } catch (error) {
+      if (!firstColumnError) {
+        firstColumnError = error;
+      }
     }
+  }
+
+  try {
+    const subitems = await fetchAssignedSubitemsAcrossBoard(config, meId, columnIds, accessToken);
+    if (Array.isArray(subitems) && subitems.length) {
+      allItems.push(...subitems);
+    }
+  } catch {
+  }
+
+  if (!allItems.length && firstColumnError) {
+    throw firstColumnError;
   }
 
   return mapAssignedIssues(allItems, config.maxItems);
@@ -1099,10 +1263,10 @@ export const mondayAssignedWidget = {
 
         for (const issue of bucket.items) {
           const row = document.createElement("li");
-          row.className = "monday-issue-item";
+          row.className = "monday-group-item";
 
           const link = document.createElement("a");
-          link.className = "monday-issue-link";
+          link.className = "monday-group-link";
           link.href = issue.url || MONDAY_WEB_URL;
           link.target = cfg.openInNewTab ? "_blank" : "_self";
           link.rel = "noreferrer";
@@ -1116,19 +1280,8 @@ export const mondayAssignedWidget = {
             openSettings?.();
           });
 
-          const top = document.createElement("div");
-          top.className = "monday-issue-top";
-
-          const title = document.createElement("span");
-          title.className = "monday-issue-title";
-          title.textContent = issue.title;
-
-          const updated = document.createElement("span");
-          updated.className = "monday-issue-updated";
-          updated.textContent = issue.updatedLabel;
-
-          top.append(title, updated);
-          link.append(top);
+          const prefix = issue.isSubitem ? "- [Sub] " : "- ";
+          link.textContent = `${prefix}${issue.title}`;
 
           row.append(link);
           list.append(row);

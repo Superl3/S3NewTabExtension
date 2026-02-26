@@ -1276,6 +1276,23 @@ body.mode-edit .widget-float-remove:hover {
   color: color-mix(in srgb, var(--widget-effective-accent), var(--text) 28%);
 }
 
+.monday-group-item {
+  margin: 0;
+  padding: 0 2px;
+}
+
+.monday-group-link {
+  display: inline-block;
+  text-decoration: none;
+  color: inherit;
+  padding: 2px 0;
+  font-size: 0.9em;
+}
+
+.monday-group-link:hover {
+  text-decoration: underline;
+}
+
 .monday-issue-item {
   border: 1px solid color-mix(in srgb, var(--line), transparent 24%);
   border-radius: 10px;
