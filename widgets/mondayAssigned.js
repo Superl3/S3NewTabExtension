@@ -612,6 +612,61 @@ function mapAssignedIssues(rawItems, maxItems) {
   return mapped.slice(0, maxItems);
 }
 
+function normalizeCachedIssue(entry) {
+  const id = normalizeText(entry?.id);
+  if (!id) {
+    return null;
+  }
+  const updatedTs = Number(entry?.updatedTs);
+  return {
+    id,
+    title: normalizeText(entry?.title, "(Untitled issue)"),
+    url: normalizeText(entry?.url, MONDAY_WEB_URL),
+    groupId: normalizeText(entry?.groupId),
+    groupTitle: normalizeText(entry?.groupTitle),
+    isSubitem: entry?.isSubitem === true,
+    updatedLabel: normalizeText(entry?.updatedLabel),
+    updatedTs: Number.isFinite(updatedTs) ? updatedTs : 0
+  };
+}
+
+function normalizeCachedGroup(entry) {
+  return {
+    id: normalizeText(entry?.id),
+    title: normalizeText(entry?.title)
+  };
+}
+
+function readCachedSnapshot(rawConfig, cfg) {
+  const cachedBoardId = normalizeBoardId(rawConfig?.cacheBoardId, 0);
+  if (!cachedBoardId || cachedBoardId !== cfg.boardId) {
+    return null;
+  }
+
+  const cachedIssues = Array.isArray(rawConfig?.cacheIssues)
+    ? rawConfig.cacheIssues.map(normalizeCachedIssue).filter(Boolean)
+    : [];
+  const cacheAt = Math.max(0, Number(rawConfig?.cacheAt) || 0);
+  if (!cachedIssues.length && !cacheAt) {
+    return null;
+  }
+
+  const cachedGroups = Array.isArray(rawConfig?.cacheGroups)
+    ? rawConfig.cacheGroups.map(normalizeCachedGroup).filter((group) => group.id || group.title)
+    : [];
+
+  return {
+    boardName: normalizeText(rawConfig?.cacheBoardName, `Board ${cfg.boardId}`),
+    assigneeName: normalizeText(rawConfig?.cacheAssigneeName, "me"),
+    issues: cachedIssues
+      .slice()
+      .sort((a, b) => b.updatedTs - a.updatedTs)
+      .slice(0, cfg.maxItems),
+    groups: cachedGroups,
+    cacheAt
+  };
+}
+
 function parsePeopleIdsFromValue(columnValue) {
   const parsed = tryParseJson(normalizeText(columnValue?.value));
   const people = Array.isArray(parsed?.personsAndTeams)
@@ -920,7 +975,13 @@ export const mondayAssignedWidget = {
     workEndHour: 18,
     openInNewTab: true,
     autoRefreshDayKey: "",
-    autoRefreshSlotsDone: ""
+    autoRefreshSlotsDone: "",
+    cacheBoardId: 0,
+    cacheAt: 0,
+    cacheBoardName: "",
+    cacheAssigneeName: "",
+    cacheGroups: [],
+    cacheIssues: []
   },
   defaultLayout: {
     x: 1080,
@@ -1037,6 +1098,46 @@ export const mondayAssignedWidget = {
       } else {
         window.location.href = href;
       }
+    }
+
+    function applyCachedSnapshotIfPresent(rawConfig, cfg) {
+      const cached = readCachedSnapshot(rawConfig, cfg);
+      if (!cached) {
+        return;
+      }
+
+      boardName = cached.boardName;
+      assigneeName = cached.assigneeName;
+      boardGroups = cached.groups;
+      issues = cached.issues;
+      hasFetched = true;
+    }
+
+    function persistSnapshot(cfg) {
+      const cacheIssues = issues.map((issue) => ({
+        id: normalizeText(issue?.id),
+        title: normalizeText(issue?.title),
+        url: normalizeText(issue?.url),
+        groupId: normalizeText(issue?.groupId),
+        groupTitle: normalizeText(issue?.groupTitle),
+        isSubitem: issue?.isSubitem === true,
+        updatedLabel: normalizeText(issue?.updatedLabel),
+        updatedTs: Number(issue?.updatedTs) || 0
+      }));
+
+      const cacheGroups = boardGroups.map((group) => ({
+        id: normalizeText(group?.id),
+        title: normalizeText(group?.title)
+      }));
+
+      patchConfig({
+        cacheBoardId: cfg.boardId,
+        cacheAt: Date.now(),
+        cacheBoardName: boardName,
+        cacheAssigneeName: assigneeName,
+        cacheGroups,
+        cacheIssues
+      });
     }
 
     function hasActiveConnection(config) {
@@ -1399,14 +1500,18 @@ export const mondayAssignedWidget = {
         issues = assigned;
         hasFetched = true;
         lastSignature = configSignature(cfg);
+        persistSnapshot(cfg);
       } catch (error) {
         if (requestId !== requestSerial) {
           return;
         }
 
-        issues = [];
-        boardGroups = [];
-        hasFetched = false;
+        if (!issues.length) {
+          boardGroups = [];
+          hasFetched = false;
+        } else {
+          hasFetched = true;
+        }
         if (error?.code === "auth") {
           await clearConnectionState({ clearStored: true });
           errorMessage = "Session expired. Connect Monday again.";
@@ -1432,7 +1537,9 @@ export const mondayAssignedWidget = {
       await connectAccount();
     }
 
-    const initialCfg = normalizedConfig(getConfig());
+    const initialRawCfg = getConfig();
+    const initialCfg = normalizedConfig(initialRawCfg);
+    applyCachedSnapshotIfPresent(initialRawCfg, initialCfg);
     lastSignature = configSignature(initialCfg);
     render();
     void syncStoredSessionForConfig(initialCfg).finally(() => {

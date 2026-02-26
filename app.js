@@ -16,6 +16,7 @@ const WIDGET_COMMON_MASTER_KEYS = [
   "contentAlignY",
   "contentFillParent",
   "contentPadding",
+  "contentFontScale",
   "widgetThemeMode",
   "useCustomColors",
   "customTextColor",
@@ -345,6 +346,7 @@ function defaultWidgetCommonMaster() {
     contentAlignY: "top",
     contentFillParent: false,
     contentPadding: 10,
+    contentFontScale: 1,
     widgetThemeMode: "inherit",
     useCustomColors: false,
     customTextColor: "#1F2226",
@@ -371,6 +373,14 @@ function normalizeContentPadding(value, fallback = 10) {
     return clamp(Math.round(fallback), 0, 48);
   }
   return clamp(Math.round(num), 0, 48);
+}
+
+function normalizeWidgetContentFontScale(value, fallback = 1) {
+  const num = Number(value);
+  if (!Number.isFinite(num)) {
+    return clamp(Number(fallback) || 1, 0.5, 2);
+  }
+  return clamp(num, 0.5, 2);
 }
 
 function normalizeEdgeRoundness(value, fallback = 12) {
@@ -571,6 +581,7 @@ function normalizeWidgetCommonMaster(value) {
     contentAlignY: normalizeAlign(base.contentAlignY, "top"),
     contentFillParent: Boolean(base.contentFillParent),
     contentPadding: normalizeContentPadding(base.contentPadding, 10),
+    contentFontScale: normalizeWidgetContentFontScale(base.contentFontScale, 1),
     widgetThemeMode: normalizeWidgetThemeMode(base.widgetThemeMode, "inherit"),
     useCustomColors: Boolean(base.useCustomColors),
     customTextColor: normalizeWidgetColor(base.customTextColor, "#1F2226"),
@@ -592,6 +603,9 @@ function instanceCommonValue(instance, key) {
   if (key === "contentPadding") {
     const padding = resolveWidgetPadding(instance);
     return normalizeContentPadding((padding.top + padding.right + padding.bottom + padding.left) / 4, padding.uniform);
+  }
+  if (key === "contentFontScale") {
+    return normalizeWidgetContentFontScale(instance.contentFontScale, 1);
   }
   if (key === "transparency") {
     return normalizeTransparency(instance.transparency, 0.94);
@@ -649,6 +663,11 @@ function setInstanceCommonValue(instance, key, value) {
     instance.contentPaddingLeft = padding;
     instance.contentPaddingTopRight = padding;
     instance.contentPaddingBottomLeft = padding;
+    return;
+  }
+
+  if (key === "contentFontScale") {
+    instance.contentFontScale = normalizeWidgetContentFontScale(value, 1);
     return;
   }
 
@@ -832,6 +851,7 @@ function defaultInstances() {
         contentPaddingLeft: defaultPadding,
         contentPaddingTopRight: defaultPadding,
         contentPaddingBottomLeft: defaultPadding,
+        contentFontScale: 1,
         widgetThemeMode: "inherit",
         useCustomColors: false,
         customTextColor: "#1F2226",
@@ -1169,6 +1189,7 @@ function hydrate(raw) {
       contentPaddingLeft: padding.left,
       contentPaddingTopRight: normalizeContentPadding((padding.top + padding.right) / 2, padding.uniform),
       contentPaddingBottomLeft: normalizeContentPadding((padding.bottom + padding.left) / 2, padding.uniform),
+      contentFontScale: normalizeWidgetContentFontScale(item.contentFontScale, 1),
       widgetThemeMode: normalizeWidgetThemeMode(item.widgetThemeMode, "inherit"),
       useCustomColors: Boolean(item.useCustomColors),
       customTextColor: normalizeWidgetColor(item.customTextColor, "#1F2226"),
@@ -1911,6 +1932,8 @@ function applyCardVisual(card, instance) {
   instance.contentPaddingTopRight = normalizeContentPadding((padding.top + padding.right) / 2, padding.uniform);
   instance.contentPaddingBottomLeft = normalizeContentPadding((padding.bottom + padding.left) / 2, padding.uniform);
   instance.contentPadding = normalizeContentPadding((padding.top + padding.right + padding.bottom + padding.left) / 4, padding.uniform);
+  instance.contentFontScale = normalizeWidgetContentFontScale(instance.contentFontScale, 1);
+  card.style.setProperty("--widget-content-font-scale", String(instance.contentFontScale));
   instance.edgeRoundness = edgeRoundness;
   const justify = align === "center" ? "center" : align === "bottom" ? "flex-end" : "flex-start";
   card.style.setProperty("--widget-content-justify", justify);
@@ -2397,6 +2420,7 @@ function releaseVideoObjectUrl() {
   if (!currentVideoObjectUrl) {
     return;
   }
+
   try {
     URL.revokeObjectURL(currentVideoObjectUrl);
   } catch {
@@ -4564,6 +4588,15 @@ function getWidgetModalCommonFields() {
       group: "base"
     },
     {
+      key: "contentFontScale",
+      label: "Content font scale",
+      type: "number",
+      min: 0.5,
+      max: 2,
+      step: 0.05,
+      group: "base"
+    },
+    {
       key: "widgetThemeMode",
       label: "Widget theme override",
       type: "select",
@@ -4645,6 +4678,7 @@ function getWidgetCommonMasterFields() {
     },
     { key: "contentFillParent", label: "Default fill content", type: "checkbox" },
     { key: "contentPadding", label: "Default content padding", type: "number", min: 0, max: 48, step: 1 },
+    { key: "contentFontScale", label: "Default content font scale", type: "number", min: 0.5, max: 2, step: 0.05 },
     {
       key: "widgetThemeMode",
       label: "Default widget theme override",
@@ -4680,6 +4714,7 @@ function applyCommonMasterToDraft(draft, instanceType, master) {
   draft.contentPaddingLeft = padding;
   draft.contentPaddingTopRight = padding;
   draft.contentPaddingBottomLeft = padding;
+  draft.contentFontScale = normalizeWidgetContentFontScale(master.contentFontScale, 1);
   draft.widgetThemeMode = normalizeWidgetThemeMode(master.widgetThemeMode, "inherit");
   draft.useCustomColors = Boolean(master.useCustomColors);
   draft.customTextColor = normalizeWidgetColor(master.customTextColor, "#1F2226");
@@ -4987,6 +5022,7 @@ function openWidgetModal(instanceId) {
     contentPaddingLeft: padding.left,
     contentPaddingTopRight: normalizeContentPadding((padding.top + padding.right) / 2, padding.uniform),
     contentPaddingBottomLeft: normalizeContentPadding((padding.bottom + padding.left) / 2, padding.uniform),
+    contentFontScale: normalizeWidgetContentFontScale(instance.contentFontScale, 1),
     widgetThemeMode: normalizeWidgetThemeMode(instance.widgetThemeMode, "inherit"),
     useCustomColors: Boolean(instance.useCustomColors),
     customTextColor: normalizeWidgetColor(instance.customTextColor, "#1F2226"),
@@ -5045,6 +5081,7 @@ function applyWidgetModal() {
   instance.contentPaddingTopRight = normalizeContentPadding((topPadding + rightPadding) / 2, uniformPadding);
   instance.contentPaddingBottomLeft = normalizeContentPadding((bottomPadding + leftPadding) / 2, uniformPadding);
   instance.contentPadding = normalizeContentPadding((topPadding + rightPadding + bottomPadding + leftPadding) / 4, uniformPadding);
+  instance.contentFontScale = normalizeWidgetContentFontScale(draft.contentFontScale, 1);
   instance.widgetThemeMode = normalizeWidgetThemeMode(draft.widgetThemeMode, "inherit");
   instance.useCustomColors = Boolean(draft.useCustomColors);
   instance.customTextColor = normalizeWidgetColor(draft.customTextColor, "#1F2226");
@@ -5137,6 +5174,7 @@ function addWidget(type, options = {}) {
     contentPaddingLeft: defaultPadding,
     contentPaddingTopRight: defaultPadding,
     contentPaddingBottomLeft: defaultPadding,
+    contentFontScale: 1,
     widgetThemeMode: "inherit",
     useCustomColors: false,
     customTextColor: "#1F2226",

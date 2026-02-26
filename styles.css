@@ -540,7 +540,7 @@ body.mode-edit .drag-handle {
   padding: var(--widget-content-padding, 10px);
   height: calc(100% - 40px);
   overflow: auto;
-  font-size: calc(15px * var(--content-font-scale));
+  font-size: calc(15px * var(--content-font-scale) * var(--widget-content-font-scale, 1));
 }
 
 .widget-content-host {
