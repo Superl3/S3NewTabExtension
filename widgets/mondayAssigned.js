@@ -556,33 +556,69 @@ function mapAssignedIssues(rawItems, maxItems) {
 }
 
 async function fetchAssignedIssues(config, meId, peopleColumnId, accessToken) {
-  const personFilter = JSON.stringify({
-    personsAndTeams: [{ id: meId, kind: "person" }]
-  });
+  const personToken = `person-${meId}`;
+  const fetchLimit = clamp(Math.max(config.maxItems, 50), 1, 500);
 
   const query = `
     query {
-      items_by_column_values(
+      items_page_by_column_values(
         board_id: ${config.boardId}
         column_id: ${JSON.stringify(peopleColumnId)}
-        column_value: ${JSON.stringify(personFilter)}
+        column_values: [${JSON.stringify(personToken)}]
+        limit: ${fetchLimit}
       ) {
-        id
-        name
-        url
-        updated_at
-        group {
-          title
+        items {
+          id
+          name
+          url
+          updated_at
+          group {
+            title
+          }
         }
       }
     }
   `;
 
-  const data = await mondayFetchGraphql(accessToken, query);
-  const rawItems = Array.isArray(data?.items_by_column_values)
-    ? data.items_by_column_values
-    : [];
-  return mapAssignedIssues(rawItems, config.maxItems);
+  try {
+    const data = await mondayFetchGraphql(accessToken, query);
+    const rawItems = Array.isArray(data?.items_page_by_column_values?.items)
+      ? data.items_page_by_column_values.items
+      : [];
+    return mapAssignedIssues(rawItems, config.maxItems);
+  } catch (error) {
+    const message = normalizeErrorMessage(error);
+    if (!message.includes("items_page_by_column_values")) {
+      throw error;
+    }
+
+    const legacyFilter = JSON.stringify({
+      personsAndTeams: [{ id: meId, kind: "person" }]
+    });
+    const legacyQuery = `
+      query {
+        items_by_column_values(
+          board_id: ${config.boardId}
+          column_id: ${JSON.stringify(peopleColumnId)}
+          column_value: ${JSON.stringify(legacyFilter)}
+        ) {
+          id
+          name
+          url
+          updated_at
+          group {
+            title
+          }
+        }
+      }
+    `;
+
+    const legacyData = await mondayFetchGraphql(accessToken, legacyQuery);
+    const legacyItems = Array.isArray(legacyData?.items_by_column_values)
+      ? legacyData.items_by_column_values
+      : [];
+    return mapAssignedIssues(legacyItems, config.maxItems);
+  }
 }
 
 export const mondayAssignedWidget = {
