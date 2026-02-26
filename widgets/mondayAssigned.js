@@ -12,6 +12,13 @@ function normalizeText(value, fallback = "") {
   return text || fallback;
 }
 
+const DONE_GROUP_TITLES = new Set(["done", "completed", "완료"]);
+
+function isDoneGroupTitle(value) {
+  const normalized = normalizeText(value).toLowerCase();
+  return normalized ? DONE_GROUP_TITLES.has(normalized) : false;
+}
+
 function normalizeBoardId(value, fallback = 0) {
   const num = Number(value);
   if (!Number.isFinite(num)) {
@@ -1372,6 +1379,9 @@ export const mondayAssignedWidget = {
 
       const grouped = groupIssuesByGroup(issues, boardGroups);
       for (const bucket of grouped) {
+        if (isDoneGroupTitle(bucket.title)) {
+          continue;
+        }
         const heading = document.createElement("li");
         heading.className = "monday-group-heading";
         heading.textContent = bucket.title || "Ungrouped";
