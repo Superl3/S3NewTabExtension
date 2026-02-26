@@ -21,6 +21,7 @@
   --text-shadow-soft: color-mix(in srgb, var(--text), transparent 72%);
   --font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
   --font-scale: 1;
+  --content-font-scale: 1;
   --bg-sharp-opacity: 1;
   --bg-blur-opacity: 0;
   --widget-backdrop-blur: 12px;
@@ -43,7 +44,7 @@ body {
   color: var(--text);
   background: var(--background);
   font-family: var(--font-family);
-  font-size: calc(15px * var(--font-scale));
+  font-size: 15px;
 }
 
 .icon-sprite {
@@ -539,6 +540,7 @@ body.mode-edit .drag-handle {
   padding: var(--widget-content-padding, 10px);
   height: calc(100% - 40px);
   overflow: auto;
+  font-size: calc(15px * var(--content-font-scale));
 }
 
 .widget-content-host {
@@ -653,15 +655,25 @@ body:not(.mode-edit) .widget-card.headless .widget-inline-actions .widget-float-
   display: none;
 }
 
+body:not(.mode-edit) .widget-card.headless .widget-inline-actions .widget-float-auth-toggle {
+  display: none;
+}
+
 body:not(.mode-edit) .widget-head .widget-remove-btn,
 body:not(.mode-edit) .widget-head .widget-select-btn {
+  display: none;
+}
+
+body:not(.mode-edit) .widget-head .widget-auth-toggle-btn {
   display: none;
 }
 
 .widget-refresh-btn,
 .widget-float-refresh,
 .widget-open-btn,
-.widget-float-open {
+.widget-float-open,
+.widget-auth-toggle-btn,
+.widget-float-auth-toggle {
   border-color: color-mix(in srgb, var(--widget-effective-accent), var(--tone-dark) 22%);
   color: var(--widget-effective-accent);
 }
@@ -674,6 +686,17 @@ body:not(.mode-edit) .widget-head .widget-select-btn {
 .widget-open-btn .icon,
 .widget-float-open .icon {
   stroke-width: 1.9;
+}
+
+.widget-auth-toggle-btn .icon,
+.widget-float-auth-toggle .icon {
+  stroke-width: 1.95;
+}
+
+.widget-auth-toggle-btn.is-disconnect,
+.widget-float-auth-toggle.is-disconnect {
+  border-color: color-mix(in srgb, var(--warn), var(--tone-dark) 20%);
+  color: var(--warn);
 }
 
 .widget-resize-handle {
@@ -1214,24 +1237,17 @@ body.mode-edit .widget-float-remove:hover {
   min-height: 100%;
   display: flex;
   flex-direction: column;
-  gap: 8px;
-}
-
-.monday-widget-toolbar {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 8px;
+  gap: 6px;
 }
 
 .monday-widget-status {
-  margin: 4px 0 0;
+  margin: 0;
   width: 100%;
   color: var(--muted);
   font-size: 0.84em;
   text-align: right;
-  align-self: flex-end;
+  flex: 0 0 auto;
+  padding-top: 2px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1239,23 +1255,6 @@ body.mode-edit .widget-float-remove:hover {
 
 .monday-widget-status.is-error {
   color: color-mix(in srgb, var(--warn), var(--text) 18%);
-}
-
-.monday-widget-actions {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: 6px;
-}
-
-body:not(.mode-edit) .monday-widget-auth-actions {
-  display: none;
-}
-
-.monday-widget-actions .btn {
-  padding: 5px 8px;
-  font-size: 0.84em;
-  text-decoration: none;
 }
 
 .monday-issue-list {

@@ -995,32 +995,13 @@ export const mondayAssignedWidget = {
     const shell = document.createElement("div");
     shell.className = "monday-widget-shell";
 
-    const toolbar = document.createElement("div");
-    toolbar.className = "monday-widget-toolbar";
-
-    const actions = document.createElement("div");
-    actions.className = "monday-widget-actions monday-widget-auth-actions";
-
     const status = document.createElement("p");
     status.className = "monday-widget-status";
-
-    const connectBtn = document.createElement("button");
-    connectBtn.type = "button";
-    connectBtn.className = "btn btn-primary";
-    connectBtn.textContent = "Connect";
-
-    const disconnectBtn = document.createElement("button");
-    disconnectBtn.type = "button";
-    disconnectBtn.className = "btn btn-danger";
-    disconnectBtn.textContent = "Disconnect";
-
-    actions.append(connectBtn, disconnectBtn);
-    toolbar.append(actions);
 
     const list = document.createElement("ul");
     list.className = "monday-issue-list";
 
-    shell.append(toolbar, list, status);
+    shell.append(list, status);
     container.append(shell);
 
     let loading = false;
@@ -1321,10 +1302,6 @@ export const mondayAssignedWidget = {
       }
 
       status.textContent = text;
-      const showEditActions = Boolean(isEditMode?.());
-      toolbar.style.display = showEditActions ? "" : "none";
-      connectBtn.disabled = loading || !hasConnectorConfig(cfg);
-      disconnectBtn.disabled = loading || !connected;
     }
 
     function render() {
@@ -1446,13 +1423,14 @@ export const mondayAssignedWidget = {
       }
     }
 
-    connectBtn.addEventListener("click", () => {
-      void connectAccount();
-    });
-
-    disconnectBtn.addEventListener("click", () => {
-      void disconnectAccount();
-    });
+    async function toggleConnection() {
+      const cfg = normalizedConfig(getConfig());
+      if (hasActiveConnection(cfg)) {
+        await disconnectAccount();
+        return;
+      }
+      await connectAccount();
+    }
 
     const initialCfg = normalizedConfig(getConfig());
     lastSignature = configSignature(initialCfg);
@@ -1504,10 +1482,16 @@ export const mondayAssignedWidget = {
         scheduleRefresh();
       },
       manualRefresh() {
-        void loadIssues({ reason: "manual" });
+        return loadIssues({ reason: "manual" });
       },
       openMonday() {
         openMondayPage();
+      },
+      toggleConnection() {
+        return toggleConnection();
+      },
+      isConnected() {
+        return hasActiveConnection(normalizedConfig(getConfig()));
       },
       destroy() {
         requestSerial += 1;

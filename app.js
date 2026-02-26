@@ -1246,7 +1246,7 @@ function hydrate(raw) {
   theme.surface = normalizeHexColor(theme.surface, defaultTheme().surface);
   theme.text = normalizeHexColor(theme.text, defaultTheme().text);
   theme.line = normalizeHexColor(theme.line, defaultTheme().line);
-  theme.fontScale = clamp(Number(theme.fontScale) || 1, 0.8, 1.4);
+  theme.fontScale = clamp(Number(theme.fontScale) || 1, 0.5, 2);
 
   background.solidColor = normalizeHexColor(background.solidColor, defaultBackground().solidColor);
   background.wallpaperProvider = normalizeWallpaperProvider(background.wallpaperProvider, "picsum");
@@ -1988,7 +1988,8 @@ function applyTheme() {
   root.style.setProperty("--text", theme.text);
   root.style.setProperty("--line", theme.line);
   root.style.setProperty("--font-family", theme.fontFamily || defaultTheme().fontFamily);
-  root.style.setProperty("--font-scale", String(clamp(Number(theme.fontScale) || 1, 0.8, 1.4)));
+  root.style.setProperty("--font-scale", "1");
+  root.style.setProperty("--content-font-scale", String(clamp(Number(theme.fontScale) || 1, 0.5, 2)));
   root.style.setProperty("--widget-backdrop-blur", home?.widgetBackdropBlur === false ? "0px" : "12px");
 }
 
@@ -3009,7 +3010,7 @@ function patchTheme(patch) {
     ...state.ui.theme,
     ...patch
   };
-  state.ui.theme.fontScale = clamp(Number(state.ui.theme.fontScale) || 1, 0.8, 1.4);
+  state.ui.theme.fontScale = clamp(Number(state.ui.theme.fontScale) || 1, 0.5, 2);
 
   applyTheme();
   applyBackground();
@@ -3309,7 +3310,7 @@ function createWidgetCard(instance) {
   }
 
   if (instance.type === "mondayAssigned") {
-    const makeActionButton = (className, titleText, iconId, action) => {
+    const makeActionButton = (className, titleText, iconId, action, onAfter = null) => {
       const btn = document.createElement("button");
       btn.type = "button";
       btn.className = className;
@@ -3318,22 +3319,59 @@ function createWidgetCard(instance) {
       btn.addEventListener("click", (event) => {
         event.preventDefault();
         event.stopPropagation();
-        action();
+        Promise.resolve(action?.()).finally(() => {
+          onAfter?.();
+        });
       });
       return btn;
     };
 
+    const placeHeadAction = (btn) => {
+      if (selectBtn?.parentElement === headActions) {
+        headActions.insertBefore(btn, selectBtn);
+      } else {
+        headActions?.prepend(btn);
+      }
+    };
+
+    const placeFloatAction = (btn) => {
+      if (floatSelectBtn?.parentElement === inlineActions) {
+        inlineActions.insertBefore(btn, floatSelectBtn);
+      } else {
+        inlineActions?.prepend(btn);
+      }
+    };
+
     const runRefresh = () => {
       if (typeof controller?.manualRefresh === "function") {
-        controller.manualRefresh();
+        return controller.manualRefresh();
       } else if (typeof controller?.refresh === "function") {
-        controller.refresh();
+        return controller.refresh();
       }
+      return null;
     };
 
     const runOpenMonday = () => {
       if (typeof controller?.openMonday === "function") {
-        controller.openMonday();
+        return controller.openMonday();
+      }
+      return null;
+    };
+
+    const runToggleAuth = () => {
+      if (typeof controller?.toggleConnection === "function") {
+        return controller.toggleConnection();
+      }
+      return null;
+    };
+
+    const authButtons = [];
+    const syncAuthButtonState = () => {
+      const connected =
+        typeof controller?.isConnected === "function" ? Boolean(controller.isConnected()) : false;
+      for (const btn of authButtons) {
+        btn.classList.toggle("is-disconnect", connected);
+        btn.title = connected ? "Disconnect Monday" : "Connect Monday";
       }
     };
 
@@ -3345,25 +3383,19 @@ function createWidgetCard(instance) {
         "icon-btn widget-refresh-btn",
         "Refresh Monday issues",
         "i-reset",
-        runRefresh
+        runRefresh,
+        syncAuthButtonState
       );
-      if (selectBtn?.parentElement === headActions) {
-        headActions.insertBefore(headRefresh, selectBtn);
-      } else {
-        headActions?.prepend(headRefresh);
-      }
+      placeHeadAction(headRefresh);
 
       const floatRefresh = makeActionButton(
         "icon-btn widget-float-refresh",
         "Refresh Monday issues",
         "i-reset",
-        runRefresh
+        runRefresh,
+        syncAuthButtonState
       );
-      if (floatSelectBtn?.parentElement === inlineActions) {
-        inlineActions.insertBefore(floatRefresh, floatSelectBtn);
-      } else {
-        inlineActions?.prepend(floatRefresh);
-      }
+      placeFloatAction(floatRefresh);
     }
 
     if (typeof controller?.openMonday === "function") {
@@ -3373,11 +3405,7 @@ function createWidgetCard(instance) {
         "i-open",
         runOpenMonday
       );
-      if (selectBtn?.parentElement === headActions) {
-        headActions.insertBefore(headOpen, selectBtn);
-      } else {
-        headActions?.prepend(headOpen);
-      }
+      placeHeadAction(headOpen);
 
       const floatOpen = makeActionButton(
         "icon-btn widget-float-open",
@@ -3385,11 +3413,28 @@ function createWidgetCard(instance) {
         "i-open",
         runOpenMonday
       );
-      if (floatSelectBtn?.parentElement === inlineActions) {
-        inlineActions.insertBefore(floatOpen, floatSelectBtn);
-      } else {
-        inlineActions?.prepend(floatOpen);
-      }
+      placeFloatAction(floatOpen);
+    }
+
+    if (typeof controller?.toggleConnection === "function") {
+      const headAuth = makeActionButton(
+        "icon-btn widget-auth-toggle-btn",
+        "Connect Monday",
+        "i-plug",
+        runToggleAuth,
+        syncAuthButtonState
+      );
+      const floatAuth = makeActionButton(
+        "icon-btn widget-float-auth-toggle",
+        "Connect Monday",
+        "i-plug",
+        runToggleAuth,
+        syncAuthButtonState
+      );
+      authButtons.push(headAuth, floatAuth);
+      placeHeadAction(headAuth);
+      placeFloatAction(floatAuth);
+      syncAuthButtonState();
     }
 
     card.classList.add("supports-headless-refresh");
@@ -4004,7 +4049,7 @@ function renderGlobalSettings() {
     { key: "text", label: "Text", type: "color" },
     { key: "line", label: "Line", type: "color" },
     { key: "fontFamily", label: "Font family", type: "select", options: FONT_OPTIONS },
-    { key: "fontScale", label: "Font scale", type: "number", min: 0.8, max: 1.4, step: 0.05 }
+    { key: "fontScale", label: "Content font scale", type: "number", min: 0.5, max: 2, step: 0.05 }
   ];
 
   for (const schema of themeFields) {
