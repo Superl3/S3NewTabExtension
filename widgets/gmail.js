@@ -115,6 +115,45 @@ function parseAuthFlowResult(callbackUrl) {
   };
 }
 
+function tryParseJson(value) {
+  try {
+    return value ? JSON.parse(value) : {};
+  } catch {
+    return {};
+  }
+}
+
+async function fetchConnectorToken(connectorUrl, provider) {
+  const url = new URL(connectorUrl);
+  url.searchParams.set("mode", "token");
+  url.searchParams.set("provider", provider);
+  const response = await fetch(url.toString());
+  const text = normalizeText(await response.text());
+  const payload = tryParseJson(text);
+  if (!response.ok) {
+    const message =
+      normalizeText(payload?.message) ||
+      normalizeText(payload?.error) ||
+      normalizeText(payload?.error_description) ||
+      `Token relay failed (HTTP ${response.status})`;
+    throw new Error(message);
+  }
+  const token =
+    normalizeText(payload?.access_token) ||
+    normalizeText(payload?.accessToken) ||
+    normalizeText(payload?.token) ||
+    normalizeText(payload?.id_token);
+  if (!token) {
+    throw new Error("Token relay response missing access_token.");
+  }
+  const accountLabel =
+    normalizeText(payload?.account) ||
+    normalizeText(payload?.email) ||
+    normalizeText(payload?.user) ||
+    normalizeText(payload?.name);
+  return { accessToken: token, accountLabel };
+}
+
 function normalizeStoredAuthSession(raw) {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
     return null;
@@ -456,34 +495,40 @@ export const gmailWidget = {
       render();
 
       try {
-        if (!chrome.identity?.launchWebAuthFlow || !chrome.identity?.getRedirectURL) {
-          throw new Error("chrome.identity.launchWebAuthFlow is not available.");
-        }
+        let token = "";
+        let tokenAccount = "";
+        if (chrome.identity?.launchWebAuthFlow && chrome.identity?.getRedirectURL) {
+          const state = createAuthState();
+          const redirectUri = chrome.identity.getRedirectURL("gmail-auth");
+          const startUrl = buildAuthConnectorStartUrl(cfg.connectorUrl, redirectUri, state, "google-gmail");
+          const callbackUrl = await chrome.identity.launchWebAuthFlow({
+            url: startUrl,
+            interactive: true
+          });
 
-        const state = createAuthState();
-        const redirectUri = chrome.identity.getRedirectURL("gmail-auth");
-        const startUrl = buildAuthConnectorStartUrl(cfg.connectorUrl, redirectUri, state, "google-gmail");
-        const callbackUrl = await chrome.identity.launchWebAuthFlow({
-          url: startUrl,
-          interactive: true
-        });
+          const result = parseAuthFlowResult(callbackUrl);
+          if (result.error || result.errorDescription) {
+            throw new Error(result.errorDescription || result.error || "Gmail connection failed.");
+          }
+          if (result.state && result.state !== state) {
+            throw new Error("Gmail connection failed (invalid state).");
+          }
 
-        const result = parseAuthFlowResult(callbackUrl);
-        if (result.error || result.errorDescription) {
-          throw new Error(result.errorDescription || result.error || "Gmail connection failed.");
-        }
-        if (result.state && result.state !== state) {
-          throw new Error("Gmail connection failed (invalid state).");
-        }
+          token = normalizeText(result.accessToken);
+          if (!token) {
+            throw new Error("Auth connector did not return access_token.");
+          }
 
-        const token = normalizeText(result.accessToken);
-        if (!token) {
-          throw new Error("Auth connector did not return access_token.");
+          tokenAccount = normalizeText(result.accountLabel);
+        } else {
+          const fallback = await fetchConnectorToken(cfg.connectorUrl, "google-gmail");
+          token = fallback.accessToken;
+          tokenAccount = fallback.accountLabel;
         }
 
         connected = true;
         accessToken = token;
-        accountLabel = normalizeText(result.accountLabel);
+        accountLabel = tokenAccount;
         sessionConnectorUrl = cfg.connectorUrl;
         await saveStoredAuthSession({
           connectorUrl: cfg.connectorUrl,

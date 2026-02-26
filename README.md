@@ -93,6 +93,8 @@ Gmail 위젯과 Calendar 위젯은 Auth connector 기반 OAuth로 동작합니�
 
 Quick tokens immediately relay the env value as `access_token`; supplying OAuth client IDs/secrets lets the connector perform the full OAuth flows for Monday and Google. Because the widgets default to `http://localhost:8787/api/auth/start`, you no longer need to manually enter connector URLs unless you run the backend elsewhere.
 
+If Edge reports `chrome.identity.launchWebAuthFlow is not available`, set the appropriate `*_ACCESS_TOKEN` (and optional `*_ACCOUNT_LABEL`) in `connector/.env`; the connector will use the token relay fallback automatically.
+
 ## 설치 방법 (개발자 모드)
 
 1. 저장소를 클론하거나 소스 폴더를 준비합니다.

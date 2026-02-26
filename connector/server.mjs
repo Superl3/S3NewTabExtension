@@ -248,9 +248,31 @@ function buildAuthUrl(provider, oauth, callbackUrl, callbackState) {
 function handleStart(res, parsedUrl) {
   cleanupPendingStates();
   const params = parsedUrl.searchParams;
+  const mode = params.get("mode");
+  const provider = params.get("provider");
+
+  if (mode === "token") {
+    if (!provider) {
+      return sendText(res, "Missing provider", 400);
+    }
+    const relay = TOKEN_RELAYS[provider];
+    if (!relay) {
+      return sendText(res, "Token relay not configured for this provider", 400);
+    }
+    const token = normalizeText(env[relay.tokenEnv]);
+    if (!token) {
+      return sendText(res, `Missing ${relay.tokenEnv} for token relay`, 400);
+    }
+    const payload = { access_token: token };
+    const account = normalizeText(env[relay.accountEnv]);
+    if (account) {
+      payload.account = account;
+    }
+    return sendJson(res, payload);
+  }
+
   const redirectUri = params.get("redirect_uri");
   const extState = params.get("state");
-  const provider = params.get("provider");
 
   if (!redirectUri || !extState || !provider) {
     return sendText(res, "Missing redirect_uri, state or provider", 400);
