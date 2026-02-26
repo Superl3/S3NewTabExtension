@@ -1130,6 +1130,37 @@ export const mondayAssignedWidget = {
         title: normalizeText(group?.title)
       }));
 
+      const currentCfg = getConfig();
+      const currentCacheIssues = Array.isArray(currentCfg?.cacheIssues)
+        ? currentCfg.cacheIssues.map((issue) => ({
+            id: normalizeText(issue?.id),
+            title: normalizeText(issue?.title),
+            url: normalizeText(issue?.url),
+            groupId: normalizeText(issue?.groupId),
+            groupTitle: normalizeText(issue?.groupTitle),
+            isSubitem: issue?.isSubitem === true,
+            updatedLabel: normalizeText(issue?.updatedLabel),
+            updatedTs: Number(issue?.updatedTs) || 0
+          }))
+        : [];
+      const currentCacheGroups = Array.isArray(currentCfg?.cacheGroups)
+        ? currentCfg.cacheGroups.map((group) => ({
+            id: normalizeText(group?.id),
+            title: normalizeText(group?.title)
+          }))
+        : [];
+
+      const unchanged =
+        normalizeBoardId(currentCfg?.cacheBoardId, 0) === cfg.boardId &&
+        normalizeText(currentCfg?.cacheBoardName) === normalizeText(boardName) &&
+        normalizeText(currentCfg?.cacheAssigneeName) === normalizeText(assigneeName) &&
+        JSON.stringify(currentCacheGroups) === JSON.stringify(cacheGroups) &&
+        JSON.stringify(currentCacheIssues) === JSON.stringify(cacheIssues);
+
+      if (unchanged) {
+        return;
+      }
+
       patchConfig({
         cacheBoardId: cfg.boardId,
         cacheAt: Date.now(),

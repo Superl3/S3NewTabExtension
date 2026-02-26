@@ -121,6 +121,8 @@ const modalState = {
 
 let state = null;
 let saveTimer = null;
+let lastSavedFingerprint = "";
+let saveInFlightFingerprint = "";
 let wallpaperTimer = null;
 let wallpaperCounter = 0;
 let lastDragEndAt = 0;
@@ -1321,16 +1323,41 @@ function hydrate(raw) {
 }
 
 function queueSave() {
+  if (!state) {
+    return;
+  }
+
   if (saveTimer) {
     clearTimeout(saveTimer);
   }
+
   saveTimer = setTimeout(() => {
     saveTimer = null;
-    void saveState(state);
+    const snapshot = buildPersistSnapshot();
+    const fingerprint = snapshotFingerprint(snapshot);
+    if (!fingerprint) {
+      return;
+    }
+    if (fingerprint === lastSavedFingerprint || fingerprint === saveInFlightFingerprint) {
+      return;
+    }
+
+    saveInFlightFingerprint = fingerprint;
+    void saveState(snapshot)
+      .then(() => {
+        lastSavedFingerprint = fingerprint;
+      })
+      .catch(() => {
+      })
+      .finally(() => {
+        if (saveInFlightFingerprint === fingerprint) {
+          saveInFlightFingerprint = "";
+        }
+      });
   }, 150);
 }
 
-function buildHistorySnapshot() {
+function buildPersistSnapshot() {
   return structuredClone({
     mode: state.mode,
     selectedWidgetId: state.selectedWidgetId,
@@ -1339,6 +1366,10 @@ function buildHistorySnapshot() {
     presets: state.presets,
     instances: state.instances
   });
+}
+
+function buildHistorySnapshot() {
+  return buildPersistSnapshot();
 }
 
 function snapshotFingerprint(snapshot) {
@@ -5621,6 +5652,8 @@ async function init() {
   populateTypeSelect();
   syncAddWidgetSizeInputs();
   const loaded = await loadState(defaultState());
+  lastSavedFingerprint = snapshotFingerprint(loaded);
+  saveInFlightFingerprint = "";
   state = hydrate(loaded);
   if (state.ui.home.legacyHeadlessSurfaceMigrated && loaded?.ui?.home?.legacyHeadlessSurfaceMigrated !== true) {
     queueSave();
