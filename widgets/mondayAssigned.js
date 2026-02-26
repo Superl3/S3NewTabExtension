@@ -669,8 +669,8 @@ async function fetchAssignedFromColumn(config, meId, peopleColumnId, accessToken
     query {
       boards(ids: [${config.boardId}]) {
         items_page(
+          limit: ${fetchLimit}
           query_params: {
-            limit: ${fetchLimit}
             rules: [
               {
                 column_id: ${JSON.stringify(peopleColumnId)}
@@ -770,7 +770,7 @@ async function fetchAssignedSubitemsAcrossBoard(config, meId, peopleColumnIds, a
   const query = `
     query {
       boards(ids: [${config.boardId}]) {
-        items_page(query_params: { limit: ${scanLimit} }) {
+        items_page(limit: ${scanLimit}) {
           items {
             id
             name
