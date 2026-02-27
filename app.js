@@ -5,6 +5,7 @@ const SNAP = 20;
 const GRID_MAX_ROW_SPAN = 24;
 const GRID_MAX_COLUMNS = 16;
 const GRID_MAX_ROWS = 16;
+const MAX_LAUNCHER_PAGES = 12;
 const WIDGET_COMMON_MASTER_KEYS = [
   "viewMode",
   "surfaceMode",
@@ -102,7 +103,8 @@ const elements = {
   shortcutIconEditorCancelBtn: document.getElementById("shortcutIconEditorCancelBtn"),
   shortcutIconEditorApplyBtn: document.getElementById("shortcutIconEditorApplyBtn"),
   editDock: document.querySelector(".edit-dock"),
-  editDockGrip: document.getElementById("editDockGrip")
+  editDockGrip: document.getElementById("editDockGrip"),
+  pageIndicator: document.getElementById("pageIndicator")
 };
 
 const runtime = new Map();
@@ -143,6 +145,15 @@ const dockDragState = {
   startY: 0,
   startLeft: 0,
   startTop: 0
+};
+const boardSwipeState = {
+  active: false,
+  pointerId: null,
+  startX: 0,
+  startY: 0,
+  startAt: 0,
+  dragOffsetX: 0,
+  dragging: false
 };
 const shortcutIconEditorState = {
   open: false,
@@ -331,6 +342,8 @@ function defaultHomeLayout() {
     marginHorizontal: "medium",
     marginVertical: "medium",
     itemGap: "narrow",
+    pageCount: 1,
+    activePage: 0,
     widgetBackdropBlur: true,
     legacyHeadlessSurfaceMigrated: false
   };
@@ -783,6 +796,32 @@ function normalizeGapPreset(value, fallback = "narrow") {
   return fallback;
 }
 
+function normalizePageCount(value, fallback = 1) {
+  const num = Number(value);
+  if (!Number.isFinite(num)) {
+    return clamp(Math.floor(fallback), 1, MAX_LAUNCHER_PAGES);
+  }
+  return clamp(Math.floor(num), 1, MAX_LAUNCHER_PAGES);
+}
+
+function normalizeActivePage(value, pageCount = 1, fallback = 0) {
+  const maxPage = Math.max(0, normalizePageCount(pageCount, 1) - 1);
+  const num = Number(value);
+  if (!Number.isFinite(num)) {
+    return clamp(Math.floor(fallback), 0, maxPage);
+  }
+  return clamp(Math.floor(num), 0, maxPage);
+}
+
+function normalizeWidgetPage(value, pageCount = MAX_LAUNCHER_PAGES, fallback = 0) {
+  const num = Number(value);
+  const maxPage = Math.max(0, normalizePageCount(pageCount, 1) - 1);
+  if (!Number.isFinite(num)) {
+    return clamp(Math.floor(fallback), 0, maxPage);
+  }
+  return clamp(Math.floor(num), 0, maxPage);
+}
+
 function marginPresetToPx(value) {
   if (value === "wide") {
     return 40;
@@ -811,6 +850,7 @@ function normalizeHomeLayout(layout) {
     ...defaultHomeLayout(),
     ...(layout || {})
   };
+  const pageCount = normalizePageCount(base.pageCount, 1);
 
   return {
     mode: normalizeHomeMode(base.mode, "grid"),
@@ -819,6 +859,8 @@ function normalizeHomeLayout(layout) {
     marginHorizontal: normalizeMarginPreset(base.marginHorizontal, "medium"),
     marginVertical: normalizeMarginPreset(base.marginVertical, "medium"),
     itemGap: normalizeGapPreset(base.itemGap, "narrow"),
+    pageCount,
+    activePage: normalizeActivePage(base.activePage, pageCount, 0),
     widgetBackdropBlur: base.widgetBackdropBlur !== false,
     legacyHeadlessSurfaceMigrated: base.legacyHeadlessSurfaceMigrated === true
   };
@@ -860,6 +902,7 @@ function defaultInstances() {
         customAccentColor: "#1F4F9F",
         customSurfaceColor: "#FFFAF2",
         commonOverrides: normalizeCommonOverrides({}),
+        page: 0,
         config: structuredClone(def.defaultConfig || {}),
         gridLayout: {
           col: idx % 4,
@@ -1020,6 +1063,8 @@ function applyProfileSnapshot(snapshotInput, scope = "all") {
     }
   }
 
+  syncLauncherPagingState({ expandToFitInstances: true });
+
   closeWidgetModal(false);
 
   applyTheme();
@@ -1040,6 +1085,8 @@ function applyProfileSnapshot(snapshotInput, scope = "all") {
     refreshAllWidgets();
     if (state.ui.home.mode === "grid") {
       applyGridLayout({ commitFreeLayout: false });
+    } else {
+      updateBoardBounds();
     }
   }
 
@@ -1198,6 +1245,7 @@ function hydrate(raw) {
       customAccentColor: normalizeWidgetColor(item.customAccentColor, "#1F4F9F"),
       customSurfaceColor: normalizeWidgetColor(item.customSurfaceColor, "#FFFAF2"),
       commonOverrides: normalizeCommonOverrides(item.commonOverrides),
+      page: normalizeWidgetPage(item.page, MAX_LAUNCHER_PAGES, 0),
       enabled: item.enabled !== false,
       gridLayout: normalizeGridLayout(item.gridLayout, {
         col: normalized.length % 4,
@@ -1218,7 +1266,16 @@ function hydrate(raw) {
     ...defaultBackground(),
     ...(rawUi.background || {})
   };
-  const home = normalizeHomeLayout(rawUi.home || {});
+  const maxInstancePage = normalized.reduce((max, instance) => {
+    return Math.max(max, normalizeWidgetPage(instance.page, MAX_LAUNCHER_PAGES, 0));
+  }, 0);
+  const home = normalizeHomeLayout({
+    ...(rawUi.home || {}),
+    pageCount: Math.max(Number(rawUi?.home?.pageCount) || 1, maxInstancePage + 1)
+  });
+  for (const instance of normalized) {
+    instance.page = normalizeWidgetPage(instance.page, home.pageCount, 0);
+  }
   if (didLegacyHeadlessSurfaceMigration) {
     home.legacyHeadlessSurfaceMigrated = true;
   }
@@ -1496,6 +1553,7 @@ function setBodyMode() {
   }
 
   syncSettingsPanelVisibility();
+  syncPageIndicator();
 }
 
 function clampEditDockPosition(left, top) {
@@ -2864,8 +2922,236 @@ function applyAddWidgetModal() {
   closeAddWidgetModal();
 }
 
-function applyLayout(card, layout) {
-  card.style.left = `${Math.round(layout.x)}px`;
+function syncLauncherPagingState({ expandToFitInstances = true } = {}) {
+  if (!state?.ui?.home) {
+    return {
+      pageCount: 1,
+      activePage: 0
+    };
+  }
+
+  const home = normalizeHomeLayout(state.ui.home);
+  const instances = Array.isArray(state.instances) ? state.instances : [];
+  let maxInstancePage = 0;
+
+  for (const instance of instances) {
+    const page = normalizeWidgetPage(instance.page, MAX_LAUNCHER_PAGES, 0);
+    instance.page = page;
+    maxInstancePage = Math.max(maxInstancePage, page);
+  }
+
+  let pageCount = home.pageCount;
+  if (expandToFitInstances) {
+    pageCount = Math.max(pageCount, maxInstancePage + 1);
+  }
+
+  home.pageCount = normalizePageCount(pageCount, 1);
+  for (const instance of instances) {
+    instance.page = normalizeWidgetPage(instance.page, home.pageCount, 0);
+  }
+  home.activePage = normalizeActivePage(home.activePage, home.pageCount, 0);
+
+  state.ui.home = home;
+  return home;
+}
+
+function currentLauncherPageCount() {
+  return normalizePageCount(state?.ui?.home?.pageCount, 1);
+}
+
+function currentLauncherActivePage() {
+  const pageCount = currentLauncherPageCount();
+  return normalizeActivePage(state?.ui?.home?.activePage, pageCount, 0);
+}
+
+function widgetPageOffsetX(page) {
+  const boardW = Math.max(1, Math.floor(elements.board?.clientWidth || 1));
+  const pageCount = currentLauncherPageCount();
+  return normalizeWidgetPage(page, pageCount, 0) * boardW;
+}
+
+function syncPageIndicator(progress = null) {
+  const indicator = elements.pageIndicator;
+  if (!indicator || !state?.ui?.home) {
+    return;
+  }
+
+  const pageCount = currentLauncherPageCount();
+  const activePage = currentLauncherActivePage();
+  const allowAdd = state.mode === "edit" && pageCount < MAX_LAUNCHER_PAGES;
+  const allowRemove = state.mode === "edit" && pageCount > 1;
+  const signature = `${pageCount}:${allowAdd ? "add" : "no-add"}:${allowRemove ? "remove" : "no-remove"}`;
+
+  if (indicator.dataset.signature !== signature) {
+    indicator.replaceChildren();
+    indicator.dataset.signature = signature;
+
+    const dots = document.createElement("div");
+    dots.className = "page-indicator-dots";
+
+    for (let i = 0; i < pageCount; i += 1) {
+      const dot = document.createElement("button");
+      dot.type = "button";
+      dot.className = "page-indicator-dot";
+      dot.setAttribute("aria-label", `Open page ${i + 1}`);
+      dot.dataset.pageIndex = String(i);
+      dot.addEventListener("click", () => {
+        setActiveLauncherPage(i, { shouldSave: true, animate: true });
+      });
+      dots.append(dot);
+    }
+
+    const thumb = document.createElement("span");
+    thumb.className = "page-indicator-thumb";
+    dots.append(thumb);
+    indicator.append(dots);
+
+    if (allowAdd) {
+      const addBtn = document.createElement("button");
+      addBtn.type = "button";
+      addBtn.className = "page-indicator-add";
+      addBtn.textContent = "+";
+      addBtn.title = "Add launcher page";
+      addBtn.setAttribute("aria-label", "Add launcher page");
+      addBtn.addEventListener("click", () => {
+        addLauncherPage();
+      });
+      indicator.append(addBtn);
+    }
+
+    if (allowRemove) {
+      const removeBtn = document.createElement("button");
+      removeBtn.type = "button";
+      removeBtn.className = "page-indicator-remove";
+      removeBtn.textContent = "-";
+      removeBtn.title = "Remove current page";
+      removeBtn.setAttribute("aria-label", "Remove current page");
+      removeBtn.addEventListener("click", () => {
+        removeLauncherPage();
+      });
+      indicator.append(removeBtn);
+    }
+  }
+
+  const value = Number.isFinite(progress)
+    ? clamp(progress, 0, Math.max(0, pageCount - 1))
+    : activePage;
+  const rounded = clamp(Math.round(value), 0, Math.max(0, pageCount - 1));
+
+  const dotsWrap = indicator.querySelector(".page-indicator-dots");
+  dotsWrap?.style.setProperty("--page-progress", String(value));
+
+  const dots = indicator.querySelectorAll(".page-indicator-dot");
+  dots.forEach((dot, index) => {
+    const isActive = index === rounded;
+    dot.classList.toggle("active", isActive);
+    dot.setAttribute("aria-current", isActive ? "page" : "false");
+  });
+}
+
+function renderBoardViewport({ dragOffsetX = 0, animate = true, dragging = false } = {}) {
+  if (!elements.board || !state?.ui?.home) {
+    return;
+  }
+
+  const pageCount = currentLauncherPageCount();
+  const activePage = currentLauncherActivePage();
+  const boardW = Math.max(1, Math.floor(elements.board.clientWidth));
+
+  let offset = Number(dragOffsetX) || 0;
+  if ((activePage === 0 && offset > 0) || (activePage === pageCount - 1 && offset < 0)) {
+    offset *= 0.34;
+  }
+
+  const translateX = Math.round(-(activePage * boardW) + offset);
+  elements.board.style.setProperty("--board-page-translate-x", `${translateX}px`);
+  elements.board.classList.toggle("no-page-transition", !animate);
+  elements.board.classList.toggle("is-page-dragging", dragging);
+
+  if (dragging) {
+    const progress = activePage - offset / boardW;
+    syncPageIndicator(progress);
+  } else {
+    syncPageIndicator(activePage);
+  }
+}
+
+function setActiveLauncherPage(page, { shouldSave = false, animate = true } = {}) {
+  if (!state?.ui?.home) {
+    return false;
+  }
+
+  const home = syncLauncherPagingState({ expandToFitInstances: true });
+  const nextPage = normalizeActivePage(page, home.pageCount, home.activePage);
+  const changed = home.activePage !== nextPage;
+  home.activePage = nextPage;
+  state.ui.home = home;
+
+  renderBoardViewport({ animate, dragging: false, dragOffsetX: 0 });
+
+  if (changed && shouldSave) {
+    queueSave();
+  }
+  return changed;
+}
+
+function addLauncherPage() {
+  if (state.mode !== "edit") {
+    return;
+  }
+
+  const home = syncLauncherPagingState({ expandToFitInstances: true });
+  if (home.pageCount >= MAX_LAUNCHER_PAGES) {
+    return;
+  }
+
+  recordHistorySnapshot("Add launcher page");
+  home.pageCount = normalizePageCount(home.pageCount + 1, home.pageCount + 1);
+  home.activePage = home.pageCount - 1;
+  state.ui.home = home;
+
+  renderBoardViewport({ animate: true, dragging: false, dragOffsetX: 0 });
+  renderSettings();
+  queueSave();
+}
+
+function removeLauncherPage() {
+  if (state.mode !== "edit") {
+    return;
+  }
+
+  const home = syncLauncherPagingState({ expandToFitInstances: true });
+  if (home.pageCount <= 1) {
+    return;
+  }
+
+  const targetPage = currentLauncherActivePage();
+  const fallbackPage = Math.max(0, targetPage - 1);
+
+  recordHistorySnapshot("Remove launcher page");
+
+  for (const instance of state.instances) {
+    const currentPage = normalizeWidgetPage(instance.page, home.pageCount, 0);
+    if (currentPage > targetPage) {
+      instance.page = currentPage - 1;
+      continue;
+    }
+    if (currentPage === targetPage) {
+      instance.page = fallbackPage;
+    }
+  }
+
+  home.pageCount = normalizePageCount(home.pageCount - 1, home.pageCount - 1);
+  home.activePage = normalizeActivePage(Math.min(targetPage, home.pageCount - 1), home.pageCount, fallbackPage);
+  state.ui.home = home;
+
+  updateBoardBounds();
+  renderSettings();
+  queueSave();
+}
+
+function applyLayout(card, layout, page = 0) {
+  card.style.left = `${Math.round(layout.x + widgetPageOffsetX(page))}px`;
   card.style.top = `${Math.round(layout.y)}px`;
   card.style.width = `${Math.max(1, Math.round(layout.w))}px`;
   card.style.height = `${Math.max(1, Math.round(layout.h))}px`;
@@ -2900,44 +3186,61 @@ function applyGridLayout({ commitFreeLayout = false, shouldSave = false } = {}) 
     return;
   }
 
+  syncLauncherPagingState({ expandToFitInstances: true });
+
   if (commitFreeLayout) {
     captureFreeLayouts();
   }
 
   const items = state.instances.filter((instance) => instance.enabled !== false);
   if (!items.length) {
+    renderBoardViewport({ animate: false, dragging: false, dragOffsetX: 0 });
     return;
   }
 
   const metrics = gridMetrics(items);
 
-  for (let i = 0; i < items.length; i += 1) {
-    const instance = items[i];
-    const def = widgetRegistry[instance.type];
-    const defaultSize = widgetDefaultGridSize(instance.type, def);
-    const grid = normalizeGridLayout(instance.gridLayout, {
-      col: i % metrics.cols,
-      row: Math.floor(i / metrics.cols),
-      colSpan: defaultSize.colSpan,
-      rowSpan: defaultSize.rowSpan
-    });
+  const byPage = new Map();
+  for (const instance of items) {
+    const page = normalizeWidgetPage(instance.page, state.ui.home.pageCount, 0);
+    instance.page = page;
+    if (!byPage.has(page)) {
+      byPage.set(page, []);
+    }
+    byPage.get(page).push(instance);
+  }
 
-    grid.colSpan = clamp(grid.colSpan, 1, metrics.cols);
-    grid.rowSpan = clamp(grid.rowSpan, 1, metrics.rows);
-    grid.col = clamp(grid.col, 0, Math.max(0, metrics.cols - grid.colSpan));
-    grid.row = clamp(grid.row, 0, Math.max(0, metrics.rows - grid.rowSpan));
-    instance.gridLayout = grid;
+  for (const pageItems of byPage.values()) {
+    for (let i = 0; i < pageItems.length; i += 1) {
+      const instance = pageItems[i];
+      const def = widgetRegistry[instance.type];
+      const defaultSize = widgetDefaultGridSize(instance.type, def);
+      const grid = normalizeGridLayout(instance.gridLayout, {
+        col: i % metrics.cols,
+        row: Math.floor(i / metrics.cols),
+        colSpan: defaultSize.colSpan,
+        rowSpan: defaultSize.rowSpan
+      });
 
-    instance.layout.x = metrics.marginX + grid.col * (metrics.cellW + metrics.gapX);
-    instance.layout.y = metrics.marginY + grid.row * (metrics.cellH + metrics.gapY);
-    instance.layout.w = metrics.cellW * grid.colSpan + metrics.gapX * (grid.colSpan - 1);
-    instance.layout.h = metrics.cellH * grid.rowSpan + metrics.gapY * (grid.rowSpan - 1);
+      grid.colSpan = clamp(grid.colSpan, 1, metrics.cols);
+      grid.rowSpan = clamp(grid.rowSpan, 1, metrics.rows);
+      grid.col = clamp(grid.col, 0, Math.max(0, metrics.cols - grid.colSpan));
+      grid.row = clamp(grid.row, 0, Math.max(0, metrics.rows - grid.rowSpan));
+      instance.gridLayout = grid;
 
-    const rt = runtime.get(instance.id);
-    if (rt?.card) {
-      applyLayout(rt.card, instance.layout);
+      instance.layout.x = metrics.marginX + grid.col * (metrics.cellW + metrics.gapX);
+      instance.layout.y = metrics.marginY + grid.row * (metrics.cellH + metrics.gapY);
+      instance.layout.w = metrics.cellW * grid.colSpan + metrics.gapX * (grid.colSpan - 1);
+      instance.layout.h = metrics.cellH * grid.rowSpan + metrics.gapY * (grid.rowSpan - 1);
+
+      const rt = runtime.get(instance.id);
+      if (rt?.card) {
+        applyLayout(rt.card, instance.layout, instance.page);
+      }
     }
   }
+
+  renderBoardViewport({ animate: false, dragging: false, dragOffsetX: 0 });
 
   if (shouldSave) {
     queueSave();
@@ -2945,6 +3248,8 @@ function applyGridLayout({ commitFreeLayout = false, shouldSave = false } = {}) 
 }
 
 function updateBoardBounds() {
+  syncLauncherPagingState({ expandToFitInstances: true });
+
   if (isGridLayoutMode()) {
     applyGridLayout({ commitFreeLayout: false, shouldSave: false });
     return;
@@ -2964,15 +3269,19 @@ function updateBoardBounds() {
 
     const rt = runtime.get(instance.id);
     if (rt?.card) {
-      applyLayout(rt.card, instance.layout);
+      applyLayout(rt.card, instance.layout, instance.page);
     }
   }
+
+  renderBoardViewport({ animate: false, dragging: false, dragOffsetX: 0 });
 }
 
 function autoArrangeWidgets() {
   if (state.mode !== "edit") {
     return;
   }
+
+  syncLauncherPagingState({ expandToFitInstances: true });
 
   if (isGridLayoutMode()) {
     applyGridLayout({ commitFreeLayout: false, shouldSave: true });
@@ -2988,52 +3297,64 @@ function autoArrangeWidgets() {
   const boardH = Math.max(1, Math.floor(elements.board.clientHeight));
   const gap = boardW < 900 ? 10 : 14;
 
-  let best = null;
-  for (let columns = 1; columns <= items.length; columns += 1) {
-    const rows = Math.ceil(items.length / columns);
-    const cellW = Math.floor((boardW - gap * (columns + 1)) / columns);
-    const cellH = Math.floor((boardH - gap * (rows + 1)) / rows);
-    if (cellW < 90 || cellH < 70) {
-      continue;
+  const byPage = new Map();
+  for (const instance of items) {
+    const page = normalizeWidgetPage(instance.page, state.ui.home.pageCount, 0);
+    instance.page = page;
+    if (!byPage.has(page)) {
+      byPage.set(page, []);
+    }
+    byPage.get(page).push(instance);
+  }
+
+  for (const pageItems of byPage.values()) {
+    let best = null;
+    for (let columns = 1; columns <= pageItems.length; columns += 1) {
+      const rows = Math.ceil(pageItems.length / columns);
+      const cellW = Math.floor((boardW - gap * (columns + 1)) / columns);
+      const cellH = Math.floor((boardH - gap * (rows + 1)) / rows);
+      if (cellW < 90 || cellH < 70) {
+        continue;
+      }
+
+      const ratioPenalty = Math.abs(columns / rows - boardW / Math.max(1, boardH));
+      const score = cellW * cellH - ratioPenalty * 12000;
+      if (!best || score > best.score) {
+        best = {
+          score,
+          columns,
+          rows,
+          cellW,
+          cellH
+        };
+      }
     }
 
-    const ratioPenalty = Math.abs(columns / rows - boardW / Math.max(1, boardH));
-    const score = cellW * cellH - ratioPenalty * 12000;
-    if (!best || score > best.score) {
+    if (!best) {
       best = {
-        score,
-        columns,
-        rows,
-        cellW,
-        cellH
+        columns: 1,
+        rows: pageItems.length,
+        cellW: Math.max(90, boardW - gap * 2),
+        cellH: Math.max(70, Math.floor((boardH - gap * (pageItems.length + 1)) / Math.max(1, pageItems.length)))
       };
     }
-  }
 
-  if (!best) {
-    best = {
-      columns: 1,
-      rows: items.length,
-      cellW: Math.max(90, boardW - gap * 2),
-      cellH: Math.max(70, Math.floor((boardH - gap * (items.length + 1)) / Math.max(1, items.length)))
-    };
-  }
+    for (let i = 0; i < pageItems.length; i += 1) {
+      const row = Math.floor(i / best.columns);
+      const col = i % best.columns;
+      const x = gap + col * (best.cellW + gap);
+      const y = gap + row * (best.cellH + gap);
 
-  for (let i = 0; i < items.length; i += 1) {
-    const row = Math.floor(i / best.columns);
-    const col = i % best.columns;
-    const x = gap + col * (best.cellW + gap);
-    const y = gap + row * (best.cellH + gap);
+      const instance = pageItems[i];
+      instance.layout.x = x;
+      instance.layout.y = y;
+      instance.layout.w = best.cellW;
+      instance.layout.h = best.cellH;
 
-    const instance = items[i];
-    instance.layout.x = x;
-    instance.layout.y = y;
-    instance.layout.w = best.cellW;
-    instance.layout.h = best.cellH;
-
-    const rt = runtime.get(instance.id);
-    if (rt?.card) {
-      applyLayout(rt.card, instance.layout);
+      const rt = runtime.get(instance.id);
+      if (rt?.card) {
+        applyLayout(rt.card, instance.layout, instance.page);
+      }
     }
   }
 
@@ -3077,11 +3398,14 @@ function patchTheme(patch) {
 
 function patchHomeLayout(patch) {
   recordHistorySnapshot("Update layout settings");
+  const hasExplicitPageCount =
+    patch && typeof patch === "object" && Object.prototype.hasOwnProperty.call(patch, "pageCount");
   const prevMode = state.ui.home.mode;
   state.ui.home = normalizeHomeLayout({
     ...state.ui.home,
     ...patch
   });
+  syncLauncherPagingState({ expandToFitInstances: !hasExplicitPageCount });
 
   const nextMode = state.ui.home.mode;
   if (prevMode !== nextMode) {
@@ -3212,7 +3536,7 @@ function patchWidgetLayout(instanceId, layoutPatch, options = {}) {
   instance.layout = nextLayout;
   const rt = runtime.get(instanceId);
   if (rt) {
-    applyLayout(rt.card, instance.layout);
+    applyLayout(rt.card, instance.layout, instance.page);
   }
   updateBoardBounds();
   renderSettings();
@@ -3292,7 +3616,7 @@ function createWidgetCard(instance) {
     paddingHandleBottomLeft.dataset.treeId = `${instance.id}-1-5`;
   }
 
-  applyLayout(card, instance.layout);
+  applyLayout(card, instance.layout, instance.page);
   applyCardVisual(card, instance);
   applyCardStack(card, instance);
 
@@ -3628,11 +3952,62 @@ function createWidgetCard(instance) {
       return false;
     }
 
+    const pageSwitchThreshold = 42;
+    const pageSwitchCooldownMs = 190;
+    let lastPageSwitchAt = 0;
+    let pageChangedDuringDrag = false;
+
+    const edgeDirectionFromPointer = (clientX) => {
+      const rect = elements.board.getBoundingClientRect();
+      if (!Number.isFinite(clientX) || rect.width < pageSwitchThreshold * 2) {
+        return 0;
+      }
+      if (clientX <= rect.left + pageSwitchThreshold) {
+        return -1;
+      }
+      if (clientX >= rect.right - pageSwitchThreshold) {
+        return 1;
+      }
+      return 0;
+    };
+
+    const trySwitchPage = (direction, moveEvent, onSwitched = null) => {
+      if (!direction) {
+        return false;
+      }
+
+      const now = performance.now();
+      if (now - lastPageSwitchAt < pageSwitchCooldownMs) {
+        return false;
+      }
+
+      const pageCount = currentLauncherPageCount();
+      const currentPage = normalizeWidgetPage(instance.page, pageCount, 0);
+      const nextPage = currentPage + direction;
+      if (nextPage < 0 || nextPage >= pageCount) {
+        return false;
+      }
+
+      instance.page = nextPage;
+      state.ui.home.activePage = nextPage;
+      pageChangedDuringDrag = true;
+      lastPageSwitchAt = now;
+
+      if (typeof onSwitched === "function") {
+        onSwitched(direction, nextPage, currentPage, moveEvent);
+      }
+
+      renderBoardViewport({ animate: false, dragging: false, dragOffsetX: 0 });
+      return true;
+    };
+
     if (isGridLayoutMode()) {
       recordHistorySnapshot("Move widget");
       const metrics = gridMetrics();
       const defForGrid = widgetRegistry[instance.type];
-      const startGrid = normalizeGridLayout(instance.gridLayout, {
+      let dragAnchorX = dragStartX;
+      let dragAnchorY = dragStartY;
+      let anchorGrid = normalizeGridLayout(instance.gridLayout, {
         col: 0,
         row: 0,
         ...widgetDefaultGridSize(instance.type, defForGrid)
@@ -3641,20 +4016,38 @@ function createWidgetCard(instance) {
       const stepY = Math.max(1, metrics.cellH + metrics.gapY);
 
       const move = (moveEvent) => {
-        const dCol = Math.round((moveEvent.clientX - dragStartX) / stepX);
-        const dRow = Math.round((moveEvent.clientY - dragStartY) / stepY);
+        const dCol = Math.round((moveEvent.clientX - dragAnchorX) / stepX);
+        const dRow = Math.round((moveEvent.clientY - dragAnchorY) / stepY);
 
         instance.gridLayout = {
-          ...startGrid,
-          col: clamp(startGrid.col + dCol, 0, Math.max(0, metrics.cols - startGrid.colSpan)),
-          row: clamp(startGrid.row + dRow, 0, Math.max(0, metrics.rows - startGrid.rowSpan))
+          ...anchorGrid,
+          col: clamp(anchorGrid.col + dCol, 0, Math.max(0, metrics.cols - anchorGrid.colSpan)),
+          row: clamp(anchorGrid.row + dRow, 0, Math.max(0, metrics.rows - anchorGrid.rowSpan))
         };
+
+        const direction = edgeDirectionFromPointer(moveEvent.clientX);
+        trySwitchPage(direction, moveEvent, (switchDirection) => {
+          const currentGrid = normalizeGridLayout(instance.gridLayout, anchorGrid);
+          const edgeCol =
+            switchDirection > 0
+              ? 0
+              : Math.max(0, metrics.cols - Math.max(1, Number(currentGrid.colSpan) || 1));
+          instance.gridLayout = {
+            ...currentGrid,
+            col: clamp(edgeCol, 0, Math.max(0, metrics.cols - currentGrid.colSpan))
+          };
+          anchorGrid = normalizeGridLayout(instance.gridLayout, currentGrid);
+          dragAnchorX = moveEvent.clientX;
+          dragAnchorY = moveEvent.clientY;
+        });
+
         applyGridLayout({ commitFreeLayout: false, shouldSave: false });
       };
 
       const up = () => {
         window.removeEventListener("pointermove", move);
         window.removeEventListener("pointerup", up);
+        window.removeEventListener("pointercancel", up);
         lastDragEndAt = Date.now();
         applyGridLayout({ commitFreeLayout: false, shouldSave: false });
         queueSave();
@@ -3662,40 +4055,75 @@ function createWidgetCard(instance) {
 
       window.addEventListener("pointermove", move);
       window.addEventListener("pointerup", up);
+      window.addEventListener("pointercancel", up);
       return true;
     }
 
-    const startLeft = instance.layout.x;
-    const startTop = instance.layout.y;
     const boardRect = elements.board.getBoundingClientRect();
+    let lastPointerX = dragStartX;
+    let lastPointerY = dragStartY;
 
     const move = (moveEvent) => {
-      const dx = moveEvent.clientX - dragStartX;
-      const dy = moveEvent.clientY - dragStartY;
+      const dx = moveEvent.clientX - lastPointerX;
+      const dy = moveEvent.clientY - lastPointerY;
+      lastPointerX = moveEvent.clientX;
+      lastPointerY = moveEvent.clientY;
       const maxX = Math.max(0, boardRect.width - instance.layout.w);
       const maxY = Math.max(0, boardRect.height - instance.layout.h);
 
-      const nextX = Math.max(0, Math.min(maxX, startLeft + dx));
-      const nextY = Math.max(0, Math.min(maxY, startTop + dy));
+      const nextX = Math.max(0, Math.min(maxX, instance.layout.x + dx));
+      const nextY = Math.max(0, Math.min(maxY, instance.layout.y + dy));
 
       patchWidgetLayout(instance.id, {
         x: nextX,
         y: nextY
       }, { record: false });
+
+      const direction = edgeDirectionFromPointer(moveEvent.clientX);
+      trySwitchPage(direction, moveEvent, (switchDirection) => {
+        const edgeInset = clamp(Math.round(instance.layout.w * 0.18), 16, 64);
+        const maxLocalX = Math.max(0, boardRect.width - instance.layout.w);
+        const nextLocalX = switchDirection > 0 ? edgeInset : maxLocalX - edgeInset;
+        patchWidgetLayout(instance.id, {
+          x: clamp(nextLocalX, 0, maxLocalX)
+        }, { record: false });
+        const rt = runtime.get(instance.id);
+        if (rt?.card) {
+          applyLayout(rt.card, instance.layout, instance.page);
+        }
+        lastPointerX = moveEvent.clientX;
+        lastPointerY = moveEvent.clientY;
+      });
     };
 
     const up = () => {
       window.removeEventListener("pointermove", move);
       window.removeEventListener("pointerup", up);
+      window.removeEventListener("pointercancel", up);
       lastDragEndAt = Date.now();
-      patchWidgetLayout(instance.id, {
-        x: Math.round(instance.layout.x / SNAP) * SNAP,
-        y: Math.round(instance.layout.y / SNAP) * SNAP
-      }, { label: "Move widget" });
+      const snappedX = Math.round(instance.layout.x / SNAP) * SNAP;
+      const snappedY = Math.round(instance.layout.y / SNAP) * SNAP;
+      const changedBySnap = snappedX !== instance.layout.x || snappedY !== instance.layout.y;
+
+      if (changedBySnap) {
+        patchWidgetLayout(instance.id, {
+          x: snappedX,
+          y: snappedY
+        }, { label: "Move widget" });
+        return;
+      }
+
+      if (pageChangedDuringDrag) {
+        recordHistorySnapshot("Move widget");
+        updateBoardBounds();
+        renderSettings();
+        queueSave();
+      }
     };
 
     window.addEventListener("pointermove", move);
     window.addEventListener("pointerup", up);
+    window.addEventListener("pointercancel", up);
     return true;
   };
 
@@ -3952,6 +4380,7 @@ function renderBoard() {
   }
   runtime.clear();
   elements.board.replaceChildren();
+  syncLauncherPagingState({ expandToFitInstances: true });
   syncZCounterFromState();
 
   for (const instance of state.instances) {
@@ -4277,6 +4706,14 @@ function renderGlobalSettings() {
         { value: "wide", label: "Wide" },
         { value: "none", label: "None" }
       ]
+    },
+    {
+      key: "pageCount",
+      label: "Launcher pages",
+      type: "number",
+      min: 1,
+      max: MAX_LAUNCHER_PAGES,
+      step: 1
     },
     {
       key: "widgetBackdropBlur",
@@ -4621,8 +5058,18 @@ function renderBackgroundSettings() {
 }
 
 function getWidgetModalCommonFields() {
+  const pageCount = currentLauncherPageCount();
   const baseFields = [
     { key: "title", label: "Title", type: "text", group: "base" },
+    {
+      key: "page",
+      label: "Page",
+      type: "number",
+      min: 1,
+      max: pageCount,
+      step: 1,
+      group: "base"
+    },
     {
       key: "viewMode",
       label: "Display mode",
@@ -5124,6 +5571,7 @@ function openWidgetModal(instanceId) {
   modalState.activeTab = "widget";
   modalState.draft = {
     title: instance.title,
+    page: normalizeWidgetPage(instance.page, currentLauncherPageCount(), 0) + 1,
     viewMode: instance.viewMode || "window",
     surfaceMode: normalizeSurfaceMode(instance.surfaceMode, "normal"),
     transparentAutoContrast: instance.transparentAutoContrast !== false,
@@ -5173,6 +5621,7 @@ function applyWidgetModal() {
 
   const def = widgetRegistry[instance.type];
   const draft = modalState.draft;
+  const previousPage = normalizeWidgetPage(instance.page, currentLauncherPageCount(), 0);
 
   recordHistorySnapshot("Apply widget settings");
 
@@ -5208,12 +5657,17 @@ function applyWidgetModal() {
   instance.customTextColor = normalizeWidgetColor(draft.customTextColor, "#1F2226");
   instance.customAccentColor = normalizeWidgetColor(draft.customAccentColor, "#1F4F9F");
   instance.customSurfaceColor = normalizeWidgetColor(draft.customSurfaceColor, "#FFFAF2");
+  instance.page = normalizeWidgetPage((Number(draft.page) || 1) - 1, currentLauncherPageCount(), previousPage);
   instance.layout = cloneLayout(draft.layout);
   instance.config = {
     ...instance.config,
     ...draft.config
   };
   instance.commonOverrides = inferCommonOverrides(instance, state.ui.widgetCommonMaster);
+  syncLauncherPagingState({ expandToFitInstances: true });
+  if (instance.page !== previousPage) {
+    state.ui.home.activePage = instance.page;
+  }
 
   const rt = runtime.get(instance.id);
   if (rt) {
@@ -5221,7 +5675,7 @@ function applyWidgetModal() {
     if (titleEl) {
       titleEl.textContent = instance.title || def.title;
     }
-    applyLayout(rt.card, instance.layout);
+    applyLayout(rt.card, instance.layout, instance.page);
     applyCardVisual(rt.card, instance);
     rt.controller?.refresh?.();
   }
@@ -5269,6 +5723,12 @@ function addWidget(type, options = {}) {
 
   recordHistorySnapshot("Add widget");
 
+  syncLauncherPagingState({ expandToFitInstances: true });
+  const targetPage = currentLauncherActivePage();
+  const pageLocalIndex = state.instances.filter((instance) => {
+    return normalizeWidgetPage(instance.page, state.ui.home.pageCount, 0) === targetPage;
+  }).length;
+
   const defaultSize = widgetDefaultGridSize(type, def);
   const colSpan = normalizeGridSpanValue(options.colSpan, defaultSize.colSpan, GRID_MAX_COLUMNS);
   const rowSpan = normalizeGridSpanValue(options.rowSpan, defaultSize.rowSpan, GRID_MAX_ROW_SPAN);
@@ -5302,11 +5762,12 @@ function addWidget(type, options = {}) {
     customAccentColor: "#1F4F9F",
     customSurfaceColor: "#FFFAF2",
     commonOverrides: normalizeCommonOverrides({}),
+    page: targetPage,
     enabled: true,
     config: structuredClone(def.defaultConfig || {}),
     gridLayout: normalizeGridLayout(null, {
-      col: state.instances.length % 4,
-      row: Math.floor(state.instances.length / 4),
+      col: pageLocalIndex % 4,
+      row: Math.floor(pageLocalIndex / 4),
       colSpan,
       rowSpan
     }),
@@ -5320,8 +5781,8 @@ function addWidget(type, options = {}) {
   zCounter = instance.zIndex;
 
   if (!isGridLayoutMode()) {
-    instance.layout.x += (state.instances.length % 6) * 24;
-    instance.layout.y += (state.instances.length % 4) * 24;
+    instance.layout.x += (pageLocalIndex % 6) * 24;
+    instance.layout.y += (pageLocalIndex % 4) * 24;
     const boardRect = elements.board.getBoundingClientRect();
     const scaleX = colSpan / Math.max(1, defaultSize.colSpan);
     const scaleY = rowSpan / Math.max(1, defaultSize.rowSpan);
@@ -5363,6 +5824,99 @@ function resetState() {
   applyBackground();
   renderBoard();
   queueSave();
+}
+
+function beginBoardSwipe(event) {
+  if (!elements.board || !state?.ui?.home) {
+    return;
+  }
+  if (boardSwipeState.active) {
+    return;
+  }
+  if (Number.isFinite(event.button) && event.button !== 0) {
+    return;
+  }
+  if (event.target !== elements.board) {
+    return;
+  }
+  if (modalState.open || addWidgetModalOpen || shortcutIconEditorState.open) {
+    return;
+  }
+  if (state.mode === "edit" && state.ui.settingsOpen) {
+    return;
+  }
+
+  boardSwipeState.active = true;
+  boardSwipeState.pointerId = event.pointerId;
+  boardSwipeState.startX = event.clientX;
+  boardSwipeState.startY = event.clientY;
+  boardSwipeState.startAt = performance.now();
+  boardSwipeState.dragOffsetX = 0;
+  boardSwipeState.dragging = false;
+  elements.board.setPointerCapture?.(event.pointerId);
+  event.preventDefault();
+}
+
+function moveBoardSwipe(event) {
+  if (!boardSwipeState.active || boardSwipeState.pointerId !== event.pointerId) {
+    return;
+  }
+
+  const dx = event.clientX - boardSwipeState.startX;
+  const dy = event.clientY - boardSwipeState.startY;
+
+  if (!boardSwipeState.dragging) {
+    if (Math.abs(dx) < 6) {
+      return;
+    }
+    if (Math.abs(dx) < Math.abs(dy)) {
+      endBoardSwipe(event, { cancelled: true });
+      return;
+    }
+    boardSwipeState.dragging = true;
+  }
+
+  boardSwipeState.dragOffsetX = dx;
+  renderBoardViewport({ dragOffsetX: dx, animate: false, dragging: true });
+  event.preventDefault();
+}
+
+function endBoardSwipe(event, { cancelled = false } = {}) {
+  if (!boardSwipeState.active || boardSwipeState.pointerId !== event.pointerId) {
+    return;
+  }
+
+  const dx = event.clientX - boardSwipeState.startX;
+  const elapsed = Math.max(1, performance.now() - boardSwipeState.startAt);
+  const velocity = dx / elapsed;
+  const didDrag = boardSwipeState.dragging;
+
+  boardSwipeState.active = false;
+  boardSwipeState.pointerId = null;
+  boardSwipeState.startX = 0;
+  boardSwipeState.startY = 0;
+  boardSwipeState.startAt = 0;
+  boardSwipeState.dragOffsetX = 0;
+  boardSwipeState.dragging = false;
+  elements.board?.releasePointerCapture?.(event.pointerId);
+
+  if (cancelled || !didDrag) {
+    renderBoardViewport({ dragOffsetX: 0, animate: true, dragging: false });
+    return;
+  }
+
+  const activePage = currentLauncherActivePage();
+  const threshold = Math.max(52, Math.min(170, Math.round((elements.board?.clientWidth || 1) * 0.18)));
+  let nextPage = activePage;
+
+  if (dx <= -threshold || velocity <= -0.6) {
+    nextPage = activePage + 1;
+  } else if (dx >= threshold || velocity >= 0.6) {
+    nextPage = activePage - 1;
+  }
+
+  setActiveLauncherPage(nextPage, { shouldSave: true, animate: true });
+  lastDragEndAt = Date.now();
 }
 
 function wireEvents() {
@@ -5419,6 +5973,22 @@ function wireEvents() {
     dockDragState.active = false;
     dockDragState.pointerId = null;
     elements.editDock?.classList.remove("is-dragging");
+  });
+
+  elements.board?.addEventListener("pointerdown", (event) => {
+    beginBoardSwipe(event);
+  });
+
+  window.addEventListener("pointermove", (event) => {
+    moveBoardSwipe(event);
+  });
+
+  window.addEventListener("pointerup", (event) => {
+    endBoardSwipe(event, { cancelled: false });
+  });
+
+  window.addEventListener("pointercancel", (event) => {
+    endBoardSwipe(event, { cancelled: true });
   });
 
   elements.settingsRailToggleBtn?.addEventListener("click", () => {

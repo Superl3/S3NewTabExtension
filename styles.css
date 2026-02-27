@@ -311,6 +311,118 @@ body.mode-edit .dock-edit-controls {
   flex: 1;
   min-height: 0;
   overflow: hidden;
+  transform: translate3d(var(--board-page-translate-x, 0px), 0, 0);
+  transition: transform 0.26s cubic-bezier(0.22, 0.7, 0, 1);
+  will-change: transform;
+  touch-action: pan-y pinch-zoom;
+}
+
+.board.no-page-transition {
+  transition: none;
+}
+
+.board.is-page-dragging {
+  transition: none;
+  cursor: grabbing;
+}
+
+.page-indicator {
+  position: absolute;
+  left: 50%;
+  bottom: 14px;
+  transform: translateX(-50%);
+  z-index: 1205;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 10px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--line), transparent 28%);
+  background: color-mix(in srgb, var(--surface), transparent 24%);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  box-shadow: 0 10px 24px var(--shadow-edge);
+}
+
+.page-indicator-dots {
+  --dot-size: 8px;
+  --dot-gap: 10px;
+  --dot-step: calc(var(--dot-size) + var(--dot-gap));
+  --page-progress: 0;
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--dot-gap);
+}
+
+.page-indicator-dot {
+  width: var(--dot-size);
+  height: var(--dot-size);
+  border: none;
+  border-radius: 999px;
+  padding: 0;
+  margin: 0;
+  cursor: pointer;
+  opacity: 0.58;
+  background: color-mix(in srgb, var(--text), transparent 70%);
+  transition: opacity 0.18s ease, transform 0.2s ease, background-color 0.2s ease;
+}
+
+.page-indicator-dot:hover {
+  opacity: 0.96;
+  transform: scale(1.08);
+}
+
+.page-indicator-dot.active {
+  opacity: 1;
+  background: color-mix(in srgb, var(--primary), var(--tone-light) 16%);
+}
+
+.page-indicator-thumb {
+  position: absolute;
+  left: 0;
+  top: 50%;
+  width: var(--dot-size);
+  height: var(--dot-size);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--primary), var(--tone-light) 16%);
+  box-shadow: 0 0 0 5px color-mix(in srgb, var(--primary), transparent 86%);
+  transform: translate(calc(var(--page-progress) * var(--dot-step)), -50%);
+  transition: transform 0.24s cubic-bezier(0.2, 0.7, 0, 1);
+  pointer-events: none;
+}
+
+.board.is-page-dragging + .page-indicator .page-indicator-thumb {
+  transition: none;
+}
+
+.page-indicator-add,
+.page-indicator-remove {
+  width: 24px;
+  height: 24px;
+  border: 1px solid color-mix(in srgb, var(--line), transparent 25%);
+  border-radius: 999px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font: inherit;
+  font-size: 15px;
+  font-weight: 700;
+  color: color-mix(in srgb, var(--text), var(--primary) 36%);
+  background: color-mix(in srgb, var(--surface), transparent 16%);
+  cursor: pointer;
+  transition: background-color 0.18s ease, transform 0.18s ease;
+}
+
+.page-indicator-add:hover,
+.page-indicator-remove:hover {
+  transform: scale(1.04);
+  background: color-mix(in srgb, var(--surface), var(--primary) 12%);
+}
+
+.page-indicator-remove {
+  color: color-mix(in srgb, var(--text), #9b2c2c 34%);
 }
 
 .settings-rail-toggle {
@@ -363,6 +475,11 @@ body.mode-edit.settings-open .settings-panel {
 
 body.mode-edit.settings-open .board {
   pointer-events: none;
+}
+
+body.mode-edit.settings-open .page-indicator {
+  pointer-events: none;
+  opacity: 0.55;
 }
 
 body.mode-edit.settings-open .settings-rail-toggle {
@@ -2670,6 +2787,23 @@ body.mode-edit .widget-float-remove:hover {
   .add-widget-fab .icon {
     width: 20px;
     height: 20px;
+  }
+
+  .page-indicator {
+    bottom: 10px;
+    padding: 6px 8px;
+    gap: 8px;
+  }
+
+  .page-indicator-dots {
+    --dot-gap: 8px;
+  }
+
+  .page-indicator-add,
+  .page-indicator-remove {
+    width: 22px;
+    height: 22px;
+    font-size: 14px;
   }
 
   .gmail-widget-actions {
