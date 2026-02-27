@@ -158,6 +158,29 @@
       <main class="workspace">
         <section id="board" class="board" aria-label="Widget board"></section>
         <div id="pageIndicator" class="page-indicator" aria-label="Launcher pages"></div>
+        <section id="persistentDock" class="persistent-dock" aria-label="Persistent dock" data-no-page-swipe>
+          <div class="persistent-dock-body">
+            <div class="persistent-dock-actions" role="toolbar" aria-label="Dock controls">
+              <button id="dockPrevBtn" class="dock-action-btn dock-nav-btn" type="button" title="Previous page" aria-label="Previous page">
+                <span aria-hidden="true">&lt;</span>
+              </button>
+              <span id="dockPageState" class="dock-page-state" aria-live="polite">1 / 1</span>
+              <button id="dockNextBtn" class="dock-action-btn dock-nav-btn" type="button" title="Next page" aria-label="Next page">
+                <span aria-hidden="true">&gt;</span>
+              </button>
+              <button id="dockModeBtn" class="dock-action-btn" type="button" title="Switch mode" aria-label="Switch mode">
+                <svg class="icon"><use href="#i-spanner"></use></svg>
+              </button>
+              <button id="dockSettingsBtn" class="dock-action-btn" type="button" title="Dock settings" aria-label="Dock settings">
+                <svg class="icon"><use href="#i-settings"></use></svg>
+              </button>
+              <button id="dockAddBtn" class="dock-action-btn" type="button" title="Add widget" aria-label="Add widget">
+                <svg class="icon"><use href="#i-plus"></use></svg>
+              </button>
+            </div>
+          </div>
+          <span class="persistent-dock-handle" aria-hidden="true"></span>
+        </section>
         <div id="settingsPanelBackdrop" class="settings-panel-backdrop" aria-hidden="true"></div>
         <aside id="settingsPanel" class="settings-panel" aria-label="Widget settings">
           <div class="settings-panel-head">
@@ -268,6 +291,25 @@
           <button id="widgetModalDefaultBtn" class="btn btn-inverted" type="button">Reset to default</button>
           <button id="widgetModalCancelBtn" class="btn">Cancel</button>
           <button id="widgetModalOkBtn" class="btn btn-primary">OK</button>
+        </footer>
+      </section>
+    </div>
+
+    <div id="dockSettingsModalOverlay" class="widget-modal-overlay" aria-hidden="true">
+      <section class="widget-modal dock-settings-modal" role="dialog" aria-modal="true" aria-label="Dock Settings Modal">
+        <header class="widget-modal-head">
+          <div class="widget-modal-head-top">
+            <h3>Dock Settings</h3>
+            <button id="dockSettingsModalCloseBtn" class="icon-btn" title="Close dock settings">
+              <svg class="icon"><use href="#i-close"></use></svg>
+            </button>
+          </div>
+        </header>
+        <div id="dockSettingsModalBody" class="widget-modal-body"></div>
+        <footer class="widget-modal-actions">
+          <button id="dockSettingsModalDefaultBtn" class="btn btn-inverted" type="button">Reset to default</button>
+          <button id="dockSettingsModalCancelBtn" class="btn" type="button">Cancel</button>
+          <button id="dockSettingsModalOkBtn" class="btn btn-primary" type="button">Apply</button>
         </footer>
       </section>
     </div>
