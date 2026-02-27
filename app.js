@@ -3200,6 +3200,11 @@ function setActiveLauncherPage(page, { shouldSave = false, animate = true } = {}
   const home = syncLauncherPagingState({ expandToFitInstances: true });
   const nextPage = normalizeActivePage(page, home.pageCount, home.activePage);
   const changed = home.activePage !== nextPage;
+
+  if (changed && shouldSave) {
+    recordHistorySnapshot("Switch launcher page");
+  }
+
   home.activePage = nextPage;
   state.ui.home = home;
 
