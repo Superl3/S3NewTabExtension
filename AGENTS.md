@@ -24,3 +24,4 @@ These rules are mandatory for this repository across sessions.
 1. Header action buttons must always be visually anchored to the right edge of the widget header.
 2. Visible buttons must be rendered in a contiguous sequence with no phantom gaps from hidden controls.
 3. Normal mode and Edit mode transitions must not introduce perceived floating alignment or spacing drift in header controls.
+4. Mode switches must preserve header/title layout metrics (font size, line height, vertical rhythm, and spacing) so titles never appear to jump due to button visibility changes.
