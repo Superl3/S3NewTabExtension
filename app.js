@@ -1,4 +1,4 @@
-import { loadState, saveState } from "./storage.js";
+import { STORAGE_KEY, loadState, saveState } from "./storage.js";
 import { widgetRegistry, widgetList } from "./widgets/index.js";
 
 const SNAP = 20;
@@ -1413,11 +1413,7 @@ function queueSave() {
     }
 
     saveInFlightFingerprint = fingerprint;
-    void saveState(snapshot)
-      .then(() => {
-        lastSavedFingerprint = fingerprint;
-        lastSavedUserMutationAt = Math.max(lastSavedUserMutationAt, userMutationAt);
-      })
+    void saveSnapshotIfNotStale(snapshot, fingerprint, userMutationAt)
       .catch(() => {
       })
       .finally(() => {
@@ -1452,6 +1448,80 @@ function snapshotFingerprint(snapshot) {
   }
 }
 
+function isStateObject(value) {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+function normalizeStoredSnapshot(value) {
+  return isStateObject(value) ? value : null;
+}
+
+async function readStoredSnapshot() {
+  try {
+    const stored = await chrome.storage.local.get(STORAGE_KEY);
+    return normalizeStoredSnapshot(stored?.[STORAGE_KEY]);
+  } catch {
+    return null;
+  }
+}
+
+async function saveSnapshotIfNotStale(snapshot, fingerprint, userMutationAt) {
+  const storedSnapshot = await readStoredSnapshot();
+  const storedMutationAt = readUserMutationClock(storedSnapshot);
+
+  if (storedMutationAt > userMutationAt) {
+    lastSavedUserMutationAt = Math.max(lastSavedUserMutationAt, storedMutationAt);
+    syncFromExternalSnapshot(storedSnapshot);
+    return false;
+  }
+
+  await saveState(snapshot);
+  lastSavedFingerprint = fingerprint;
+  lastSavedUserMutationAt = Math.max(lastSavedUserMutationAt, userMutationAt);
+  return true;
+}
+
+function syncFromExternalSnapshot(snapshotInput) {
+  const snapshot = normalizeStoredSnapshot(snapshotInput);
+  if (!snapshot || !state) {
+    return false;
+  }
+
+  const incomingFingerprint = snapshotFingerprint(snapshot);
+  const incomingMutationAt = readUserMutationClock(snapshot);
+  const localMutationAt = readUserMutationClock(state);
+
+  lastSavedUserMutationAt = Math.max(lastSavedUserMutationAt, incomingMutationAt);
+
+  if (incomingFingerprint === lastSavedFingerprint || incomingMutationAt <= localMutationAt) {
+    return false;
+  }
+
+  lastSavedFingerprint = incomingFingerprint;
+  saveInFlightFingerprint = "";
+  undoState.undoStack.length = 0;
+  undoState.redoStack.length = 0;
+  restoreFromSnapshot(snapshot, { shouldSave: false });
+  return true;
+}
+
+function wireStorageSync() {
+  if (!chrome?.storage?.onChanged) {
+    return;
+  }
+
+  chrome.storage.onChanged.addListener((changes, areaName) => {
+    if (areaName !== "local") {
+      return;
+    }
+    const changed = changes?.[STORAGE_KEY];
+    if (!changed || !Object.prototype.hasOwnProperty.call(changed, "newValue")) {
+      return;
+    }
+    syncFromExternalSnapshot(changed.newValue);
+  });
+}
+
 function readUserMutationClock(source = state) {
   const raw = Number(source?.meta?.lastUserMutationAt);
   if (!Number.isFinite(raw)) {
@@ -1470,7 +1540,8 @@ function touchUserMutationClock() {
     };
   }
 
-  const next = Math.max(Date.now(), readUserMutationClock(state) + 1);
+  const baseline = Math.max(readUserMutationClock(state), lastSavedUserMutationAt);
+  const next = Math.max(Date.now(), baseline + 1);
   state.meta.lastUserMutationAt = next;
   return next;
 }
@@ -1514,7 +1585,9 @@ function restoreFromSnapshot(snapshot, options = {}) {
   applyBackground();
   renderBoard();
   renderSettings();
-  queueSave();
+  if (options.shouldSave !== false) {
+    queueSave();
+  }
 }
 
 function undoLastChange() {
@@ -6369,6 +6442,7 @@ async function init() {
   lastSavedUserMutationAt = readUserMutationClock(loaded);
   saveInFlightFingerprint = "";
   state = hydrate(loaded);
+  wireStorageSync();
   if (state.ui.home.legacyHeadlessSurfaceMigrated && loaded?.ui?.home?.legacyHeadlessSurfaceMigrated !== true) {
     queueSave();
   }
