@@ -94,6 +94,14 @@
         <rect x="3" y="12" width="8" height="8" rx="1.2" />
         <rect x="13" y="12" width="8" height="8" rx="1.2" />
       </symbol>
+      <symbol id="i-undo" viewBox="0 0 24 24">
+        <path d="M9 8H4v5" />
+        <path d="M4 13c1.4-3.4 4.2-5 7.5-5 4.2 0 7.3 2.6 8.5 6" />
+      </symbol>
+      <symbol id="i-redo" viewBox="0 0 24 24">
+        <path d="M15 8h5v5" />
+        <path d="M20 13c-1.4-3.4-4.2-5-7.5-5-4.2 0-7.3 2.6-8.5 6" />
+      </symbol>
     </svg>
 
     <div id="bgLayer" class="bg-layer" aria-hidden="true">
@@ -116,6 +124,16 @@
             <button id="autoArrangeBtn" class="btn dock-btn" title="Auto arrange widgets">
               <svg class="icon"><use href="#i-arrange"></use></svg>
               <span class="btn-label">Arrange</span>
+            </button>
+
+            <button id="undoBtn" class="btn dock-btn" type="button" title="Undo (Ctrl/Cmd+Z)">
+              <svg class="icon"><use href="#i-undo"></use></svg>
+              <span class="btn-label">Undo</span>
+            </button>
+
+            <button id="redoBtn" class="btn dock-btn" type="button" title="Redo (Ctrl/Cmd+Y)">
+              <svg class="icon"><use href="#i-redo"></use></svg>
+              <span class="btn-label">Redo</span>
             </button>
 
             <button

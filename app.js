@@ -59,6 +59,8 @@ const elements = {
   addWidgetBtn: document.getElementById("addWidgetBtn"),
   resetBtn: document.getElementById("resetBtn"),
   autoArrangeBtn: document.getElementById("autoArrangeBtn"),
+  undoBtn: document.getElementById("undoBtn"),
+  redoBtn: document.getElementById("redoBtn"),
   tabGlobalBtn: document.getElementById("tabGlobalBtn"),
   tabBackgroundBtn: document.getElementById("tabBackgroundBtn"),
   tabProfileBtn: document.getElementById("tabProfileBtn"),
@@ -124,6 +126,7 @@ const modalState = {
 let state = null;
 let saveTimer = null;
 let lastSavedFingerprint = "";
+let lastSavedUserMutationAt = 0;
 let saveInFlightFingerprint = "";
 let wallpaperTimer = null;
 let wallpaperCounter = 0;
@@ -921,6 +924,9 @@ function defaultState() {
     mode: "use",
     selectedWidgetId: "",
     nextId: 100,
+    meta: {
+      lastUserMutationAt: 0
+    },
     ui: defaultUi(),
     presets: defaultPresets(),
     instances: defaultInstances()
@@ -1358,6 +1364,9 @@ function hydrate(raw) {
     mode: raw.mode === "edit" ? "edit" : "use",
     selectedWidgetId: raw.selectedWidgetId || "",
     nextId: Number(raw.nextId || 100),
+    meta: {
+      lastUserMutationAt: Math.max(0, Number(raw?.meta?.lastUserMutationAt) || 0)
+    },
     ui: {
       activeTab:
         rawUi.activeTab === "background"
@@ -1391,6 +1400,10 @@ function queueSave() {
   saveTimer = setTimeout(() => {
     saveTimer = null;
     const snapshot = buildPersistSnapshot();
+    const userMutationAt = readUserMutationClock(snapshot);
+    if (userMutationAt <= lastSavedUserMutationAt) {
+      return;
+    }
     const fingerprint = snapshotFingerprint(snapshot);
     if (!fingerprint) {
       return;
@@ -1403,6 +1416,7 @@ function queueSave() {
     void saveState(snapshot)
       .then(() => {
         lastSavedFingerprint = fingerprint;
+        lastSavedUserMutationAt = Math.max(lastSavedUserMutationAt, userMutationAt);
       })
       .catch(() => {
       })
@@ -1419,6 +1433,7 @@ function buildPersistSnapshot() {
     mode: state.mode,
     selectedWidgetId: state.selectedWidgetId,
     nextId: state.nextId,
+    meta: state.meta,
     ui: state.ui,
     presets: state.presets,
     instances: state.instances
@@ -1437,6 +1452,29 @@ function snapshotFingerprint(snapshot) {
   }
 }
 
+function readUserMutationClock(source = state) {
+  const raw = Number(source?.meta?.lastUserMutationAt);
+  if (!Number.isFinite(raw)) {
+    return 0;
+  }
+  return Math.max(0, Math.floor(raw));
+}
+
+function touchUserMutationClock() {
+  if (!state) {
+    return 0;
+  }
+  if (!state.meta || typeof state.meta !== "object") {
+    state.meta = {
+      lastUserMutationAt: 0
+    };
+  }
+
+  const next = Math.max(Date.now(), readUserMutationClock(state) + 1);
+  state.meta.lastUserMutationAt = next;
+  return next;
+}
+
 function recordHistorySnapshot(label = "Update") {
   if (undoState.isRestoring || !state) {
     return;
@@ -1448,6 +1486,8 @@ function recordHistorySnapshot(label = "Update") {
   if (last?.fingerprint === fingerprint) {
     return;
   }
+
+  touchUserMutationClock();
 
   undoState.undoStack.push({
     label,
@@ -1462,8 +1502,11 @@ function recordHistorySnapshot(label = "Update") {
   undoState.redoStack.length = 0;
 }
 
-function restoreFromSnapshot(snapshot) {
+function restoreFromSnapshot(snapshot, options = {}) {
   state = hydrate(snapshot);
+  if (options.markAsUserMutation) {
+    touchUserMutationClock();
+  }
   closeWidgetModal(false);
   closeAddWidgetModal();
   applyTheme();
@@ -1496,7 +1539,7 @@ function undoLastChange() {
 
   undoState.isRestoring = true;
   try {
-    restoreFromSnapshot(target.snapshot);
+    restoreFromSnapshot(target.snapshot, { markAsUserMutation: true });
   } finally {
     undoState.isRestoring = false;
   }
@@ -1524,7 +1567,7 @@ function redoLastChange() {
 
   undoState.isRestoring = true;
   try {
-    restoreFromSnapshot(target.snapshot);
+    restoreFromSnapshot(target.snapshot, { markAsUserMutation: true });
   } finally {
     undoState.isRestoring = false;
   }
@@ -5804,6 +5847,7 @@ function addWidget(type, options = {}) {
 
 function resetState() {
   recordHistorySnapshot("Reset state");
+  const resetMutationClock = readUserMutationClock(state);
   const keptPresets = Array.isArray(state?.presets) ? state.presets : [];
   const keptDefaultProfileSnapshot =
     state?.ui?.defaultProfileSnapshot && typeof state.ui.defaultProfileSnapshot === "object"
@@ -5811,6 +5855,7 @@ function resetState() {
       : null;
   const keptDefaultProfileUpdatedAt = Math.max(0, Number(state?.ui?.defaultProfileUpdatedAt) || 0);
   state = defaultState();
+  state.meta.lastUserMutationAt = resetMutationClock;
   state.presets = keptPresets;
 
   if (keptDefaultProfileSnapshot) {
@@ -6091,6 +6136,14 @@ function wireEvents() {
     autoArrangeWidgets();
   });
 
+  elements.undoBtn?.addEventListener("click", () => {
+    undoLastChange();
+  });
+
+  elements.redoBtn?.addEventListener("click", () => {
+    redoLastChange();
+  });
+
   window.addEventListener("resize", () => {
     if (elements.editDock?.classList.contains("is-positioned")) {
       const left = Number.parseFloat(elements.editDock.style.left) || 0;
@@ -6313,6 +6366,7 @@ async function init() {
   syncAddWidgetSizeInputs();
   const loaded = await loadState(defaultState());
   lastSavedFingerprint = snapshotFingerprint(loaded);
+  lastSavedUserMutationAt = readUserMutationClock(loaded);
   saveInFlightFingerprint = "";
   state = hydrate(loaded);
   if (state.ui.home.legacyHeadlessSurfaceMigrated && loaded?.ui?.home?.legacyHeadlessSurfaceMigrated !== true) {
