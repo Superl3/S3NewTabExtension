@@ -5949,6 +5949,79 @@ function resetState() {
   queueSave();
 }
 
+function isInteractiveSwipeTarget(target) {
+  if (!(target instanceof Element)) {
+    return false;
+  }
+
+  if (target.closest("[data-no-page-swipe], [data-no-page-drag], [data-page-swipe-lock]")) {
+    return true;
+  }
+
+  const interactiveSelector = [
+    "a[href]",
+    "button",
+    "input",
+    "textarea",
+    "select",
+    "option",
+    "label",
+    "summary",
+    "details",
+    "[contenteditable]",
+    "[draggable='true']",
+    "[role='button']",
+    "[role='link']",
+    "[role='textbox']",
+    "[role='menuitem']",
+    "[role='option']",
+    "[role='checkbox']",
+    "[role='switch']",
+    ".widget-head",
+    ".widget-drag-btn",
+    ".widget-resize-handle",
+    ".widget-padding-handle",
+    ".widget-select-btn",
+    ".widget-remove-btn",
+    ".widget-float-select",
+    ".widget-float-remove",
+    ".widget-refresh-btn",
+    ".widget-open-btn",
+    ".widget-auth-toggle-btn",
+    ".widget-float-refresh",
+    ".widget-float-open",
+    ".widget-float-auth-toggle",
+    ".shortcut-tile",
+    ".ai-chat-widget"
+  ].join(",");
+
+  return Boolean(target.closest(interactiveSelector));
+}
+
+function canStartBoardSwipeFromTarget(target) {
+  if (!(target instanceof Element)) {
+    return true;
+  }
+
+  const blockedZones = [
+    "#settingsPanel",
+    "#settingsPanelBackdrop",
+    ".settings-panel",
+    ".settings-panel-backdrop",
+    ".widget-modal-overlay",
+    ".corner-controls",
+    ".add-widget-fab",
+    ".page-indicator",
+    ".edit-dock"
+  ].join(",");
+
+  if (target.closest(blockedZones)) {
+    return false;
+  }
+
+  return !isInteractiveSwipeTarget(target);
+}
+
 function beginBoardSwipe(event) {
   if (!elements.board || !state?.ui?.home) {
     return;
@@ -5959,7 +6032,7 @@ function beginBoardSwipe(event) {
   if (Number.isFinite(event.button) && event.button !== 0) {
     return;
   }
-  if (event.target !== elements.board) {
+  if (!canStartBoardSwipeFromTarget(event.target)) {
     return;
   }
   if (modalState.open || addWidgetModalOpen || shortcutIconEditorState.open) {
@@ -5977,7 +6050,6 @@ function beginBoardSwipe(event) {
   boardSwipeState.dragOffsetX = 0;
   boardSwipeState.dragging = false;
   elements.board.setPointerCapture?.(event.pointerId);
-  event.preventDefault();
 }
 
 function moveBoardSwipe(event) {
@@ -5989,10 +6061,12 @@ function moveBoardSwipe(event) {
   const dy = event.clientY - boardSwipeState.startY;
 
   if (!boardSwipeState.dragging) {
-    if (Math.abs(dx) < 6) {
+    const absX = Math.abs(dx);
+    const absY = Math.abs(dy);
+    if (absX < 3) {
       return;
     }
-    if (Math.abs(dx) < Math.abs(dy)) {
+    if (absX < absY * 0.55) {
       endBoardSwipe(event, { cancelled: true });
       return;
     }
@@ -6029,12 +6103,12 @@ function endBoardSwipe(event, { cancelled = false } = {}) {
   }
 
   const activePage = currentLauncherActivePage();
-  const threshold = Math.max(52, Math.min(170, Math.round((elements.board?.clientWidth || 1) * 0.18)));
+  const threshold = Math.max(34, Math.min(130, Math.round((elements.board?.clientWidth || 1) * 0.14)));
   let nextPage = activePage;
 
-  if (dx <= -threshold || velocity <= -0.6) {
+  if (dx <= -threshold || velocity <= -0.42) {
     nextPage = activePage + 1;
-  } else if (dx >= threshold || velocity >= 0.6) {
+  } else if (dx >= threshold || velocity >= 0.42) {
     nextPage = activePage - 1;
   }
 
