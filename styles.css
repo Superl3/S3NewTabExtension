@@ -47,6 +47,31 @@ body {
   font-size: 15px;
 }
 
+body,
+.workspace,
+.board,
+.widget-card,
+.widget-head,
+.widget-title,
+.widget-body,
+.widget-content-host,
+.page-indicator {
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+input,
+textarea,
+select,
+option,
+[contenteditable="true"],
+[contenteditable="plaintext-only"],
+[contenteditable=""],
+[contenteditable]:not([contenteditable="false"]) {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
 .icon-sprite {
   position: absolute;
   width: 0;

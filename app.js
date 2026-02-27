@@ -6024,6 +6024,25 @@ function canStartBoardSwipeFromTarget(target) {
   return !isInteractiveSwipeTarget(target);
 }
 
+function isTextEditableTarget(target) {
+  if (!(target instanceof Element)) {
+    return false;
+  }
+
+  const editableSelector = [
+    "input",
+    "textarea",
+    "select",
+    "option",
+    "[contenteditable='true']",
+    "[contenteditable='plaintext-only']",
+    "[contenteditable='']",
+    "[contenteditable]:not([contenteditable='false'])"
+  ].join(",");
+
+  return Boolean(target.closest(editableSelector));
+}
+
 function beginBoardSwipe(event) {
   if (!elements.board || !state?.ui?.home) {
     return;
@@ -6427,13 +6446,38 @@ function wireEvents() {
   document.addEventListener("pointerdown", blockOutsideModalEvent, true);
   document.addEventListener("wheel", blockOutsideModalEvent, { capture: true, passive: false });
   document.addEventListener("touchmove", blockOutsideModalEvent, { capture: true, passive: false });
+  document.addEventListener(
+    "contextmenu",
+    (event) => {
+      event.preventDefault();
+    },
+    true
+  );
+  document.addEventListener(
+    "selectstart",
+    (event) => {
+      if (isTextEditableTarget(event.target)) {
+        return;
+      }
+      event.preventDefault();
+    },
+    true
+  );
+  document.addEventListener(
+    "dblclick",
+    (event) => {
+      if (isTextEditableTarget(event.target)) {
+        return;
+      }
+      event.preventDefault();
+    },
+    true
+  );
 
   window.addEventListener("keydown", (event) => {
     const key = event.key.toLowerCase();
     const withMod = event.ctrlKey || event.metaKey;
-    const isTypingTarget =
-      event.target instanceof HTMLElement &&
-      Boolean(event.target.closest('input, textarea, select, [contenteditable="true"]'));
+    const isTypingTarget = isTextEditableTarget(event.target);
     const isUndo = withMod && !event.altKey && !event.shiftKey && key === "z";
     const isRedo = withMod && !event.altKey && (key === "y" || (event.shiftKey && key === "z"));
 
