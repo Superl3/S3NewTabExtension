@@ -29,12 +29,16 @@ const WIDGET_COMMON_MASTER_KEYS = [
 
 const FONT_OPTIONS = [
   {
-    value: '"IBM Plex Sans", "Segoe UI", sans-serif',
-    label: "IBM Plex Sans"
+    value: '"Pretendard Std", "Noto Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", "Segoe UI", sans-serif',
+    label: "Pretendard Std"
   },
   {
-    value: '"Noto Sans KR", "Segoe UI", sans-serif',
+    value: '"Noto Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", "Segoe UI", sans-serif',
     label: "Noto Sans KR"
+  },
+  {
+    value: '"IBM Plex Sans", "Segoe UI", sans-serif',
+    label: "IBM Plex Sans"
   },
   {
     value: '"Segoe UI", sans-serif',

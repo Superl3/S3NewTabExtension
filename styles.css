@@ -1,3 +1,43 @@
+@font-face {
+  font-family: "Pretendard Std";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src:
+    local("Pretendard Std Regular"),
+    url("fonts/pretendard/PretendardStd-Regular.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Pretendard Std";
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src:
+    local("Pretendard Std Medium"),
+    url("fonts/pretendard/PretendardStd-Medium.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Pretendard Std";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src:
+    local("Pretendard Std SemiBold"),
+    url("fonts/pretendard/PretendardStd-SemiBold.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Pretendard Std";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src:
+    local("Pretendard Std Bold"),
+    url("fonts/pretendard/PretendardStd-Bold.woff2") format("woff2");
+}
+
 :root {
   --primary: #1d6f5f;
   --accent: #1f4f9f;
@@ -19,7 +59,7 @@
   --shadow-edge: color-mix(in srgb, var(--text), transparent 78%);
   --text-shadow-strong: color-mix(in srgb, var(--text), transparent 55%);
   --text-shadow-soft: color-mix(in srgb, var(--text), transparent 72%);
-  --font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
+  --font-family: "Pretendard Std", "Noto Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", "Segoe UI", sans-serif;
   --font-scale: 1;
   --content-font-scale: 1;
   --bg-sharp-opacity: 1;
@@ -45,6 +85,7 @@ body {
   background: var(--background);
   font-family: var(--font-family);
   font-size: 15px;
+  font-synthesis: none;
 }
 
 body,
