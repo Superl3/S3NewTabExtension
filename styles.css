@@ -803,11 +803,15 @@ body:not(.mode-edit) .widget-card.headless .widget-inline-actions .widget-float-
 
 body:not(.mode-edit) .widget-head .widget-remove-btn,
 body:not(.mode-edit) .widget-head .widget-select-btn {
-  display: none;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
 }
 
 body:not(.mode-edit) .widget-head .widget-auth-toggle-btn {
-  display: none;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
 }
 
 .widget-refresh-btn,
