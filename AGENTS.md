@@ -25,3 +25,4 @@ These rules are mandatory for this repository across sessions.
 2. Visible buttons must be rendered in a contiguous sequence with no phantom gaps from hidden controls.
 3. Normal mode and Edit mode transitions must not introduce perceived floating alignment or spacing drift in header controls.
 4. Mode switches must preserve header/title layout metrics (font size, line height, vertical rhythm, and spacing) so titles never appear to jump due to button visibility changes.
+5. Header height must remain identical between Normal and Edit modes; button visibility must never cause title/header height expansion or collapse (notably in TODO/Notes and any future widgets).

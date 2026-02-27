@@ -674,6 +674,7 @@ body.mode-edit .drag-handle {
   display: inline-flex;
   align-items: center;
   gap: 7px;
+  min-height: 32px;
   min-width: 0;
   flex: 0 0 auto;
   justify-content: flex-end;
