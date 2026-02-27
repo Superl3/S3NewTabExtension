@@ -104,6 +104,7 @@ const elements = {
   shortcutIconEditorCloseBtn: document.getElementById("shortcutIconEditorCloseBtn"),
   shortcutIconEditorCancelBtn: document.getElementById("shortcutIconEditorCancelBtn"),
   shortcutIconEditorApplyBtn: document.getElementById("shortcutIconEditorApplyBtn"),
+  workspace: document.querySelector(".workspace"),
   editDock: document.querySelector(".edit-dock"),
   editDockGrip: document.getElementById("editDockGrip"),
   pageIndicator: document.getElementById("pageIndicator")
@@ -152,6 +153,7 @@ const dockDragState = {
 const boardSwipeState = {
   active: false,
   pointerId: null,
+  captureTarget: null,
   startX: 0,
   startY: 0,
   startAt: 0,
@@ -6042,14 +6044,18 @@ function beginBoardSwipe(event) {
     return;
   }
 
+  const captureHost =
+    event.currentTarget instanceof Element ? event.currentTarget : elements.workspace || elements.board;
+
   boardSwipeState.active = true;
   boardSwipeState.pointerId = event.pointerId;
+  boardSwipeState.captureTarget = captureHost;
   boardSwipeState.startX = event.clientX;
   boardSwipeState.startY = event.clientY;
   boardSwipeState.startAt = performance.now();
   boardSwipeState.dragOffsetX = 0;
   boardSwipeState.dragging = false;
-  elements.board.setPointerCapture?.(event.pointerId);
+  captureHost?.setPointerCapture?.(event.pointerId);
 }
 
 function moveBoardSwipe(event) {
@@ -6090,12 +6096,14 @@ function endBoardSwipe(event, { cancelled = false } = {}) {
 
   boardSwipeState.active = false;
   boardSwipeState.pointerId = null;
+  const captureHost = boardSwipeState.captureTarget;
+  boardSwipeState.captureTarget = null;
   boardSwipeState.startX = 0;
   boardSwipeState.startY = 0;
   boardSwipeState.startAt = 0;
   boardSwipeState.dragOffsetX = 0;
   boardSwipeState.dragging = false;
-  elements.board?.releasePointerCapture?.(event.pointerId);
+  captureHost?.releasePointerCapture?.(event.pointerId);
 
   if (cancelled || !didDrag) {
     renderBoardViewport({ dragOffsetX: 0, animate: true, dragging: false });
@@ -6172,7 +6180,7 @@ function wireEvents() {
     elements.editDock?.classList.remove("is-dragging");
   });
 
-  elements.board?.addEventListener("pointerdown", (event) => {
+  elements.workspace?.addEventListener("pointerdown", (event) => {
     beginBoardSwipe(event);
   });
 
