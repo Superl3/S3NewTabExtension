@@ -495,11 +495,14 @@ body.mode-edit .dock-edit-controls {
 
 .persistent-dock {
   position: fixed;
-  z-index: 1208;
+  z-index: 1462;
   display: flex;
   align-items: center;
   justify-content: center;
   pointer-events: auto;
+  --dock-length-units: 6;
+  --dock-unit-size: 36px;
+  --dock-padding: 8px;
   --dock-hide-x: 0px;
   --dock-hide-y: 0px;
 }
@@ -544,15 +547,29 @@ body.mode-edit .dock-edit-controls {
   position: relative;
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 8px;
-  padding: 8px;
+  padding: var(--dock-padding);
   border-radius: 999px;
   border: 1px solid color-mix(in srgb, var(--line), transparent 24%);
   background: color-mix(in srgb, var(--surface), transparent 18%);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
+  inline-size: max-content;
+  block-size: calc(var(--dock-unit-size) + var(--dock-padding) * 2);
   box-shadow: 0 10px 24px var(--shadow-edge);
   transition: opacity 0.22s ease, transform 0.22s ease, box-shadow 0.22s ease;
+}
+
+.persistent-dock[data-position="top"] .persistent-dock-body,
+.persistent-dock[data-position="bottom"] .persistent-dock-body {
+  inline-size: calc(var(--dock-unit-size) * var(--dock-length-units) + var(--dock-padding) * 2);
+}
+
+.persistent-dock[data-position="left"] .persistent-dock-body,
+.persistent-dock[data-position="right"] .persistent-dock-body {
+  inline-size: calc(var(--dock-unit-size) + var(--dock-padding) * 2);
+  block-size: calc(var(--dock-unit-size) * var(--dock-length-units) + var(--dock-padding) * 2);
 }
 
 .persistent-dock[data-position="left"] .persistent-dock-body,
@@ -602,6 +619,9 @@ body.mode-edit .dock-edit-controls {
 .persistent-dock-actions {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
   gap: 7px;
 }
 
@@ -730,11 +750,6 @@ body.mode-edit .dock-edit-controls {
 .persistent-dock[data-visibility="hover"]:hover .persistent-dock-handle,
 .persistent-dock[data-visibility="hover"]:focus-within .persistent-dock-handle {
   opacity: 0.16;
-}
-
-body.mode-edit.settings-open .persistent-dock {
-  pointer-events: none;
-  opacity: 0.55;
 }
 
 .settings-rail-toggle {
@@ -3190,7 +3205,8 @@ body.mode-edit .widget-float-remove:hover {
   }
 
   .persistent-dock-body {
-    padding: 7px;
+    --dock-unit-size: 32px;
+    --dock-padding: 7px;
     gap: 6px;
   }
 

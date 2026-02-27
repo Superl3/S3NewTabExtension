@@ -115,9 +115,7 @@ const elements = {
   dockPageState: document.getElementById("dockPageState"),
   dockPrevBtn: document.getElementById("dockPrevBtn"),
   dockNextBtn: document.getElementById("dockNextBtn"),
-  dockModeBtn: document.getElementById("dockModeBtn"),
   dockSettingsBtn: document.getElementById("dockSettingsBtn"),
-  dockAddBtn: document.getElementById("dockAddBtn"),
   dockSettingsModalOverlay: document.getElementById("dockSettingsModalOverlay"),
   dockSettingsModalBody: document.getElementById("dockSettingsModalBody"),
   dockSettingsModalCloseBtn: document.getElementById("dockSettingsModalCloseBtn"),
@@ -381,6 +379,7 @@ function defaultHomeLayout() {
     dockShape: "raised",
     dockVisibility: "always",
     dockPosition: "bottom",
+    dockLength: 6,
     widgetBackdropBlur: true,
     legacyHeadlessSurfaceMigrated: false
   };
@@ -854,6 +853,14 @@ function normalizeDockPosition(value, fallback = "bottom") {
   return fallback;
 }
 
+function normalizeDockLength(value, fallback = 6) {
+  const num = Number(value);
+  if (!Number.isFinite(num)) {
+    return clamp(Math.floor(fallback), 5, 14);
+  }
+  return clamp(Math.floor(num), 5, 14);
+}
+
 function normalizePageCount(value, fallback = 1) {
   const num = Number(value);
   if (!Number.isFinite(num)) {
@@ -923,6 +930,7 @@ function normalizeHomeLayout(layout) {
     dockShape: normalizeDockShape(base.dockShape, "raised"),
     dockVisibility: normalizeDockVisibility(base.dockVisibility, "always"),
     dockPosition: normalizeDockPosition(base.dockPosition, "bottom"),
+    dockLength: normalizeDockLength(base.dockLength, 6),
     widgetBackdropBlur: base.widgetBackdropBlur !== false,
     legacyHeadlessSurfaceMigrated: base.legacyHeadlessSurfaceMigrated === true
   };
@@ -1853,6 +1861,14 @@ function dockSettingsFields() {
         { value: "left", label: "Left center" },
         { value: "right", label: "Right center" }
       ]
+    },
+    {
+      key: "dockLength",
+      label: "Dock length (units)",
+      type: "number",
+      min: 5,
+      max: 14,
+      step: 1
     }
   ];
 }
@@ -1893,7 +1909,8 @@ function openDockSettingsModal() {
   dockModalState.draft = {
     dockShape: normalizeDockShape(home.dockShape, "raised"),
     dockVisibility: normalizeDockVisibility(home.dockVisibility, "always"),
-    dockPosition: normalizeDockPosition(home.dockPosition, "bottom")
+    dockPosition: normalizeDockPosition(home.dockPosition, "bottom"),
+    dockLength: normalizeDockLength(home.dockLength, 6)
   };
 
   dockSettingsModalOpen = true;
@@ -1940,7 +1957,8 @@ function resetDockSettingsDraftToDefault() {
   dockModalState.draft = {
     dockShape: defaults.dockShape,
     dockVisibility: defaults.dockVisibility,
-    dockPosition: defaults.dockPosition
+    dockPosition: defaults.dockPosition,
+    dockLength: defaults.dockLength
   };
   renderDockSettingsModal();
 }
@@ -1953,7 +1971,8 @@ function applyDockSettingsModal() {
   const patch = {
     dockShape: normalizeDockShape(dockModalState.draft.dockShape, "raised"),
     dockVisibility: normalizeDockVisibility(dockModalState.draft.dockVisibility, "always"),
-    dockPosition: normalizeDockPosition(dockModalState.draft.dockPosition, "bottom")
+    dockPosition: normalizeDockPosition(dockModalState.draft.dockPosition, "bottom"),
+    dockLength: normalizeDockLength(dockModalState.draft.dockLength, 6)
   };
 
   closeDockSettingsModal(false);
@@ -3299,7 +3318,7 @@ function dockBottomClearancePx(home = state?.ui?.home) {
     return 0;
   }
   const visibility = normalizeDockVisibility(home?.dockVisibility, "always");
-  return visibility === "hover" ? 34 : 84;
+  return visibility === "hover" ? 28 : 62;
 }
 
 function syncPersistentDock(progress = null) {
@@ -3327,9 +3346,11 @@ function syncPersistentDock(progress = null) {
   const dockShape = normalizeDockShape(home.dockShape, "raised");
   const dockVisibility = normalizeDockVisibility(home.dockVisibility, "always");
   const dockPosition = normalizeDockPosition(home.dockPosition, "bottom");
+  const dockLength = normalizeDockLength(home.dockLength, 6);
   dock.dataset.shape = dockShape;
   dock.dataset.visibility = dockVisibility;
   dock.dataset.position = dockPosition;
+  dock.style.setProperty("--dock-length-units", String(dockLength));
 
   const pageCount = currentLauncherPageCount();
   const activePage = currentLauncherActivePage();
@@ -3346,15 +3367,6 @@ function syncPersistentDock(progress = null) {
   }
   if (elements.dockNextBtn) {
     elements.dockNextBtn.disabled = rounded >= pageCount - 1;
-  }
-  if (elements.dockAddBtn) {
-    elements.dockAddBtn.classList.toggle("is-hidden", state.mode !== "edit");
-  }
-  if (elements.dockModeBtn) {
-    const modeTitle = state.mode === "edit" ? "Switch to Use Mode" : "Switch to Edit Mode";
-    elements.dockModeBtn.title = modeTitle;
-    elements.dockModeBtn.setAttribute("aria-label", modeTitle);
-    elements.dockModeBtn.classList.toggle("is-active", state.mode === "edit");
   }
   if (elements.dockSettingsBtn) {
     const settingsTitle = dockSettingsModalOpen ? "Close dock settings" : "Open dock settings";
@@ -6731,20 +6743,12 @@ function wireEvents() {
     setActiveLauncherPage(currentLauncherActivePage() + 1, { shouldSave: true, animate: true });
   });
 
-  elements.dockModeBtn?.addEventListener("click", () => {
-    elements.modeToggleBtn?.click();
-  });
-
   elements.dockSettingsBtn?.addEventListener("click", () => {
     if (dockSettingsModalOpen) {
       closeDockSettingsModal(false);
       return;
     }
     openDockSettingsModal();
-  });
-
-  elements.dockAddBtn?.addEventListener("click", () => {
-    openAddWidgetModal();
   });
 
   elements.tabGlobalBtn?.addEventListener("click", () => {
