@@ -18,3 +18,9 @@ These rules are mandatory for this repository across sessions.
 1. Treat `commit + push` as the default completion behavior unless the user explicitly says not to.
 2. If merge/push fails, report the reason and continue with the safest non-destructive recovery path.
 3. For old direct-to-main commits, create backfill branches pointing to those commits when practical to improve visual traceability.
+
+## Widget Header Design Principles
+
+1. Header action buttons must always be visually anchored to the right edge of the widget header.
+2. Visible buttons must be rendered in a contiguous sequence with no phantom gaps from hidden controls.
+3. Normal mode and Edit mode transitions must not introduce perceived floating alignment or spacing drift in header controls.
