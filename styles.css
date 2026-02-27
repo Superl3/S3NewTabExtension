@@ -1679,6 +1679,145 @@ body.mode-edit .widget-float-remove:hover {
   overflow: hidden;
 }
 
+.github-pr-widget {
+  min-height: 100%;
+}
+
+.github-pr-widget-shell {
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.github-pr-widget-status {
+  margin: 0;
+  width: 100%;
+  color: var(--muted);
+  font-size: 0.84em;
+  text-align: right;
+  flex: 0 0 auto;
+  padding-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.github-pr-widget-status.is-error {
+  color: color-mix(in srgb, var(--warn), var(--text) 18%);
+}
+
+.github-pr-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+  flex-direction: column;
+  gap: 6px;
+  overflow: auto;
+}
+
+.github-pr-empty {
+  margin: 0;
+  border: 1px dashed color-mix(in srgb, var(--line), transparent 20%);
+  border-radius: 10px;
+  padding: 10px;
+  color: var(--muted);
+  background: color-mix(in srgb, var(--widget-effective-surface), transparent 12%);
+}
+
+.github-pr-item {
+  border: 1px solid color-mix(in srgb, var(--line), transparent 24%);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--widget-effective-surface), transparent 12%);
+}
+
+.github-pr-item.is-review-requested {
+  border-color: color-mix(in srgb, var(--widget-effective-accent), var(--line) 48%);
+  box-shadow: inset 2px 0 0 color-mix(in srgb, var(--widget-effective-accent), transparent 18%);
+}
+
+.github-pr-link {
+  display: block;
+  text-decoration: none;
+  color: inherit;
+  padding: 9px 10px;
+}
+
+.github-pr-link:hover {
+  background: color-mix(in srgb, var(--widget-effective-surface), transparent 4%);
+}
+
+.github-pr-top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.github-pr-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 650;
+}
+
+.github-pr-updated {
+  flex: 0 0 auto;
+  color: var(--muted);
+  font-size: 0.78em;
+}
+
+.github-pr-meta {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 0.83em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.github-pr-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 6px;
+}
+
+.github-pr-badge {
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  border: 1px solid color-mix(in srgb, var(--line), transparent 18%);
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-size: 0.75em;
+  line-height: 1.3;
+  color: color-mix(in srgb, var(--text), var(--muted) 40%);
+  background: color-mix(in srgb, var(--widget-effective-surface), transparent 8%);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.github-pr-badge.is-review {
+  border-color: color-mix(in srgb, var(--widget-effective-accent), var(--line) 32%);
+  color: color-mix(in srgb, var(--widget-effective-accent), var(--text) 28%);
+}
+
+.github-pr-badge.is-draft {
+  border-color: color-mix(in srgb, var(--warn), var(--line) 44%);
+  color: color-mix(in srgb, var(--warn), var(--text) 24%);
+}
+
+.github-pr-badge.is-branch,
+.github-pr-badge.is-reviewers {
+  max-width: min(100%, 250px);
+}
+
 .todo-list,
 .chat-list {
   list-style: none;
@@ -2485,4 +2624,5 @@ body.mode-edit .widget-float-remove:hover {
     flex: 1 1 48%;
     justify-content: center;
   }
+
 }

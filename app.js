@@ -3495,6 +3495,96 @@ function createWidgetCard(instance) {
     card.classList.add("supports-headless-refresh");
   }
 
+  if (instance.type === "githubPrList") {
+    const makeActionButton = (className, titleText, iconId, action) => {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = className;
+      btn.title = titleText;
+      btn.innerHTML = `<svg class="icon"><use href="#${iconId}"></use></svg>`;
+      btn.addEventListener("click", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        Promise.resolve(action?.());
+      });
+      return btn;
+    };
+
+    const placeHeadAction = (btn) => {
+      if (selectBtn?.parentElement === headActions) {
+        headActions.insertBefore(btn, selectBtn);
+      } else {
+        headActions?.prepend(btn);
+      }
+    };
+
+    const placeFloatAction = (btn) => {
+      if (floatSelectBtn?.parentElement === inlineActions) {
+        inlineActions.insertBefore(btn, floatSelectBtn);
+      } else {
+        inlineActions?.prepend(btn);
+      }
+    };
+
+    const runRefresh = () => {
+      if (typeof controller?.manualRefresh === "function") {
+        return controller.manualRefresh();
+      }
+      if (typeof controller?.refresh === "function") {
+        return controller.refresh();
+      }
+      return null;
+    };
+
+    const runOpenRepository = () => {
+      if (typeof controller?.openRepository === "function") {
+        return controller.openRepository();
+      }
+      return null;
+    };
+
+    if (
+      typeof controller?.manualRefresh === "function" ||
+      typeof controller?.refresh === "function"
+    ) {
+      const headRefresh = makeActionButton(
+        "icon-btn widget-refresh-btn",
+        "Refresh pull requests",
+        "i-reset",
+        runRefresh
+      );
+      placeHeadAction(headRefresh);
+
+      const floatRefresh = makeActionButton(
+        "icon-btn widget-float-refresh",
+        "Refresh pull requests",
+        "i-reset",
+        runRefresh
+      );
+      placeFloatAction(floatRefresh);
+    }
+
+    if (typeof controller?.openRepository === "function") {
+      const headOpen = makeActionButton(
+        "icon-btn widget-open-btn",
+        "Open repository",
+        "i-open",
+        runOpenRepository
+      );
+      placeHeadAction(headOpen);
+
+      const floatOpen = makeActionButton(
+        "icon-btn widget-float-open",
+        "Open repository",
+        "i-open",
+        runOpenRepository
+      );
+      placeFloatAction(floatOpen);
+    }
+
+    card.classList.add("supports-headless-refresh");
+  }
+
   card.addEventListener("click", (event) => {
     if (state.mode !== "edit") {
       return;

@@ -10,6 +10,7 @@ import { gmailWidget } from "./gmail.js";
 import { rssWidget } from "./rss.js";
 import { calendarWidget } from "./calendar.js";
 import { mondayAssignedWidget } from "./mondayAssigned.js";
+import { githubPrListWidget } from "./githubPrList.js";
 
 export const widgetRegistry = {
   [clockWidget.type]: clockWidget,
@@ -23,7 +24,8 @@ export const widgetRegistry = {
   [gmailWidget.type]: gmailWidget,
   [rssWidget.type]: rssWidget,
   [calendarWidget.type]: calendarWidget,
-  [mondayAssignedWidget.type]: mondayAssignedWidget
+  [mondayAssignedWidget.type]: mondayAssignedWidget,
+  [githubPrListWidget.type]: githubPrListWidget
 };
 
 export const widgetList = Object.values(widgetRegistry);
