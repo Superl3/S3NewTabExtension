@@ -2,6 +2,8 @@ import { STORAGE_KEY, loadState, saveState } from "./storage.js";
 import { widgetRegistry, widgetList } from "./widgets/index.js";
 
 const SNAP = 20;
+const LONG_PRESS_DRAG_DELAY_MS = 340;
+const LONG_PRESS_DRAG_MOVE_TOLERANCE = 10;
 const GRID_MAX_ROW_SPAN = 24;
 const GRID_MAX_COLUMNS = 16;
 const GRID_MAX_ROWS = 16;
@@ -4053,8 +4055,15 @@ function createWidgetCard(instance) {
     }
   });
 
-  const startDrag = ({ event = null, target = null, fromHandleButton = false, startX = null, startY = null } = {}) => {
-    if (state.mode !== "edit") {
+  const startDrag = ({
+    event = null,
+    target = null,
+    fromHandleButton = false,
+    startX = null,
+    startY = null,
+    allowUseMode = false
+  } = {}) => {
+    if (state.mode !== "edit" && !allowUseMode) {
       return false;
     }
     if (event && Number.isFinite(event.button) && event.button !== 0 && event.button !== -1) {
@@ -4067,7 +4076,9 @@ function createWidgetCard(instance) {
     event?.stopPropagation();
     event?.preventDefault();
 
-    setSelected(instance.id);
+    if (state.mode === "edit") {
+      setSelected(instance.id);
+    }
 
     const dragStartX = Number.isFinite(startX) ? startX : event?.clientX;
     const dragStartY = Number.isFinite(startY) ? startY : event?.clientY;
@@ -4250,6 +4261,117 @@ function createWidgetCard(instance) {
     return true;
   };
 
+  const longPressDragState = {
+    timerId: null,
+    pointerId: null,
+    startX: 0,
+    startY: 0,
+    target: null
+  };
+
+  const clearLongPressDrag = () => {
+    if (longPressDragState.timerId !== null) {
+      window.clearTimeout(longPressDragState.timerId);
+      longPressDragState.timerId = null;
+    }
+    window.removeEventListener("pointermove", handleLongPressPointerMove);
+    window.removeEventListener("pointerup", handleLongPressPointerEnd);
+    window.removeEventListener("pointercancel", handleLongPressPointerEnd);
+    window.removeEventListener("mousemove", handleLongPressMouseMove);
+    window.removeEventListener("mouseup", handleLongPressMouseEnd);
+    longPressDragState.pointerId = null;
+    longPressDragState.startX = 0;
+    longPressDragState.startY = 0;
+    longPressDragState.target = null;
+  };
+
+  const movedPastLongPressTolerance = (clientX, clientY) => {
+    return Math.hypot(clientX - longPressDragState.startX, clientY - longPressDragState.startY) > LONG_PRESS_DRAG_MOVE_TOLERANCE;
+  };
+
+  const handleLongPressPointerMove = (moveEvent) => {
+    if (longPressDragState.pointerId !== null && moveEvent.pointerId !== longPressDragState.pointerId) {
+      return;
+    }
+    if (movedPastLongPressTolerance(moveEvent.clientX, moveEvent.clientY)) {
+      clearLongPressDrag();
+    }
+  };
+
+  const handleLongPressPointerEnd = (endEvent) => {
+    if (longPressDragState.pointerId !== null && endEvent.pointerId !== longPressDragState.pointerId) {
+      return;
+    }
+    clearLongPressDrag();
+  };
+
+  const handleLongPressMouseMove = (moveEvent) => {
+    if (movedPastLongPressTolerance(moveEvent.clientX, moveEvent.clientY)) {
+      clearLongPressDrag();
+    }
+  };
+
+  const handleLongPressMouseEnd = () => {
+    clearLongPressDrag();
+  };
+
+  const scheduleLongPressDrag = (event, target) => {
+    if (state.mode === "edit") {
+      return false;
+    }
+    if (event && Number.isFinite(event.button) && event.button !== 0 && event.button !== -1) {
+      return false;
+    }
+    if (
+      target?.closest(
+        "button, input, textarea, select, a, [contenteditable='true'], [contenteditable='plaintext-only'], [contenteditable=''], [contenteditable]:not([contenteditable='false'])"
+      )
+    ) {
+      return false;
+    }
+
+    const pointerStartX = event?.clientX;
+    const pointerStartY = event?.clientY;
+    if (!Number.isFinite(pointerStartX) || !Number.isFinite(pointerStartY)) {
+      return false;
+    }
+
+    clearLongPressDrag();
+
+    longPressDragState.pointerId = Number.isFinite(event?.pointerId) ? event.pointerId : null;
+    longPressDragState.startX = pointerStartX;
+    longPressDragState.startY = pointerStartY;
+    longPressDragState.target = target || null;
+
+    event?.stopPropagation?.();
+
+    if (longPressDragState.pointerId !== null) {
+      window.addEventListener("pointermove", handleLongPressPointerMove, { passive: true });
+      window.addEventListener("pointerup", handleLongPressPointerEnd, { passive: true });
+      window.addEventListener("pointercancel", handleLongPressPointerEnd, { passive: true });
+    } else {
+      window.addEventListener("mousemove", handleLongPressMouseMove);
+      window.addEventListener("mouseup", handleLongPressMouseEnd);
+    }
+
+    longPressDragState.timerId = window.setTimeout(() => {
+      const dragTarget = longPressDragState.target;
+      const dragStartX = longPressDragState.startX;
+      const dragStartY = longPressDragState.startY;
+      clearLongPressDrag();
+      startDrag({
+        event: null,
+        target: dragTarget,
+        fromHandleButton: false,
+        startX: dragStartX,
+        startY: dragStartY,
+        allowUseMode: true
+      });
+    }, LONG_PRESS_DRAG_DELAY_MS);
+
+    return true;
+  };
+
   const startPaddingDrag = (event, corner) => {
     if (state.mode !== "edit") {
       return;
@@ -4359,6 +4481,10 @@ function createWidgetCard(instance) {
     if (instance.viewMode === "headless") {
       return;
     }
+    if (state.mode !== "edit") {
+      scheduleLongPressDrag(event, event.target);
+      return;
+    }
     startDrag({ event, target: event.target, fromHandleButton: false });
   });
 
@@ -4369,11 +4495,19 @@ function createWidgetCard(instance) {
     if (instance.viewMode === "headless") {
       return;
     }
+    if (state.mode !== "edit") {
+      scheduleLongPressDrag(event, event.target);
+      return;
+    }
     startDrag({ event, target: event.target, fromHandleButton: false });
   });
 
   title?.addEventListener("pointerdown", (event) => {
     if (instance.viewMode === "headless") {
+      return;
+    }
+    if (state.mode !== "edit") {
+      scheduleLongPressDrag(event, event.target);
       return;
     }
     startDrag({ event, target: event.target, fromHandleButton: false });
@@ -4386,7 +4520,28 @@ function createWidgetCard(instance) {
     if (instance.viewMode === "headless") {
       return;
     }
+    if (state.mode !== "edit") {
+      scheduleLongPressDrag(event, event.target);
+      return;
+    }
     startDrag({ event, target: event.target, fromHandleButton: false });
+  });
+
+  card.addEventListener("pointerdown", (event) => {
+    if (instance.viewMode !== "headless") {
+      return;
+    }
+    scheduleLongPressDrag(event, event.target);
+  });
+
+  card.addEventListener("mousedown", (event) => {
+    if (typeof window.PointerEvent !== "undefined") {
+      return;
+    }
+    if (instance.viewMode !== "headless") {
+      return;
+    }
+    scheduleLongPressDrag(event, event.target);
   });
 
   dragBtn?.addEventListener("pointerdown", (event) => {
@@ -6446,6 +6601,16 @@ function wireEvents() {
   document.addEventListener("pointerdown", blockOutsideModalEvent, true);
   document.addEventListener("wheel", blockOutsideModalEvent, { capture: true, passive: false });
   document.addEventListener("touchmove", blockOutsideModalEvent, { capture: true, passive: false });
+  document.addEventListener(
+    "dragstart",
+    (event) => {
+      if (isTextEditableTarget(event.target)) {
+        return;
+      }
+      event.preventDefault();
+    },
+    true
+  );
   document.addEventListener(
     "contextmenu",
     (event) => {
