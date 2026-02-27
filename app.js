@@ -3,7 +3,8 @@ import { widgetRegistry, widgetList } from "./widgets/index.js";
 
 const SNAP = 20;
 const LONG_PRESS_DRAG_DELAY_MS = 340;
-const LONG_PRESS_DRAG_MOVE_TOLERANCE = 10;
+const SHORTCUT_LONG_PRESS_DRAG_DELAY_MS = 220;
+const LONG_PRESS_DRAG_MOVE_TOLERANCE = 18;
 const GRID_MAX_ROW_SPAN = 24;
 const GRID_MAX_COLUMNS = 16;
 const GRID_MAX_ROWS = 16;
@@ -110,6 +111,19 @@ const elements = {
   shortcutIconEditorCloseBtn: document.getElementById("shortcutIconEditorCloseBtn"),
   shortcutIconEditorCancelBtn: document.getElementById("shortcutIconEditorCancelBtn"),
   shortcutIconEditorApplyBtn: document.getElementById("shortcutIconEditorApplyBtn"),
+  persistentDock: document.getElementById("persistentDock"),
+  dockPageState: document.getElementById("dockPageState"),
+  dockPrevBtn: document.getElementById("dockPrevBtn"),
+  dockNextBtn: document.getElementById("dockNextBtn"),
+  dockModeBtn: document.getElementById("dockModeBtn"),
+  dockSettingsBtn: document.getElementById("dockSettingsBtn"),
+  dockAddBtn: document.getElementById("dockAddBtn"),
+  dockSettingsModalOverlay: document.getElementById("dockSettingsModalOverlay"),
+  dockSettingsModalBody: document.getElementById("dockSettingsModalBody"),
+  dockSettingsModalCloseBtn: document.getElementById("dockSettingsModalCloseBtn"),
+  dockSettingsModalCancelBtn: document.getElementById("dockSettingsModalCancelBtn"),
+  dockSettingsModalOkBtn: document.getElementById("dockSettingsModalOkBtn"),
+  dockSettingsModalDefaultBtn: document.getElementById("dockSettingsModalDefaultBtn"),
   workspace: document.querySelector(".workspace"),
   editDock: document.querySelector(".edit-dock"),
   editDockGrip: document.getElementById("editDockGrip"),
@@ -142,6 +156,7 @@ let blurComputeToken = 0;
 let wallpaperSourceSignature = "";
 let zCounter = 1;
 let addWidgetModalOpen = false;
+let dockSettingsModalOpen = false;
 let wallpaperLoadToken = 0;
 let videoLoadToken = 0;
 let sampledWallpaperBaseLuminance = null;
@@ -165,6 +180,13 @@ const boardSwipeState = {
   startAt: 0,
   dragOffsetX: 0,
   dragging: false
+};
+const widgetLongPressState = {
+  pending: false,
+  pointerId: null
+};
+const dockModalState = {
+  draft: null
 };
 const shortcutIconEditorState = {
   open: false,
@@ -355,6 +377,10 @@ function defaultHomeLayout() {
     itemGap: "narrow",
     pageCount: 1,
     activePage: 0,
+    dockEnabled: true,
+    dockShape: "raised",
+    dockVisibility: "always",
+    dockPosition: "bottom",
     widgetBackdropBlur: true,
     legacyHeadlessSurfaceMigrated: false
   };
@@ -807,6 +833,27 @@ function normalizeGapPreset(value, fallback = "narrow") {
   return fallback;
 }
 
+function normalizeDockShape(value, fallback = "raised") {
+  if (value === "raised" || value === "flat") {
+    return value;
+  }
+  return fallback;
+}
+
+function normalizeDockVisibility(value, fallback = "always") {
+  if (value === "always" || value === "hover") {
+    return value;
+  }
+  return fallback;
+}
+
+function normalizeDockPosition(value, fallback = "bottom") {
+  if (value === "top" || value === "bottom" || value === "left" || value === "right") {
+    return value;
+  }
+  return fallback;
+}
+
 function normalizePageCount(value, fallback = 1) {
   const num = Number(value);
   if (!Number.isFinite(num)) {
@@ -872,6 +919,10 @@ function normalizeHomeLayout(layout) {
     itemGap: normalizeGapPreset(base.itemGap, "narrow"),
     pageCount,
     activePage: normalizeActivePage(base.activePage, pageCount, 0),
+    dockEnabled: base.dockEnabled !== false,
+    dockShape: normalizeDockShape(base.dockShape, "raised"),
+    dockVisibility: normalizeDockVisibility(base.dockVisibility, "always"),
+    dockPosition: normalizeDockPosition(base.dockPosition, "bottom"),
     widgetBackdropBlur: base.widgetBackdropBlur !== false,
     legacyHeadlessSurfaceMigrated: base.legacyHeadlessSurfaceMigrated === true
   };
@@ -1586,6 +1637,7 @@ function restoreFromSnapshot(snapshot, options = {}) {
   if (options.markAsUserMutation) {
     touchUserMutationClock();
   }
+  closeDockSettingsModal(false);
   closeWidgetModal(false);
   closeAddWidgetModal();
   applyTheme();
@@ -1678,6 +1730,7 @@ function setBodyMode() {
 
   syncSettingsPanelVisibility();
   syncPageIndicator();
+  syncPersistentDock();
 }
 
 function clampEditDockPosition(left, top) {
@@ -1717,6 +1770,7 @@ function syncSettingsPanelVisibility() {
   if (elements.settingsRailToggleBtn) {
     elements.settingsRailToggleBtn.title = open ? "Close settings" : "Open settings";
   }
+  syncPersistentDock();
 }
 
 function syncSettingsTabButtons() {
@@ -1763,6 +1817,147 @@ function isInsideAddWidgetModalOverlay(target) {
 
 function isInsideShortcutIconEditorOverlay(target) {
   return target instanceof Element && Boolean(target.closest("#shortcutIconEditorOverlay"));
+}
+
+function isInsideDockSettingsModalOverlay(target) {
+  return target instanceof Element && Boolean(target.closest("#dockSettingsModalOverlay"));
+}
+
+function dockSettingsFields() {
+  return [
+    {
+      key: "dockShape",
+      label: "Dock shape",
+      type: "select",
+      options: [
+        { value: "raised", label: "Raised tray" },
+        { value: "flat", label: "Flat wrap" }
+      ]
+    },
+    {
+      key: "dockVisibility",
+      label: "Dock visibility",
+      type: "select",
+      options: [
+        { value: "always", label: "Always visible" },
+        { value: "hover", label: "Reveal on hover" }
+      ]
+    },
+    {
+      key: "dockPosition",
+      label: "Dock position",
+      type: "select",
+      options: [
+        { value: "top", label: "Top center" },
+        { value: "bottom", label: "Bottom center" },
+        { value: "left", label: "Left center" },
+        { value: "right", label: "Right center" }
+      ]
+    }
+  ];
+}
+
+function renderDockSettingsModal() {
+  if (!dockSettingsModalOpen || !dockModalState.draft || !elements.dockSettingsModalBody) {
+    return;
+  }
+
+  elements.dockSettingsModalBody.replaceChildren();
+  for (const schema of dockSettingsFields()) {
+    const row = createFormRow(schema.label);
+    const input = createInputBySchema(schema, dockModalState.draft[schema.key]);
+    input.addEventListener(settingsEventName(schema), () => {
+      dockModalState.draft[schema.key] = readFieldValue(input, schema);
+    });
+    row.append(input);
+    elements.dockSettingsModalBody.append(row);
+  }
+}
+
+function openDockSettingsModal() {
+  if (!elements.dockSettingsModalOverlay || !state?.ui?.home) {
+    return;
+  }
+
+  if (modalState.open) {
+    closeWidgetModal(false);
+  }
+  if (addWidgetModalOpen) {
+    closeAddWidgetModal();
+  }
+  if (shortcutIconEditorState.open) {
+    closeShortcutIconEditor();
+  }
+
+  const home = normalizeHomeLayout(state.ui.home);
+  dockModalState.draft = {
+    dockShape: normalizeDockShape(home.dockShape, "raised"),
+    dockVisibility: normalizeDockVisibility(home.dockVisibility, "always"),
+    dockPosition: normalizeDockPosition(home.dockPosition, "bottom")
+  };
+
+  dockSettingsModalOpen = true;
+  renderDockSettingsModal();
+  elements.dockSettingsModalOverlay.classList.add("open");
+  elements.dockSettingsModalOverlay.setAttribute("aria-hidden", "false");
+  setModalInteractionLock(true);
+  syncPersistentDock();
+
+  requestAnimationFrame(() => {
+    const firstInput = elements.dockSettingsModalBody?.querySelector("input, select, button");
+    if (firstInput instanceof HTMLElement) {
+      firstInput.focus();
+    }
+  });
+}
+
+function closeDockSettingsModal(rerender = false) {
+  if (!dockSettingsModalOpen) {
+    return;
+  }
+
+  dockSettingsModalOpen = false;
+  dockModalState.draft = null;
+  elements.dockSettingsModalOverlay?.classList.remove("open");
+  elements.dockSettingsModalOverlay?.setAttribute("aria-hidden", "true");
+  elements.dockSettingsModalBody?.replaceChildren();
+
+  if (!modalState.open && !addWidgetModalOpen && !shortcutIconEditorState.open) {
+    setModalInteractionLock(false);
+  }
+
+  if (rerender) {
+    renderSettings();
+  }
+  syncPersistentDock();
+}
+
+function resetDockSettingsDraftToDefault() {
+  if (!dockSettingsModalOpen) {
+    return;
+  }
+  const defaults = defaultHomeLayout();
+  dockModalState.draft = {
+    dockShape: defaults.dockShape,
+    dockVisibility: defaults.dockVisibility,
+    dockPosition: defaults.dockPosition
+  };
+  renderDockSettingsModal();
+}
+
+function applyDockSettingsModal() {
+  if (!dockSettingsModalOpen || !dockModalState.draft) {
+    return;
+  }
+
+  const patch = {
+    dockShape: normalizeDockShape(dockModalState.draft.dockShape, "raised"),
+    dockVisibility: normalizeDockVisibility(dockModalState.draft.dockVisibility, "always"),
+    dockPosition: normalizeDockPosition(dockModalState.draft.dockPosition, "bottom")
+  };
+
+  closeDockSettingsModal(false);
+  patchHomeLayout(patch);
 }
 
 function shortcutEditorContext() {
@@ -2096,7 +2291,10 @@ function loadImageIntoShortcutEditor(file) {
 }
 
 function blockOutsideModalEvent(event) {
-  if (!modalState.open && !addWidgetModalOpen && !shortcutIconEditorState.open) {
+  if (!modalState.open && !addWidgetModalOpen && !shortcutIconEditorState.open && !dockSettingsModalOpen) {
+    return;
+  }
+  if (dockSettingsModalOpen && isInsideDockSettingsModalOverlay(event.target)) {
     return;
   }
   if (shortcutIconEditorState.open && isInsideShortcutIconEditorOverlay(event.target)) {
@@ -3094,6 +3292,78 @@ function widgetPageOffsetX(page) {
   return normalizeWidgetPage(page, pageCount, 0) * boardW;
 }
 
+function dockBottomClearancePx(home = state?.ui?.home) {
+  const enabled = home?.dockEnabled !== false;
+  const position = normalizeDockPosition(home?.dockPosition, "bottom");
+  if (!enabled || position !== "bottom") {
+    return 0;
+  }
+  const visibility = normalizeDockVisibility(home?.dockVisibility, "always");
+  return visibility === "hover" ? 34 : 84;
+}
+
+function syncPersistentDock(progress = null) {
+  const root = document.documentElement;
+  const home = state?.ui?.home;
+  if (!home) {
+    root.style.setProperty("--persistent-dock-clearance", "0px");
+    return;
+  }
+
+  root.style.setProperty("--persistent-dock-clearance", `${dockBottomClearancePx(home)}px`);
+  const dockEnabled = home.dockEnabled !== false;
+
+  const dock = elements.persistentDock;
+  if (!dock) {
+    return;
+  }
+
+  dock.classList.toggle("is-disabled", !dockEnabled);
+  dock.setAttribute("aria-hidden", String(!dockEnabled));
+  if (!dockEnabled) {
+    return;
+  }
+
+  const dockShape = normalizeDockShape(home.dockShape, "raised");
+  const dockVisibility = normalizeDockVisibility(home.dockVisibility, "always");
+  const dockPosition = normalizeDockPosition(home.dockPosition, "bottom");
+  dock.dataset.shape = dockShape;
+  dock.dataset.visibility = dockVisibility;
+  dock.dataset.position = dockPosition;
+
+  const pageCount = currentLauncherPageCount();
+  const activePage = currentLauncherActivePage();
+  const value = Number.isFinite(progress)
+    ? clamp(progress, 0, Math.max(0, pageCount - 1))
+    : activePage;
+  const rounded = clamp(Math.round(value), 0, Math.max(0, pageCount - 1));
+
+  if (elements.dockPageState) {
+    elements.dockPageState.textContent = `${rounded + 1} / ${pageCount}`;
+  }
+  if (elements.dockPrevBtn) {
+    elements.dockPrevBtn.disabled = rounded <= 0;
+  }
+  if (elements.dockNextBtn) {
+    elements.dockNextBtn.disabled = rounded >= pageCount - 1;
+  }
+  if (elements.dockAddBtn) {
+    elements.dockAddBtn.classList.toggle("is-hidden", state.mode !== "edit");
+  }
+  if (elements.dockModeBtn) {
+    const modeTitle = state.mode === "edit" ? "Switch to Use Mode" : "Switch to Edit Mode";
+    elements.dockModeBtn.title = modeTitle;
+    elements.dockModeBtn.setAttribute("aria-label", modeTitle);
+    elements.dockModeBtn.classList.toggle("is-active", state.mode === "edit");
+  }
+  if (elements.dockSettingsBtn) {
+    const settingsTitle = dockSettingsModalOpen ? "Close dock settings" : "Open dock settings";
+    elements.dockSettingsBtn.title = settingsTitle;
+    elements.dockSettingsBtn.setAttribute("aria-label", settingsTitle);
+    elements.dockSettingsBtn.classList.toggle("is-active", dockSettingsModalOpen);
+  }
+}
+
 function syncPageIndicator(progress = null) {
   const indicator = elements.pageIndicator;
   if (!indicator || !state?.ui?.home) {
@@ -3195,8 +3465,10 @@ function renderBoardViewport({ dragOffsetX = 0, animate = true, dragging = false
   if (dragging) {
     const progress = activePage - offset / boardW;
     syncPageIndicator(progress);
+    syncPersistentDock(progress);
   } else {
     syncPageIndicator(activePage);
+    syncPersistentDock(activePage);
   }
 }
 
@@ -4038,6 +4310,19 @@ function createWidgetCard(instance) {
     card.classList.add("supports-headless-refresh");
   }
 
+  card.addEventListener(
+    "click",
+    (event) => {
+      const justFinishedDrag = Date.now() - lastDragEndAt <= 280;
+      if (!justFinishedDrag) {
+        return;
+      }
+      event.preventDefault();
+      event.stopPropagation();
+    },
+    true
+  );
+
   card.addEventListener("click", (event) => {
     if (state.mode !== "edit") {
       return;
@@ -4065,7 +4350,8 @@ function createWidgetCard(instance) {
     fromHandleButton = false,
     startX = null,
     startY = null,
-    allowUseMode = false
+    allowUseMode = false,
+    fromLongPress = false
   } = {}) => {
     if (state.mode !== "edit" && !allowUseMode) {
       return false;
@@ -4073,7 +4359,7 @@ function createWidgetCard(instance) {
     if (event && Number.isFinite(event.button) && event.button !== 0 && event.button !== -1) {
       return false;
     }
-    if (!fromHandleButton && target?.closest("button, input, textarea, select, a")) {
+    if (!fromHandleButton && !allowUseMode && target?.closest("button, input, textarea, select, a")) {
       return false;
     }
 
@@ -4088,6 +4374,11 @@ function createWidgetCard(instance) {
     const dragStartY = Number.isFinite(startY) ? startY : event?.clientY;
     if (!Number.isFinite(dragStartX) || !Number.isFinite(dragStartY)) {
       return false;
+    }
+
+    if (fromLongPress) {
+      card.classList.remove("longpress-drag-armed");
+      card.classList.add("longpress-drag-active");
     }
 
     const pageSwitchThreshold = 42;
@@ -4186,6 +4477,8 @@ function createWidgetCard(instance) {
         window.removeEventListener("pointermove", move);
         window.removeEventListener("pointerup", up);
         window.removeEventListener("pointercancel", up);
+        card.classList.remove("longpress-drag-armed");
+        card.classList.remove("longpress-drag-active");
         lastDragEndAt = Date.now();
         applyGridLayout({ commitFreeLayout: false, shouldSave: false });
         queueSave();
@@ -4238,6 +4531,8 @@ function createWidgetCard(instance) {
       window.removeEventListener("pointermove", move);
       window.removeEventListener("pointerup", up);
       window.removeEventListener("pointercancel", up);
+      card.classList.remove("longpress-drag-armed");
+      card.classList.remove("longpress-drag-active");
       lastDragEndAt = Date.now();
       const snappedX = Math.round(instance.layout.x / SNAP) * SNAP;
       const snappedY = Math.round(instance.layout.y / SNAP) * SNAP;
@@ -4270,6 +4565,7 @@ function createWidgetCard(instance) {
     pointerId: null,
     startX: 0,
     startY: 0,
+    moveTolerance: LONG_PRESS_DRAG_MOVE_TOLERANCE,
     target: null
   };
 
@@ -4283,14 +4579,18 @@ function createWidgetCard(instance) {
     window.removeEventListener("pointercancel", handleLongPressPointerEnd);
     window.removeEventListener("mousemove", handleLongPressMouseMove);
     window.removeEventListener("mouseup", handleLongPressMouseEnd);
+    card.classList.remove("longpress-drag-armed");
+    widgetLongPressState.pending = false;
+    widgetLongPressState.pointerId = null;
     longPressDragState.pointerId = null;
     longPressDragState.startX = 0;
     longPressDragState.startY = 0;
+    longPressDragState.moveTolerance = LONG_PRESS_DRAG_MOVE_TOLERANCE;
     longPressDragState.target = null;
   };
 
   const movedPastLongPressTolerance = (clientX, clientY) => {
-    return Math.hypot(clientX - longPressDragState.startX, clientY - longPressDragState.startY) > LONG_PRESS_DRAG_MOVE_TOLERANCE;
+    return Math.hypot(clientX - longPressDragState.startX, clientY - longPressDragState.startY) > longPressDragState.moveTolerance;
   };
 
   const handleLongPressPointerMove = (moveEvent) => {
@@ -4326,13 +4626,6 @@ function createWidgetCard(instance) {
     if (event && Number.isFinite(event.button) && event.button !== 0 && event.button !== -1) {
       return false;
     }
-    if (
-      target?.closest(
-        "button, input, textarea, select, a, [contenteditable='true'], [contenteditable='plaintext-only'], [contenteditable=''], [contenteditable]:not([contenteditable='false'])"
-      )
-    ) {
-      return false;
-    }
 
     const pointerStartX = event?.clientX;
     const pointerStartY = event?.clientY;
@@ -4345,9 +4638,13 @@ function createWidgetCard(instance) {
     longPressDragState.pointerId = Number.isFinite(event?.pointerId) ? event.pointerId : null;
     longPressDragState.startX = pointerStartX;
     longPressDragState.startY = pointerStartY;
+    const isShortcutPress = Boolean(target?.closest(".shortcut-tile"));
+    const delayMs = isShortcutPress ? SHORTCUT_LONG_PRESS_DRAG_DELAY_MS : LONG_PRESS_DRAG_DELAY_MS;
+    longPressDragState.moveTolerance = isShortcutPress ? LONG_PRESS_DRAG_MOVE_TOLERANCE + 10 : LONG_PRESS_DRAG_MOVE_TOLERANCE;
     longPressDragState.target = target || null;
-
-    event?.stopPropagation?.();
+    card.classList.add("longpress-drag-armed");
+    widgetLongPressState.pending = true;
+    widgetLongPressState.pointerId = longPressDragState.pointerId;
 
     if (longPressDragState.pointerId !== null) {
       window.addEventListener("pointermove", handleLongPressPointerMove, { passive: true });
@@ -4369,9 +4666,10 @@ function createWidgetCard(instance) {
         fromHandleButton: false,
         startX: dragStartX,
         startY: dragStartY,
-        allowUseMode: true
+        allowUseMode: true,
+        fromLongPress: true
       });
-    }, LONG_PRESS_DRAG_DELAY_MS);
+    }, delayMs);
 
     return true;
   };
@@ -4486,7 +4784,6 @@ function createWidgetCard(instance) {
       return;
     }
     if (state.mode !== "edit") {
-      scheduleLongPressDrag(event, event.target);
       return;
     }
     startDrag({ event, target: event.target, fromHandleButton: false });
@@ -4500,7 +4797,6 @@ function createWidgetCard(instance) {
       return;
     }
     if (state.mode !== "edit") {
-      scheduleLongPressDrag(event, event.target);
       return;
     }
     startDrag({ event, target: event.target, fromHandleButton: false });
@@ -4511,7 +4807,6 @@ function createWidgetCard(instance) {
       return;
     }
     if (state.mode !== "edit") {
-      scheduleLongPressDrag(event, event.target);
       return;
     }
     startDrag({ event, target: event.target, fromHandleButton: false });
@@ -4525,28 +4820,35 @@ function createWidgetCard(instance) {
       return;
     }
     if (state.mode !== "edit") {
-      scheduleLongPressDrag(event, event.target);
       return;
     }
     startDrag({ event, target: event.target, fromHandleButton: false });
   });
 
-  card.addEventListener("pointerdown", (event) => {
-    if (instance.viewMode !== "headless") {
-      return;
-    }
-    scheduleLongPressDrag(event, event.target);
-  });
+  card.addEventListener(
+    "pointerdown",
+    (event) => {
+      if (state.mode === "edit") {
+        return;
+      }
+      scheduleLongPressDrag(event, event.target);
+    },
+    true
+  );
 
-  card.addEventListener("mousedown", (event) => {
-    if (typeof window.PointerEvent !== "undefined") {
-      return;
-    }
-    if (instance.viewMode !== "headless") {
-      return;
-    }
-    scheduleLongPressDrag(event, event.target);
-  });
+  card.addEventListener(
+    "mousedown",
+    (event) => {
+      if (typeof window.PointerEvent !== "undefined") {
+        return;
+      }
+      if (state.mode === "edit") {
+        return;
+      }
+      scheduleLongPressDrag(event, event.target);
+    },
+    true
+  );
 
   dragBtn?.addEventListener("pointerdown", (event) => {
     startDrag({ event, target: event.target, fromHandleButton: true });
@@ -4996,6 +5298,11 @@ function renderGlobalSettings() {
       min: 1,
       max: MAX_LAUNCHER_PAGES,
       step: 1
+    },
+    {
+      key: "dockEnabled",
+      label: "Enable dock",
+      type: "checkbox"
     },
     {
       key: "widgetBackdropBlur",
@@ -6173,7 +6480,8 @@ function canStartBoardSwipeFromTarget(target) {
     ".corner-controls",
     ".add-widget-fab",
     ".page-indicator",
-    ".edit-dock"
+    ".edit-dock",
+    ".persistent-dock"
   ].join(",");
 
   if (target.closest(blockedZones)) {
@@ -6206,6 +6514,9 @@ function beginBoardSwipe(event) {
   if (!elements.board || !state?.ui?.home) {
     return;
   }
+  if (widgetLongPressState.pending) {
+    return;
+  }
   if (boardSwipeState.active) {
     return;
   }
@@ -6215,7 +6526,7 @@ function beginBoardSwipe(event) {
   if (!canStartBoardSwipeFromTarget(event.target)) {
     return;
   }
-  if (modalState.open || addWidgetModalOpen || shortcutIconEditorState.open) {
+  if (modalState.open || addWidgetModalOpen || shortcutIconEditorState.open || dockSettingsModalOpen) {
     return;
   }
   if (state.mode === "edit" && state.ui.settingsOpen) {
@@ -6412,6 +6723,30 @@ function wireEvents() {
     queueSave();
   });
 
+  elements.dockPrevBtn?.addEventListener("click", () => {
+    setActiveLauncherPage(currentLauncherActivePage() - 1, { shouldSave: true, animate: true });
+  });
+
+  elements.dockNextBtn?.addEventListener("click", () => {
+    setActiveLauncherPage(currentLauncherActivePage() + 1, { shouldSave: true, animate: true });
+  });
+
+  elements.dockModeBtn?.addEventListener("click", () => {
+    elements.modeToggleBtn?.click();
+  });
+
+  elements.dockSettingsBtn?.addEventListener("click", () => {
+    if (dockSettingsModalOpen) {
+      closeDockSettingsModal(false);
+      return;
+    }
+    openDockSettingsModal();
+  });
+
+  elements.dockAddBtn?.addEventListener("click", () => {
+    openAddWidgetModal();
+  });
+
   elements.tabGlobalBtn?.addEventListener("click", () => {
     state.ui.activeTab = "global";
     renderSettings();
@@ -6493,6 +6828,28 @@ function wireEvents() {
 
   elements.widgetModalCloseBtn?.addEventListener("click", () => {
     closeWidgetModal(false);
+  });
+
+  elements.dockSettingsModalCloseBtn?.addEventListener("click", () => {
+    closeDockSettingsModal(false);
+  });
+
+  elements.dockSettingsModalCancelBtn?.addEventListener("click", () => {
+    closeDockSettingsModal(false);
+  });
+
+  elements.dockSettingsModalOkBtn?.addEventListener("click", () => {
+    applyDockSettingsModal();
+  });
+
+  elements.dockSettingsModalDefaultBtn?.addEventListener("click", () => {
+    resetDockSettingsDraftToDefault();
+  });
+
+  elements.dockSettingsModalOverlay?.addEventListener("click", (event) => {
+    if (event.target === elements.dockSettingsModalOverlay) {
+      closeDockSettingsModal(false);
+    }
   });
 
   elements.widgetModalCancelBtn?.addEventListener("click", () => {
@@ -6678,6 +7035,32 @@ function wireEvents() {
         applyAddWidgetModal();
         return;
       }
+    }
+
+    if (dockSettingsModalOpen) {
+      if (!isInsideDockSettingsModalOverlay(event.target)) {
+        event.preventDefault();
+        event.stopPropagation();
+        return;
+      }
+
+      if (event.key === "Escape") {
+        event.preventDefault();
+        closeDockSettingsModal(false);
+        return;
+      }
+
+      if (
+        event.key === "Enter" &&
+        (event.target instanceof HTMLSelectElement ||
+          (event.target instanceof HTMLInputElement && event.target.type !== "checkbox"))
+      ) {
+        event.preventDefault();
+        applyDockSettingsModal();
+        return;
+      }
+
+      return;
     }
 
     if (!modalState.open) {

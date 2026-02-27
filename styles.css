@@ -65,6 +65,7 @@
   --bg-sharp-opacity: 1;
   --bg-blur-opacity: 0;
   --widget-backdrop-blur: 12px;
+  --persistent-dock-clearance: 0px;
 }
 
 * {
@@ -96,7 +97,8 @@ body,
 .widget-title,
 .widget-body,
 .widget-content-host,
-.page-indicator {
+.page-indicator,
+.persistent-dock {
   -webkit-user-select: none;
   user-select: none;
 }
@@ -395,7 +397,7 @@ body.mode-edit .dock-edit-controls {
 .page-indicator {
   position: absolute;
   left: 50%;
-  bottom: 14px;
+  bottom: calc(14px + var(--persistent-dock-clearance, 0px));
   transform: translateX(-50%);
   z-index: 1205;
   display: inline-flex;
@@ -458,7 +460,7 @@ body.mode-edit .dock-edit-controls {
   pointer-events: none;
 }
 
-.board.is-page-dragging + .page-indicator .page-indicator-thumb {
+.board.is-page-dragging ~ .page-indicator .page-indicator-thumb {
   transition: none;
 }
 
@@ -489,6 +491,250 @@ body.mode-edit .dock-edit-controls {
 
 .page-indicator-remove {
   color: color-mix(in srgb, var(--text), #9b2c2c 34%);
+}
+
+.persistent-dock {
+  position: fixed;
+  z-index: 1208;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: auto;
+  --dock-hide-x: 0px;
+  --dock-hide-y: 0px;
+}
+
+.persistent-dock.is-disabled {
+  display: none;
+}
+
+.persistent-dock[data-position="top"] {
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  flex-direction: column-reverse;
+  --dock-hide-y: -12px;
+}
+
+.persistent-dock[data-position="bottom"] {
+  bottom: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  flex-direction: column;
+  --dock-hide-y: 12px;
+}
+
+.persistent-dock[data-position="left"] {
+  top: 50%;
+  left: 12px;
+  transform: translateY(-50%);
+  flex-direction: row-reverse;
+  --dock-hide-x: -12px;
+}
+
+.persistent-dock[data-position="right"] {
+  top: 50%;
+  right: 12px;
+  transform: translateY(-50%);
+  flex-direction: row;
+  --dock-hide-x: 12px;
+}
+
+.persistent-dock-body {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--line), transparent 24%);
+  background: color-mix(in srgb, var(--surface), transparent 18%);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  box-shadow: 0 10px 24px var(--shadow-edge);
+  transition: opacity 0.22s ease, transform 0.22s ease, box-shadow 0.22s ease;
+}
+
+.persistent-dock[data-position="left"] .persistent-dock-body,
+.persistent-dock[data-position="right"] .persistent-dock-body {
+  border-radius: 18px;
+}
+
+.persistent-dock[data-shape="raised"] .persistent-dock-body {
+  box-shadow:
+    0 14px 26px var(--shadow-edge),
+    0 2px 0 color-mix(in srgb, var(--line), var(--tone-dark) 20%);
+}
+
+.persistent-dock[data-shape="raised"] .persistent-dock-body::after {
+  content: "";
+  position: absolute;
+  left: 14%;
+  right: 14%;
+  bottom: -8px;
+  height: 10px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--line), var(--tone-dark) 18%);
+  opacity: 0.58;
+  z-index: -1;
+}
+
+.persistent-dock[data-shape="raised"][data-position="left"] .persistent-dock-body::after {
+  inset: 14% auto 14% -8px;
+  width: 10px;
+  height: auto;
+}
+
+.persistent-dock[data-shape="raised"][data-position="right"] .persistent-dock-body::after {
+  inset: 14% -8px 14% auto;
+  width: 10px;
+  height: auto;
+}
+
+.persistent-dock[data-shape="flat"] .persistent-dock-body {
+  box-shadow: 0 8px 18px var(--shadow-soft);
+}
+
+.persistent-dock[data-shape="flat"] .persistent-dock-body::after {
+  content: none;
+}
+
+.persistent-dock-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.persistent-dock[data-position="left"] .persistent-dock-actions,
+.persistent-dock[data-position="right"] .persistent-dock-actions {
+  flex-direction: column;
+}
+
+.dock-action-btn {
+  width: 32px;
+  height: 32px;
+  border: 1px solid color-mix(in srgb, var(--line), transparent 20%);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--surface), transparent 14%);
+  color: color-mix(in srgb, var(--text), var(--primary) 18%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1;
+  transition: transform 0.18s ease, background-color 0.18s ease, opacity 0.18s ease;
+}
+
+.dock-action-btn .icon {
+  width: 17px;
+  height: 17px;
+}
+
+.dock-nav-btn {
+  font-size: 14px;
+}
+
+.dock-action-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  background: color-mix(in srgb, var(--surface), var(--primary) 11%);
+}
+
+.persistent-dock[data-position="left"] .dock-action-btn:hover:not(:disabled),
+.persistent-dock[data-position="right"] .dock-action-btn:hover:not(:disabled) {
+  transform: translateX(-1px);
+}
+
+.dock-action-btn:disabled {
+  opacity: 0.42;
+  cursor: default;
+}
+
+.dock-action-btn.is-hidden {
+  display: none;
+}
+
+.dock-action-btn.is-active {
+  border-color: color-mix(in srgb, var(--primary), var(--tone-dark) 20%);
+  background: color-mix(in srgb, var(--primary), var(--tone-light) 8%);
+  color: var(--tone-light);
+}
+
+.dock-page-state {
+  min-width: 54px;
+  height: 32px;
+  padding: 0 10px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--line), transparent 20%);
+  background: color-mix(in srgb, var(--surface), transparent 8%);
+  color: var(--muted);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.78em;
+  font-weight: 650;
+}
+
+.persistent-dock[data-position="left"] .dock-page-state,
+.persistent-dock[data-position="right"] .dock-page-state {
+  min-width: 32px;
+  min-height: 56px;
+  width: 32px;
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+  padding: 8px 0;
+}
+
+.persistent-dock-handle {
+  display: none;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--line), transparent 18%);
+  opacity: 0.82;
+  transition: opacity 0.2s ease;
+}
+
+.persistent-dock[data-visibility="hover"] .persistent-dock-handle {
+  display: block;
+}
+
+.persistent-dock[data-visibility="hover"][data-position="top"] .persistent-dock-handle,
+.persistent-dock[data-visibility="hover"][data-position="bottom"] .persistent-dock-handle {
+  width: 44px;
+  height: 5px;
+  margin: 6px 0;
+}
+
+.persistent-dock[data-visibility="hover"][data-position="left"] .persistent-dock-handle,
+.persistent-dock[data-visibility="hover"][data-position="right"] .persistent-dock-handle {
+  width: 5px;
+  height: 44px;
+  margin: 0 6px;
+}
+
+.persistent-dock[data-visibility="hover"] .persistent-dock-body {
+  opacity: 0;
+  pointer-events: none;
+  transform: translate3d(var(--dock-hide-x), var(--dock-hide-y), 0) scale(0.98);
+}
+
+.persistent-dock[data-visibility="hover"]:hover .persistent-dock-body,
+.persistent-dock[data-visibility="hover"]:focus-within .persistent-dock-body {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translate3d(0, 0, 0) scale(1);
+}
+
+.persistent-dock[data-visibility="hover"]:hover .persistent-dock-handle,
+.persistent-dock[data-visibility="hover"]:focus-within .persistent-dock-handle {
+  opacity: 0.16;
+}
+
+body.mode-edit.settings-open .persistent-dock {
+  pointer-events: none;
+  opacity: 0.55;
 }
 
 .settings-rail-toggle {
@@ -632,6 +878,54 @@ body.mode-edit.settings-open .settings-rail-toggle {
   -webkit-backdrop-filter: blur(var(--widget-backdrop-blur, 12px));
   overflow: hidden;
   transition: box-shadow 0.2s ease;
+}
+
+@keyframes widget-longpress-jiggle {
+  0% {
+    transform: rotate(-1.3deg) translateY(0);
+  }
+  25% {
+    transform: rotate(1.3deg) translateY(-1.2px);
+  }
+  50% {
+    transform: rotate(-1deg) translateY(0.7px);
+  }
+  75% {
+    transform: rotate(1.15deg) translateY(-0.9px);
+  }
+  100% {
+    transform: rotate(-1.3deg) translateY(0);
+  }
+}
+
+.widget-card.longpress-drag-armed,
+.widget-card.longpress-drag-active {
+  animation: widget-longpress-jiggle 0.16s ease-in-out infinite;
+  transform-origin: center center;
+  cursor: grabbing;
+  box-shadow:
+    0 0 0 2px color-mix(in srgb, var(--accent), var(--tone-light) 28%),
+    0 16px 30px var(--shadow-strong);
+}
+
+.widget-card.longpress-drag-armed {
+  animation-duration: 0.2s;
+}
+
+.widget-card.longpress-drag-armed .widget-head,
+.widget-card.longpress-drag-armed .widget-title,
+.widget-card.longpress-drag-armed .widget-body,
+.widget-card.longpress-drag-active .widget-head,
+.widget-card.longpress-drag-active .widget-title,
+.widget-card.longpress-drag-active .widget-body {
+  cursor: grabbing;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .widget-card.longpress-drag-armed,
+  .widget-card.longpress-drag-active {
+    animation: none;
+  }
 }
 
 .widget-card[data-widget-theme-mode="light"] {
@@ -2549,6 +2843,10 @@ body.mode-edit .widget-float-remove:hover {
   width: min(520px, 92vw);
 }
 
+.dock-settings-modal {
+  width: min(460px, 92vw);
+}
+
 .add-widget-modal-body .field {
   min-width: 0;
   width: 100%;
@@ -2796,6 +3094,18 @@ body.mode-edit .widget-float-remove:hover {
   margin-bottom: 8px;
 }
 
+@media (hover: none) {
+  .persistent-dock[data-visibility="hover"] .persistent-dock-body {
+    opacity: 1;
+    pointer-events: auto;
+    transform: none;
+  }
+
+  .persistent-dock[data-visibility="hover"] .persistent-dock-handle {
+    display: none;
+  }
+}
+
 @media (max-width: 1040px) {
   .settings-panel {
     width: min(360px, 86vw);
@@ -2858,9 +3168,42 @@ body.mode-edit .widget-float-remove:hover {
   }
 
   .page-indicator {
-    bottom: 10px;
+    bottom: calc(10px + var(--persistent-dock-clearance, 0px));
     padding: 6px 8px;
     gap: 8px;
+  }
+
+  .persistent-dock[data-position="top"] {
+    top: 8px;
+  }
+
+  .persistent-dock[data-position="bottom"] {
+    bottom: 8px;
+  }
+
+  .persistent-dock[data-position="left"] {
+    left: 8px;
+  }
+
+  .persistent-dock[data-position="right"] {
+    right: 8px;
+  }
+
+  .persistent-dock-body {
+    padding: 7px;
+    gap: 6px;
+  }
+
+  .dock-action-btn {
+    width: 30px;
+    height: 30px;
+  }
+
+  .dock-page-state {
+    min-width: 48px;
+    height: 30px;
+    padding: 0 8px;
+    font-size: 0.74em;
   }
 
   .page-indicator-dots {
