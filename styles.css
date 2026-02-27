@@ -310,7 +310,7 @@ body.mode-edit .dock-edit-controls {
   position: relative;
   flex: 1;
   min-height: 0;
-  overflow: hidden;
+  overflow: visible;
   transform: translate3d(var(--board-page-translate-x, 0px), 0, 0);
   transition: transform 0.26s cubic-bezier(0.22, 0.7, 0, 1);
   will-change: transform;
