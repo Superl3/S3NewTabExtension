@@ -52,16 +52,41 @@ export const todoWidget = {
         const checkbox = document.createElement("input");
         checkbox.type = "checkbox";
         checkbox.checked = Boolean(item.done);
+        checkbox.setAttribute("aria-label", "Mark task done");
 
         const text = document.createElement("span");
         text.className = "todo-text";
         text.textContent = item.text;
+
+        const title = document.createElement("label");
+        title.className = "todo-item-title";
+        title.append(checkbox, text);
 
         const del = document.createElement("button");
         del.className = "todo-delete-btn";
         del.type = "button";
         del.textContent = "×";
         del.setAttribute("aria-label", "Delete task");
+
+        const actions = document.createElement("div");
+        actions.className = "todo-item-actions";
+        actions.append(del);
+
+        const top = document.createElement("div");
+        top.className = "todo-item-top";
+        top.append(title, actions);
+
+        const meta = document.createElement("p");
+        meta.className = "todo-item-meta";
+        meta.textContent = item.done ? "Completed task" : "Pending task";
+
+        const badges = document.createElement("div");
+        badges.className = "todo-item-badges";
+
+        const statusBadge = document.createElement("span");
+        statusBadge.className = `todo-item-badge ${item.done ? "is-done" : "is-pending"}`;
+        statusBadge.textContent = item.done ? "Done" : "To do";
+        badges.append(statusBadge);
 
         checkbox.addEventListener("change", () => {
           const next = items.map((entry) => {
@@ -78,7 +103,7 @@ export const todoWidget = {
           saveItems(next);
         });
 
-        li.append(checkbox, text, del);
+        li.append(top, meta, badges);
         list.append(li);
       }
     }
