@@ -104,20 +104,6 @@ function createDragGhost(label) {
   return ghost;
 }
 
-function createSettingsButton(onClick) {
-  const button = document.createElement("button");
-  button.type = "button";
-  button.className = "icon-btn widget-folder-item-settings";
-  button.title = "Widget setting";
-  button.innerHTML = '<svg class="icon"><use href="#i-settings"></use></svg>';
-  button.addEventListener("click", (event) => {
-    event.preventDefault();
-    event.stopPropagation();
-    onClick?.();
-  });
-  return button;
-}
-
 export const containerWidget = {
   type: "container",
   title: "Widget Folder",
@@ -472,23 +458,6 @@ export const containerWidget = {
       const shell = document.createElement("div");
       shell.className = "widget-shell";
 
-      const head = document.createElement("header");
-      head.className = "widget-head";
-
-      const title = document.createElement("div");
-      title.className = "widget-title";
-      title.textContent = normalizeText(child.title, def.title || "Widget");
-
-      const headActions = document.createElement("div");
-      headActions.className = "widget-head-actions";
-      const editable = typeof isEditMode === "function" ? Boolean(isEditMode()) : false;
-
-      if (editable && typeof openWidgetSettingsById === "function") {
-        headActions.append(createSettingsButton(() => openWidgetSettingsById(child.id)));
-      }
-
-      head.append(title, headActions);
-
       const body = document.createElement("section");
       body.className = "widget-body";
 
@@ -500,8 +469,12 @@ export const containerWidget = {
       host.append(slot);
       body.append(host);
 
-      shell.append(head, body);
-      card.append(shell);
+      const floatingTitle = document.createElement("div");
+      floatingTitle.className = "widget-folder-item-floating-title";
+      floatingTitle.textContent = normalizeText(child.title, def.title || "Widget");
+
+      shell.append(body);
+      card.append(shell, floatingTitle);
 
       const controller = def.create({
         container: slot,
