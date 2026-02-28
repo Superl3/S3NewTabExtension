@@ -15,6 +15,13 @@ function normalizeCount(value, fallback, min, max) {
   return clamp(Math.round(num), min, max);
 }
 
+function normalizeTitleAlign(value, fallback = "center") {
+  if (value === "left" || value === "center" || value === "right") {
+    return value;
+  }
+  return fallback;
+}
+
 function isUrlIcon(value) {
   return (
     value.startsWith("http://") ||
@@ -51,11 +58,14 @@ function applyEmbeddedCardVisual(card, widget) {
   const surfaceTransparent = widget?.surfaceMode === "transparent";
   const isHeadless = widget?.viewMode === "headless";
   const padding = resolveWidgetPadding(widget);
+  const titleAlign = normalizeTitleAlign(widget?.titleAlign, "center");
 
   card.classList.toggle("headless", isHeadless);
   card.classList.toggle("surface-transparent", surfaceTransparent);
+  card.dataset.titleAlign = titleAlign;
   card.style.setProperty("--widget-edge-roundness", `${edgeRoundness}px`);
   card.style.setProperty("--widget-opacity", String(surfaceTransparent ? 0 : transparency));
+  card.style.setProperty("--widget-title-align", titleAlign);
   card.style.setProperty(
     "--widget-content-padding",
     `${padding.top}px ${padding.right}px ${padding.bottom}px ${padding.left}px`
@@ -214,7 +224,6 @@ export const containerWidget = {
 
     const panel = document.createElement("section");
     panel.className = "widget-folder-panel";
-    panel.hidden = true;
 
     const panelHead = document.createElement("header");
     panelHead.className = "widget-folder-panel-head";
@@ -225,10 +234,7 @@ export const containerWidget = {
     const panelTitle = document.createElement("h4");
     panelTitle.className = "widget-folder-panel-title";
 
-    const panelMeta = document.createElement("p");
-    panelMeta.className = "widget-folder-panel-meta";
-
-    panelTitleWrap.append(panelTitle, panelMeta);
+    panelTitleWrap.append(panelTitle);
     panelHead.append(panelTitleWrap);
 
     const panelBody = document.createElement("div");
@@ -337,11 +343,14 @@ export const containerWidget = {
         margin,
         Math.max(margin, hostRect.height - height - margin)
       );
+      const cardZ = Number(card.style.zIndex || window.getComputedStyle(card).zIndex);
+      const panelZ = Number.isFinite(cardZ) ? Math.max(2, Math.round(cardZ) + 1) : 2;
 
       panel.style.width = `${width}px`;
       panel.style.height = `${height}px`;
       panel.style.left = `${left}px`;
       panel.style.top = `${top}px`;
+      panel.style.zIndex = String(panelZ);
     }
 
     function destroyEmbeddedChildren() {
@@ -526,14 +535,14 @@ export const containerWidget = {
     function renderPanel(folder, cfg, items) {
       positionPanel(folder, cfg);
       panelTitle.textContent = normalizeText(folder?.title, "Widget Folder");
-      panelMeta.textContent = `${items.length} widget${items.length === 1 ? "" : "s"}`;
+      panelTitle.style.textAlign = normalizeTitleAlign(folder?.titleAlign, "center");
 
       destroyEmbeddedChildren();
 
       if (!items.length) {
         const empty = document.createElement("p");
         empty.className = "widget-folder-empty";
-        empty.textContent = "Drag a widget into this opened folder to add it.";
+        empty.textContent = "Folder is empty.";
         panelBody.append(empty);
         return;
       }

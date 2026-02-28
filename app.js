@@ -17,6 +17,7 @@ const WIDGET_COMMON_MASTER_KEYS = [
   "backdropBlur",
   "edgeRoundness",
   "transparency",
+  "titleAlign",
   "contentAlignY",
   "contentFillParent",
   "contentPadding",
@@ -421,6 +422,7 @@ function defaultWidgetCommonMaster() {
     backdropBlur: true,
     edgeRoundness: 12,
     transparency: 0.94,
+    titleAlign: "center",
     contentAlignY: "top",
     contentFillParent: false,
     contentPadding: 10,
@@ -481,6 +483,10 @@ function defaultWidgetContentAlign(type) {
   return isHeadlessTransparentDefaultType(type) ? "center" : "top";
 }
 
+function defaultWidgetTitleAlign() {
+  return "center";
+}
+
 function defaultWidgetBackdropBlur(type) {
   return !isHeadlessTransparentDefaultType(type);
 }
@@ -502,6 +508,13 @@ function resolveWidgetPadding(instance) {
 
 function normalizeAlign(value, fallback = "top") {
   if (value === "top" || value === "center" || value === "bottom") {
+    return value;
+  }
+  return fallback;
+}
+
+function normalizeTitleAlign(value, fallback = "center") {
+  if (value === "left" || value === "center" || value === "right") {
     return value;
   }
   return fallback;
@@ -656,6 +669,7 @@ function normalizeWidgetCommonMaster(value) {
     backdropBlur: base.backdropBlur !== false,
     edgeRoundness: normalizeEdgeRoundness(base.edgeRoundness, 12),
     transparency: normalizeTransparency(base.transparency, 0.94),
+    titleAlign: normalizeTitleAlign(base.titleAlign, defaultWidgetTitleAlign()),
     contentAlignY: normalizeAlign(base.contentAlignY, "top"),
     contentFillParent: Boolean(base.contentFillParent),
     contentPadding: normalizeContentPadding(base.contentPadding, 10),
@@ -696,6 +710,9 @@ function instanceCommonValue(instance, key) {
   }
   if (key === "contentAlignY") {
     return instance.type === "aiChat" ? "top" : normalizeAlign(instance.contentAlignY, defaultWidgetContentAlign(instance.type));
+  }
+  if (key === "titleAlign") {
+    return normalizeTitleAlign(instance.titleAlign, defaultWidgetTitleAlign());
   }
   if (key === "contentFillParent") {
     return instance.type === "aiChat" ? true : Boolean(instance.contentFillParent);
@@ -751,6 +768,11 @@ function setInstanceCommonValue(instance, key, value) {
 
   if (key === "contentAlignY") {
     instance.contentAlignY = instance.type === "aiChat" ? "top" : normalizeAlign(value, defaultWidgetContentAlign(instance.type));
+    return;
+  }
+
+  if (key === "titleAlign") {
+    instance.titleAlign = normalizeTitleAlign(value, defaultWidgetTitleAlign());
     return;
   }
 
@@ -1200,6 +1222,7 @@ function defaultInstances() {
         backdropBlur: defaultWidgetBackdropBlur(type),
         edgeRoundness: 12,
         transparency: 0.94,
+        titleAlign: defaultWidgetTitleAlign(),
         contentAlignY: defaultWidgetContentAlign(type),
         contentFillParent: type === "aiChat",
         contentPadding: defaultPadding,
@@ -1275,6 +1298,7 @@ function createStateSnapshot() {
       zIndex: Math.max(1, Number(instance.zIndex) || 1),
       surfaceMode: normalizeSurfaceMode(instance.surfaceMode, "normal"),
       edgeRoundness: normalizeEdgeRoundness(instance.edgeRoundness, 12),
+      titleAlign: normalizeTitleAlign(instance.titleAlign, defaultWidgetTitleAlign()),
       contentAlignY: normalizeAlign(instance.contentAlignY, defaultWidgetContentAlign(instance.type)),
       transparency: normalizeTransparency(instance.transparency, 0.94)
     }))
@@ -1565,6 +1589,7 @@ function hydrate(raw) {
       backdropBlur: typeof item.backdropBlur === "boolean" ? item.backdropBlur : defaultWidgetBackdropBlur(item.type),
       edgeRoundness: normalizeEdgeRoundness(item.edgeRoundness, 12),
       transparency: normalizeTransparency(item.transparency, 0.94),
+      titleAlign: normalizeTitleAlign(item.titleAlign, defaultWidgetTitleAlign()),
       contentAlignY:
         isAiChat
           ? "top"
@@ -2728,6 +2753,10 @@ function applyCardVisual(card, instance) {
   card.classList.toggle("surface-transparent", surfaceMode === "transparent");
   card.style.setProperty("--widget-opacity", String(opacity));
   const align = instance.type === "aiChat" ? "top" : normalizeAlign(instance.contentAlignY, defaultWidgetContentAlign(instance.type));
+  const titleAlign = normalizeTitleAlign(instance.titleAlign, defaultWidgetTitleAlign());
+  instance.titleAlign = titleAlign;
+  card.dataset.titleAlign = titleAlign;
+  card.style.setProperty("--widget-title-align", titleAlign);
   card.dataset.contentAlignY = align;
   card.dataset.contentFill = instance.contentFillParent ? "true" : "false";
   const padding = resolveWidgetPadding(instance);
@@ -6873,6 +6902,17 @@ function getWidgetModalCommonFields(instance = null) {
       step: 0.05
     },
     {
+      key: "titleAlign",
+      label: "Title align",
+      type: "select",
+      group: "base",
+      options: [
+        { value: "left", label: "Left" },
+        { value: "center", label: "Center" },
+        { value: "right", label: "Right" }
+      ]
+    },
+    {
       key: "contentAlignY",
       label: "Content vertical align",
       type: "select",
@@ -6978,6 +7018,16 @@ function getWidgetCommonMasterFields() {
     { key: "edgeRoundness", label: "Default edge roundness", type: "number", min: 0, max: 40, step: 1 },
     { key: "transparency", label: "Default transparency", type: "number", min: 0, max: 1, step: 0.05 },
     {
+      key: "titleAlign",
+      label: "Default title align",
+      type: "select",
+      options: [
+        { value: "left", label: "Left" },
+        { value: "center", label: "Center" },
+        { value: "right", label: "Right" }
+      ]
+    },
+    {
       key: "contentAlignY",
       label: "Default content vertical align",
       type: "select",
@@ -7015,6 +7065,7 @@ function applyCommonMasterToDraft(draft, instanceType, master) {
   draft.backdropBlur = master.backdropBlur !== false;
   draft.edgeRoundness = normalizeEdgeRoundness(master.edgeRoundness, 12);
   draft.transparency = normalizeTransparency(master.transparency, 0.94);
+  draft.titleAlign = normalizeTitleAlign(master.titleAlign, defaultWidgetTitleAlign());
   draft.contentAlignY = instanceType === "aiChat" ? "top" : normalizeAlign(master.contentAlignY, defaultWidgetContentAlign(instanceType));
   draft.contentFillParent = instanceType === "aiChat" ? true : Boolean(master.contentFillParent);
   const padding = normalizeContentPadding(master.contentPadding, widgetPaddingFallback(instanceType));
@@ -7322,6 +7373,7 @@ function openWidgetModal(instanceId) {
     backdropBlur: instance.backdropBlur !== false,
     edgeRoundness: normalizeEdgeRoundness(instance.edgeRoundness, 12),
     transparency: normalizeTransparency(instance.transparency, 0.94),
+    titleAlign: normalizeTitleAlign(instance.titleAlign, defaultWidgetTitleAlign()),
     contentAlignY:
       instance.type === "aiChat"
         ? "top"
@@ -7376,6 +7428,7 @@ function applyWidgetModal() {
   instance.backdropBlur = draft.backdropBlur !== false;
   instance.edgeRoundness = normalizeEdgeRoundness(draft.edgeRoundness, 12);
   instance.transparency = normalizeTransparency(draft.transparency, 0.94);
+  instance.titleAlign = normalizeTitleAlign(draft.titleAlign, defaultWidgetTitleAlign());
   instance.contentAlignY =
     instance.type === "aiChat"
       ? "top"
@@ -7511,6 +7564,7 @@ function addWidget(type, options = {}) {
     backdropBlur: defaultWidgetBackdropBlur(type),
     edgeRoundness: 12,
     transparency: 0.94,
+    titleAlign: defaultWidgetTitleAlign(),
     contentAlignY: defaultWidgetContentAlign(type),
     contentFillParent: type === "aiChat",
     contentPadding: defaultPadding,
