@@ -1656,8 +1656,129 @@ function buildPersistSnapshot() {
   });
 }
 
+function buildHistoryBackgroundSnapshot(background) {
+  const source = isStateObject(background) ? background : {};
+  return {
+    mode: source.mode,
+    solidColor: source.solidColor,
+    wallpaperProvider: source.wallpaperProvider,
+    wallpaperTheme: source.wallpaperTheme,
+    redditSubreddit: source.redditSubreddit,
+    redditTime: source.redditTime,
+    rotateMinutes: source.rotateMinutes,
+    videoSource: source.videoSource,
+    videoUrl: source.videoUrl,
+    redditVideoSubreddit: source.redditVideoSubreddit,
+    redditVideoTime: source.redditVideoTime,
+    blurAmount: source.blurAmount,
+    overlayOpacity: source.overlayOpacity
+  };
+}
+
+function buildHistoryHomeSnapshot(home) {
+  const source = isStateObject(home) ? home : {};
+  return {
+    mode: source.mode,
+    gridColumns: source.gridColumns,
+    gridRows: source.gridRows,
+    marginHorizontal: source.marginHorizontal,
+    marginVertical: source.marginVertical,
+    itemGap: source.itemGap,
+    pageCount: source.pageCount,
+    dockEnabled: source.dockEnabled,
+    dockShape: source.dockShape,
+    dockVisibility: source.dockVisibility,
+    dockPosition: source.dockPosition,
+    dockLength: source.dockLength,
+    widgetBackdropBlur: source.widgetBackdropBlur,
+    legacyHeadlessSurfaceMigrated: source.legacyHeadlessSurfaceMigrated
+  };
+}
+
 function buildHistorySnapshot() {
-  return buildPersistSnapshot();
+  return structuredClone({
+    nextId: state.nextId,
+    ui: {
+      theme: state.ui.theme,
+      background: buildHistoryBackgroundSnapshot(state.ui.background),
+      home: buildHistoryHomeSnapshot(state.ui.home),
+      widgetCommonMaster: state.ui.widgetCommonMaster,
+      shortcuts: state.ui.shortcuts,
+      defaultProfileSnapshot: state.ui.defaultProfileSnapshot,
+      defaultProfileUpdatedAt: state.ui.defaultProfileUpdatedAt
+    },
+    presets: state.presets,
+    instances: state.instances
+  });
+}
+
+function materializeHistorySnapshot(historySnapshotInput) {
+  const base = buildPersistSnapshot();
+  if (!isStateObject(historySnapshotInput)) {
+    return base;
+  }
+
+  const historySnapshot = historySnapshotInput;
+  const merged = structuredClone(base);
+  const nextId = Number(historySnapshot.nextId);
+  if (Number.isFinite(nextId)) {
+    merged.nextId = Math.max(1, Math.floor(nextId));
+  }
+
+  const historyUi = isStateObject(historySnapshot.ui) ? historySnapshot.ui : {};
+
+  if (isStateObject(historyUi.theme)) {
+    merged.ui.theme = structuredClone(historyUi.theme);
+  }
+
+  if (isStateObject(historyUi.background)) {
+    merged.ui.background = {
+      ...merged.ui.background,
+      ...structuredClone(buildHistoryBackgroundSnapshot(historyUi.background))
+    };
+  }
+
+  if (isStateObject(historyUi.home)) {
+    merged.ui.home = normalizeHomeLayout({
+      ...merged.ui.home,
+      ...buildHistoryHomeSnapshot(historyUi.home)
+    });
+    merged.ui.home.activePage = normalizeActivePage(base.ui?.home?.activePage, merged.ui.home.pageCount, 0);
+  }
+
+  if (isStateObject(historyUi.widgetCommonMaster)) {
+    merged.ui.widgetCommonMaster = structuredClone(historyUi.widgetCommonMaster);
+  }
+
+  if (isStateObject(historyUi.shortcuts)) {
+    merged.ui.shortcuts = structuredClone(historyUi.shortcuts);
+  }
+
+  if (Object.prototype.hasOwnProperty.call(historyUi, "defaultProfileSnapshot")) {
+    merged.ui.defaultProfileSnapshot =
+      historyUi.defaultProfileSnapshot === null ? null : structuredClone(historyUi.defaultProfileSnapshot);
+  }
+
+  if (Object.prototype.hasOwnProperty.call(historyUi, "defaultProfileUpdatedAt")) {
+    merged.ui.defaultProfileUpdatedAt = Math.max(0, Number(historyUi.defaultProfileUpdatedAt) || 0);
+  }
+
+  if (Array.isArray(historySnapshot.presets)) {
+    merged.presets = structuredClone(historySnapshot.presets);
+  }
+
+  if (Array.isArray(historySnapshot.instances)) {
+    merged.instances = structuredClone(historySnapshot.instances);
+  }
+
+  if (
+    merged.selectedWidgetId &&
+    !merged.instances.some((instance) => String(instance?.id || "") === merged.selectedWidgetId)
+  ) {
+    merged.selectedWidgetId = "";
+  }
+
+  return merged;
 }
 
 function snapshotFingerprint(snapshot) {
@@ -1831,9 +1952,11 @@ function undoLastChange() {
     return;
   }
 
+  const snapshot = materializeHistorySnapshot(target.snapshot);
+
   undoState.isRestoring = true;
   try {
-    restoreFromSnapshot(target.snapshot, { markAsUserMutation: true });
+    restoreFromSnapshot(snapshot, { markAsUserMutation: true });
   } finally {
     undoState.isRestoring = false;
   }
@@ -1859,9 +1982,11 @@ function redoLastChange() {
     return;
   }
 
+  const snapshot = materializeHistorySnapshot(target.snapshot);
+
   undoState.isRestoring = true;
   try {
-    restoreFromSnapshot(target.snapshot, { markAsUserMutation: true });
+    restoreFromSnapshot(snapshot, { markAsUserMutation: true });
   } finally {
     undoState.isRestoring = false;
   }
@@ -3886,10 +4011,6 @@ function setActiveLauncherPage(page, { shouldSave = false, animate = true } = {}
   const home = syncLauncherPagingState({ expandToFitInstances: true });
   const nextPage = normalizeActivePage(page, home.pageCount, home.activePage);
   const changed = home.activePage !== nextPage;
-
-  if (changed && shouldSave) {
-    recordHistorySnapshot("Switch launcher page");
-  }
 
   home.activePage = nextPage;
   state.ui.home = home;
@@ -7159,7 +7280,6 @@ function wireEvents() {
   });
 
   elements.modeToggleBtn.addEventListener("click", () => {
-    recordHistorySnapshot("Toggle mode");
     state.mode = state.mode === "edit" ? "use" : "edit";
     if (state.mode === "use") {
       state.selectedWidgetId = "";
