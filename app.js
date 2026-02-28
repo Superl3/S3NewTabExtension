@@ -919,12 +919,50 @@ function normalizeDockedWidgetOrders(instances) {
   }
 }
 
+function normalizeContainerId(value) {
+  return normalizeText(value);
+}
+
+function isWidgetInContainer(instance) {
+  return normalizeContainerId(instance?.containerId) !== "";
+}
+
+function normalizeContainerAssignments(instances) {
+  if (!Array.isArray(instances) || !instances.length) {
+    return;
+  }
+
+  const validContainers = new Set(
+    instances
+      .filter((instance) => instance && instance.type === "container")
+      .map((instance) => String(instance.id))
+  );
+
+  for (const instance of instances) {
+    if (!instance || instance.type === "container") {
+      if (instance) {
+        instance.containerId = "";
+      }
+      continue;
+    }
+
+    const containerId = normalizeContainerId(instance.containerId);
+    if (!containerId || !validContainers.has(containerId) || containerId === String(instance.id)) {
+      instance.containerId = "";
+      continue;
+    }
+
+    instance.containerId = containerId;
+    instance.dockOrder = null;
+  }
+}
+
 function dockedInstances(instances = state?.instances) {
   if (!Array.isArray(instances)) {
     return [];
   }
   return instances
-    .filter((instance) => instance.enabled !== false && isWidgetDocked(instance))
+    .filter((instance) => instance.enabled !== false && isWidgetDocked(instance) && !isWidgetInContainer(instance))
     .sort((a, b) => {
       const orderA = normalizeDockOrder(a.dockOrder, Number.MAX_SAFE_INTEGER);
       const orderB = normalizeDockOrder(b.dockOrder, Number.MAX_SAFE_INTEGER);
@@ -1120,6 +1158,7 @@ function defaultInstances() {
         commonOverrides: normalizeCommonOverrides({}),
         page: 0,
         dockOrder: null,
+        containerId: "",
         config: structuredClone(def.defaultConfig || {}),
         gridLayout: {
           col: idx % 4,
@@ -1394,6 +1433,7 @@ function hydrate(raw) {
     const isShortcut = item.type === "shortcut";
     const headlessTransparentByDefault = isHeadlessTransparentDefaultType(item.type);
     const isAiChat = item.type === "aiChat";
+    const isContainerWidget = item.type === "container";
     const viewMode =
       item.viewMode === "headless" || item.viewMode === "window"
         ? item.viewMode
@@ -1411,6 +1451,12 @@ function hydrate(raw) {
       ...(structuredClone(def.defaultConfig || {})),
       ...(item.config || {})
     };
+
+    if (isContainerWidget) {
+      mergedConfig.expanded = mergedConfig.expanded === true;
+      mergedConfig.expandedWidth = clamp(Number(mergedConfig.expandedWidth) || 920, 360, 2200);
+      mergedConfig.expandedHeight = clamp(Number(mergedConfig.expandedHeight) || 620, 260, 1600);
+    }
 
     if (isShortcut) {
       if (typeof mergedConfig.useGlobalIconSize !== "boolean") {
@@ -1467,6 +1513,7 @@ function hydrate(raw) {
       commonOverrides: normalizeCommonOverrides(item.commonOverrides),
       page: normalizeWidgetPage(item.page, MAX_LAUNCHER_PAGES, 0),
       dockOrder: normalizeDockOrder(item.dockOrder, null),
+      containerId: isContainerWidget ? "" : normalizeContainerId(item.containerId),
       enabled: item.enabled !== false,
       gridLayout: normalizeGridLayout(item.gridLayout, {
         col: normalized.length % 4,
@@ -1479,6 +1526,7 @@ function hydrate(raw) {
   }
 
   normalizeDockedWidgetOrders(normalized);
+  normalizeContainerAssignments(normalized);
 
   const rawUi = raw?.ui || {};
   const theme = {
@@ -1490,7 +1538,7 @@ function hydrate(raw) {
     ...(rawUi.background || {})
   };
   const maxInstancePage = normalized.reduce((max, instance) => {
-    if (isWidgetDocked(instance)) {
+    if (isWidgetDocked(instance) || isWidgetInContainer(instance)) {
       return max;
     }
     return Math.max(max, normalizeWidgetPage(instance.page, MAX_LAUNCHER_PAGES, 0));
@@ -3543,7 +3591,7 @@ function syncLauncherPagingState({ expandToFitInstances = true } = {}) {
   for (const instance of instances) {
     const page = normalizeWidgetPage(instance.page, MAX_LAUNCHER_PAGES, 0);
     instance.page = page;
-    if (!isWidgetDocked(instance)) {
+    if (!isWidgetDocked(instance) && !isWidgetInContainer(instance)) {
       maxInstancePage = Math.max(maxInstancePage, page);
     }
   }
@@ -3605,7 +3653,7 @@ function tryDockWidgetByDrop(instance, pointerEvent, { record = true } = {}) {
   if (!instance || !pointerEvent || !isDockDropPoint(pointerEvent.clientX, pointerEvent.clientY)) {
     return false;
   }
-  if (isWidgetDocked(instance)) {
+  if (isWidgetDocked(instance) || isWidgetInContainer(instance)) {
     return false;
   }
 
@@ -4120,7 +4168,9 @@ function applyGridLayout({ commitFreeLayout = false, shouldSave = false } = {}) 
     captureFreeLayouts();
   }
 
-  const items = state.instances.filter((instance) => instance.enabled !== false && !isWidgetDocked(instance));
+  const items = state.instances.filter(
+    (instance) => instance.enabled !== false && !isWidgetDocked(instance) && !isWidgetInContainer(instance)
+  );
   if (!items.length) {
     renderBoardViewport({ animate: false, dragging: false, dragOffsetX: 0 });
     return;
@@ -4187,7 +4237,7 @@ function updateBoardBounds() {
   const boardH = Math.max(1, Math.floor(elements.board.clientHeight));
 
   for (const instance of state.instances) {
-    if (isWidgetDocked(instance)) {
+    if (isWidgetDocked(instance) || isWidgetInContainer(instance)) {
       continue;
     }
     const minW = Math.min(80, boardW);
@@ -4219,7 +4269,9 @@ function autoArrangeWidgets() {
     return;
   }
 
-  const items = state.instances.filter((instance) => instance.enabled !== false && !isWidgetDocked(instance));
+  const items = state.instances.filter(
+    (instance) => instance.enabled !== false && !isWidgetDocked(instance) && !isWidgetInContainer(instance)
+  );
   if (!items.length) {
     return;
   }
@@ -4445,6 +4497,47 @@ function patchWidgetConfig(instanceId, patch) {
   queueSave();
 }
 
+function setWidgetContainer(instanceId, containerId, { record = true } = {}) {
+  const instance = instanceById(instanceId);
+  if (!instance || instance.type === "container") {
+    return false;
+  }
+
+  const previousContainerId = normalizeContainerId(instance.containerId);
+  const requestedContainerId = normalizeContainerId(containerId);
+  let nextContainerId = "";
+
+  if (requestedContainerId) {
+    const target = instanceById(requestedContainerId);
+    if (target && target.type === "container" && target.id !== instance.id) {
+      nextContainerId = target.id;
+    }
+  }
+
+  if (previousContainerId === nextContainerId) {
+    return false;
+  }
+
+  if (record) {
+    recordHistorySnapshot(nextContainerId ? "Move widget to folder" : "Move widget out of folder");
+  }
+
+  instance.containerId = nextContainerId;
+  if (nextContainerId) {
+    instance.dockOrder = null;
+    if (state.selectedWidgetId === instance.id) {
+      state.selectedWidgetId = "";
+    }
+  }
+
+  normalizeContainerAssignments(state.instances);
+
+  renderBoard();
+  renderSettings();
+  queueSave();
+  return true;
+}
+
 function patchWidgetLayout(instanceId, layoutPatch, options = {}) {
   const instance = instanceById(instanceId);
   if (!instance) {
@@ -4484,12 +4577,26 @@ function removeWidget(instanceId) {
   if (index < 0) {
     return;
   }
+  const removed = state.instances[index];
   recordHistorySnapshot("Remove widget");
   runtime.get(instanceId)?.controller?.destroy?.();
   runtime.get(instanceId)?.card.remove();
   runtime.delete(instanceId);
+
+  if (removed?.type === "container") {
+    for (const instance of state.instances) {
+      if (instance?.id === removed.id || instance?.type === "container") {
+        continue;
+      }
+      if (normalizeContainerId(instance.containerId) === removed.id) {
+        instance.containerId = "";
+      }
+    }
+  }
+
   state.instances.splice(index, 1);
   normalizeDockedWidgetOrders(state.instances);
+  normalizeContainerAssignments(state.instances);
 
   if (state.selectedWidgetId === instanceId) {
     state.selectedWidgetId = "";
@@ -4501,7 +4608,12 @@ function removeWidget(instanceId) {
 
   renderDockWidgets();
   renderSettings();
-  updateBoardBounds();
+  if (removed?.type === "container" || isWidgetInContainer(removed)) {
+    renderBoard();
+  } else {
+    updateBoardBounds();
+    refreshWidgetsByType("container");
+  }
   queueSave();
 }
 
@@ -4528,6 +4640,7 @@ function createWidgetCard(instance) {
 
   title.textContent = instance.title || def.title;
   card.dataset.widgetId = instance.id;
+  card.dataset.widgetType = instance.type;
   card.dataset.treeId = instance.id;
   if (shell) {
     shell.dataset.treeId = `${instance.id}-1`;
@@ -4563,7 +4676,11 @@ function createWidgetCard(instance) {
     getConfig: () => instance.config,
     getUi: () => state.ui,
     getWidget: () => instance,
+    getAllWidgets: () => state.instances,
+    getWidgetDefinition: (type) => widgetRegistry[type] || null,
     patchConfig: (patch) => patchWidgetConfig(instance.id, patch),
+    patchWidgetConfigById: (widgetId, patch) => patchWidgetConfig(widgetId, patch),
+    setWidgetContainer: (widgetId, containerId) => setWidgetContainer(widgetId, containerId),
     isEditMode: () => state.mode === "edit",
     openSettings: () => {
       if (state.mode !== "edit") {
@@ -4571,6 +4688,17 @@ function createWidgetCard(instance) {
       }
       setSelected(instance.id);
       openWidgetModal(instance.id);
+    },
+    openWidgetSettingsById: (widgetId) => {
+      if (state.mode !== "edit") {
+        return;
+      }
+      const target = instanceById(widgetId);
+      if (!target) {
+        return;
+      }
+      setSelected(target.id);
+      openWidgetModal(target.id);
     }
   });
 
@@ -5539,7 +5667,7 @@ function renderBoard() {
   syncZCounterFromState();
 
   for (const instance of state.instances) {
-    if (instance.enabled !== false && !isWidgetDocked(instance)) {
+    if (instance.enabled !== false && !isWidgetDocked(instance) && !isWidgetInContainer(instance)) {
       createWidgetCard(instance);
     }
   }
@@ -6217,8 +6345,26 @@ function renderBackgroundSettings() {
   }
 }
 
-function getWidgetModalCommonFields() {
+function buildContainerSelectOptions(currentWidgetId = "") {
+  const options = [{ value: "", label: "None (Board)" }];
+  for (const instance of state.instances) {
+    if (!instance || instance.type !== "container") {
+      continue;
+    }
+    if (instance.id === currentWidgetId) {
+      continue;
+    }
+    options.push({
+      value: instance.id,
+      label: `${normalizeText(instance.title, "Widget Folder")} (${instance.id})`
+    });
+  }
+  return options;
+}
+
+function getWidgetModalCommonFields(instance = null) {
   const pageCount = currentLauncherPageCount();
+  const allowContainerSelection = Boolean(instance && instance.type !== "container");
   const baseFields = [
     { key: "title", label: "Title", type: "text", group: "base" },
     {
@@ -6230,6 +6376,17 @@ function getWidgetModalCommonFields() {
       step: 1,
       group: "base"
     },
+    ...(allowContainerSelection
+      ? [
+          {
+            key: "containerId",
+            label: "Container",
+            type: "select",
+            group: "base",
+            options: buildContainerSelectOptions(instance.id)
+          }
+        ]
+      : []),
     {
       key: "viewMode",
       label: "Display mode",
@@ -6640,7 +6797,7 @@ function renderWidgetModal() {
   }
   elements.widgetModalBody.replaceChildren();
 
-  const commonFields = getWidgetModalCommonFields();
+  const commonFields = getWidgetModalCommonFields(instance);
   const widgetFields = getWidgetModalSpecificFields(def);
   const hasWidgetTab = widgetFields.length > 0;
   const active = hasWidgetTab ? (modalState.activeTab === "common" ? "common" : "widget") : "common";
@@ -6732,6 +6889,7 @@ function openWidgetModal(instanceId) {
   modalState.draft = {
     title: instance.title,
     page: normalizeWidgetPage(instance.page, currentLauncherPageCount(), 0) + 1,
+    containerId: instance.type === "container" ? "" : normalizeContainerId(instance.containerId),
     viewMode: instance.viewMode || "window",
     surfaceMode: normalizeSurfaceMode(instance.surfaceMode, "normal"),
     transparentAutoContrast: instance.transparentAutoContrast !== false,
@@ -6782,6 +6940,7 @@ function applyWidgetModal() {
   const def = widgetRegistry[instance.type];
   const draft = modalState.draft;
   const previousPage = normalizeWidgetPage(instance.page, currentLauncherPageCount(), 0);
+  const previousContainerId = normalizeContainerId(instance.containerId);
 
   recordHistorySnapshot("Apply widget settings");
 
@@ -6823,10 +6982,38 @@ function applyWidgetModal() {
     ...instance.config,
     ...draft.config
   };
+
+  let nextContainerId = "";
+  if (instance.type !== "container") {
+    const requestedContainerId = normalizeContainerId(draft.containerId);
+    if (requestedContainerId) {
+      const targetContainer = instanceById(requestedContainerId);
+      if (targetContainer && targetContainer.type === "container" && targetContainer.id !== instance.id) {
+        nextContainerId = targetContainer.id;
+      }
+    }
+  }
+
+  instance.containerId = nextContainerId;
+  if (nextContainerId) {
+    instance.dockOrder = null;
+  }
+  normalizeContainerAssignments(state.instances);
+
   instance.commonOverrides = inferCommonOverrides(instance, state.ui.widgetCommonMaster);
   syncLauncherPagingState({ expandToFitInstances: true });
   if (instance.page !== previousPage) {
     state.ui.home.activePage = instance.page;
+  }
+
+  if (previousContainerId !== instance.containerId) {
+    if (instance.containerId && state.selectedWidgetId === instance.id) {
+      state.selectedWidgetId = "";
+    }
+    renderBoard();
+    queueSave();
+    closeWidgetModal(true);
+    return;
   }
 
   const rt = runtime.get(instance.id);
@@ -6838,6 +7025,8 @@ function applyWidgetModal() {
     applyLayout(rt.card, instance.layout, instance.page);
     applyCardVisual(rt.card, instance);
     rt.controller?.refresh?.();
+  } else if (isWidgetInContainer(instance)) {
+    refreshWidgetsByType("container");
   }
 
   updateBoardBounds();
@@ -6886,7 +7075,11 @@ function addWidget(type, options = {}) {
   syncLauncherPagingState({ expandToFitInstances: true });
   const targetPage = currentLauncherActivePage();
   const pageLocalIndex = state.instances.filter((instance) => {
-    return !isWidgetDocked(instance) && normalizeWidgetPage(instance.page, state.ui.home.pageCount, 0) === targetPage;
+    return (
+      !isWidgetDocked(instance) &&
+      !isWidgetInContainer(instance) &&
+      normalizeWidgetPage(instance.page, state.ui.home.pageCount, 0) === targetPage
+    );
   }).length;
 
   const defaultSize = widgetDefaultGridSize(type, def);
@@ -6924,6 +7117,7 @@ function addWidget(type, options = {}) {
     commonOverrides: normalizeCommonOverrides({}),
     page: targetPage,
     dockOrder: null,
+    containerId: "",
     enabled: true,
     config: structuredClone(def.defaultConfig || {}),
     gridLayout: normalizeGridLayout(null, {
