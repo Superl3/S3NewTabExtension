@@ -1683,6 +1683,10 @@ body:not(.mode-edit) .widget-resize-handle {
   text-overflow: ellipsis;
 }
 
+.widget-folder-item-card .shortcut-label {
+  display: none;
+}
+
 body.mode-edit .widget-folder-item-card .widget-head {
   cursor: grab;
 }
