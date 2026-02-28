@@ -337,6 +337,12 @@ export const containerWidget = {
       };
     }
 
+    function resolveChildSpan(child, panelSpan) {
+      const cols = clamp(Math.round(Number(child?.gridLayout?.colSpan) || 1), 1, Math.max(1, panelSpan.cols));
+      const rows = clamp(Math.round(Number(child?.gridLayout?.rowSpan) || 1), 1, Math.max(1, panelSpan.rows));
+      return { cols, rows };
+    }
+
     function positionPanel(folder, cfg) {
       const card = findFolderCard(folder.id);
       if (!(card instanceof HTMLElement)) {
@@ -445,7 +451,7 @@ export const containerWidget = {
       };
     }
 
-    function createEmbeddedChildCard(child, cfg, panelSize) {
+    function createEmbeddedChildCard(child, panelSpan) {
       const def = typeof getWidgetDefinition === "function" ? getWidgetDefinition(child.type) : null;
       if (!def || typeof def.create !== "function") {
         return null;
@@ -456,12 +462,11 @@ export const containerWidget = {
       card.dataset.widgetId = child.id;
       card.dataset.widgetType = child.type;
 
-      const maxWidth = Math.max(220, Math.round(panelSize.width) - 44);
-      const maxHeight = Math.max(170, Math.round(panelSize.height) - 126);
-      const childWidth = clamp(Math.round(Number(child?.layout?.w) || 320), 190, maxWidth);
-      const childHeight = clamp(Math.round(Number(child?.layout?.h) || 220), 140, maxHeight);
-      card.style.width = `${childWidth}px`;
-      card.style.height = `${childHeight}px`;
+      const childSpan = resolveChildSpan(child, panelSpan);
+      card.style.gridColumn = `span ${childSpan.cols}`;
+      card.style.gridRow = `span ${childSpan.rows}`;
+      card.style.width = "auto";
+      card.style.height = "auto";
       applyEmbeddedCardVisual(card, child);
 
       const shell = document.createElement("div");
@@ -543,7 +548,10 @@ export const containerWidget = {
       positionPanel(folder, cfg);
       panelTitle.textContent = normalizeText(folder?.title, "Widget Folder");
       panelTitle.style.textAlign = normalizeTitleAlign(folder?.titleAlign, "center");
-      const panelSize = measureExpandedSize(cfg, folder);
+      const metrics = typeof getGridMetrics === "function" ? getGridMetrics() : null;
+      const panelSpan = resolveExpandedSpan(folder, cfg, metrics);
+      panelBody.style.setProperty("--folder-grid-cols", String(panelSpan.cols));
+      panelBody.style.setProperty("--folder-grid-rows", String(panelSpan.rows));
 
       destroyEmbeddedChildren();
 
@@ -556,7 +564,7 @@ export const containerWidget = {
       }
 
       for (const child of items) {
-        const embedded = createEmbeddedChildCard(child, cfg, panelSize);
+        const embedded = createEmbeddedChildCard(child, panelSpan);
         if (!embedded) {
           continue;
         }
