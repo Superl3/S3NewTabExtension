@@ -3713,6 +3713,26 @@ function pointInsideRect(x, y, rect) {
   return x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom;
 }
 
+function createWidgetDragPreview(instance) {
+  const preview = document.createElement("div");
+  preview.className = "widget-drag-preview";
+  const fallbackTitle = widgetRegistry?.[instance?.type]?.title || "Widget";
+  preview.textContent = normalizeText(instance?.title, fallbackTitle);
+  document.body.append(preview);
+  return preview;
+}
+
+function positionWidgetDragPreview(preview, clientX, clientY) {
+  if (!(preview instanceof HTMLElement)) {
+    return;
+  }
+  if (!Number.isFinite(clientX) || !Number.isFinite(clientY)) {
+    return;
+  }
+  preview.style.left = `${Math.round(clientX + 14)}px`;
+  preview.style.top = `${Math.round(clientY + 14)}px`;
+}
+
 function registerContainerDropTarget(containerId, element) {
   const id = normalizeContainerId(containerId);
   if (!id || !(element instanceof HTMLElement)) {
@@ -5347,6 +5367,8 @@ function createWidgetCard(instance) {
       card.classList.remove("longpress-drag-armed");
     }
     card.classList.add("widget-drag-active");
+    const dragPreview = createWidgetDragPreview(instance);
+    positionWidgetDragPreview(dragPreview, dragStartX, dragStartY);
 
     const pageSwitchThreshold = 42;
     const pageSwitchCooldownMs = 190;
@@ -5427,6 +5449,7 @@ function createWidgetCard(instance) {
       };
 
       const move = (moveEvent) => {
+        positionWidgetDragPreview(dragPreview, moveEvent.clientX, moveEvent.clientY);
         const dx = moveEvent.clientX - lastPointerX;
         const dy = moveEvent.clientY - lastPointerY;
         lastPointerX = moveEvent.clientX;
@@ -5468,6 +5491,7 @@ function createWidgetCard(instance) {
         setContainerDropTargetActive("");
         card.classList.remove("longpress-drag-armed");
         card.classList.remove("widget-drag-active");
+        dragPreview.remove();
         lastDragEndAt = Date.now();
 
         if (tryContainerWidgetByDrop(instance, upEvent, { record: false })) {
@@ -5496,6 +5520,7 @@ function createWidgetCard(instance) {
     let lastPointerY = dragStartY;
 
     const move = (moveEvent) => {
+      positionWidgetDragPreview(dragPreview, moveEvent.clientX, moveEvent.clientY);
       const dx = moveEvent.clientX - lastPointerX;
       const dy = moveEvent.clientY - lastPointerY;
       lastPointerX = moveEvent.clientX;
@@ -5539,6 +5564,7 @@ function createWidgetCard(instance) {
       setContainerDropTargetActive("");
       card.classList.remove("longpress-drag-armed");
       card.classList.remove("widget-drag-active");
+      dragPreview.remove();
       lastDragEndAt = Date.now();
 
       if (tryContainerWidgetByDrop(instance, upEvent, { record: true })) {
