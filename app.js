@@ -1002,6 +1002,80 @@ function normalizeContainerAssignments(instances) {
   }
 }
 
+function resolveContainerSpan(containerInstance) {
+  const cols = normalizeContainerExpandedCols(containerInstance?.config?.expandedCols, 4);
+  const rows = normalizeContainerExpandedRows(containerInstance?.config?.expandedRows, 3);
+
+  if (!isGridLayoutMode()) {
+    return { cols, rows };
+  }
+
+  const home = normalizeHomeLayout(state?.ui?.home);
+  const grid = normalizeGridLayout(containerInstance?.gridLayout, {
+    col: 0,
+    row: 0,
+    colSpan: 1,
+    rowSpan: 1
+  });
+  const clampedCol = clamp(grid.col, 0, Math.max(0, home.gridColumns - 1));
+  const clampedRow = clamp(grid.row, 0, Math.max(0, home.gridRows - 1));
+  const maxCols = Math.max(1, home.gridColumns - clampedCol);
+  const maxRows = Math.max(1, home.gridRows - clampedRow);
+
+  return {
+    cols: clamp(cols, 1, maxCols),
+    rows: clamp(rows, 1, maxRows)
+  };
+}
+
+function resolveContainerCapacity(containerInstance) {
+  const span = resolveContainerSpan(containerInstance);
+  return Math.max(1, span.cols * span.rows);
+}
+
+function countContainedWidgets(containerId, { excludeWidgetId = "" } = {}) {
+  const targetId = normalizeContainerId(containerId);
+  if (!targetId) {
+    return 0;
+  }
+
+  let count = 0;
+  for (const instance of state.instances || []) {
+    if (!instance || instance.enabled === false || instance.type === "container") {
+      continue;
+    }
+    if (excludeWidgetId && String(instance.id) === String(excludeWidgetId)) {
+      continue;
+    }
+    if (normalizeContainerId(instance.containerId) !== targetId) {
+      continue;
+    }
+    count += 1;
+  }
+
+  return count;
+}
+
+function canPlaceWidgetInContainer(widgetId, containerId) {
+  const target = instanceById(containerId);
+  if (!target || target.enabled === false || target.type !== "container") {
+    return false;
+  }
+
+  const incoming = instanceById(widgetId);
+  if (!incoming || incoming.type === "container" || String(incoming.id) === String(target.id)) {
+    return false;
+  }
+
+  if (normalizeContainerId(incoming.containerId) === String(target.id)) {
+    return true;
+  }
+
+  const capacity = resolveContainerCapacity(target);
+  const currentCount = countContainedWidgets(target.id, { excludeWidgetId: incoming.id });
+  return currentCount < capacity;
+}
+
 function containerUnitLayoutSize() {
   if (!elements.board || !state?.ui?.home || !Array.isArray(state?.instances)) {
     return { w: 120, h: 120 };
@@ -3861,6 +3935,9 @@ function containerDropTargetAtPoint(x, y, draggedInstance = null) {
     if (targetInstance.config?.expanded !== true && entry?.acceptCollapsed !== true) {
       continue;
     }
+    if (draggedInstance && !canPlaceWidgetInContainer(draggedInstance.id, targetInstance.id)) {
+      continue;
+    }
 
     const rect = entry.element.getBoundingClientRect();
     if (pointInsideRect(x, y, rect)) {
@@ -4788,6 +4865,10 @@ function setWidgetContainer(instanceId, containerId, { record = true, rerender =
   }
 
   if (previousContainerId === nextContainerId) {
+    return false;
+  }
+
+  if (nextContainerId && !canPlaceWidgetInContainer(instance.id, nextContainerId)) {
     return false;
   }
 
