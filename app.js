@@ -3733,12 +3733,15 @@ function positionWidgetDragPreview(preview, clientX, clientY) {
   preview.style.top = `${Math.round(clientY + 14)}px`;
 }
 
-function registerContainerDropTarget(containerId, element) {
+function registerContainerDropTarget(containerId, element, options = {}) {
   const id = normalizeContainerId(containerId);
   if (!id || !(element instanceof HTMLElement)) {
     return;
   }
-  containerDropUiState.targets.set(id, { element });
+  containerDropUiState.targets.set(id, {
+    element,
+    acceptCollapsed: options?.acceptCollapsed === true
+  });
 }
 
 function unregisterContainerDropTarget(containerId) {
@@ -3789,7 +3792,7 @@ function containerDropTargetAtPoint(x, y, draggedInstance = null) {
     if (!targetInstance || targetInstance.enabled === false || targetInstance.type !== "container") {
       continue;
     }
-    if (targetInstance.config?.expanded !== true) {
+    if (targetInstance.config?.expanded !== true && entry?.acceptCollapsed !== true) {
       continue;
     }
 
@@ -4981,7 +4984,8 @@ function createWidgetCard(instance) {
     patchWidgetConfigById: (widgetId, patch, options = {}) => patchWidgetConfig(widgetId, patch, options),
     setWidgetContainer: (widgetId, containerId) => setWidgetContainer(widgetId, containerId),
     releaseWidgetFromContainerByDrop: (widgetId, payload) => releaseWidgetFromContainerByDrop(widgetId, payload),
-    registerContainerDropTarget: (containerId, element) => registerContainerDropTarget(containerId, element),
+    registerContainerDropTarget: (containerId, element, options = {}) =>
+      registerContainerDropTarget(containerId, element, options),
     unregisterContainerDropTarget: (containerId) => unregisterContainerDropTarget(containerId),
     isEditMode: () => state.mode === "edit",
     openSettings: () => {
@@ -5366,6 +5370,7 @@ function createWidgetCard(instance) {
     if (fromLongPress) {
       card.classList.remove("longpress-drag-armed");
     }
+    bringWidgetToFront(instance.id);
     card.classList.add("widget-drag-active");
     const dragPreview = createWidgetDragPreview(instance);
     positionWidgetDragPreview(dragPreview, dragStartX, dragStartY);

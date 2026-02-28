@@ -1072,7 +1072,7 @@ body.mode-edit.settings-open .settings-rail-toggle {
   animation: widget-drag-jiggle 0.26s cubic-bezier(0.36, 0.07, 0.19, 0.97) infinite;
   transform-origin: center center;
   cursor: grabbing;
-  z-index: 2005 !important;
+  z-index: 5500 !important;
   box-shadow:
     0 0 0 2px color-mix(in srgb, var(--accent), var(--tone-light) 22%),
     0 17px 33px var(--shadow-strong);
@@ -1502,7 +1502,7 @@ body:not(.mode-edit) .widget-resize-handle {
   left: 0;
   top: 0;
   z-index: 1468;
-  display: none;
+  display: flex;
   flex-direction: column;
   border: 1px solid color-mix(in srgb, var(--line), transparent 12%);
   border-radius: 16px;
@@ -1511,10 +1511,30 @@ body:not(.mode-edit) .widget-resize-handle {
   -webkit-backdrop-filter: blur(16px);
   box-shadow: 0 18px 34px var(--shadow-edge);
   overflow: hidden;
+  opacity: 0;
+  transform: translateY(10px) scale(0.965);
+  transform-origin: top left;
+  pointer-events: none;
+  visibility: hidden;
+  transition:
+    opacity 0.2s ease,
+    transform 0.24s cubic-bezier(0.22, 0.7, 0, 1),
+    visibility 0s linear 0.24s;
 }
 
 .widget-folder-panel.open {
-  display: flex;
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  pointer-events: auto;
+  visibility: visible;
+  transition-delay: 0s;
+}
+
+.widget-folder-tile.is-drop-target {
+  border-color: color-mix(in srgb, var(--primary), var(--line) 16%);
+  box-shadow:
+    0 0 0 2px color-mix(in srgb, var(--primary), transparent 72%),
+    0 8px 18px var(--shadow-edge);
 }
 
 .widget-folder-panel.is-drop-target {
@@ -1603,7 +1623,7 @@ body.mode-edit .widget-folder-item-card .widget-head {
 
 .widget-folder-drag-ghost {
   position: fixed;
-  z-index: 1475;
+  z-index: 6200;
   max-width: min(280px, 52vw);
   pointer-events: none;
   border: 1px solid color-mix(in srgb, var(--line), transparent 15%);
@@ -1622,7 +1642,7 @@ body.mode-edit .widget-folder-item-card .widget-head {
 
 .widget-drag-preview {
   position: fixed;
-  z-index: 2600;
+  z-index: 6400;
   pointer-events: none;
   max-width: min(300px, 54vw);
   border: 1px solid color-mix(in srgb, var(--line), transparent 12%);
