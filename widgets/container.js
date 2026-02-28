@@ -303,17 +303,37 @@ export const containerWidget = {
       registeredDropTargetId = folderId;
     }
 
-    function measureExpandedSize(cfg) {
+    function resolveExpandedSpan(folder, cfg, metrics) {
+      const fallbackCols = clamp(Math.round(cfg.expandedCols), 1, 16);
+      const fallbackRows = clamp(Math.round(cfg.expandedRows), 1, 16);
+
+      if (!metrics || !folder?.gridLayout) {
+        return { cols: fallbackCols, rows: fallbackRows };
+      }
+
+      const col = clamp(Math.floor(Number(folder.gridLayout.col) || 0), 0, Math.max(0, metrics.cols - 1));
+      const row = clamp(Math.floor(Number(folder.gridLayout.row) || 0), 0, Math.max(0, metrics.rows - 1));
+      const maxCols = Math.max(1, metrics.cols - col);
+      const maxRows = Math.max(1, metrics.rows - row);
+
+      return {
+        cols: clamp(fallbackCols, 1, maxCols),
+        rows: clamp(fallbackRows, 1, maxRows)
+      };
+    }
+
+    function measureExpandedSize(cfg, folder = null) {
       const metrics = typeof getGridMetrics === "function" ? getGridMetrics() : null;
+      const span = resolveExpandedSpan(folder, cfg, metrics);
       if (metrics && Number.isFinite(metrics.cellW) && Number.isFinite(metrics.cellH)) {
         return {
-          width: metrics.cellW * cfg.expandedCols + metrics.gapX * (cfg.expandedCols - 1),
-          height: metrics.cellH * cfg.expandedRows + metrics.gapY * (cfg.expandedRows - 1)
+          width: metrics.cellW * span.cols + metrics.gapX * (span.cols - 1),
+          height: metrics.cellH * span.rows + metrics.gapY * (span.rows - 1)
         };
       }
       return {
-        width: cfg.expandedCols * 220,
-        height: cfg.expandedRows * 180
+        width: span.cols * 220,
+        height: span.rows * 180
       };
     }
 
@@ -325,24 +345,12 @@ export const containerWidget = {
 
       const anchor = card.getBoundingClientRect();
       const hostRect = boardHost.getBoundingClientRect();
-      const panelSize = measureExpandedSize(cfg);
+      const panelSize = measureExpandedSize(cfg, folder);
+      const width = Math.max(1, Math.round(panelSize.width));
+      const height = Math.max(1, Math.round(panelSize.height));
 
-      const margin = 8;
-      const maxWidth = Math.max(280, hostRect.width - margin * 2);
-      const maxHeight = Math.max(220, hostRect.height - margin * 2);
-      const width = clamp(Math.round(panelSize.width), 280, maxWidth);
-      const height = clamp(Math.round(panelSize.height), 220, maxHeight);
-
-      const left = clamp(
-        Math.round(anchor.left - hostRect.left),
-        margin,
-        Math.max(margin, hostRect.width - width - margin)
-      );
-      const top = clamp(
-        Math.round(anchor.top - hostRect.top),
-        margin,
-        Math.max(margin, hostRect.height - height - margin)
-      );
+      const left = Math.round(anchor.left - hostRect.left);
+      const top = Math.round(anchor.top - hostRect.top);
       const cardZ = Number(card.style.zIndex || window.getComputedStyle(card).zIndex);
       const panelZ = Number.isFinite(cardZ) ? Math.max(2, Math.round(cardZ) + 1) : 2;
 
@@ -437,7 +445,7 @@ export const containerWidget = {
       };
     }
 
-    function createEmbeddedChildCard(child, cfg) {
+    function createEmbeddedChildCard(child, cfg, panelSize) {
       const def = typeof getWidgetDefinition === "function" ? getWidgetDefinition(child.type) : null;
       if (!def || typeof def.create !== "function") {
         return null;
@@ -448,7 +456,6 @@ export const containerWidget = {
       card.dataset.widgetId = child.id;
       card.dataset.widgetType = child.type;
 
-      const panelSize = measureExpandedSize(cfg);
       const maxWidth = Math.max(220, Math.round(panelSize.width) - 44);
       const maxHeight = Math.max(170, Math.round(panelSize.height) - 126);
       const childWidth = clamp(Math.round(Number(child?.layout?.w) || 320), 190, maxWidth);
@@ -536,6 +543,7 @@ export const containerWidget = {
       positionPanel(folder, cfg);
       panelTitle.textContent = normalizeText(folder?.title, "Widget Folder");
       panelTitle.style.textAlign = normalizeTitleAlign(folder?.titleAlign, "center");
+      const panelSize = measureExpandedSize(cfg, folder);
 
       destroyEmbeddedChildren();
 
@@ -548,7 +556,7 @@ export const containerWidget = {
       }
 
       for (const child of items) {
-        const embedded = createEmbeddedChildCard(child, cfg);
+        const embedded = createEmbeddedChildCard(child, cfg, panelSize);
         if (!embedded) {
           continue;
         }
