@@ -1033,13 +1033,29 @@ function resolveContainerCapacity(containerInstance) {
   return Math.max(1, span.cols * span.rows);
 }
 
-function countContainedWidgets(containerId, { excludeWidgetId = "" } = {}) {
+function resolveWidgetSpanInContainer(widgetInstance, containerSpan) {
+  const def = widgetRegistry[widgetInstance?.type];
+  const fallback = widgetDefaultGridSize(widgetInstance?.type, def);
+  const grid = normalizeGridLayout(widgetInstance?.gridLayout, {
+    col: 0,
+    row: 0,
+    colSpan: fallback.colSpan,
+    rowSpan: fallback.rowSpan
+  });
+
+  return {
+    cols: clamp(Math.max(1, grid.colSpan), 1, Math.max(1, containerSpan.cols)),
+    rows: clamp(Math.max(1, grid.rowSpan), 1, Math.max(1, containerSpan.rows))
+  };
+}
+
+function countContainedWidgetUnits(containerId, containerSpan, { excludeWidgetId = "" } = {}) {
   const targetId = normalizeContainerId(containerId);
   if (!targetId) {
     return 0;
   }
 
-  let count = 0;
+  let units = 0;
   for (const instance of state.instances || []) {
     if (!instance || instance.enabled === false || instance.type === "container") {
       continue;
@@ -1050,10 +1066,11 @@ function countContainedWidgets(containerId, { excludeWidgetId = "" } = {}) {
     if (normalizeContainerId(instance.containerId) !== targetId) {
       continue;
     }
-    count += 1;
+    const span = resolveWidgetSpanInContainer(instance, containerSpan);
+    units += span.cols * span.rows;
   }
 
-  return count;
+  return units;
 }
 
 function canPlaceWidgetInContainer(widgetId, containerId) {
@@ -1071,9 +1088,12 @@ function canPlaceWidgetInContainer(widgetId, containerId) {
     return true;
   }
 
+  const targetSpan = resolveContainerSpan(target);
   const capacity = resolveContainerCapacity(target);
-  const currentCount = countContainedWidgets(target.id, { excludeWidgetId: incoming.id });
-  return currentCount < capacity;
+  const currentUnits = countContainedWidgetUnits(target.id, targetSpan, { excludeWidgetId: incoming.id });
+  const incomingSpan = resolveWidgetSpanInContainer(incoming, targetSpan);
+  const incomingUnits = incomingSpan.cols * incomingSpan.rows;
+  return currentUnits + incomingUnits <= capacity;
 }
 
 function containerUnitLayoutSize() {
