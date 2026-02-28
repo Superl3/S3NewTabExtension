@@ -1072,6 +1072,7 @@ body.mode-edit.settings-open .settings-rail-toggle {
   animation: widget-drag-jiggle 0.26s cubic-bezier(0.36, 0.07, 0.19, 0.97) infinite;
   transform-origin: center center;
   cursor: grabbing;
+  z-index: 2005 !important;
   box-shadow:
     0 0 0 2px color-mix(in srgb, var(--accent), var(--tone-light) 22%),
     0 17px 33px var(--shadow-strong);
@@ -1427,59 +1428,51 @@ body:not(.mode-edit) .widget-resize-handle {
 }
 
 .widget-folder {
-  min-height: 100%;
+  height: 100%;
   display: flex;
-  flex-direction: column;
-  gap: 8px;
+  align-items: stretch;
 }
 
-.widget-folder-summary {
-  margin: 0;
-  color: color-mix(in srgb, var(--widget-effective-text), var(--widget-effective-accent) 20%);
-  font-size: 0.9em;
-  font-weight: 650;
+.widget-folder-tile {
+  width: 100%;
+  height: 100%;
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
-.widget-folder-chip-list {
-  display: flex;
-  flex-wrap: wrap;
-  align-content: flex-start;
-  gap: 6px;
-  min-height: 28px;
-  max-height: 112px;
-  overflow: auto;
-  padding-right: 2px;
+.widget-folder-icon {
+  position: relative;
 }
 
-.widget-folder-chip,
-.widget-folder-chip-more,
-.widget-folder-chip-empty {
-  display: inline-flex;
-  align-items: center;
-  border: 1px solid color-mix(in srgb, var(--line), transparent 18%);
+.widget-folder-icon .icon {
+  width: calc(26px * var(--shortcut-scale));
+  height: calc(26px * var(--shortcut-scale));
+}
+
+.widget-folder-label {
+  max-width: calc(100% - 6px);
+}
+
+.widget-folder-count {
+  position: absolute;
+  right: -7px;
+  top: -7px;
+  min-width: 17px;
+  height: 17px;
   border-radius: 999px;
-  padding: 3px 9px;
-  font-size: 0.78em;
-  background: color-mix(in srgb, var(--widget-effective-surface), transparent 14%);
+  background: color-mix(in srgb, var(--primary), var(--tone-dark) 18%);
+  color: var(--tone-light);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 17px;
+  text-align: center;
+  padding: 0 4px;
+  box-shadow: 0 3px 8px var(--shadow-medium);
 }
 
-.widget-folder-chip {
-  color: color-mix(in srgb, var(--widget-effective-text), var(--muted) 35%);
-}
-
-.widget-folder-chip-more {
-  color: color-mix(in srgb, var(--widget-effective-accent), var(--widget-effective-text) 50%);
-  font-weight: 650;
-}
-
-.widget-folder-chip-empty {
-  color: var(--muted);
-}
-
-.widget-folder-hint {
-  margin: 0;
-  font-size: 0.78em;
-  line-height: 1.35;
+.widget-folder-count[hidden] {
+  display: none;
 }
 
 .widget-card[data-widget-type="container"] .widget-resize-handle {
@@ -1491,12 +1484,10 @@ body:not(.mode-edit) .widget-resize-handle {
 }
 
 .widget-folder-panel {
-  position: fixed;
+  position: absolute;
   left: 0;
   top: 0;
   z-index: 1468;
-  max-width: calc(100vw - 24px);
-  max-height: calc(100vh - 24px);
   display: none;
   flex-direction: column;
   border: 1px solid color-mix(in srgb, var(--line), transparent 12%);
@@ -1617,8 +1608,8 @@ body.mode-edit .widget-folder-item-card .widget-head {
 
 @media (max-width: 760px) {
   .widget-folder-panel {
-    width: calc(100vw - 18px) !important;
-    height: calc(100vh - 18px) !important;
+    width: min(calc(100vw - 18px), 560px) !important;
+    height: min(calc(100vh - 18px), 520px) !important;
   }
 
   .widget-folder-panel-head {

@@ -111,8 +111,8 @@ export const containerWidget = {
   defaultLayout: {
     x: 240,
     y: 140,
-    w: 240,
-    h: 180
+    w: 120,
+    h: 120
   },
   settingsSchema: [
     {
@@ -152,17 +152,22 @@ export const containerWidget = {
     const root = document.createElement("section");
     root.className = "widget-folder";
 
-    const summary = document.createElement("p");
-    summary.className = "widget-folder-summary";
+    const tile = document.createElement("div");
+    tile.className = "shortcut-tile widget-folder-tile";
 
-    const chips = document.createElement("div");
-    chips.className = "widget-folder-chip-list";
+    const icon = document.createElement("span");
+    icon.className = "shortcut-icon widget-folder-icon";
+    icon.innerHTML = '<svg class="icon"><use href="#i-widget"></use></svg>';
 
-    const hint = document.createElement("p");
-    hint.className = "muted widget-folder-hint";
-    hint.textContent = "Click this widget to open. Drag widgets into the opened area to store, drag out to release.";
+    const countBadge = document.createElement("span");
+    countBadge.className = "widget-folder-count";
+    icon.append(countBadge);
 
-    root.append(summary, chips, hint);
+    const label = document.createElement("span");
+    label.className = "shortcut-label widget-folder-label";
+
+    tile.append(icon, label);
+    root.append(tile);
     container.append(root);
 
     const panel = document.createElement("section");
@@ -188,7 +193,8 @@ export const containerWidget = {
     panelBody.className = "widget-folder-panel-body";
 
     panel.append(panelHead, panelBody);
-    document.body.append(panel);
+    const boardHost = container.closest(".board") || document.body;
+    boardHost.append(panel);
 
     const childControllers = new Map();
     const dragCleanupByWidgetId = new Map();
@@ -201,6 +207,13 @@ export const containerWidget = {
     function listAllWidgets() {
       const list = typeof getAllWidgets === "function" ? getAllWidgets() : [];
       return Array.isArray(list) ? list : [];
+    }
+
+    function findFolderCard(folderId) {
+      return (
+        (typeof getWidgetRuntimeCard === "function" ? getWidgetRuntimeCard(folderId) : null) ||
+        document.querySelector(`.widget-card[data-widget-id="${folderId}"]`)
+      );
     }
 
     function listContainedWidgets(folderId) {
@@ -251,23 +264,31 @@ export const containerWidget = {
     }
 
     function positionPanel(folder, cfg) {
-      const card =
-        (typeof getWidgetRuntimeCard === "function" ? getWidgetRuntimeCard(folder.id) : null) ||
-        document.querySelector(`.widget-card[data-widget-id="${folder.id}"]`);
+      const card = findFolderCard(folder.id);
       if (!(card instanceof HTMLElement)) {
         return;
       }
 
+      const anchor = card.getBoundingClientRect();
+      const hostRect = boardHost.getBoundingClientRect();
       const panelSize = measureExpandedSize(cfg);
-      const maxWidth = Math.max(280, window.innerWidth - 24);
-      const maxHeight = Math.max(220, window.innerHeight - 24);
+
+      const margin = 8;
+      const maxWidth = Math.max(280, hostRect.width - margin * 2);
+      const maxHeight = Math.max(220, hostRect.height - margin * 2);
       const width = clamp(Math.round(panelSize.width), 280, maxWidth);
       const height = clamp(Math.round(panelSize.height), 220, maxHeight);
 
-      const anchor = card.getBoundingClientRect();
-      const margin = 12;
-      const left = clamp(Math.round(anchor.left), margin, Math.max(margin, window.innerWidth - width - margin));
-      const top = clamp(Math.round(anchor.top), margin, Math.max(margin, window.innerHeight - height - margin));
+      const left = clamp(
+        Math.round(anchor.left - hostRect.left),
+        margin,
+        Math.max(margin, hostRect.width - width - margin)
+      );
+      const top = clamp(
+        Math.round(anchor.top - hostRect.top),
+        margin,
+        Math.max(margin, hostRect.height - height - margin)
+      );
 
       panel.style.width = `${width}px`;
       panel.style.height = `${height}px`;
@@ -298,13 +319,7 @@ export const containerWidget = {
         if (event.button !== 0) {
           return;
         }
-        if (!(typeof isEditMode === "function" ? isEditMode() : false)) {
-          return;
-        }
         if (event.target.closest("button, input, textarea, select, a, [contenteditable='true']")) {
-          return;
-        }
-        if (child.viewMode !== "headless" && !event.target.closest(".widget-head")) {
           return;
         }
 
@@ -322,9 +337,7 @@ export const containerWidget = {
         const updateGhost = (clientX, clientY) => {
           ghost.style.left = `${Math.round(clientX + 12)}px`;
           ghost.style.top = `${Math.round(clientY + 12)}px`;
-
-          const rect = panel.getBoundingClientRect();
-          const inside = pointInsideRect(clientX, clientY, rect);
+          const inside = pointInsideRect(clientX, clientY, panel.getBoundingClientRect());
           panel.classList.toggle("is-drag-out-active", !inside);
         };
 
@@ -378,8 +391,9 @@ export const containerWidget = {
       card.dataset.widgetId = child.id;
       card.dataset.widgetType = child.type;
 
-      const maxWidth = Math.max(220, Math.round(measureExpandedSize(cfg).width) - 44);
-      const maxHeight = Math.max(170, Math.round(measureExpandedSize(cfg).height) - 126);
+      const panelSize = measureExpandedSize(cfg);
+      const maxWidth = Math.max(220, Math.round(panelSize.width) - 44);
+      const maxHeight = Math.max(170, Math.round(panelSize.height) - 126);
       const childWidth = clamp(Math.round(Number(child?.layout?.w) || 320), 190, maxWidth);
       const childHeight = clamp(Math.round(Number(child?.layout?.h) || 220), 140, maxHeight);
       card.style.width = `${childWidth}px`;
@@ -427,9 +441,9 @@ export const containerWidget = {
         getWidget: () => child,
         getAllWidgets,
         getWidgetDefinition,
-        patchConfig: (patch) => {
+        patchConfig: (patch, options = {}) => {
           if (typeof patchWidgetConfigById === "function") {
-            patchWidgetConfigById(child.id, patch);
+            patchWidgetConfigById(child.id, patch, options);
           }
         },
         patchWidgetConfigById,
@@ -461,32 +475,6 @@ export const containerWidget = {
       };
     }
 
-    function renderCollapsedChips(items) {
-      chips.replaceChildren();
-      if (!items.length) {
-        const empty = document.createElement("span");
-        empty.className = "widget-folder-chip-empty";
-        empty.textContent = "Empty";
-        chips.append(empty);
-        return;
-      }
-
-      const maxChips = 8;
-      for (const item of items.slice(0, maxChips)) {
-        const chip = document.createElement("span");
-        chip.className = "widget-folder-chip";
-        chip.textContent = normalizeText(item.title, item.type);
-        chips.append(chip);
-      }
-
-      if (items.length > maxChips) {
-        const more = document.createElement("span");
-        more.className = "widget-folder-chip-more";
-        more.textContent = `+${items.length - maxChips}`;
-        chips.append(more);
-      }
-    }
-
     function renderPanel(folder, cfg, items) {
       positionPanel(folder, cfg);
       panelTitle.textContent = normalizeText(folder?.title, "Widget Folder");
@@ -513,6 +501,37 @@ export const containerWidget = {
       }
     }
 
+    function handleDocumentClick(event) {
+      const folder = getCurrentFolder();
+      if (!folder?.id) {
+        return;
+      }
+
+      const cfg = normalizeFolderConfig(getConfig());
+      if (!cfg.expanded) {
+        return;
+      }
+
+      const target = event.target;
+      if (!(target instanceof Node)) {
+        return;
+      }
+      if (panel.contains(target)) {
+        return;
+      }
+
+      const card = findFolderCard(folder.id);
+      if (card instanceof HTMLElement && card.contains(target)) {
+        return;
+      }
+
+      if (document.querySelector(".widget-card.widget-drag-active")) {
+        return;
+      }
+
+      patchWidgetConfigById?.(folder.id, { expanded: false }, { record: false });
+    }
+
     function render() {
       const folder = getCurrentFolder();
       if (!folder) {
@@ -521,8 +540,11 @@ export const containerWidget = {
 
       const cfg = normalizeFolderConfig(getConfig());
       const items = listContainedWidgets(folder.id);
-      summary.textContent = `${items.length} widget${items.length === 1 ? "" : "s"} in folder`;
-      renderCollapsedChips(items);
+
+      label.textContent = normalizeText(folder.title, "Widget Folder");
+      countBadge.textContent = String(items.length);
+      countBadge.hidden = items.length <= 0;
+      root.classList.toggle("is-expanded", cfg.expanded);
 
       if (!cfg.expanded) {
         setPanelExpanded(folder.id, false);
@@ -537,11 +559,13 @@ export const containerWidget = {
       }
     }
 
+    document.addEventListener("click", handleDocumentClick, true);
     render();
 
     return {
       refresh: render,
       destroy() {
+        document.removeEventListener("click", handleDocumentClick, true);
         destroyEmbeddedChildren();
         unregisterDropTarget();
         panel.remove();

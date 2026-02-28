@@ -470,11 +470,11 @@ function normalizeEdgeRoundness(value, fallback = 12) {
 }
 
 function widgetPaddingFallback(type) {
-  return type === "shortcut" || type === "aiChat" ? 8 : 10;
+  return type === "shortcut" || type === "aiChat" || type === "container" ? 8 : 10;
 }
 
 function isHeadlessTransparentDefaultType(type) {
-  return type === "shortcut" || type === "clock" || type === "search";
+  return type === "shortcut" || type === "clock" || type === "search" || type === "container";
 }
 
 function defaultWidgetContentAlign(type) {
@@ -982,7 +982,17 @@ function normalizeContainerAssignments(instances) {
 
 function containerUnitLayoutSize() {
   if (!elements.board || !state?.ui?.home || !Array.isArray(state?.instances)) {
-    return { w: 240, h: 180 };
+    return { w: 120, h: 120 };
+  }
+
+  if (!isGridLayoutMode()) {
+    const shortcutDefault = widgetRegistry?.shortcut?.defaultLayout || {};
+    const shortcutW = Number(shortcutDefault.w);
+    const shortcutH = Number(shortcutDefault.h);
+    return {
+      w: clamp(Math.round(Number.isFinite(shortcutW) ? shortcutW : 120), 80, 360),
+      h: clamp(Math.round(Number.isFinite(shortcutH) ? shortcutH : 120), 80, 360)
+    };
   }
 
   const metrics = gridMetrics();
@@ -4662,6 +4672,8 @@ function patchWidgetConfig(instanceId, patch, { record = true } = {}) {
   }
   if (record) {
     recordHistorySnapshot("Update widget settings");
+  } else {
+    touchUserMutationClock();
   }
   instance.config = { ...instance.config, ...patch };
   runtime.get(instanceId)?.controller?.refresh?.();
@@ -4692,6 +4704,8 @@ function setWidgetContainer(instanceId, containerId, { record = true, rerender =
 
   if (record) {
     recordHistorySnapshot(nextContainerId ? "Move widget to folder" : "Move widget out of folder");
+  } else {
+    touchUserMutationClock();
   }
 
   instance.containerId = nextContainerId;
@@ -4943,8 +4957,8 @@ function createWidgetCard(instance) {
     getWidgetDefinition: (type) => widgetRegistry[type] || null,
     getGridMetrics: () => gridMetrics(),
     getWidgetRuntimeCard: (widgetId) => runtime.get(widgetId)?.card || null,
-    patchConfig: (patch) => patchWidgetConfig(instance.id, patch),
-    patchWidgetConfigById: (widgetId, patch) => patchWidgetConfig(widgetId, patch),
+    patchConfig: (patch, options = {}) => patchWidgetConfig(instance.id, patch, options),
+    patchWidgetConfigById: (widgetId, patch, options = {}) => patchWidgetConfig(widgetId, patch, options),
     setWidgetContainer: (widgetId, containerId) => setWidgetContainer(widgetId, containerId),
     releaseWidgetFromContainerByDrop: (widgetId, payload) => releaseWidgetFromContainerByDrop(widgetId, payload),
     registerContainerDropTarget: (containerId, element) => registerContainerDropTarget(containerId, element),
