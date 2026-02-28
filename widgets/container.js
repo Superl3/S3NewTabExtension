@@ -15,12 +15,24 @@ function normalizeCount(value, fallback, min, max) {
   return clamp(Math.round(num), min, max);
 }
 
+function isUrlIcon(value) {
+  return (
+    value.startsWith("http://") ||
+    value.startsWith("https://") ||
+    value.startsWith("data:") ||
+    value.startsWith("chrome-extension://")
+  );
+}
+
 function normalizeFolderConfig(config) {
   const raw = config && typeof config === "object" ? config : {};
   return {
     expanded: raw.expanded === true,
     expandedCols: normalizeCount(raw.expandedCols, 4, 1, 16),
-    expandedRows: normalizeCount(raw.expandedRows, 3, 1, 16)
+    expandedRows: normalizeCount(raw.expandedRows, 3, 1, 16),
+    icon: normalizeText(raw.icon),
+    useGlobalIconSize: raw.useGlobalIconSize !== false,
+    iconSizePercent: normalizeCount(raw.iconSizePercent, 100, 40, 220)
   };
 }
 
@@ -102,7 +114,10 @@ export const containerWidget = {
   defaultConfig: {
     expanded: false,
     expandedCols: 4,
-    expandedRows: 3
+    expandedRows: 3,
+    icon: "",
+    useGlobalIconSize: true,
+    iconSizePercent: 100
   },
   defaultGridSize: {
     w: 1,
@@ -115,6 +130,31 @@ export const containerWidget = {
     h: 120
   },
   settingsSchema: [
+    {
+      key: "icon",
+      label: "Folder icon (emoji or image URL)",
+      type: "text",
+      placeholder: "📁 or https://example.com/icon.png"
+    },
+    {
+      key: "iconEditor",
+      label: "Icon editor",
+      type: "shortcut-icon-editor",
+      helpText: "Draw or import an image and apply it as folder icon."
+    },
+    {
+      key: "useGlobalIconSize",
+      label: "Use global icon size",
+      type: "checkbox"
+    },
+    {
+      key: "iconSizePercent",
+      label: "Icon size (%)",
+      type: "number",
+      min: 40,
+      max: 220,
+      step: 5
+    },
     {
       key: "expandedCols",
       label: "Expanded columns",
@@ -157,11 +197,13 @@ export const containerWidget = {
 
     const icon = document.createElement("span");
     icon.className = "shortcut-icon widget-folder-icon";
-    icon.innerHTML = '<svg class="icon"><use href="#i-widget"></use></svg>';
+
+    const iconVisual = document.createElement("span");
+    iconVisual.className = "widget-folder-icon-visual";
 
     const countBadge = document.createElement("span");
     countBadge.className = "widget-folder-count";
-    icon.append(countBadge);
+    icon.append(iconVisual, countBadge);
 
     const label = document.createElement("span");
     label.className = "shortcut-label widget-folder-label";
@@ -319,7 +361,10 @@ export const containerWidget = {
         if (event.button !== 0) {
           return;
         }
-        if (event.target.closest("button, input, textarea, select, a, [contenteditable='true']")) {
+        if (!(typeof isEditMode === "function" ? isEditMode() : false)) {
+          return;
+        }
+        if (event.target.closest("button, input, textarea, select, [contenteditable='true']")) {
           return;
         }
 
@@ -374,9 +419,9 @@ export const containerWidget = {
         window.addEventListener("pointercancel", finish);
       };
 
-      card.addEventListener("pointerdown", onPointerDown);
+      card.addEventListener("pointerdown", onPointerDown, true);
       return () => {
-        card.removeEventListener("pointerdown", onPointerDown);
+        card.removeEventListener("pointerdown", onPointerDown, true);
       };
     }
 
@@ -540,10 +585,33 @@ export const containerWidget = {
 
       const cfg = normalizeFolderConfig(getConfig());
       const items = listContainedWidgets(folder.id);
+      const ui = typeof getUi === "function" ? getUi() : null;
+      const globalSize = Number(ui?.shortcuts?.iconSizePercent);
+      const localSize = Number(cfg.iconSizePercent);
+      const fallbackSize = Number.isFinite(globalSize) ? globalSize : 100;
+      const effectiveSize = cfg.useGlobalIconSize ? fallbackSize : Number.isFinite(localSize) ? localSize : fallbackSize;
+      const clampedSize = clamp(effectiveSize, 40, 220);
 
       label.textContent = normalizeText(folder.title, "Widget Folder");
       countBadge.textContent = String(items.length);
       countBadge.hidden = items.length <= 0;
+      tile.style.setProperty("--shortcut-scale", `${clampedSize / 100}`);
+
+      const iconValue = normalizeText(cfg.icon);
+      iconVisual.replaceChildren();
+      if (iconValue) {
+        if (isUrlIcon(iconValue)) {
+          const img = document.createElement("img");
+          img.src = iconValue;
+          img.alt = "";
+          iconVisual.append(img);
+        } else {
+          iconVisual.textContent = iconValue;
+        }
+      } else {
+        iconVisual.innerHTML = '<svg class="icon"><use href="#i-folder-mini"></use></svg>';
+      }
+
       root.classList.toggle("is-expanded", cfg.expanded);
 
       if (!cfg.expanded) {

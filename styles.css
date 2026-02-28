@@ -1445,9 +1445,23 @@ body:not(.mode-edit) .widget-resize-handle {
   position: relative;
 }
 
+.widget-folder-icon-visual {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+}
+
 .widget-folder-icon .icon {
-  width: calc(26px * var(--shortcut-scale));
-  height: calc(26px * var(--shortcut-scale));
+  width: calc(40px * var(--shortcut-scale));
+  height: calc(40px * var(--shortcut-scale));
+}
+
+.widget-folder-icon-visual img {
+  width: calc(40px * var(--shortcut-scale));
+  height: calc(40px * var(--shortcut-scale));
+  object-fit: contain;
 }
 
 .widget-folder-label {
@@ -1601,6 +1615,27 @@ body.mode-edit .widget-folder-item-card .widget-head {
   font-size: 0.82em;
   font-weight: 650;
   padding: 6px 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.widget-drag-preview {
+  position: fixed;
+  z-index: 2600;
+  pointer-events: none;
+  max-width: min(300px, 54vw);
+  border: 1px solid color-mix(in srgb, var(--line), transparent 12%);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--surface), transparent 6%);
+  box-shadow: 0 14px 28px var(--shadow-edge);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  color: color-mix(in srgb, var(--text), var(--primary) 22%);
+  font-size: 0.82em;
+  font-weight: 700;
+  line-height: 1;
+  padding: 7px 13px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
