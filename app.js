@@ -4390,8 +4390,8 @@ function createWidgetCard(instance) {
 
     if (fromLongPress) {
       card.classList.remove("longpress-drag-armed");
-      card.classList.add("longpress-drag-active");
     }
+    card.classList.add("widget-drag-active");
 
     const pageSwitchThreshold = 42;
     const pageSwitchCooldownMs = 190;
@@ -4446,43 +4446,57 @@ function createWidgetCard(instance) {
       recordHistorySnapshot("Move widget");
       const metrics = gridMetrics();
       const defForGrid = widgetRegistry[instance.type];
-      let dragAnchorX = dragStartX;
-      let dragAnchorY = dragStartY;
-      let anchorGrid = normalizeGridLayout(instance.gridLayout, {
+      const gridFallback = {
         col: 0,
         row: 0,
         ...widgetDefaultGridSize(instance.type, defForGrid)
-      });
+      };
       const stepX = Math.max(1, metrics.cellW + metrics.gapX);
       const stepY = Math.max(1, metrics.cellH + metrics.gapY);
+      const boardRect = elements.board.getBoundingClientRect();
+      let lastPointerX = dragStartX;
+      let lastPointerY = dragStartY;
 
-      const move = (moveEvent) => {
-        const dCol = Math.round((moveEvent.clientX - dragAnchorX) / stepX);
-        const dRow = Math.round((moveEvent.clientY - dragAnchorY) / stepY);
+      const snapLayoutToGrid = () => {
+        const currentGrid = normalizeGridLayout(instance.gridLayout, gridFallback);
+        const maxCol = Math.max(0, metrics.cols - currentGrid.colSpan);
+        const maxRow = Math.max(0, metrics.rows - currentGrid.rowSpan);
+        const snappedCol = clamp(Math.round((instance.layout.x - metrics.marginX) / stepX), 0, maxCol);
+        const snappedRow = clamp(Math.round((instance.layout.y - metrics.marginY) / stepY), 0, maxRow);
 
         instance.gridLayout = {
-          ...anchorGrid,
-          col: clamp(anchorGrid.col + dCol, 0, Math.max(0, metrics.cols - anchorGrid.colSpan)),
-          row: clamp(anchorGrid.row + dRow, 0, Math.max(0, metrics.rows - anchorGrid.rowSpan))
+          ...currentGrid,
+          col: snappedCol,
+          row: snappedRow
         };
+      };
+
+      const move = (moveEvent) => {
+        const dx = moveEvent.clientX - lastPointerX;
+        const dy = moveEvent.clientY - lastPointerY;
+        lastPointerX = moveEvent.clientX;
+        lastPointerY = moveEvent.clientY;
+
+        const maxX = Math.max(0, boardRect.width - instance.layout.w);
+        const maxY = Math.max(0, boardRect.height - instance.layout.h);
+
+        instance.layout.x = clamp(instance.layout.x + dx, 0, maxX);
+        instance.layout.y = clamp(instance.layout.y + dy, 0, maxY);
 
         const direction = edgeDirectionFromPointer(moveEvent.clientX);
         trySwitchPage(direction, moveEvent, (switchDirection) => {
-          const currentGrid = normalizeGridLayout(instance.gridLayout, anchorGrid);
-          const edgeCol =
-            switchDirection > 0
-              ? 0
-              : Math.max(0, metrics.cols - Math.max(1, Number(currentGrid.colSpan) || 1));
-          instance.gridLayout = {
-            ...currentGrid,
-            col: clamp(edgeCol, 0, Math.max(0, metrics.cols - currentGrid.colSpan))
-          };
-          anchorGrid = normalizeGridLayout(instance.gridLayout, currentGrid);
-          dragAnchorX = moveEvent.clientX;
-          dragAnchorY = moveEvent.clientY;
+          const edgeInset = clamp(Math.round(instance.layout.w * 0.18), 16, 64);
+          const maxLocalX = Math.max(0, boardRect.width - instance.layout.w);
+          const nextLocalX = switchDirection > 0 ? edgeInset : maxLocalX - edgeInset;
+          instance.layout.x = clamp(nextLocalX, 0, maxLocalX);
+          lastPointerX = moveEvent.clientX;
+          lastPointerY = moveEvent.clientY;
         });
 
-        applyGridLayout({ commitFreeLayout: false, shouldSave: false });
+        const rt = runtime.get(instance.id);
+        if (rt?.card) {
+          applyLayout(rt.card, instance.layout, instance.page);
+        }
       };
 
       const up = () => {
@@ -4490,8 +4504,9 @@ function createWidgetCard(instance) {
         window.removeEventListener("pointerup", up);
         window.removeEventListener("pointercancel", up);
         card.classList.remove("longpress-drag-armed");
-        card.classList.remove("longpress-drag-active");
+        card.classList.remove("widget-drag-active");
         lastDragEndAt = Date.now();
+        snapLayoutToGrid();
         applyGridLayout({ commitFreeLayout: false, shouldSave: false });
         queueSave();
       };
@@ -4544,7 +4559,7 @@ function createWidgetCard(instance) {
       window.removeEventListener("pointerup", up);
       window.removeEventListener("pointercancel", up);
       card.classList.remove("longpress-drag-armed");
-      card.classList.remove("longpress-drag-active");
+      card.classList.remove("widget-drag-active");
       lastDragEndAt = Date.now();
       const snappedX = Math.round(instance.layout.x / SNAP) * SNAP;
       const snappedY = Math.round(instance.layout.y / SNAP) * SNAP;

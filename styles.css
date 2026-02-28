@@ -895,21 +895,21 @@ body.mode-edit.settings-open .settings-rail-toggle {
   transition: box-shadow 0.2s ease;
 }
 
-@keyframes widget-longpress-jiggle {
+@keyframes widget-drag-jiggle {
   0% {
-    transform: translateX(-5px) rotate(-2.1deg);
+    transform: translateX(-1.2px) rotate(-4.8deg);
   }
-  20% {
-    transform: translateX(-2px) rotate(-0.9deg);
+  25% {
+    transform: translateX(0.8px) rotate(3.7deg);
   }
   50% {
-    transform: translateX(5px) rotate(2.2deg);
+    transform: translateX(1.4px) rotate(5.1deg);
   }
-  80% {
-    transform: translateX(1.5px) rotate(0.8deg);
+  75% {
+    transform: translateX(-0.7px) rotate(-4deg);
   }
   100% {
-    transform: translateX(-5px) rotate(-2.1deg);
+    transform: translateX(-1.2px) rotate(-4.8deg);
   }
 }
 
@@ -920,13 +920,13 @@ body.mode-edit.settings-open .settings-rail-toggle {
     0 11px 24px var(--shadow-strong);
 }
 
-.widget-card.longpress-drag-active {
-  animation: widget-longpress-jiggle 0.72s cubic-bezier(0.42, 0, 0.58, 1) infinite;
+.widget-card.widget-drag-active {
+  animation: widget-drag-jiggle 0.26s cubic-bezier(0.36, 0.07, 0.19, 0.97) infinite;
   transform-origin: center center;
   cursor: grabbing;
   box-shadow:
-    0 0 0 2px color-mix(in srgb, var(--accent), var(--tone-light) 26%),
-    0 18px 34px var(--shadow-strong);
+    0 0 0 2px color-mix(in srgb, var(--accent), var(--tone-light) 22%),
+    0 17px 33px var(--shadow-strong);
 }
 
 .widget-card.longpress-drag-armed .widget-head,
@@ -935,14 +935,14 @@ body.mode-edit.settings-open .settings-rail-toggle {
   cursor: grab;
 }
 
-.widget-card.longpress-drag-active .widget-head,
-.widget-card.longpress-drag-active .widget-title,
-.widget-card.longpress-drag-active .widget-body {
+.widget-card.widget-drag-active .widget-head,
+.widget-card.widget-drag-active .widget-title,
+.widget-card.widget-drag-active .widget-body {
   cursor: grabbing;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .widget-card.longpress-drag-active {
+  .widget-card.widget-drag-active {
     animation: none;
   }
 }
