@@ -277,18 +277,24 @@ export const containerWidget = {
       unregisterContainerDropTarget?.(registeredDropTargetId);
       registeredDropTargetId = "";
       panel.classList.remove("is-drop-target");
+      tile.classList.remove("is-drop-target");
     }
 
     function setPanelExpanded(folderId, expanded) {
-      panel.hidden = !expanded;
       panel.classList.toggle("open", expanded);
 
-      if (expanded && folderId) {
-        registerContainerDropTarget?.(folderId, panel);
-        registeredDropTargetId = folderId;
-      } else {
+      if (!folderId) {
         unregisterDropTarget();
+        return;
       }
+
+      unregisterDropTarget();
+      if (expanded) {
+        registerContainerDropTarget?.(folderId, panel, { acceptCollapsed: false });
+      } else {
+        registerContainerDropTarget?.(folderId, tile, { acceptCollapsed: true });
+      }
+      registeredDropTargetId = folderId;
     }
 
     function measureExpandedSize(cfg) {
@@ -359,9 +365,6 @@ export const containerWidget = {
 
       const onPointerDown = (event) => {
         if (event.button !== 0) {
-          return;
-        }
-        if (!(typeof isEditMode === "function" ? isEditMode() : false)) {
           return;
         }
         if (event.target.closest("button, input, textarea, select, [contenteditable='true']")) {
