@@ -7,7 +7,7 @@ function normalizeText(value, fallback = "") {
   return text || fallback;
 }
 
-function normalizeSize(value, fallback, min, max) {
+function normalizeCount(value, fallback, min, max) {
   const num = Number(value);
   if (!Number.isFinite(num)) {
     return clamp(Math.round(fallback), min, max);
@@ -15,12 +15,12 @@ function normalizeSize(value, fallback, min, max) {
   return clamp(Math.round(num), min, max);
 }
 
-function normalizeExpandedConfig(config) {
+function normalizeFolderConfig(config) {
   const raw = config && typeof config === "object" ? config : {};
   return {
     expanded: raw.expanded === true,
-    expandedWidth: normalizeSize(raw.expandedWidth, 920, 360, 2200),
-    expandedHeight: normalizeSize(raw.expandedHeight, 620, 260, 1600)
+    expandedCols: normalizeCount(raw.expandedCols, 4, 1, 16),
+    expandedRows: normalizeCount(raw.expandedRows, 3, 1, 16)
   };
 }
 
@@ -67,12 +67,27 @@ function applyEmbeddedCardVisual(card, widget) {
   }
 }
 
-function createIconButton(className, title, iconId, onClick) {
+function pointInsideRect(x, y, rect) {
+  if (!Number.isFinite(x) || !Number.isFinite(y) || !rect) {
+    return false;
+  }
+  return x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom;
+}
+
+function createDragGhost(label) {
+  const ghost = document.createElement("div");
+  ghost.className = "widget-folder-drag-ghost";
+  ghost.textContent = normalizeText(label, "Widget");
+  document.body.append(ghost);
+  return ghost;
+}
+
+function createSettingsButton(onClick) {
   const button = document.createElement("button");
   button.type = "button";
-  button.className = className;
-  button.title = title;
-  button.innerHTML = `<svg class="icon"><use href="#${iconId}"></use></svg>`;
+  button.className = "icon-btn widget-folder-item-settings";
+  button.title = "Widget setting";
+  button.innerHTML = '<svg class="icon"><use href="#i-settings"></use></svg>';
   button.addEventListener("click", (event) => {
     event.preventDefault();
     event.stopPropagation();
@@ -86,31 +101,35 @@ export const containerWidget = {
   title: "Widget Folder",
   defaultConfig: {
     expanded: false,
-    expandedWidth: 920,
-    expandedHeight: 620
+    expandedCols: 4,
+    expandedRows: 3
+  },
+  defaultGridSize: {
+    w: 1,
+    h: 1
   },
   defaultLayout: {
     x: 240,
     y: 140,
-    w: 380,
-    h: 250
+    w: 240,
+    h: 180
   },
   settingsSchema: [
     {
-      key: "expandedWidth",
-      label: "Expanded width (px)",
+      key: "expandedCols",
+      label: "Expanded columns",
       type: "number",
-      min: 360,
-      max: 2200,
-      step: 10
+      min: 1,
+      max: 16,
+      step: 1
     },
     {
-      key: "expandedHeight",
-      label: "Expanded height (px)",
+      key: "expandedRows",
+      label: "Expanded rows",
       type: "number",
-      min: 260,
-      max: 1600,
-      step: 10
+      min: 1,
+      max: 16,
+      step: 1
     }
   ],
   create({
@@ -120,35 +139,30 @@ export const containerWidget = {
     getWidget,
     getAllWidgets,
     getWidgetDefinition,
-    patchConfig,
     patchWidgetConfigById,
     setWidgetContainer,
+    isEditMode,
     openWidgetSettingsById,
-    isEditMode
+    getGridMetrics,
+    getWidgetRuntimeCard,
+    registerContainerDropTarget,
+    unregisterContainerDropTarget,
+    releaseWidgetFromContainerByDrop
   }) {
     const root = document.createElement("section");
     root.className = "widget-folder";
 
-    const toolbar = document.createElement("div");
-    toolbar.className = "widget-folder-toolbar";
-
     const summary = document.createElement("p");
     summary.className = "widget-folder-summary";
-
-    const toggleBtn = document.createElement("button");
-    toggleBtn.type = "button";
-    toggleBtn.className = "btn widget-folder-toggle-btn";
-
-    toolbar.append(summary, toggleBtn);
 
     const chips = document.createElement("div");
     chips.className = "widget-folder-chip-list";
 
     const hint = document.createElement("p");
     hint.className = "muted widget-folder-hint";
-    hint.textContent = "Edit Mode에서 위젯 설정의 Container 항목으로 넣기/빼기가 가능합니다.";
+    hint.textContent = "Click this widget to open. Drag widgets into the opened area to store, drag out to release.";
 
-    root.append(toolbar, chips, hint);
+    root.append(summary, chips, hint);
     container.append(root);
 
     const panel = document.createElement("section");
@@ -168,26 +182,7 @@ export const containerWidget = {
     panelMeta.className = "widget-folder-panel-meta";
 
     panelTitleWrap.append(panelTitle, panelMeta);
-
-    const panelActions = document.createElement("div");
-    panelActions.className = "widget-folder-panel-actions";
-
-    const addSelect = document.createElement("select");
-    addSelect.className = "widget-folder-add-select";
-
-    const addBtn = document.createElement("button");
-    addBtn.type = "button";
-    addBtn.className = "btn widget-folder-add-btn";
-    addBtn.textContent = "Add";
-
-    const closeBtn = document.createElement("button");
-    closeBtn.type = "button";
-    closeBtn.className = "icon-btn widget-folder-close-btn";
-    closeBtn.title = "Collapse folder";
-    closeBtn.innerHTML = '<svg class="icon"><use href="#i-close"></use></svg>';
-
-    panelActions.append(addSelect, addBtn, closeBtn);
-    panelHead.append(panelTitleWrap, panelActions);
+    panelHead.append(panelTitleWrap);
 
     const panelBody = document.createElement("div");
     panelBody.className = "widget-folder-panel-body";
@@ -196,6 +191,8 @@ export const containerWidget = {
     document.body.append(panel);
 
     const childControllers = new Map();
+    const dragCleanupByWidgetId = new Map();
+    let registeredDropTargetId = "";
 
     function getCurrentFolder() {
       return typeof getWidget === "function" ? getWidget() : null;
@@ -218,16 +215,64 @@ export const containerWidget = {
       });
     }
 
-    function listCandidates(folderId) {
-      return listAllWidgets().filter((item) => {
-        if (!item || item.enabled === false) {
-          return false;
-        }
-        if (item.type === "container") {
-          return false;
-        }
-        return normalizeText(item.containerId) !== folderId;
-      });
+    function unregisterDropTarget() {
+      if (!registeredDropTargetId) {
+        return;
+      }
+      unregisterContainerDropTarget?.(registeredDropTargetId);
+      registeredDropTargetId = "";
+      panel.classList.remove("is-drop-target");
+    }
+
+    function setPanelExpanded(folderId, expanded) {
+      panel.hidden = !expanded;
+      panel.classList.toggle("open", expanded);
+
+      if (expanded && folderId) {
+        registerContainerDropTarget?.(folderId, panel);
+        registeredDropTargetId = folderId;
+      } else {
+        unregisterDropTarget();
+      }
+    }
+
+    function measureExpandedSize(cfg) {
+      const metrics = typeof getGridMetrics === "function" ? getGridMetrics() : null;
+      if (metrics && Number.isFinite(metrics.cellW) && Number.isFinite(metrics.cellH)) {
+        return {
+          width: metrics.cellW * cfg.expandedCols + metrics.gapX * (cfg.expandedCols - 1),
+          height: metrics.cellH * cfg.expandedRows + metrics.gapY * (cfg.expandedRows - 1)
+        };
+      }
+      return {
+        width: cfg.expandedCols * 220,
+        height: cfg.expandedRows * 180
+      };
+    }
+
+    function positionPanel(folder, cfg) {
+      const card =
+        (typeof getWidgetRuntimeCard === "function" ? getWidgetRuntimeCard(folder.id) : null) ||
+        document.querySelector(`.widget-card[data-widget-id="${folder.id}"]`);
+      if (!(card instanceof HTMLElement)) {
+        return;
+      }
+
+      const panelSize = measureExpandedSize(cfg);
+      const maxWidth = Math.max(280, window.innerWidth - 24);
+      const maxHeight = Math.max(220, window.innerHeight - 24);
+      const width = clamp(Math.round(panelSize.width), 280, maxWidth);
+      const height = clamp(Math.round(panelSize.height), 220, maxHeight);
+
+      const anchor = card.getBoundingClientRect();
+      const margin = 12;
+      const left = clamp(Math.round(anchor.left), margin, Math.max(margin, window.innerWidth - width - margin));
+      const top = clamp(Math.round(anchor.top), margin, Math.max(margin, window.innerHeight - height - margin));
+
+      panel.style.width = `${width}px`;
+      panel.style.height = `${height}px`;
+      panel.style.left = `${left}px`;
+      panel.style.top = `${top}px`;
     }
 
     function destroyEmbeddedChildren() {
@@ -235,7 +280,91 @@ export const containerWidget = {
         entry?.destroy?.();
       }
       childControllers.clear();
+
+      for (const cleanup of dragCleanupByWidgetId.values()) {
+        cleanup?.();
+      }
+      dragCleanupByWidgetId.clear();
+
       panelBody.replaceChildren();
+    }
+
+    function bindDragOut(card, child) {
+      if (typeof releaseWidgetFromContainerByDrop !== "function") {
+        return () => {};
+      }
+
+      const onPointerDown = (event) => {
+        if (event.button !== 0) {
+          return;
+        }
+        if (!(typeof isEditMode === "function" ? isEditMode() : false)) {
+          return;
+        }
+        if (event.target.closest("button, input, textarea, select, a, [contenteditable='true']")) {
+          return;
+        }
+        if (child.viewMode !== "headless" && !event.target.closest(".widget-head")) {
+          return;
+        }
+
+        const folder = getCurrentFolder();
+        if (!folder?.id) {
+          return;
+        }
+
+        event.preventDefault();
+        event.stopPropagation();
+
+        const ghost = createDragGhost(normalizeText(child.title, child.type));
+        card.classList.add("widget-folder-item-dragging");
+
+        const updateGhost = (clientX, clientY) => {
+          ghost.style.left = `${Math.round(clientX + 12)}px`;
+          ghost.style.top = `${Math.round(clientY + 12)}px`;
+
+          const rect = panel.getBoundingClientRect();
+          const inside = pointInsideRect(clientX, clientY, rect);
+          panel.classList.toggle("is-drag-out-active", !inside);
+        };
+
+        updateGhost(event.clientX, event.clientY);
+
+        const move = (moveEvent) => {
+          updateGhost(moveEvent.clientX, moveEvent.clientY);
+        };
+
+        const finish = (upEvent) => {
+          window.removeEventListener("pointermove", move);
+          window.removeEventListener("pointerup", finish);
+          window.removeEventListener("pointercancel", finish);
+
+          const dropX = Number.isFinite(upEvent?.clientX) ? upEvent.clientX : event.clientX;
+          const dropY = Number.isFinite(upEvent?.clientY) ? upEvent.clientY : event.clientY;
+          const inside = pointInsideRect(dropX, dropY, panel.getBoundingClientRect());
+
+          panel.classList.remove("is-drag-out-active");
+          card.classList.remove("widget-folder-item-dragging");
+          ghost.remove();
+
+          if (!inside) {
+            releaseWidgetFromContainerByDrop(child.id, {
+              sourceContainerId: folder.id,
+              clientX: dropX,
+              clientY: dropY
+            });
+          }
+        };
+
+        window.addEventListener("pointermove", move);
+        window.addEventListener("pointerup", finish);
+        window.addEventListener("pointercancel", finish);
+      };
+
+      card.addEventListener("pointerdown", onPointerDown);
+      return () => {
+        card.removeEventListener("pointerdown", onPointerDown);
+      };
     }
 
     function createEmbeddedChildCard(child, cfg) {
@@ -249,8 +378,8 @@ export const containerWidget = {
       card.dataset.widgetId = child.id;
       card.dataset.widgetType = child.type;
 
-      const maxWidth = Math.max(220, cfg.expandedWidth - 64);
-      const maxHeight = Math.max(170, cfg.expandedHeight - 148);
+      const maxWidth = Math.max(220, Math.round(measureExpandedSize(cfg).width) - 44);
+      const maxHeight = Math.max(170, Math.round(measureExpandedSize(cfg).height) - 126);
       const childWidth = clamp(Math.round(Number(child?.layout?.w) || 320), 190, maxWidth);
       const childHeight = clamp(Math.round(Number(child?.layout?.h) || 220), 140, maxHeight);
       card.style.width = `${childWidth}px`;
@@ -272,19 +401,7 @@ export const containerWidget = {
       const editable = typeof isEditMode === "function" ? Boolean(isEditMode()) : false;
 
       if (editable && typeof openWidgetSettingsById === "function") {
-        headActions.append(
-          createIconButton("icon-btn widget-folder-item-settings", "Widget setting", "i-settings", () => {
-            openWidgetSettingsById(child.id);
-          })
-        );
-      }
-
-      if (editable && typeof setWidgetContainer === "function") {
-        headActions.append(
-          createIconButton("icon-btn widget-folder-item-eject", "Move out of folder", "i-trash", () => {
-            setWidgetContainer(child.id, "");
-          })
-        );
+        headActions.append(createSettingsButton(() => openWidgetSettingsById(child.id)));
       }
 
       head.append(title, headActions);
@@ -317,6 +434,11 @@ export const containerWidget = {
         },
         patchWidgetConfigById,
         setWidgetContainer,
+        getGridMetrics,
+        getWidgetRuntimeCard,
+        registerContainerDropTarget,
+        unregisterContainerDropTarget,
+        releaseWidgetFromContainerByDrop,
         isEditMode,
         openSettings: () => {
           openWidgetSettingsById?.(child.id);
@@ -324,8 +446,11 @@ export const containerWidget = {
         openWidgetSettingsById
       });
 
+      const dragCleanup = bindDragOut(card, child);
+
       return {
         card,
+        dragCleanup,
         destroy() {
           controller?.destroy?.();
         },
@@ -341,7 +466,7 @@ export const containerWidget = {
       if (!items.length) {
         const empty = document.createElement("span");
         empty.className = "widget-folder-chip-empty";
-        empty.textContent = "No widgets in this folder";
+        empty.textContent = "Empty";
         chips.append(empty);
         return;
       }
@@ -363,38 +488,16 @@ export const containerWidget = {
     }
 
     function renderPanel(folder, cfg, items) {
-      panel.style.width = `${cfg.expandedWidth}px`;
-      panel.style.height = `${cfg.expandedHeight}px`;
+      positionPanel(folder, cfg);
       panelTitle.textContent = normalizeText(folder?.title, "Widget Folder");
       panelMeta.textContent = `${items.length} widget${items.length === 1 ? "" : "s"}`;
-
-      const editable = typeof isEditMode === "function" ? Boolean(isEditMode()) : false;
-      const candidates = editable ? listCandidates(folder.id) : [];
-
-      addSelect.replaceChildren();
-      const placeholder = document.createElement("option");
-      placeholder.value = "";
-      placeholder.textContent = candidates.length ? "Select widget" : "No movable widgets";
-      addSelect.append(placeholder);
-
-      for (const candidate of candidates) {
-        const option = document.createElement("option");
-        option.value = candidate.id;
-        option.textContent = `${normalizeText(candidate.title, candidate.type)} (${candidate.type})`;
-        addSelect.append(option);
-      }
-
-      addSelect.disabled = !editable || !candidates.length;
-      addBtn.disabled = !editable || !candidates.length;
-      addSelect.hidden = !editable;
-      addBtn.hidden = !editable;
 
       destroyEmbeddedChildren();
 
       if (!items.length) {
         const empty = document.createElement("p");
         empty.className = "widget-folder-empty";
-        empty.textContent = "Folder is empty. Add widgets from settings or with the Add control.";
+        empty.textContent = "Drag a widget into this opened folder to add it.";
         panelBody.append(empty);
         return;
       }
@@ -405,13 +508,9 @@ export const containerWidget = {
           continue;
         }
         childControllers.set(child.id, embedded);
+        dragCleanupByWidgetId.set(child.id, embedded.dragCleanup);
         panelBody.append(embedded.card);
       }
-    }
-
-    function setPanelExpanded(expanded) {
-      panel.hidden = !expanded;
-      panel.classList.toggle("open", expanded);
     }
 
     function render() {
@@ -420,43 +519,23 @@ export const containerWidget = {
         return;
       }
 
-      const cfg = normalizeExpandedConfig(getConfig());
+      const cfg = normalizeFolderConfig(getConfig());
       const items = listContainedWidgets(folder.id);
       summary.textContent = `${items.length} widget${items.length === 1 ? "" : "s"} in folder`;
-      toggleBtn.textContent = cfg.expanded ? "Collapse" : "Expand";
-      toggleBtn.classList.toggle("btn-primary", cfg.expanded);
       renderCollapsedChips(items);
 
       if (!cfg.expanded) {
-        setPanelExpanded(false);
+        setPanelExpanded(folder.id, false);
         destroyEmbeddedChildren();
         return;
       }
 
-      setPanelExpanded(true);
+      setPanelExpanded(folder.id, true);
       renderPanel(folder, cfg, items);
       for (const entry of childControllers.values()) {
         entry?.refresh?.();
       }
     }
-
-    toggleBtn.addEventListener("click", () => {
-      const cfg = normalizeExpandedConfig(getConfig());
-      patchConfig({ expanded: !cfg.expanded });
-    });
-
-    closeBtn.addEventListener("click", () => {
-      patchConfig({ expanded: false });
-    });
-
-    addBtn.addEventListener("click", () => {
-      const folder = getCurrentFolder();
-      const targetId = normalizeText(addSelect.value);
-      if (!folder?.id || !targetId || typeof setWidgetContainer !== "function") {
-        return;
-      }
-      setWidgetContainer(targetId, folder.id);
-    });
 
     render();
 
@@ -464,6 +543,7 @@ export const containerWidget = {
       refresh: render,
       destroy() {
         destroyEmbeddedChildren();
+        unregisterDropTarget();
         panel.remove();
       }
     };
