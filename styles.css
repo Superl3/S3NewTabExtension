@@ -897,39 +897,44 @@ body.mode-edit.settings-open .settings-rail-toggle {
 
 @keyframes widget-longpress-jiggle {
   0% {
-    transform: rotate(-1.3deg) translateY(0);
+    transform: translateX(-5px) rotate(-2.1deg);
   }
-  25% {
-    transform: rotate(1.3deg) translateY(-1.2px);
+  20% {
+    transform: translateX(-2px) rotate(-0.9deg);
   }
   50% {
-    transform: rotate(-1deg) translateY(0.7px);
+    transform: translateX(5px) rotate(2.2deg);
   }
-  75% {
-    transform: rotate(1.15deg) translateY(-0.9px);
+  80% {
+    transform: translateX(1.5px) rotate(0.8deg);
   }
   100% {
-    transform: rotate(-1.3deg) translateY(0);
+    transform: translateX(-5px) rotate(-2.1deg);
   }
-}
-
-.widget-card.longpress-drag-armed,
-.widget-card.longpress-drag-active {
-  animation: widget-longpress-jiggle 0.16s ease-in-out infinite;
-  transform-origin: center center;
-  cursor: grabbing;
-  box-shadow:
-    0 0 0 2px color-mix(in srgb, var(--accent), var(--tone-light) 28%),
-    0 16px 30px var(--shadow-strong);
 }
 
 .widget-card.longpress-drag-armed {
-  animation-duration: 0.2s;
+  cursor: grab;
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--accent), var(--tone-light) 34%),
+    0 11px 24px var(--shadow-strong);
+}
+
+.widget-card.longpress-drag-active {
+  animation: widget-longpress-jiggle 0.72s cubic-bezier(0.42, 0, 0.58, 1) infinite;
+  transform-origin: center center;
+  cursor: grabbing;
+  box-shadow:
+    0 0 0 2px color-mix(in srgb, var(--accent), var(--tone-light) 26%),
+    0 18px 34px var(--shadow-strong);
 }
 
 .widget-card.longpress-drag-armed .widget-head,
 .widget-card.longpress-drag-armed .widget-title,
-.widget-card.longpress-drag-armed .widget-body,
+.widget-card.longpress-drag-armed .widget-body {
+  cursor: grab;
+}
+
 .widget-card.longpress-drag-active .widget-head,
 .widget-card.longpress-drag-active .widget-title,
 .widget-card.longpress-drag-active .widget-body {
@@ -937,7 +942,6 @@ body.mode-edit.settings-open .settings-rail-toggle {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .widget-card.longpress-drag-armed,
   .widget-card.longpress-drag-active {
     animation: none;
   }
