@@ -190,6 +190,10 @@ const dockModalState = {
 const dockUiState = {
   activeId: ""
 };
+const containerDropUiState = {
+  targets: new Map(),
+  activeId: ""
+};
 const shortcutIconEditorState = {
   open: false,
   shape: "roundSquared",
@@ -259,10 +263,29 @@ function widgetDefaultGridSize(type, def) {
       rowSpan: Math.max(1, Math.floor(rawH))
     };
   }
+  if (type === "container") {
+    return { colSpan: 1, rowSpan: 1 };
+  }
   if (type === "shortcut") {
     return { colSpan: 1, rowSpan: 1 };
   }
   return { colSpan: 2, rowSpan: 2 };
+}
+
+function normalizeContainerExpandedCols(value, fallback = 4) {
+  const num = Number(value);
+  if (!Number.isFinite(num)) {
+    return clamp(Math.round(fallback), 1, GRID_MAX_COLUMNS);
+  }
+  return clamp(Math.round(num), 1, GRID_MAX_COLUMNS);
+}
+
+function normalizeContainerExpandedRows(value, fallback = 3) {
+  const num = Number(value);
+  if (!Number.isFinite(num)) {
+    return clamp(Math.round(fallback), 1, GRID_MAX_ROWS);
+  }
+  return clamp(Math.round(num), 1, GRID_MAX_ROWS);
 }
 
 function normalizeGridLayout(layout, fallback) {
@@ -957,6 +980,33 @@ function normalizeContainerAssignments(instances) {
   }
 }
 
+function containerUnitLayoutSize() {
+  if (!elements.board || !state?.ui?.home || !Array.isArray(state?.instances)) {
+    return { w: 240, h: 180 };
+  }
+
+  const metrics = gridMetrics();
+  return {
+    w: Math.max(80, Math.round(metrics.cellW)),
+    h: Math.max(80, Math.round(metrics.cellH))
+  };
+}
+
+function enforceContainerWidgetSize(instance) {
+  if (!instance || instance.type !== "container") {
+    return;
+  }
+
+  const unit = containerUnitLayoutSize();
+  instance.layout.w = unit.w;
+  instance.layout.h = unit.h;
+
+  if (instance.gridLayout && typeof instance.gridLayout === "object") {
+    instance.gridLayout.colSpan = 1;
+    instance.gridLayout.rowSpan = 1;
+  }
+}
+
 function dockedInstances(instances = state?.instances) {
   if (!Array.isArray(instances)) {
     return [];
@@ -1453,9 +1503,15 @@ function hydrate(raw) {
     };
 
     if (isContainerWidget) {
+      const legacyWidth = Number(mergedConfig.expandedWidth);
+      const legacyHeight = Number(mergedConfig.expandedHeight);
+      const fallbackCols = Number.isFinite(legacyWidth) ? Math.max(1, Math.round(legacyWidth / 220)) : 4;
+      const fallbackRows = Number.isFinite(legacyHeight) ? Math.max(1, Math.round(legacyHeight / 180)) : 3;
       mergedConfig.expanded = mergedConfig.expanded === true;
-      mergedConfig.expandedWidth = clamp(Number(mergedConfig.expandedWidth) || 920, 360, 2200);
-      mergedConfig.expandedHeight = clamp(Number(mergedConfig.expandedHeight) || 620, 260, 1600);
+      mergedConfig.expandedCols = normalizeContainerExpandedCols(mergedConfig.expandedCols, fallbackCols);
+      mergedConfig.expandedRows = normalizeContainerExpandedRows(mergedConfig.expandedRows, fallbackRows);
+      delete mergedConfig.expandedWidth;
+      delete mergedConfig.expandedHeight;
     }
 
     if (isShortcut) {
@@ -1475,6 +1531,16 @@ function hydrate(raw) {
             : "https://api.openai.com/v1/chat/completions";
       }
       mergedConfig.model = normalizeText(mergedConfig.model, mergedConfig.providerMode === "browser" ? "gpt-4.1-mini" : "gpt-4o-mini");
+    }
+
+    const normalizedGrid = normalizeGridLayout(item.gridLayout, {
+      col: normalized.length % 4,
+      row: Math.floor(normalized.length / 4),
+      ...widgetDefaultGridSize(item.type, def)
+    });
+    if (isContainerWidget) {
+      normalizedGrid.colSpan = 1;
+      normalizedGrid.rowSpan = 1;
     }
 
     normalized.push({
@@ -1515,11 +1581,7 @@ function hydrate(raw) {
       dockOrder: normalizeDockOrder(item.dockOrder, null),
       containerId: isContainerWidget ? "" : normalizeContainerId(item.containerId),
       enabled: item.enabled !== false,
-      gridLayout: normalizeGridLayout(item.gridLayout, {
-        col: normalized.length % 4,
-        row: Math.floor(normalized.length / 4),
-        ...widgetDefaultGridSize(item.type, def)
-      }),
+      gridLayout: normalizedGrid,
       layout: cloneLayout(item.layout || def.defaultLayout),
       config: mergedConfig
     });
@@ -3502,11 +3564,14 @@ function syncAddWidgetSizeInputs() {
   }
 
   const size = widgetDefaultGridSize(type, def);
+  const fixedSingleCell = type === "container";
   if (elements.addWidgetColSpanInput) {
     elements.addWidgetColSpanInput.value = String(size.colSpan);
+    elements.addWidgetColSpanInput.disabled = fixedSingleCell;
   }
   if (elements.addWidgetRowSpanInput) {
     elements.addWidgetRowSpanInput.value = String(size.rowSpan);
+    elements.addWidgetRowSpanInput.disabled = fixedSingleCell;
   }
   if (elements.addWidgetTitleInput) {
     elements.addWidgetTitleInput.placeholder = `Default: ${def.title}`;
@@ -3564,8 +3629,13 @@ function applyAddWidgetModal() {
   }
 
   const defaultSize = widgetDefaultGridSize(type, def);
-  const colSpan = normalizeGridSpanValue(elements.addWidgetColSpanInput?.value, defaultSize.colSpan, GRID_MAX_COLUMNS);
-  const rowSpan = normalizeGridSpanValue(elements.addWidgetRowSpanInput?.value, defaultSize.rowSpan, GRID_MAX_ROW_SPAN);
+  const isContainerType = type === "container";
+  const colSpan = isContainerType
+    ? 1
+    : normalizeGridSpanValue(elements.addWidgetColSpanInput?.value, defaultSize.colSpan, GRID_MAX_COLUMNS);
+  const rowSpan = isContainerType
+    ? 1
+    : normalizeGridSpanValue(elements.addWidgetRowSpanInput?.value, defaultSize.rowSpan, GRID_MAX_ROW_SPAN);
   const title = normalizeText(elements.addWidgetTitleInput?.value, def.title);
 
   addWidget(type, {
@@ -3633,6 +3703,75 @@ function pointInsideRect(x, y, rect) {
   return x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom;
 }
 
+function registerContainerDropTarget(containerId, element) {
+  const id = normalizeContainerId(containerId);
+  if (!id || !(element instanceof HTMLElement)) {
+    return;
+  }
+  containerDropUiState.targets.set(id, { element });
+}
+
+function unregisterContainerDropTarget(containerId) {
+  const id = normalizeContainerId(containerId);
+  if (!id) {
+    return;
+  }
+  const current = containerDropUiState.targets.get(id);
+  current?.element?.classList.remove("is-drop-target");
+  containerDropUiState.targets.delete(id);
+  if (containerDropUiState.activeId === id) {
+    containerDropUiState.activeId = "";
+  }
+}
+
+function clearContainerDropTargets() {
+  for (const entry of containerDropUiState.targets.values()) {
+    entry?.element?.classList.remove("is-drop-target");
+  }
+  containerDropUiState.targets.clear();
+  containerDropUiState.activeId = "";
+}
+
+function setContainerDropTargetActive(containerId) {
+  const activeId = normalizeContainerId(containerId);
+  containerDropUiState.activeId = activeId;
+  for (const [id, entry] of containerDropUiState.targets.entries()) {
+    entry?.element?.classList.toggle("is-drop-target", Boolean(activeId) && id === activeId);
+  }
+}
+
+function containerDropTargetAtPoint(x, y, draggedInstance = null) {
+  if (draggedInstance?.type === "container") {
+    return "";
+  }
+
+  const entries = Array.from(containerDropUiState.targets.entries()).reverse();
+  for (const [containerId, entry] of entries) {
+    if (!entry?.element?.isConnected) {
+      continue;
+    }
+
+    if (draggedInstance && containerId === String(draggedInstance.id)) {
+      continue;
+    }
+
+    const targetInstance = instanceById(containerId);
+    if (!targetInstance || targetInstance.enabled === false || targetInstance.type !== "container") {
+      continue;
+    }
+    if (targetInstance.config?.expanded !== true) {
+      continue;
+    }
+
+    const rect = entry.element.getBoundingClientRect();
+    if (pointInsideRect(x, y, rect)) {
+      return containerId;
+    }
+  }
+
+  return "";
+}
+
 function isDockDropPoint(x, y) {
   const config = buildDockConfig(state?.ui?.home);
   if (!config.enabled) {
@@ -3643,6 +3782,19 @@ function isDockDropPoint(x, y) {
     return false;
   }
   return pointInsideRect(x, y, dock.getBoundingClientRect());
+}
+
+function tryContainerWidgetByDrop(instance, pointerEvent, { record = true } = {}) {
+  if (!instance || !pointerEvent) {
+    return false;
+  }
+
+  const targetContainerId = containerDropTargetAtPoint(pointerEvent.clientX, pointerEvent.clientY, instance);
+  if (!targetContainerId) {
+    return false;
+  }
+
+  return setWidgetContainer(instance.id, targetContainerId, { record });
 }
 
 function setDockDropTargetActive(active) {
@@ -4049,6 +4201,8 @@ function renderBoardViewport({ dragOffsetX = 0, animate = true, dragging = false
     syncPageIndicator(activePage);
     syncPersistentDock(activePage);
   }
+
+  refreshWidgetsByType("container");
 }
 
 function setActiveLauncherPage(page, { shouldSave = false, animate = true } = {}) {
@@ -4200,6 +4354,11 @@ function applyGridLayout({ commitFreeLayout = false, shouldSave = false } = {}) 
         rowSpan: defaultSize.rowSpan
       });
 
+      if (instance.type === "container") {
+        grid.colSpan = 1;
+        grid.rowSpan = 1;
+      }
+
       grid.colSpan = clamp(grid.colSpan, 1, metrics.cols);
       grid.rowSpan = clamp(grid.rowSpan, 1, metrics.rows);
       grid.col = clamp(grid.col, 0, Math.max(0, metrics.cols - grid.colSpan));
@@ -4214,6 +4373,9 @@ function applyGridLayout({ commitFreeLayout = false, shouldSave = false } = {}) 
       const rt = runtime.get(instance.id);
       if (rt?.card) {
         applyLayout(rt.card, instance.layout, instance.page);
+        if (instance.type === "container") {
+          rt.controller?.refresh?.();
+        }
       }
     }
   }
@@ -4240,6 +4402,11 @@ function updateBoardBounds() {
     if (isWidgetDocked(instance) || isWidgetInContainer(instance)) {
       continue;
     }
+
+    if (instance.type === "container") {
+      enforceContainerWidgetSize(instance);
+    }
+
     const minW = Math.min(80, boardW);
     const minH = Math.min(80, boardH);
 
@@ -4251,6 +4418,9 @@ function updateBoardBounds() {
     const rt = runtime.get(instance.id);
     if (rt?.card) {
       applyLayout(rt.card, instance.layout, instance.page);
+      if (instance.type === "container") {
+        rt.controller?.refresh?.();
+      }
     }
   }
 
@@ -4485,19 +4655,21 @@ function patchBackground(patch) {
   queueSave();
 }
 
-function patchWidgetConfig(instanceId, patch) {
+function patchWidgetConfig(instanceId, patch, { record = true } = {}) {
   const instance = instanceById(instanceId);
   if (!instance) {
     return;
   }
-  recordHistorySnapshot("Update widget settings");
+  if (record) {
+    recordHistorySnapshot("Update widget settings");
+  }
   instance.config = { ...instance.config, ...patch };
   runtime.get(instanceId)?.controller?.refresh?.();
   renderSettings();
   queueSave();
 }
 
-function setWidgetContainer(instanceId, containerId, { record = true } = {}) {
+function setWidgetContainer(instanceId, containerId, { record = true, rerender = true, save = true } = {}) {
   const instance = instanceById(instanceId);
   if (!instance || instance.type === "container") {
     return false;
@@ -4532,8 +4704,86 @@ function setWidgetContainer(instanceId, containerId, { record = true } = {}) {
 
   normalizeContainerAssignments(state.instances);
 
+  if (rerender) {
+    renderBoard();
+    renderSettings();
+  } else {
+    refreshWidgetsByType("container");
+  }
+
+  if (save) {
+    queueSave();
+  }
+  return true;
+}
+
+function releaseWidgetFromContainerByDrop(widgetId, payload = {}) {
+  const instance = instanceById(widgetId);
+  if (!instance || instance.type === "container") {
+    return false;
+  }
+
+  const currentContainerId = normalizeContainerId(instance.containerId);
+  if (!currentContainerId) {
+    return false;
+  }
+
+  const boardRect = elements.board?.getBoundingClientRect();
+  if (!boardRect) {
+    return false;
+  }
+
+  recordHistorySnapshot("Move widget out of folder");
+
+  const sourceContainer = instanceById(currentContainerId);
+  const releasePage = normalizeWidgetPage(sourceContainer?.page, currentLauncherPageCount(), currentLauncherActivePage());
+
+  setWidgetContainer(widgetId, "", { record: false, rerender: false, save: false });
+
+  instance.page = releasePage;
+  state.ui.home.activePage = releasePage;
+
+  const pointerX = Number.isFinite(payload?.clientX) ? payload.clientX : boardRect.left + boardRect.width / 2;
+  const pointerY = Number.isFinite(payload?.clientY) ? payload.clientY : boardRect.top + boardRect.height / 2;
+
+  if (isGridLayoutMode()) {
+    const metrics = gridMetrics();
+    const def = widgetRegistry[instance.type];
+    const grid = normalizeGridLayout(instance.gridLayout, {
+      col: 0,
+      row: 0,
+      ...widgetDefaultGridSize(instance.type, def)
+    });
+    const spanWidth = metrics.cellW * grid.colSpan + metrics.gapX * (grid.colSpan - 1);
+    const spanHeight = metrics.cellH * grid.rowSpan + metrics.gapY * (grid.rowSpan - 1);
+    const stepX = Math.max(1, metrics.cellW + metrics.gapX);
+    const stepY = Math.max(1, metrics.cellH + metrics.gapY);
+    const localX = clamp(pointerX - boardRect.left - spanWidth / 2, 0, Math.max(0, boardRect.width - spanWidth));
+    const localY = clamp(pointerY - boardRect.top - spanHeight / 2, 0, Math.max(0, boardRect.height - spanHeight));
+
+    grid.col = clamp(Math.round((localX - metrics.marginX) / stepX), 0, Math.max(0, metrics.cols - grid.colSpan));
+    grid.row = clamp(Math.round((localY - metrics.marginY) / stepY), 0, Math.max(0, metrics.rows - grid.rowSpan));
+
+    instance.gridLayout = grid;
+    instance.layout.x = metrics.marginX + grid.col * stepX;
+    instance.layout.y = metrics.marginY + grid.row * stepY;
+    instance.layout.w = spanWidth;
+    instance.layout.h = spanHeight;
+  } else {
+    const maxW = Math.max(80, Math.floor(boardRect.width));
+    const maxH = Math.max(80, Math.floor(boardRect.height));
+    instance.layout.w = clamp(Number(instance.layout.w) || 320, 80, maxW);
+    instance.layout.h = clamp(Number(instance.layout.h) || 220, 80, maxH);
+    const maxX = Math.max(0, boardRect.width - instance.layout.w);
+    const maxY = Math.max(0, boardRect.height - instance.layout.h);
+    const nextX = clamp(pointerX - boardRect.left - instance.layout.w / 2, 0, maxX);
+    const nextY = clamp(pointerY - boardRect.top - instance.layout.h / 2, 0, maxY);
+    instance.layout.x = Math.round(nextX / SNAP) * SNAP;
+    instance.layout.y = Math.round(nextY / SNAP) * SNAP;
+  }
+
+  state.selectedWidgetId = instance.id;
   renderBoard();
-  renderSettings();
   queueSave();
   return true;
 }
@@ -4547,6 +4797,12 @@ function patchWidgetLayout(instanceId, layoutPatch, options = {}) {
     ...instance.layout,
     ...layoutPatch
   };
+
+  if (instance.type === "container") {
+    const unit = containerUnitLayoutSize();
+    nextLayout.w = unit.w;
+    nextLayout.h = unit.h;
+  }
 
   const changed =
     nextLayout.x !== instance.layout.x ||
@@ -4566,6 +4822,9 @@ function patchWidgetLayout(instanceId, layoutPatch, options = {}) {
   const rt = runtime.get(instanceId);
   if (rt) {
     applyLayout(rt.card, instance.layout, instance.page);
+    if (instance.type === "container") {
+      rt.controller?.refresh?.();
+    }
   }
   updateBoardBounds();
   renderSettings();
@@ -4667,6 +4926,10 @@ function createWidgetCard(instance) {
     paddingHandleBottomLeft.dataset.treeId = `${instance.id}-1-5`;
   }
 
+  if (instance.type === "container") {
+    resizeHandle?.remove();
+  }
+
   applyLayout(card, instance.layout, instance.page);
   applyCardVisual(card, instance);
   applyCardStack(card, instance);
@@ -4678,9 +4941,14 @@ function createWidgetCard(instance) {
     getWidget: () => instance,
     getAllWidgets: () => state.instances,
     getWidgetDefinition: (type) => widgetRegistry[type] || null,
+    getGridMetrics: () => gridMetrics(),
+    getWidgetRuntimeCard: (widgetId) => runtime.get(widgetId)?.card || null,
     patchConfig: (patch) => patchWidgetConfig(instance.id, patch),
     patchWidgetConfigById: (widgetId, patch) => patchWidgetConfig(widgetId, patch),
     setWidgetContainer: (widgetId, containerId) => setWidgetContainer(widgetId, containerId),
+    releaseWidgetFromContainerByDrop: (widgetId, payload) => releaseWidgetFromContainerByDrop(widgetId, payload),
+    registerContainerDropTarget: (containerId, element) => registerContainerDropTarget(containerId, element),
+    unregisterContainerDropTarget: (containerId) => unregisterContainerDropTarget(containerId),
     isEditMode: () => state.mode === "edit",
     openSettings: () => {
       if (state.mode !== "edit") {
@@ -4989,6 +5257,26 @@ function createWidgetCard(instance) {
   );
 
   card.addEventListener("click", (event) => {
+    if (instance.type === "container") {
+      if (Date.now() - lastDragEndAt <= 280) {
+        return;
+      }
+      if (event.target.closest("button, input, textarea, select, a, [contenteditable='true']")) {
+        return;
+      }
+
+      if (state.mode === "edit") {
+        setSelected(instance.id);
+      }
+
+      event.preventDefault();
+      event.stopPropagation();
+      patchWidgetConfig(instance.id, {
+        expanded: instance.config?.expanded !== true
+      }, { record: false });
+      return;
+    }
+
     if (state.mode !== "edit") {
       return;
     }
@@ -5129,7 +5417,9 @@ function createWidgetCard(instance) {
         const dy = moveEvent.clientY - lastPointerY;
         lastPointerX = moveEvent.clientX;
         lastPointerY = moveEvent.clientY;
-        setDockDropTargetActive(isDockDropPoint(moveEvent.clientX, moveEvent.clientY));
+        const containerDropTargetId = containerDropTargetAtPoint(moveEvent.clientX, moveEvent.clientY, instance);
+        setContainerDropTargetActive(containerDropTargetId);
+        setDockDropTargetActive(!containerDropTargetId && isDockDropPoint(moveEvent.clientX, moveEvent.clientY));
 
         const maxX = Math.max(0, boardRect.width - instance.layout.w);
         const maxY = Math.max(0, boardRect.height - instance.layout.h);
@@ -5150,6 +5440,9 @@ function createWidgetCard(instance) {
         const rt = runtime.get(instance.id);
         if (rt?.card) {
           applyLayout(rt.card, instance.layout, instance.page);
+          if (instance.type === "container") {
+            rt.controller?.refresh?.();
+          }
         }
       };
 
@@ -5158,9 +5451,14 @@ function createWidgetCard(instance) {
         window.removeEventListener("pointerup", up);
         window.removeEventListener("pointercancel", up);
         setDockDropTargetActive(false);
+        setContainerDropTargetActive("");
         card.classList.remove("longpress-drag-armed");
         card.classList.remove("widget-drag-active");
         lastDragEndAt = Date.now();
+
+        if (tryContainerWidgetByDrop(instance, upEvent, { record: false })) {
+          return;
+        }
 
         if (tryDockWidgetByDrop(instance, upEvent, { record: false })) {
           renderBoard();
@@ -5188,7 +5486,9 @@ function createWidgetCard(instance) {
       const dy = moveEvent.clientY - lastPointerY;
       lastPointerX = moveEvent.clientX;
       lastPointerY = moveEvent.clientY;
-      setDockDropTargetActive(isDockDropPoint(moveEvent.clientX, moveEvent.clientY));
+      const containerDropTargetId = containerDropTargetAtPoint(moveEvent.clientX, moveEvent.clientY, instance);
+      setContainerDropTargetActive(containerDropTargetId);
+      setDockDropTargetActive(!containerDropTargetId && isDockDropPoint(moveEvent.clientX, moveEvent.clientY));
       const maxX = Math.max(0, boardRect.width - instance.layout.w);
       const maxY = Math.max(0, boardRect.height - instance.layout.h);
 
@@ -5222,9 +5522,14 @@ function createWidgetCard(instance) {
       window.removeEventListener("pointerup", up);
       window.removeEventListener("pointercancel", up);
       setDockDropTargetActive(false);
+      setContainerDropTargetActive("");
       card.classList.remove("longpress-drag-armed");
       card.classList.remove("widget-drag-active");
       lastDragEndAt = Date.now();
+
+      if (tryContainerWidgetByDrop(instance, upEvent, { record: true })) {
+        return;
+      }
 
       if (tryDockWidgetByDrop(instance, upEvent, { record: true })) {
         renderBoard();
@@ -5478,6 +5783,9 @@ function createWidgetCard(instance) {
   };
 
   head.addEventListener("pointerdown", (event) => {
+    if (instance.type === "container") {
+      return;
+    }
     if (instance.viewMode === "headless") {
       return;
     }
@@ -5491,6 +5799,9 @@ function createWidgetCard(instance) {
     if (typeof window.PointerEvent !== "undefined") {
       return;
     }
+    if (instance.type === "container") {
+      return;
+    }
     if (instance.viewMode === "headless") {
       return;
     }
@@ -5501,6 +5812,9 @@ function createWidgetCard(instance) {
   });
 
   title?.addEventListener("pointerdown", (event) => {
+    if (instance.type === "container") {
+      return;
+    }
     if (instance.viewMode === "headless") {
       return;
     }
@@ -5512,6 +5826,9 @@ function createWidgetCard(instance) {
 
   title?.addEventListener("mousedown", (event) => {
     if (typeof window.PointerEvent !== "undefined") {
+      return;
+    }
+    if (instance.type === "container") {
       return;
     }
     if (instance.viewMode === "headless") {
@@ -5573,6 +5890,9 @@ function createWidgetCard(instance) {
         return;
       }
       if (event.button !== 0) {
+        return;
+      }
+      if (instance.type === "container") {
         return;
       }
 
@@ -5657,6 +5977,7 @@ function createWidgetCard(instance) {
 }
 
 function renderBoard() {
+  clearContainerDropTargets();
   for (const rt of runtime.values()) {
     rt.controller?.destroy?.();
   }
@@ -6345,26 +6666,9 @@ function renderBackgroundSettings() {
   }
 }
 
-function buildContainerSelectOptions(currentWidgetId = "") {
-  const options = [{ value: "", label: "None (Board)" }];
-  for (const instance of state.instances) {
-    if (!instance || instance.type !== "container") {
-      continue;
-    }
-    if (instance.id === currentWidgetId) {
-      continue;
-    }
-    options.push({
-      value: instance.id,
-      label: `${normalizeText(instance.title, "Widget Folder")} (${instance.id})`
-    });
-  }
-  return options;
-}
-
 function getWidgetModalCommonFields(instance = null) {
   const pageCount = currentLauncherPageCount();
-  const allowContainerSelection = Boolean(instance && instance.type !== "container");
+  const allowManualLayout = !isGridLayoutMode() && instance?.type !== "container";
   const baseFields = [
     { key: "title", label: "Title", type: "text", group: "base" },
     {
@@ -6376,17 +6680,6 @@ function getWidgetModalCommonFields(instance = null) {
       step: 1,
       group: "base"
     },
-    ...(allowContainerSelection
-      ? [
-          {
-            key: "containerId",
-            label: "Container",
-            type: "select",
-            group: "base",
-            options: buildContainerSelectOptions(instance.id)
-          }
-        ]
-      : []),
     {
       key: "viewMode",
       label: "Display mode",
@@ -6501,14 +6794,14 @@ function getWidgetModalCommonFields(instance = null) {
     { key: "customTextColor", label: "Custom text color", type: "color", group: "base" },
     { key: "customAccentColor", label: "Custom accent color", type: "color", group: "base" },
     { key: "customSurfaceColor", label: "Custom surface color", type: "color", group: "base" },
-    ...(isGridLayoutMode()
-      ? []
-      : [
+    ...(allowManualLayout
+      ? [
           { key: "x", label: "X", type: "number", group: "layout" },
           { key: "y", label: "Y", type: "number", group: "layout" },
           { key: "w", label: "Width", type: "number", group: "layout" },
           { key: "h", label: "Height", type: "number", group: "layout" }
-        ])
+        ]
+      : [])
   ];
 
   return baseFields;
@@ -6889,7 +7182,6 @@ function openWidgetModal(instanceId) {
   modalState.draft = {
     title: instance.title,
     page: normalizeWidgetPage(instance.page, currentLauncherPageCount(), 0) + 1,
-    containerId: instance.type === "container" ? "" : normalizeContainerId(instance.containerId),
     viewMode: instance.viewMode || "window",
     surfaceMode: normalizeSurfaceMode(instance.surfaceMode, "normal"),
     transparentAutoContrast: instance.transparentAutoContrast !== false,
@@ -6940,7 +7232,6 @@ function applyWidgetModal() {
   const def = widgetRegistry[instance.type];
   const draft = modalState.draft;
   const previousPage = normalizeWidgetPage(instance.page, currentLauncherPageCount(), 0);
-  const previousContainerId = normalizeContainerId(instance.containerId);
 
   recordHistorySnapshot("Apply widget settings");
 
@@ -6983,37 +7274,23 @@ function applyWidgetModal() {
     ...draft.config
   };
 
-  let nextContainerId = "";
-  if (instance.type !== "container") {
-    const requestedContainerId = normalizeContainerId(draft.containerId);
-    if (requestedContainerId) {
-      const targetContainer = instanceById(requestedContainerId);
-      if (targetContainer && targetContainer.type === "container" && targetContainer.id !== instance.id) {
-        nextContainerId = targetContainer.id;
-      }
+  if (instance.type === "container") {
+    instance.config.expanded = instance.config.expanded === true;
+    instance.config.expandedCols = normalizeContainerExpandedCols(instance.config.expandedCols, 4);
+    instance.config.expandedRows = normalizeContainerExpandedRows(instance.config.expandedRows, 3);
+    delete instance.config.expandedWidth;
+    delete instance.config.expandedHeight;
+    if (instance.gridLayout && typeof instance.gridLayout === "object") {
+      instance.gridLayout.colSpan = 1;
+      instance.gridLayout.rowSpan = 1;
     }
+    enforceContainerWidgetSize(instance);
   }
-
-  instance.containerId = nextContainerId;
-  if (nextContainerId) {
-    instance.dockOrder = null;
-  }
-  normalizeContainerAssignments(state.instances);
 
   instance.commonOverrides = inferCommonOverrides(instance, state.ui.widgetCommonMaster);
   syncLauncherPagingState({ expandToFitInstances: true });
   if (instance.page !== previousPage) {
     state.ui.home.activePage = instance.page;
-  }
-
-  if (previousContainerId !== instance.containerId) {
-    if (instance.containerId && state.selectedWidgetId === instance.id) {
-      state.selectedWidgetId = "";
-    }
-    renderBoard();
-    queueSave();
-    closeWidgetModal(true);
-    return;
   }
 
   const rt = runtime.get(instance.id);
@@ -7083,8 +7360,10 @@ function addWidget(type, options = {}) {
   }).length;
 
   const defaultSize = widgetDefaultGridSize(type, def);
-  const colSpan = normalizeGridSpanValue(options.colSpan, defaultSize.colSpan, GRID_MAX_COLUMNS);
-  const rowSpan = normalizeGridSpanValue(options.rowSpan, defaultSize.rowSpan, GRID_MAX_ROW_SPAN);
+  const requestedColSpan = normalizeGridSpanValue(options.colSpan, defaultSize.colSpan, GRID_MAX_COLUMNS);
+  const requestedRowSpan = normalizeGridSpanValue(options.rowSpan, defaultSize.rowSpan, GRID_MAX_ROW_SPAN);
+  const colSpan = type === "container" ? 1 : requestedColSpan;
+  const rowSpan = type === "container" ? 1 : requestedRowSpan;
   const defaultPadding = widgetPaddingFallback(type);
 
   const instance = {
@@ -7143,6 +7422,10 @@ function addWidget(type, options = {}) {
     const scaleY = rowSpan / Math.max(1, defaultSize.rowSpan);
     instance.layout.w = clamp(Math.round(instance.layout.w * scaleX), 80, Math.max(80, Math.floor(boardRect.width)));
     instance.layout.h = clamp(Math.round(instance.layout.h * scaleY), 80, Math.max(80, Math.floor(boardRect.height)));
+  }
+
+  if (type === "container") {
+    enforceContainerWidgetSize(instance);
   }
 
   state.instances.push(instance);
