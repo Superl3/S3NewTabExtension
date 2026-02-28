@@ -3733,6 +3733,43 @@ function positionWidgetDragPreview(preview, clientX, clientY) {
   preview.style.top = `${Math.round(clientY + 14)}px`;
 }
 
+function createWidgetDropSilhouette(card) {
+  const board = elements.board;
+  if (!(board instanceof HTMLElement)) {
+    return null;
+  }
+
+  const silhouette = document.createElement("div");
+  silhouette.className = "widget-drop-silhouette";
+
+  if (card instanceof HTMLElement) {
+    const borderRadius = normalizeText(window.getComputedStyle(card).borderRadius);
+    if (borderRadius) {
+      silhouette.style.borderRadius = borderRadius;
+    }
+  }
+
+  board.append(silhouette);
+  return silhouette;
+}
+
+function positionWidgetDropSilhouette(silhouette, layout, page = 0) {
+  if (!(silhouette instanceof HTMLElement) || !layout) {
+    return;
+  }
+  silhouette.style.left = `${Math.round(layout.x + widgetPageOffsetX(page))}px`;
+  silhouette.style.top = `${Math.round(layout.y)}px`;
+  silhouette.style.width = `${Math.max(1, Math.round(layout.w))}px`;
+  silhouette.style.height = `${Math.max(1, Math.round(layout.h))}px`;
+}
+
+function setWidgetDropSilhouetteVisible(silhouette, visible) {
+  if (!(silhouette instanceof HTMLElement)) {
+    return;
+  }
+  silhouette.classList.toggle("is-visible", Boolean(visible));
+}
+
 function registerContainerDropTarget(containerId, element, options = {}) {
   const id = normalizeContainerId(containerId);
   if (!id || !(element instanceof HTMLElement)) {
@@ -5373,6 +5410,7 @@ function createWidgetCard(instance) {
     bringWidgetToFront(instance.id);
     card.classList.add("widget-drag-active");
     const dragPreview = createWidgetDragPreview(instance);
+    const dropSilhouette = createWidgetDropSilhouette(card);
     positionWidgetDragPreview(dragPreview, dragStartX, dragStartY);
 
     const pageSwitchThreshold = 42;
@@ -5439,18 +5477,35 @@ function createWidgetCard(instance) {
       let lastPointerX = dragStartX;
       let lastPointerY = dragStartY;
 
-      const snapLayoutToGrid = () => {
+      const projectedGridDropLayout = () => {
         const currentGrid = normalizeGridLayout(instance.gridLayout, gridFallback);
         const maxCol = Math.max(0, metrics.cols - currentGrid.colSpan);
         const maxRow = Math.max(0, metrics.rows - currentGrid.rowSpan);
         const snappedCol = clamp(Math.round((instance.layout.x - metrics.marginX) / stepX), 0, maxCol);
         const snappedRow = clamp(Math.round((instance.layout.y - metrics.marginY) / stepY), 0, maxRow);
 
-        instance.gridLayout = {
-          ...currentGrid,
-          col: snappedCol,
-          row: snappedRow
+        return {
+          grid: {
+            ...currentGrid,
+            col: snappedCol,
+            row: snappedRow
+          },
+          layout: {
+            x: metrics.marginX + snappedCol * stepX,
+            y: metrics.marginY + snappedRow * stepY,
+            w: metrics.cellW * currentGrid.colSpan + metrics.gapX * (currentGrid.colSpan - 1),
+            h: metrics.cellH * currentGrid.rowSpan + metrics.gapY * (currentGrid.rowSpan - 1)
+          }
         };
+      };
+
+      const snapLayoutToGrid = () => {
+        const projected = projectedGridDropLayout();
+        instance.gridLayout = projected.grid;
+        instance.layout.x = projected.layout.x;
+        instance.layout.y = projected.layout.y;
+        instance.layout.w = projected.layout.w;
+        instance.layout.h = projected.layout.h;
       };
 
       const move = (moveEvent) => {
@@ -5460,8 +5515,9 @@ function createWidgetCard(instance) {
         lastPointerX = moveEvent.clientX;
         lastPointerY = moveEvent.clientY;
         const containerDropTargetId = containerDropTargetAtPoint(moveEvent.clientX, moveEvent.clientY, instance);
+        const dockDropActive = !containerDropTargetId && isDockDropPoint(moveEvent.clientX, moveEvent.clientY);
         setContainerDropTargetActive(containerDropTargetId);
-        setDockDropTargetActive(!containerDropTargetId && isDockDropPoint(moveEvent.clientX, moveEvent.clientY));
+        setDockDropTargetActive(dockDropActive);
 
         const maxX = Math.max(0, boardRect.width - instance.layout.w);
         const maxY = Math.max(0, boardRect.height - instance.layout.h);
@@ -5486,6 +5542,13 @@ function createWidgetCard(instance) {
             rt.controller?.refresh?.();
           }
         }
+
+        const shouldShowDropSilhouette = !containerDropTargetId && !dockDropActive;
+        if (shouldShowDropSilhouette) {
+          const projected = projectedGridDropLayout();
+          positionWidgetDropSilhouette(dropSilhouette, projected.layout, instance.page);
+        }
+        setWidgetDropSilhouetteVisible(dropSilhouette, shouldShowDropSilhouette);
       };
 
       const up = (upEvent) => {
@@ -5496,6 +5559,7 @@ function createWidgetCard(instance) {
         setContainerDropTargetActive("");
         card.classList.remove("longpress-drag-armed");
         card.classList.remove("widget-drag-active");
+        dropSilhouette?.remove();
         dragPreview.remove();
         lastDragEndAt = Date.now();
 
@@ -5517,12 +5581,26 @@ function createWidgetCard(instance) {
       window.addEventListener("pointermove", move);
       window.addEventListener("pointerup", up);
       window.addEventListener("pointercancel", up);
+      const projected = projectedGridDropLayout();
+      positionWidgetDropSilhouette(dropSilhouette, projected.layout, instance.page);
+      setWidgetDropSilhouetteVisible(dropSilhouette, true);
       return true;
     }
 
     const boardRect = elements.board.getBoundingClientRect();
     let lastPointerX = dragStartX;
     let lastPointerY = dragStartY;
+
+    const projectedFreeDropLayout = () => {
+      const maxX = Math.max(0, boardRect.width - instance.layout.w);
+      const maxY = Math.max(0, boardRect.height - instance.layout.h);
+      return {
+        x: clamp(Math.round(instance.layout.x / SNAP) * SNAP, 0, maxX),
+        y: clamp(Math.round(instance.layout.y / SNAP) * SNAP, 0, maxY),
+        w: instance.layout.w,
+        h: instance.layout.h
+      };
+    };
 
     const move = (moveEvent) => {
       positionWidgetDragPreview(dragPreview, moveEvent.clientX, moveEvent.clientY);
@@ -5531,8 +5609,9 @@ function createWidgetCard(instance) {
       lastPointerX = moveEvent.clientX;
       lastPointerY = moveEvent.clientY;
       const containerDropTargetId = containerDropTargetAtPoint(moveEvent.clientX, moveEvent.clientY, instance);
+      const dockDropActive = !containerDropTargetId && isDockDropPoint(moveEvent.clientX, moveEvent.clientY);
       setContainerDropTargetActive(containerDropTargetId);
-      setDockDropTargetActive(!containerDropTargetId && isDockDropPoint(moveEvent.clientX, moveEvent.clientY));
+      setDockDropTargetActive(dockDropActive);
       const maxX = Math.max(0, boardRect.width - instance.layout.w);
       const maxY = Math.max(0, boardRect.height - instance.layout.h);
 
@@ -5559,6 +5638,12 @@ function createWidgetCard(instance) {
         lastPointerX = moveEvent.clientX;
         lastPointerY = moveEvent.clientY;
       });
+
+      const shouldShowDropSilhouette = !containerDropTargetId && !dockDropActive;
+      if (shouldShowDropSilhouette) {
+        positionWidgetDropSilhouette(dropSilhouette, projectedFreeDropLayout(), instance.page);
+      }
+      setWidgetDropSilhouetteVisible(dropSilhouette, shouldShowDropSilhouette);
     };
 
     const up = (upEvent) => {
@@ -5569,6 +5654,7 @@ function createWidgetCard(instance) {
       setContainerDropTargetActive("");
       card.classList.remove("longpress-drag-armed");
       card.classList.remove("widget-drag-active");
+      dropSilhouette?.remove();
       dragPreview.remove();
       lastDragEndAt = Date.now();
 
@@ -5605,6 +5691,8 @@ function createWidgetCard(instance) {
     window.addEventListener("pointermove", move);
     window.addEventListener("pointerup", up);
     window.addEventListener("pointercancel", up);
+    positionWidgetDropSilhouette(dropSilhouette, projectedFreeDropLayout(), instance.page);
+    setWidgetDropSilhouetteVisible(dropSilhouette, true);
     return true;
   };
 
