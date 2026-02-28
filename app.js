@@ -187,6 +187,9 @@ const widgetLongPressState = {
 const dockModalState = {
   draft: null
 };
+const dockUiState = {
+  activeId: ""
+};
 const shortcutIconEditorState = {
   open: false,
   shape: "roundSquared",
@@ -862,6 +865,25 @@ function normalizeDockLength(value, fallback = 6) {
   return clamp(Math.floor(num), 5, 14);
 }
 
+/**
+ * @typedef {Object} DockItem
+ * @property {string} id
+ * @property {string} label
+ * @property {string} iconText
+ * @property {number | null} badge
+ * @property {number} page
+ */
+
+/**
+ * @typedef {Object} DockConfig
+ * @property {boolean} enabled
+ * @property {"raised" | "flat"} shape
+ * @property {"always" | "hover"} visibility
+ * @property {number} lengthUnits
+ * @property {number} heightPx
+ * @property {"bottom"} position
+ */
+
 function normalizeDockOrder(value, fallback = null) {
   if (value === null || value === undefined || value === "") {
     return fallback;
@@ -923,6 +945,66 @@ function nextDockOrder() {
     maxOrder = Math.max(maxOrder, order);
   }
   return maxOrder + 1;
+}
+
+function dockIconTextFromLabel(label) {
+  const compact = normalizeText(label, "W").replace(/\s+/g, "").slice(0, 2);
+  return compact || "W";
+}
+
+function normalizeDockActiveId(items, candidate = dockUiState.activeId) {
+  if (!Array.isArray(items) || !items.length) {
+    return "";
+  }
+  const candidateId = normalizeText(candidate);
+  if (candidateId && items.some((item) => item.id === candidateId)) {
+    return candidateId;
+  }
+  const selected = normalizeText(state?.selectedWidgetId);
+  if (selected && items.some((item) => item.id === selected)) {
+    return selected;
+  }
+  return items[0].id;
+}
+
+function setDockActiveId(nextId, { rerender = true } = {}) {
+  const normalized = normalizeText(nextId);
+  if (dockUiState.activeId === normalized) {
+    return;
+  }
+  dockUiState.activeId = normalized;
+  if (rerender) {
+    renderDockWidgets();
+  }
+}
+
+/** @returns {DockConfig} */
+function buildDockConfig(home = state?.ui?.home) {
+  const normalizedHome = normalizeHomeLayout(home || defaultHomeLayout());
+  return {
+    enabled: normalizedHome.dockEnabled !== false,
+    shape: normalizeDockShape(normalizedHome.dockShape, "raised"),
+    visibility: normalizeDockVisibility(normalizedHome.dockVisibility, "always"),
+    lengthUnits: normalizeDockLength(normalizedHome.dockLength, 6),
+    heightPx: 44,
+    position: "bottom"
+  };
+}
+
+/** @returns {DockItem[]} */
+function buildDockItems(instances = state?.instances) {
+  const activePage = currentLauncherActivePage();
+  return dockedInstances(instances).map((instance) => {
+    const label = normalizeText(instance.title, widgetRegistry[instance.type]?.title || "Widget");
+    const page = normalizeWidgetPage(instance.page, currentLauncherPageCount(), 0);
+    return {
+      id: instance.id,
+      label,
+      iconText: dockIconTextFromLabel(label),
+      badge: page === activePage ? null : page + 1,
+      page
+    };
+  });
 }
 
 function normalizePageCount(value, fallback = 1) {
@@ -1923,17 +2005,6 @@ function dockSettingsFields() {
       ]
     },
     {
-      key: "dockPosition",
-      label: "Dock position",
-      type: "select",
-      options: [
-        { value: "top", label: "Top center" },
-        { value: "bottom", label: "Bottom center" },
-        { value: "left", label: "Left center" },
-        { value: "right", label: "Right center" }
-      ]
-    },
-    {
       key: "dockLength",
       label: "Dock length (units)",
       type: "number",
@@ -1980,7 +2051,6 @@ function openDockSettingsModal() {
   dockModalState.draft = {
     dockShape: normalizeDockShape(home.dockShape, "raised"),
     dockVisibility: normalizeDockVisibility(home.dockVisibility, "always"),
-    dockPosition: normalizeDockPosition(home.dockPosition, "bottom"),
     dockLength: normalizeDockLength(home.dockLength, 6)
   };
 
@@ -2028,7 +2098,6 @@ function resetDockSettingsDraftToDefault() {
   dockModalState.draft = {
     dockShape: defaults.dockShape,
     dockVisibility: defaults.dockVisibility,
-    dockPosition: defaults.dockPosition,
     dockLength: defaults.dockLength
   };
   renderDockSettingsModal();
@@ -2042,7 +2111,7 @@ function applyDockSettingsModal() {
   const patch = {
     dockShape: normalizeDockShape(dockModalState.draft.dockShape, "raised"),
     dockVisibility: normalizeDockVisibility(dockModalState.draft.dockVisibility, "always"),
-    dockPosition: normalizeDockPosition(dockModalState.draft.dockPosition, "bottom"),
+    dockPosition: "bottom",
     dockLength: normalizeDockLength(dockModalState.draft.dockLength, 6)
   };
 
@@ -3392,7 +3461,8 @@ function pointInsideRect(x, y, rect) {
 }
 
 function isDockDropPoint(x, y) {
-  if (state?.ui?.home?.dockEnabled === false) {
+  const config = buildDockConfig(state?.ui?.home);
+  if (!config.enabled) {
     return false;
   }
   const dock = elements.persistentDock;
@@ -3420,6 +3490,7 @@ function tryDockWidgetByDrop(instance, pointerEvent, { record = true } = {}) {
 
   instance.dockOrder = nextDockOrder();
   normalizeDockedWidgetOrders(state.instances);
+  setDockActiveId(instance.id, { rerender: false });
 
   if (state.selectedWidgetId === instance.id) {
     state.selectedWidgetId = "";
@@ -3430,10 +3501,146 @@ function tryDockWidgetByDrop(instance, pointerEvent, { record = true } = {}) {
   return true;
 }
 
-function dockWidgetBadgeText(instance) {
-  const title = normalizeText(instance?.title || widgetRegistry[instance?.type]?.title || "W", "W");
-  const compact = title.replace(/\s+/g, "").slice(0, 2);
-  return compact || "W";
+function dockButtonsInStrip() {
+  const strip = elements.dockWidgetStrip;
+  if (!strip) {
+    return [];
+  }
+  return Array.from(strip.querySelectorAll(".dock-widget-item"));
+}
+
+function applyDockActiveVisual(activeId = dockUiState.activeId) {
+  const buttons = dockButtonsInStrip();
+  if (!buttons.length) {
+    dockUiState.activeId = "";
+    return;
+  }
+
+  const fallbackId = normalizeText(buttons[0]?.dataset.widgetId);
+  const normalized = normalizeText(activeId);
+  const resolved = buttons.some((button) => normalizeText(button.dataset.widgetId) === normalized)
+    ? normalized
+    : fallbackId;
+
+  dockUiState.activeId = resolved;
+
+  for (const button of buttons) {
+    const buttonId = normalizeText(button.dataset.widgetId);
+    const active = buttonId === resolved;
+    button.classList.toggle("is-active", active);
+    button.setAttribute("aria-current", active ? "true" : "false");
+    button.tabIndex = active ? 0 : -1;
+  }
+}
+
+function syncDockOverflowState() {
+  const strip = elements.dockWidgetStrip;
+  if (!strip) {
+    return;
+  }
+
+  const overflow = strip.scrollWidth - strip.clientWidth > 1;
+  const atStart = strip.scrollLeft <= 1;
+  const atEnd = strip.scrollLeft + strip.clientWidth >= strip.scrollWidth - 1;
+
+  strip.dataset.overflowing = overflow ? "true" : "false";
+  strip.dataset.overflowStart = !atStart && overflow ? "true" : "false";
+  strip.dataset.overflowEnd = !atEnd && overflow ? "true" : "false";
+}
+
+function moveDockFocusByOffset(offset) {
+  const buttons = dockButtonsInStrip();
+  if (!buttons.length) {
+    return;
+  }
+  const activeElement = document.activeElement;
+  const index = Math.max(0, buttons.findIndex((button) => button === activeElement));
+  const nextIndex = clamp(index + offset, 0, buttons.length - 1);
+  const nextButton = buttons[nextIndex];
+  if (!(nextButton instanceof HTMLElement)) {
+    return;
+  }
+  nextButton.focus();
+  setDockActiveId(normalizeText(nextButton.dataset.widgetId), { rerender: false });
+  applyDockActiveVisual();
+}
+
+function moveDockFocusToEdge(edge) {
+  const buttons = dockButtonsInStrip();
+  if (!buttons.length) {
+    return;
+  }
+  const nextButton = edge === "end" ? buttons[buttons.length - 1] : buttons[0];
+  if (!(nextButton instanceof HTMLElement)) {
+    return;
+  }
+  nextButton.focus();
+  setDockActiveId(normalizeText(nextButton.dataset.widgetId), { rerender: false });
+  applyDockActiveVisual();
+}
+
+function onDockStripKeyDown(event) {
+  if (!(event.target instanceof HTMLElement) || !event.target.closest(".dock-widget-item")) {
+    return;
+  }
+
+  if (event.key === "ArrowRight") {
+    event.preventDefault();
+    moveDockFocusByOffset(1);
+    return;
+  }
+  if (event.key === "ArrowLeft") {
+    event.preventDefault();
+    moveDockFocusByOffset(-1);
+    return;
+  }
+  if (event.key === "Home") {
+    event.preventDefault();
+    moveDockFocusToEdge("start");
+    return;
+  }
+  if (event.key === "End") {
+    event.preventDefault();
+    moveDockFocusToEdge("end");
+    return;
+  }
+  if (event.key === "Enter" || event.key === " ") {
+    event.preventDefault();
+    event.target.click();
+  }
+}
+
+function onDockStripWheel(event) {
+  const strip = elements.dockWidgetStrip;
+  if (!strip) {
+    return;
+  }
+  if (Math.abs(event.deltaY) <= Math.abs(event.deltaX)) {
+    return;
+  }
+  event.preventDefault();
+  strip.scrollLeft += event.deltaY;
+  syncDockOverflowState();
+}
+
+function syncDockContentPadding(config) {
+  const root = document.documentElement;
+  const dock = elements.persistentDock;
+
+  if (!config?.enabled || !dock || dock.classList.contains("is-disabled")) {
+    root.style.setProperty("--persistent-dock-height", "0px");
+    root.style.setProperty("--persistent-dock-content-padding", "0px");
+    root.style.setProperty("--persistent-dock-clearance", "0px");
+    return;
+  }
+
+  const measured = Math.ceil(dock.getBoundingClientRect().height || 0);
+  const dockHeight = Math.max(config.heightPx, measured);
+  const contentPadding = dockHeight + 12;
+
+  root.style.setProperty("--persistent-dock-height", `${dockHeight}px`);
+  root.style.setProperty("--persistent-dock-content-padding", `${contentPadding}px`);
+  root.style.setProperty("--persistent-dock-clearance", `${contentPadding}px`);
 }
 
 function renderDockWidgets() {
@@ -3443,86 +3650,93 @@ function renderDockWidgets() {
   }
 
   strip.replaceChildren();
-  const widgets = dockedInstances();
-  strip.classList.toggle("is-empty", widgets.length === 0);
+  const items = buildDockItems();
+  strip.classList.toggle("is-empty", items.length === 0);
 
-  if (!widgets.length) {
+  if (!items.length) {
+    dockUiState.activeId = "";
     const empty = document.createElement("span");
     empty.className = "dock-widget-empty";
     empty.textContent = "Drop widgets here";
     strip.append(empty);
+    syncDockOverflowState();
     return;
   }
 
-  for (const instance of widgets) {
+  const activeId = normalizeDockActiveId(items);
+  dockUiState.activeId = activeId;
+
+  for (const item of items) {
     const chip = document.createElement("button");
     chip.type = "button";
-    chip.className = "dock-widget-chip";
-    chip.dataset.widgetId = instance.id;
-    chip.textContent = dockWidgetBadgeText(instance);
-    const title = normalizeText(instance.title, widgetRegistry[instance.type]?.title || "Widget");
-    chip.title = title;
-    chip.setAttribute("aria-label", title);
-    chip.classList.toggle("is-selected", state.selectedWidgetId === instance.id);
+    chip.className = "dock-widget-item";
+    chip.dataset.widgetId = item.id;
+    chip.title = item.label;
+    chip.setAttribute("aria-label", item.label);
+
+    const icon = document.createElement("span");
+    icon.className = "dock-item-icon";
+    icon.textContent = item.iconText;
+
+    const indicator = document.createElement("span");
+    indicator.className = "dock-item-indicator";
+    indicator.setAttribute("aria-hidden", "true");
+
+    chip.append(icon, indicator);
+
+    if (item.badge !== null) {
+      const badge = document.createElement("span");
+      badge.className = "dock-item-badge";
+      badge.textContent = String(item.badge);
+      badge.setAttribute("aria-hidden", "true");
+      chip.append(badge);
+    }
+
     chip.addEventListener("click", () => {
+      setDockActiveId(item.id, { rerender: false });
+      applyDockActiveVisual(item.id);
       if (state.mode === "edit") {
-        setSelected(instance.id);
-        openWidgetModal(instance.id);
+        setSelected(item.id);
+        openWidgetModal(item.id);
         return;
       }
-      setActiveLauncherPage(normalizeWidgetPage(instance.page, currentLauncherPageCount(), 0), {
+      setActiveLauncherPage(item.page, {
         shouldSave: true,
         animate: true
       });
     });
     strip.append(chip);
   }
-}
 
-function dockBottomClearancePx(home = state?.ui?.home) {
-  const enabled = home?.dockEnabled !== false;
-  const position = normalizeDockPosition(home?.dockPosition, "bottom");
-  if (!enabled || position !== "bottom") {
-    return 0;
-  }
-  const visibility = normalizeDockVisibility(home?.dockVisibility, "always");
-  return visibility === "hover" ? 28 : 62;
+  applyDockActiveVisual(activeId);
+  syncDockOverflowState();
 }
 
 function syncPersistentDock(progress = null) {
-  const root = document.documentElement;
-  const home = state?.ui?.home;
-  if (!home) {
-    root.style.setProperty("--persistent-dock-clearance", "0px");
-    setDockDropTargetActive(false);
-    elements.dockWidgetStrip?.replaceChildren();
-    return;
-  }
-
-  root.style.setProperty("--persistent-dock-clearance", `${dockBottomClearancePx(home)}px`);
-  const dockEnabled = home.dockEnabled !== false;
-
   const dock = elements.persistentDock;
   if (!dock) {
+    syncDockContentPadding({ enabled: false, heightPx: 0 });
     return;
   }
 
-  dock.classList.toggle("is-disabled", !dockEnabled);
-  dock.setAttribute("aria-hidden", String(!dockEnabled));
-  if (!dockEnabled) {
+  const config = buildDockConfig(state?.ui?.home);
+  if (!config.enabled) {
     setDockDropTargetActive(false);
     elements.dockWidgetStrip?.replaceChildren();
+    dockUiState.activeId = "";
+    dock.classList.add("is-disabled");
+    dock.setAttribute("aria-hidden", "true");
+    syncDockContentPadding(config);
     return;
   }
 
-  const dockShape = normalizeDockShape(home.dockShape, "raised");
-  const dockVisibility = normalizeDockVisibility(home.dockVisibility, "always");
-  const dockPosition = normalizeDockPosition(home.dockPosition, "bottom");
-  const dockLength = normalizeDockLength(home.dockLength, 6);
-  dock.dataset.shape = dockShape;
-  dock.dataset.visibility = dockVisibility;
-  dock.dataset.position = dockPosition;
-  dock.style.setProperty("--dock-length-units", String(dockLength));
+  dock.classList.remove("is-disabled");
+  dock.setAttribute("aria-hidden", "false");
+  dock.dataset.shape = config.shape;
+  dock.dataset.visibility = config.visibility;
+  dock.dataset.position = config.position;
+  dock.style.setProperty("--dock-length-units", String(config.lengthUnits));
+  dock.style.setProperty("--dock-unit-size", `${config.heightPx}px`);
 
   const pageCount = currentLauncherPageCount();
   const activePage = currentLauncherActivePage();
@@ -3548,6 +3762,12 @@ function syncPersistentDock(progress = null) {
   }
 
   renderDockWidgets();
+  syncDockContentPadding(config);
+  if (!Number.isFinite(progress)) {
+    requestAnimationFrame(() => {
+      syncDockContentPadding(config);
+    });
+  }
 }
 
 function syncPageIndicator(progress = null) {
@@ -3963,6 +4183,10 @@ function setSelected(instanceId) {
     bringWidgetToFront(instanceId);
   }
   state.selectedWidgetId = instanceId || "";
+  const selectedInstance = instanceId ? instanceById(instanceId) : null;
+  if (selectedInstance && isWidgetDocked(selectedInstance)) {
+    setDockActiveId(selectedInstance.id, { rerender: false });
+  }
   for (const [id, rt] of runtime.entries()) {
     rt.card.classList.toggle("selected", id === state.selectedWidgetId);
   }
@@ -6966,6 +7190,12 @@ function wireEvents() {
     openDockSettingsModal();
   });
 
+  elements.dockWidgetStrip?.addEventListener("keydown", onDockStripKeyDown);
+  elements.dockWidgetStrip?.addEventListener("wheel", onDockStripWheel, { passive: false });
+  elements.dockWidgetStrip?.addEventListener("scroll", () => {
+    syncDockOverflowState();
+  }, { passive: true });
+
   elements.tabGlobalBtn?.addEventListener("click", () => {
     state.ui.activeTab = "global";
     renderSettings();
@@ -7043,6 +7273,7 @@ function wireEvents() {
       applyEditDockPosition(left, top);
     }
     updateBoardBounds();
+    syncPersistentDock();
   });
 
   elements.widgetModalCloseBtn?.addEventListener("click", () => {
