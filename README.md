@@ -39,6 +39,8 @@
 - Calendar
 - RSS Feed
 - Monday Assigned Issues
+- Weather
+- Widget Folder (Container)
 
 ## AI Chat 위젯
 
@@ -50,6 +52,11 @@
 
 - Feed URL을 입력하면 최신 항목 목록을 표시합니다.
 - RSS(2.0)와 Atom 포맷을 지원합니다.
+
+## Weather 위젯
+
+- Open-Meteo API를 사용해 현재 날씨와 온도를 표시합니다.
+- `Use current location`이 켜져 있으면 브라우저 위치를 우선 사용하고, 실패하면 설정된 좌표를 사용합니다.
 
 ## Calendar 위젯
 
@@ -175,7 +182,9 @@ If Edge reports `chrome.identity.launchWebAuthFlow is not available`, set the ap
     ├── label.js
     ├── gmail.js
     ├── calendar.js
-    └── rss.js
+    ├── rss.js
+    ├── weather.js
+    └── container.js
 ```
 
 ## 로컬 점검

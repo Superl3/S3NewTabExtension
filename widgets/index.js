@@ -12,6 +12,7 @@ import { calendarWidget } from "./calendar.js";
 import { mondayAssignedWidget } from "./mondayAssigned.js";
 import { githubPrListWidget } from "./githubPrList.js";
 import { weatherWidget } from "./weather.js";
+import { containerWidget } from "./container.js";
 
 export const widgetRegistry = {
   [clockWidget.type]: clockWidget,
@@ -27,7 +28,8 @@ export const widgetRegistry = {
   [calendarWidget.type]: calendarWidget,
   [mondayAssignedWidget.type]: mondayAssignedWidget,
   [githubPrListWidget.type]: githubPrListWidget,
-  [weatherWidget.type]: weatherWidget
+  [weatherWidget.type]: weatherWidget,
+  [containerWidget.type]: containerWidget
 };
 
 export const widgetList = Object.values(widgetRegistry);
