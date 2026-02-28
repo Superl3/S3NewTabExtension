@@ -1612,6 +1612,11 @@ body:not(.mode-edit) .widget-resize-handle {
   min-height: 0;
   width: auto;
   height: auto;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
 }
 
 .widget-folder-item-card .widget-shell {
@@ -1619,13 +1624,63 @@ body:not(.mode-edit) .widget-resize-handle {
   height: 100%;
 }
 
+.widget-folder-item-card::before {
+  display: none;
+}
+
 .widget-folder-item-card .widget-head-actions {
   gap: 6px;
 }
 
 .widget-folder-item-card .widget-body {
+  height: 100%;
+  padding-top: 0;
+  padding-bottom: 0;
   min-height: 0;
-  overflow: auto;
+  overflow: hidden;
+}
+
+.widget-folder-item-card .widget-content-host,
+.widget-folder-item-card .widget-content-slot {
+  min-height: 0;
+  height: 100%;
+  overflow: hidden;
+}
+
+.widget-folder-item-card .widget-content-slot,
+.widget-folder-item-card .widget-content-slot * {
+  scrollbar-width: none;
+}
+
+.widget-folder-item-card .widget-content-slot::-webkit-scrollbar,
+.widget-folder-item-card .widget-content-slot *::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+
+.widget-folder-item-floating-title {
+  position: absolute;
+  left: 50%;
+  top: 4px;
+  transform: translateX(-50%);
+  max-width: calc(100% - 12px);
+  pointer-events: none;
+  z-index: 4;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--surface), transparent 26%);
+  border: 1px solid color-mix(in srgb, var(--line), transparent 35%);
+  box-shadow: 0 4px 10px color-mix(in srgb, var(--shadow-edge), transparent 30%);
+  color: color-mix(in srgb, var(--text), var(--accent) 16%);
+  font-size: 0.72em;
+  font-weight: 650;
+  line-height: 1;
+  padding: 3px 8px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 body.mode-edit .widget-folder-item-card .widget-head {
