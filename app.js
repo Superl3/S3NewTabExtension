@@ -474,8 +474,15 @@ function isHeadlessTransparentDefaultType(type) {
   return type === "shortcut" || type === "clock" || type === "search" || type === "container";
 }
 
+function isHeadlessDefaultType(type) {
+  return type === "weather" || isHeadlessTransparentDefaultType(type);
+}
+
 function defaultWidgetContentAlign(type) {
-  return isHeadlessTransparentDefaultType(type) ? "center" : "top";
+  if (type === "weather") {
+    return "top";
+  }
+  return isHeadlessDefaultType(type) ? "center" : "top";
 }
 
 function defaultWidgetTitleAlign() {
@@ -1318,7 +1325,7 @@ function defaultInstances() {
         type,
         title: def.title,
         zIndex: idx + 1,
-        viewMode: isHeadlessTransparentDefaultType(type) ? "headless" : "window",
+        viewMode: isHeadlessDefaultType(type) ? "headless" : "window",
         surfaceMode: isHeadlessTransparentDefaultType(type) ? "transparent" : "normal",
         transparentAutoContrast: true,
         transparentGhostStrength: 100,
@@ -1619,17 +1626,23 @@ function hydrate(raw) {
 
     const isShortcut = item.type === "shortcut";
     const headlessTransparentByDefault = isHeadlessTransparentDefaultType(item.type);
+    const headlessByDefault = isHeadlessDefaultType(item.type);
     const isAiChat = item.type === "aiChat";
     const isContainerWidget = item.type === "container";
     const viewMode =
       item.viewMode === "headless" || item.viewMode === "window"
         ? item.viewMode
-        : headlessTransparentByDefault
+        : headlessByDefault
           ? "headless"
           : "window";
-    const legacySurfaceFallback = viewMode === "headless" || headlessTransparentByDefault ? "transparent" : "normal";
+    const legacySurfaceFallback = headlessTransparentByDefault ? "transparent" : "normal";
     let surfaceMode = normalizeSurfaceMode(item.surfaceMode, legacySurfaceFallback);
-    if (!legacyHeadlessSurfaceMigrated && viewMode === "headless" && item.surfaceMode === "normal") {
+    if (
+      !legacyHeadlessSurfaceMigrated &&
+      headlessTransparentByDefault &&
+      viewMode === "headless" &&
+      item.surfaceMode === "normal"
+    ) {
       surfaceMode = "transparent";
       didLegacyHeadlessSurfaceMigration = true;
     }
@@ -1675,6 +1688,10 @@ function hydrate(raw) {
       row: Math.floor(normalized.length / 4),
       ...widgetDefaultGridSize(item.type, def)
     });
+    if (item.type === "weather") {
+      const detailMode = normalizeText(mergedConfig.detailMode, "simple").toLowerCase();
+      normalizedGrid.rowSpan = detailMode === "advanced" ? 2 : 1;
+    }
     if (isContainerWidget) {
       normalizedGrid.colSpan = 1;
       normalizedGrid.rowSpan = 1;
@@ -7636,7 +7653,7 @@ function addWidget(type, options = {}) {
     type,
     title: normalizeText(options.title, def.title),
     zIndex: zCounter + 1,
-    viewMode: isHeadlessTransparentDefaultType(type) ? "headless" : "window",
+    viewMode: isHeadlessDefaultType(type) ? "headless" : "window",
     surfaceMode: isHeadlessTransparentDefaultType(type) ? "transparent" : "normal",
     transparentAutoContrast: true,
     transparentGhostStrength: 100,

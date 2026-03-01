@@ -1,6 +1,7 @@
 const GEOCODING_API_URL = "https://geocoding-api.open-meteo.com/v1/search";
 const FORECAST_API_URL = "https://api.open-meteo.com/v1/forecast";
 const DEFAULT_LOCATION_QUERY = "Seoul";
+const WEATHER_CACHE_PREFIX = "s3newtab:weather-cache:v1";
 
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
@@ -9,6 +10,17 @@ function clamp(value, min, max) {
 function normalizeText(value, fallback = "") {
   const text = String(value || "").trim();
   return text || fallback;
+}
+
+function tryParseJson(value) {
+  if (typeof value !== "string" || !value.trim()) {
+    return null;
+  }
+  try {
+    return JSON.parse(value);
+  } catch {
+    return null;
+  }
 }
 
 function normalizeErrorMessage(error) {
@@ -37,49 +49,89 @@ function normalizeTemperatureUnit(value, fallback = "celsius") {
   return unit === "fahrenheit" ? "fahrenheit" : "celsius";
 }
 
-function normalizeWindSpeedUnit(value, fallback = "kmh") {
-  const unit = normalizeText(value, fallback).toLowerCase();
-  if (unit === "ms" || unit === "mph" || unit === "kn") {
-    return unit;
-  }
-  return "kmh";
-}
-
-function fallbackWindUnitLabel(unit) {
-  if (unit === "ms") {
-    return "m/s";
-  }
-  if (unit === "mph") {
-    return "mph";
-  }
-  if (unit === "kn") {
-    return "kn";
-  }
-  return "km/h";
+function normalizeDetailMode(value, fallback = "simple") {
+  const mode = normalizeText(value, fallback).toLowerCase();
+  return mode === "advanced" ? "advanced" : "simple";
 }
 
 function normalizedConfig(config) {
   return {
     locationQuery: normalizeText(config?.locationQuery, DEFAULT_LOCATION_QUERY),
     temperatureUnit: normalizeTemperatureUnit(config?.temperatureUnit, "celsius"),
-    windSpeedUnit: normalizeWindSpeedUnit(config?.windSpeedUnit, "kmh"),
-    refreshMinutes: normalizeRefreshMinutes(config?.refreshMinutes, 30),
-    showFeelsLike: config?.showFeelsLike !== false,
-    showHumidity: config?.showHumidity !== false,
-    showWind: config?.showWind !== false
+    detailMode: normalizeDetailMode(config?.detailMode, "simple"),
+    refreshMinutes: normalizeRefreshMinutes(config?.refreshMinutes, 30)
   };
 }
 
 function configSignature(config) {
-  return [
-    config.locationQuery,
-    config.temperatureUnit,
-    config.windSpeedUnit,
-    config.refreshMinutes,
-    config.showFeelsLike ? 1 : 0,
-    config.showHumidity ? 1 : 0,
-    config.showWind ? 1 : 0
-  ].join("|");
+  return [normalizeText(config.locationQuery).toLowerCase(), config.temperatureUnit].join("|");
+}
+
+function weatherCacheStorageKey(config) {
+  return `${WEATHER_CACHE_PREFIX}:${encodeURIComponent(configSignature(config))}`;
+}
+
+function refreshIntervalMs(refreshMinutes) {
+  return normalizeRefreshMinutes(refreshMinutes, 30) * 60000;
+}
+
+function computeNextRefreshDelayMs(refreshMinutes, fetchedAt = 0) {
+  const intervalMs = refreshIntervalMs(refreshMinutes);
+  const timestamp = Number(fetchedAt);
+  if (!Number.isFinite(timestamp) || timestamp <= 0) {
+    return intervalMs;
+  }
+  const elapsed = Date.now() - timestamp;
+  return clamp(Math.round(intervalMs - elapsed), 1000, intervalMs);
+}
+
+function isFreshCache(fetchedAt, refreshMinutes) {
+  const timestamp = Number(fetchedAt);
+  if (!Number.isFinite(timestamp) || timestamp <= 0) {
+    return false;
+  }
+  return Date.now() - timestamp < refreshIntervalMs(refreshMinutes);
+}
+
+function readWeatherCache(config) {
+  if (typeof localStorage === "undefined") {
+    return null;
+  }
+  let raw = "";
+  try {
+    raw = localStorage.getItem(weatherCacheStorageKey(config)) || "";
+  } catch {
+    return null;
+  }
+  const parsed = tryParseJson(raw);
+  if (!parsed || typeof parsed !== "object") {
+    return null;
+  }
+  const snapshot = parsed.snapshot;
+  const fetchedAt = Number(parsed.fetchedAt);
+  if (!snapshot || typeof snapshot !== "object" || !Number.isFinite(fetchedAt) || fetchedAt <= 0) {
+    return null;
+  }
+  return {
+    snapshot,
+    fetchedAt: Math.round(fetchedAt)
+  };
+}
+
+function writeWeatherCache(config, snapshot, fetchedAt) {
+  if (typeof localStorage === "undefined") {
+    return;
+  }
+  const timestamp = Number.isFinite(Number(fetchedAt)) ? Math.round(Number(fetchedAt)) : Date.now();
+  const payload = {
+    fetchedAt: Math.max(1, timestamp),
+    snapshot
+  };
+  try {
+    localStorage.setItem(weatherCacheStorageKey(config), JSON.stringify(payload));
+  } catch {
+    // noop
+  }
 }
 
 function asFiniteNumber(value, fallback = null) {
@@ -158,21 +210,6 @@ function formatTemperature(value, unit = "°C") {
   return `${Math.round(num)}${unit}`;
 }
 
-function formatObservedTime(value) {
-  const text = normalizeText(value);
-  if (!text) {
-    return "";
-  }
-  const parsed = Date.parse(text);
-  if (!Number.isFinite(parsed)) {
-    return "";
-  }
-  return new Date(parsed).toLocaleTimeString([], {
-    hour: "2-digit",
-    minute: "2-digit"
-  });
-}
-
 async function fetchWeatherSnapshot(config) {
   const geocodingUrl = new URL(GEOCODING_API_URL);
   geocodingUrl.searchParams.set("name", config.locationQuery);
@@ -214,7 +251,7 @@ async function fetchWeatherSnapshot(config) {
   );
   forecastUrl.searchParams.set("daily", "temperature_2m_max,temperature_2m_min");
   forecastUrl.searchParams.set("temperature_unit", config.temperatureUnit);
-  forecastUrl.searchParams.set("wind_speed_unit", config.windSpeedUnit);
+  forecastUrl.searchParams.set("wind_speed_unit", "kmh");
   forecastUrl.searchParams.set("timezone", "auto");
 
   const forecastResponse = await fetch(forecastUrl.href, {
@@ -239,10 +276,7 @@ async function fetchWeatherSnapshot(config) {
     forecastPayload?.current_units?.temperature_2m,
     config.temperatureUnit === "fahrenheit" ? "°F" : "°C"
   );
-  const windUnit = normalizeText(
-    forecastPayload?.current_units?.wind_speed_10m,
-    fallbackWindUnitLabel(config.windSpeedUnit)
-  );
+  const windUnit = normalizeText(forecastPayload?.current_units?.wind_speed_10m, "km/h");
 
   const dailyHighRaw = Array.isArray(daily?.temperature_2m_max) ? daily.temperature_2m_max[0] : null;
   const dailyLowRaw = Array.isArray(daily?.temperature_2m_min) ? daily.temperature_2m_min[0] : null;
@@ -251,14 +285,12 @@ async function fetchWeatherSnapshot(config) {
     locationLabel: buildLocationLabel(place, config.locationQuery),
     conditionLabel: weatherMeta.label,
     conditionIcon: isDay ? weatherMeta.dayIcon : weatherMeta.nightIcon,
-    weatherCode: asFiniteNumber(current?.weather_code, null),
     temperature: asFiniteNumber(current?.temperature_2m, null),
     apparentTemperature: asFiniteNumber(current?.apparent_temperature, null),
     humidity: asFiniteNumber(current?.relative_humidity_2m, null),
     windSpeed: asFiniteNumber(current?.wind_speed_10m, null),
     high: asFiniteNumber(dailyHighRaw, null),
     low: asFiniteNumber(dailyLowRaw, null),
-    observedAt: normalizeText(current?.time),
     temperatureUnit,
     windUnit
   };
@@ -286,21 +318,18 @@ export const weatherWidget = {
   defaultConfig: {
     locationQuery: DEFAULT_LOCATION_QUERY,
     temperatureUnit: "celsius",
-    windSpeedUnit: "kmh",
-    refreshMinutes: 30,
-    showFeelsLike: true,
-    showHumidity: true,
-    showWind: true
+    detailMode: "simple",
+    refreshMinutes: 30
   },
   defaultLayout: {
     x: 180,
     y: 180,
     w: 360,
-    h: 300
+    h: 220
   },
   defaultGridSize: {
     w: 2,
-    h: 2
+    h: 1
   },
   settingsSchema: [
     {
@@ -320,15 +349,14 @@ export const weatherWidget = {
       ]
     },
     {
-      key: "windSpeedUnit",
-      label: "Wind speed unit",
+      key: "detailMode",
+      label: "Layout",
       type: "select",
       options: [
-        { value: "kmh", label: "km/h" },
-        { value: "ms", label: "m/s" },
-        { value: "mph", label: "mph" },
-        { value: "kn", label: "kn" }
-      ]
+        { value: "simple", label: "Simple (height 1)" },
+        { value: "advanced", label: "Advanced (height 2)" }
+      ],
+      helpText: "Advanced shows Feels like, Humidity, and Wind details."
     },
     {
       key: "refreshMinutes",
@@ -337,80 +365,68 @@ export const weatherWidget = {
       min: 5,
       max: 240,
       step: 1
-    },
-    { key: "showFeelsLike", label: "Show feels like", type: "checkbox" },
-    { key: "showHumidity", label: "Show humidity", type: "checkbox" },
-    { key: "showWind", label: "Show wind", type: "checkbox" }
+    }
   ],
-  create({ container, getConfig }) {
+  create({ container, getConfig, getUi, getWidget, getWidgetRuntimeCard }) {
     container.classList.add("weather-widget");
 
     const shell = document.createElement("div");
     shell.className = "weather-widget-shell";
 
-    const body = document.createElement("section");
-    body.className = "weather-widget-body";
+    const refreshBtn = document.createElement("button");
+    refreshBtn.type = "button";
+    refreshBtn.className = "icon-btn weather-refresh-btn";
+    refreshBtn.title = "Refresh weather";
+    refreshBtn.setAttribute("aria-label", "Refresh weather");
+    refreshBtn.innerHTML = '<svg class="icon"><use href="#i-reset"></use></svg>';
 
-    const top = document.createElement("div");
-    top.className = "weather-top";
+    const headline = document.createElement("div");
+    headline.className = "weather-headline-row";
 
-    const codeBadge = document.createElement("span");
-    codeBadge.className = "weather-code-badge";
-    codeBadge.textContent = "🌤️ Live";
+    const temperatureCol = document.createElement("div");
+    temperatureCol.className = "weather-temperature-col";
 
     const temperature = document.createElement("p");
     temperature.className = "weather-temperature";
     temperature.textContent = "--";
-
-    top.append(codeBadge, temperature);
-
-    const conditionText = document.createElement("p");
-    conditionText.className = "weather-condition";
-    conditionText.textContent = "Weather";
-
-    const location = document.createElement("p");
-    location.className = "weather-location";
-    location.textContent = DEFAULT_LOCATION_QUERY;
 
     const rangeText = document.createElement("p");
     rangeText.className = "weather-range";
     rangeText.textContent = "";
     rangeText.style.display = "none";
 
+    temperatureCol.append(temperature, rangeText);
+
+    const conditionCol = document.createElement("div");
+    conditionCol.className = "weather-condition-col";
+
+    const conditionIcon = document.createElement("span");
+    conditionIcon.className = "weather-condition-icon";
+    conditionIcon.textContent = "🌤️";
+    conditionIcon.setAttribute("aria-hidden", "true");
+
+    const conditionText = document.createElement("p");
+    conditionText.className = "weather-condition";
+    conditionText.textContent = "Weather";
+
+    conditionCol.append(conditionIcon, conditionText);
+    headline.append(temperatureCol, conditionCol);
+
+    const location = document.createElement("p");
+    location.className = "weather-location";
+    location.textContent = DEFAULT_LOCATION_QUERY;
+
     const metaList = document.createElement("ul");
     metaList.className = "weather-meta";
 
-    const emptyText = document.createElement("p");
-    emptyText.className = "weather-empty";
-    emptyText.textContent = "No weather details yet.";
-    emptyText.style.display = "none";
-
-    body.append(top, conditionText, location, rangeText, metaList, emptyText);
-
-    const toolbar = document.createElement("div");
-    toolbar.className = "weather-widget-toolbar";
-
-    const status = document.createElement("p");
-    status.className = "weather-widget-status";
-    status.textContent = "Weather";
-
-    const actions = document.createElement("div");
-    actions.className = "weather-widget-actions";
-
-    const refreshBtn = document.createElement("button");
-    refreshBtn.type = "button";
-    refreshBtn.className = "btn";
-    refreshBtn.textContent = "Refresh";
-
-    actions.append(refreshBtn);
-    toolbar.append(status, actions);
-    shell.append(body, toolbar);
+    shell.append(refreshBtn, headline, location, metaList);
     container.append(shell);
 
     let weather = null;
     let loading = false;
     let errorMessage = "";
     let lastSignature = "";
+    let weatherFetchedAt = 0;
     let timer = null;
     let requestSerial = 0;
 
@@ -424,63 +440,50 @@ export const weatherWidget = {
     function scheduleRefresh() {
       clearRefreshTimer();
       const cfg = normalizedConfig(getConfig());
-      const delayMs = normalizeRefreshMinutes(cfg.refreshMinutes, 30) * 60000;
+      const delayMs = computeNextRefreshDelayMs(cfg.refreshMinutes, weatherFetchedAt);
       timer = setTimeout(() => {
         void loadWeather();
       }, delayMs);
     }
 
-    function renderMeta(cfg) {
-      metaList.replaceChildren();
-
-      const showEmpty = (text) => {
-        emptyText.textContent = text;
-        emptyText.style.display = "block";
-      };
-
-      if (!weather) {
-        showEmpty(loading ? "Loading details..." : "No weather details yet.");
+    function syncWidgetHeightByMode(cfg) {
+      const widget = typeof getWidget === "function" ? getWidget() : null;
+      if (!widget || !widget.layout || !widget.gridLayout) {
         return;
       }
 
-      const items = [];
-      if (cfg.showFeelsLike) {
-        items.push(createMetaItem("Feels like", formatTemperature(weather.apparentTemperature, weather.temperatureUnit)));
-      }
-      if (cfg.showHumidity) {
-        const humidityValue = asFiniteNumber(weather.humidity, null);
-        items.push(createMetaItem("Humidity", humidityValue === null ? "--" : `${Math.round(humidityValue)}%`));
-      }
-      if (cfg.showWind) {
-        const windValue = asFiniteNumber(weather.windSpeed, null);
-        const windText = windValue === null ? "--" : `${Math.round(windValue)} ${weather.windUnit}`;
-        items.push(createMetaItem("Wind", windText));
-      }
+      const advanced = cfg.detailMode === "advanced";
+      const ui = typeof getUi === "function" ? getUi() : null;
+      const isGrid = ui?.home?.mode === "grid";
+      const card = typeof getWidgetRuntimeCard === "function" ? getWidgetRuntimeCard(widget.id) : null;
+      let changed = false;
 
-      if (!items.length) {
-        showEmpty("All detail chips are disabled.");
-        return;
-      }
-
-      emptyText.style.display = "none";
-      metaList.append(...items);
-    }
-
-    function renderStatus() {
-      status.classList.toggle("is-error", Boolean(errorMessage));
-      status.classList.toggle("is-warning", !loading && !errorMessage && !weather);
-      if (loading) {
-        status.textContent = "Refreshing weather...";
-      } else if (errorMessage) {
-        status.textContent = errorMessage;
+      if (isGrid) {
+        const targetRowSpan = advanced ? 2 : 1;
+        const currentRowSpan = Math.max(1, Number(widget.gridLayout.rowSpan) || 1);
+        if (currentRowSpan !== targetRowSpan) {
+          widget.gridLayout.rowSpan = targetRowSpan;
+          changed = true;
+        }
       } else {
-        const observedLabel = weather ? formatObservedTime(weather.observedAt) : "";
-        status.textContent = observedLabel ? `Updated ${observedLabel}` : "Weather is up to date.";
+        const targetHeight = advanced ? 300 : 220;
+        const currentHeight = Math.max(1, Number(widget.layout.h) || 0);
+        if (Math.abs(currentHeight - targetHeight) > 1) {
+          widget.layout.h = targetHeight;
+          if (card) {
+            card.style.height = `${Math.max(1, Math.round(targetHeight))}px`;
+          }
+          changed = true;
+        }
       }
-      refreshBtn.disabled = loading;
+
+      if (changed) {
+        window.dispatchEvent(new Event("resize"));
+      }
     }
 
     function renderSummary(cfg) {
+      const advanced = cfg.detailMode === "advanced";
       const fallbackTemperatureUnit = cfg.temperatureUnit === "fahrenheit" ? "°F" : "°C";
       location.textContent = weather?.locationLabel || cfg.locationQuery || DEFAULT_LOCATION_QUERY;
       temperature.textContent = formatTemperature(
@@ -489,26 +492,21 @@ export const weatherWidget = {
       );
 
       if (weather) {
-        const weatherCode = asFiniteNumber(weather.weatherCode, null);
-        if (weatherCode === null) {
-          codeBadge.textContent = `${weather.conditionIcon} Live`;
-        } else {
-          codeBadge.textContent = `${weather.conditionIcon} WMO ${weatherCode}`;
-        }
-
-        conditionText.textContent = weather.conditionLabel;
-      } else if (loading) {
-        codeBadge.textContent = "🌤️ Loading";
-        conditionText.textContent = "Loading weather...";
+        conditionIcon.textContent = weather.conditionIcon || "🌤️";
+        conditionText.textContent = weather.conditionLabel || "Weather";
       } else if (errorMessage) {
-        codeBadge.textContent = "⚠️ Error";
-        conditionText.textContent = "Weather is unavailable.";
+        conditionIcon.textContent = "⚠️";
+        conditionText.textContent = "Unavailable";
+      } else if (loading) {
+        conditionIcon.textContent = "🌤️";
+        conditionText.textContent = "Loading";
       } else {
-        codeBadge.textContent = "🌤️ Live";
+        conditionIcon.textContent = "🌤️";
         conditionText.textContent = "Weather";
       }
 
-      const hasRange = asFiniteNumber(weather?.high, null) !== null && asFiniteNumber(weather?.low, null) !== null;
+      const hasRange =
+        advanced && asFiniteNumber(weather?.high, null) !== null && asFiniteNumber(weather?.low, null) !== null;
       if (hasRange) {
         rangeText.style.display = "block";
         rangeText.textContent = `H ${formatTemperature(weather.high, weather.temperatureUnit)} / L ${formatTemperature(weather.low, weather.temperatureUnit)}`;
@@ -518,33 +516,80 @@ export const weatherWidget = {
       }
     }
 
-    function render() {
-      const cfg = normalizedConfig(getConfig());
-      renderSummary(cfg);
-      renderMeta(cfg);
-      renderStatus();
+    function renderMeta(cfg) {
+      const advanced = cfg.detailMode === "advanced";
+      shell.classList.toggle("weather-mode-advanced", advanced);
+      shell.classList.toggle("weather-mode-simple", !advanced);
+      metaList.replaceChildren();
+
+      if (!advanced) {
+        return;
+      }
+
+      const temperatureUnit = weather?.temperatureUnit || (cfg.temperatureUnit === "fahrenheit" ? "°F" : "°C");
+      const feelsLike = formatTemperature(weather?.apparentTemperature, temperatureUnit);
+      const humidity = asFiniteNumber(weather?.humidity, null);
+      const humidityText = humidity === null ? "--" : `${Math.round(humidity)}%`;
+      const windSpeed = asFiniteNumber(weather?.windSpeed, null);
+      const windText = windSpeed === null ? "--" : `${Math.round(windSpeed)} ${weather?.windUnit || "km/h"}`;
+
+      metaList.append(
+        createMetaItem("Feels like", feelsLike),
+        createMetaItem("Humidity", humidityText),
+        createMetaItem("Wind", windText)
+      );
     }
 
-    async function loadWeather() {
+    function render() {
+      const cfg = normalizedConfig(getConfig());
+      syncWidgetHeightByMode(cfg);
+      renderSummary(cfg);
+      renderMeta(cfg);
+      refreshBtn.disabled = loading;
+    }
+
+    async function loadWeather({ force = false } = {}) {
       const requestId = ++requestSerial;
+      const cfg = normalizedConfig(getConfig());
+      const cached = readWeatherCache(cfg);
+
       loading = true;
       errorMessage = "";
       render();
 
       try {
-        const cfg = normalizedConfig(getConfig());
+        if (!force && cached && isFreshCache(cached.fetchedAt, cfg.refreshMinutes)) {
+          if (requestId !== requestSerial) {
+            return;
+          }
+          weather = cached.snapshot;
+          weatherFetchedAt = cached.fetchedAt;
+          lastSignature = configSignature(cfg);
+          return;
+        }
+
         const snapshot = await fetchWeatherSnapshot(cfg);
         if (requestId !== requestSerial) {
           return;
         }
+
         weather = snapshot;
+        weatherFetchedAt = Date.now();
+        writeWeatherCache(cfg, snapshot, weatherFetchedAt);
         lastSignature = configSignature(cfg);
       } catch (error) {
         if (requestId !== requestSerial) {
           return;
         }
-        weather = null;
-        errorMessage = normalizeErrorMessage(error);
+        if (cached?.snapshot) {
+          weather = cached.snapshot;
+          weatherFetchedAt = cached.fetchedAt;
+          lastSignature = configSignature(cfg);
+        } else {
+          weather = null;
+          weatherFetchedAt = 0;
+          errorMessage = normalizeErrorMessage(error);
+        }
       } finally {
         if (requestId !== requestSerial) {
           return;
@@ -555,8 +600,13 @@ export const weatherWidget = {
       }
     }
 
-    refreshBtn.addEventListener("click", () => {
-      void loadWeather();
+    refreshBtn.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      if (loading) {
+        return;
+      }
+      void loadWeather({ force: true });
     });
 
     render();
