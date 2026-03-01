@@ -99,7 +99,6 @@ body,
 .widget-title,
 .widget-body,
 .widget-content-host,
-.page-indicator,
 .persistent-dock {
   -webkit-user-select: none;
   user-select: none;
@@ -397,105 +396,6 @@ body.mode-edit .dock-edit-controls {
   cursor: grabbing;
 }
 
-.page-indicator {
-  position: absolute;
-  left: 50%;
-  bottom: calc(14px + var(--persistent-dock-clearance, 0px));
-  transform: translateX(-50%);
-  z-index: 1205;
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-  padding: 7px 10px;
-  border-radius: 999px;
-  border: 1px solid color-mix(in srgb, var(--line), transparent 28%);
-  background: color-mix(in srgb, var(--surface), transparent 24%);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  box-shadow: 0 10px 24px var(--shadow-edge);
-}
-
-.page-indicator-dots {
-  --dot-size: 8px;
-  --dot-gap: 10px;
-  --dot-step: calc(var(--dot-size) + var(--dot-gap));
-  --page-progress: 0;
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  gap: var(--dot-gap);
-}
-
-.page-indicator-dot {
-  width: var(--dot-size);
-  height: var(--dot-size);
-  border: none;
-  border-radius: 999px;
-  padding: 0;
-  margin: 0;
-  cursor: pointer;
-  opacity: 0.58;
-  background: color-mix(in srgb, var(--text), transparent 70%);
-  transition: opacity 0.18s ease, transform 0.2s ease, background-color 0.2s ease;
-}
-
-.page-indicator-dot:hover {
-  opacity: 0.96;
-  transform: scale(1.08);
-}
-
-.page-indicator-dot.active {
-  opacity: 1;
-  background: color-mix(in srgb, var(--primary), var(--tone-light) 16%);
-}
-
-.page-indicator-thumb {
-  position: absolute;
-  left: 0;
-  top: 50%;
-  width: var(--dot-size);
-  height: var(--dot-size);
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--primary), var(--tone-light) 16%);
-  box-shadow: 0 0 0 5px color-mix(in srgb, var(--primary), transparent 86%);
-  transform: translate(calc(var(--page-progress) * var(--dot-step)), -50%);
-  transition: transform 0.24s cubic-bezier(0.2, 0.7, 0, 1);
-  pointer-events: none;
-}
-
-.board.is-page-dragging ~ .page-indicator .page-indicator-thumb {
-  transition: none;
-}
-
-.page-indicator-add,
-.page-indicator-remove {
-  width: 24px;
-  height: 24px;
-  border: 1px solid color-mix(in srgb, var(--line), transparent 25%);
-  border-radius: 999px;
-  padding: 0;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font: inherit;
-  font-size: 15px;
-  font-weight: 700;
-  color: color-mix(in srgb, var(--text), var(--primary) 36%);
-  background: color-mix(in srgb, var(--surface), transparent 16%);
-  cursor: pointer;
-  transition: background-color 0.18s ease, transform 0.18s ease;
-}
-
-.page-indicator-add:hover,
-.page-indicator-remove:hover {
-  transform: scale(1.04);
-  background: color-mix(in srgb, var(--surface), var(--primary) 12%);
-}
-
-.page-indicator-remove {
-  color: color-mix(in srgb, var(--text), #9b2c2c 34%);
-}
-
 .persistent-dock {
   position: fixed;
   z-index: 1462;
@@ -676,59 +576,73 @@ body.mode-edit .dock-edit-controls {
 }
 
 .dock-widget-item {
+  position: relative !important;
   width: 44px;
   height: 44px;
-  border: 1px solid color-mix(in srgb, var(--line), transparent 20%);
-  border-radius: 13px;
-  background: color-mix(in srgb, var(--surface), transparent 10%);
-  color: color-mix(in srgb, var(--text), var(--primary) 18%);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  position: relative;
+  min-width: 44px;
+  min-height: 44px;
   padding: 0;
   flex: 0 0 auto;
   cursor: pointer;
-  font: inherit;
-  transition: transform 0.16s ease, background-color 0.16s ease, border-color 0.16s ease;
+  transition: transform 0.16s ease, border-color 0.16s ease, box-shadow 0.16s ease;
 }
 
 .dock-widget-item:hover {
   transform: translateY(-1px);
-  background: color-mix(in srgb, var(--surface), var(--primary) 9%);
 }
 
 .dock-widget-item.is-active {
   border-color: color-mix(in srgb, var(--primary), var(--tone-dark) 18%);
-  background: color-mix(in srgb, var(--primary), var(--tone-light) 6%);
-  color: var(--tone-light);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--primary), var(--tone-light) 22%), var(--shadow);
+}
+
+.dock-widget-item .widget-shell,
+.dock-widget-item .widget-body,
+.dock-widget-item .widget-content-host,
+.dock-widget-item .widget-content-slot {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+}
+
+.dock-widget-item .widget-body {
+  padding: 0;
+  overflow: hidden;
+}
+
+.dock-widget-content {
+  position: relative;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
 }
 
 .dock-item-icon {
-  font-size: 0.72em;
-  font-weight: 800;
+  font-size: 0.68em;
+  font-weight: 780;
   letter-spacing: 0.02em;
   text-transform: uppercase;
   line-height: 1;
+  color: color-mix(in srgb, var(--widget-effective-text), var(--primary) 22%);
 }
 
-.dock-item-badge {
+.dock-widget-caption {
   position: absolute;
-  top: -4px;
-  right: -4px;
-  min-width: 18px;
-  height: 18px;
+  left: 4px;
+  right: 4px;
+  bottom: 4px;
   border-radius: 999px;
-  border: 1px solid color-mix(in srgb, var(--line), transparent 10%);
-  background: color-mix(in srgb, var(--accent), var(--tone-light) 8%);
-  color: var(--tone-light);
-  font-size: 10px;
-  font-weight: 700;
-  line-height: 1;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0 4px;
+  padding: 1px 5px;
+  font-size: 8px;
+  font-weight: 650;
+  line-height: 1.25;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: center;
+  background: color-mix(in srgb, var(--surface), transparent 28%);
+  border: 1px solid color-mix(in srgb, var(--line), transparent 36%);
+  color: color-mix(in srgb, var(--widget-effective-text), var(--primary) 10%);
 }
 
 .dock-item-indicator {
@@ -796,10 +710,6 @@ body.mode-edit .dock-edit-controls {
   height: 17px;
 }
 
-.dock-nav-btn {
-  font-size: 14px;
-}
-
 .dock-action-btn:hover:not(:disabled) {
   transform: translateY(-1px);
   background: color-mix(in srgb, var(--surface), var(--primary) 11%);
@@ -825,35 +735,22 @@ body.mode-edit .dock-edit-controls {
   color: var(--tone-light);
 }
 
-.dock-page-state {
-  min-width: 44px;
-  height: 44px;
-  padding: 0 10px;
-  border-radius: 999px;
-  border: 1px solid color-mix(in srgb, var(--line), transparent 20%);
-  background: color-mix(in srgb, var(--surface), transparent 8%);
-  color: var(--muted);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 0.78em;
-  font-weight: 650;
-}
-
 .dock-action-btn:focus-visible,
 .dock-widget-item:focus-visible {
   outline: 2px solid color-mix(in srgb, var(--primary), var(--tone-light) 20%);
   outline-offset: 2px;
 }
 
-.persistent-dock[data-position="left"] .dock-page-state,
-.persistent-dock[data-position="right"] .dock-page-state {
-  min-width: 32px;
-  min-height: 56px;
-  width: 32px;
-  writing-mode: vertical-rl;
-  transform: rotate(180deg);
-  padding: 8px 0;
+
+.persistent-dock.is-drag-out-active .persistent-dock-body {
+  border-color: color-mix(in srgb, var(--warn), var(--line) 55%);
+  box-shadow:
+    0 0 0 2px color-mix(in srgb, var(--warn), transparent 78%),
+    0 12px 24px var(--shadow-edge);
+}
+
+.dock-widget-item.dock-widget-item-dragging {
+  opacity: 0.58;
 }
 
 .persistent-dock-handle {
@@ -950,11 +847,6 @@ body.mode-edit.settings-open .settings-panel {
 
 body.mode-edit.settings-open .board {
   pointer-events: none;
-}
-
-body.mode-edit.settings-open .page-indicator {
-  pointer-events: none;
-  opacity: 0.55;
 }
 
 body.mode-edit.settings-open .settings-rail-toggle {
@@ -3846,12 +3738,6 @@ body.mode-edit .widget-float-remove:hover {
     height: 20px;
   }
 
-  .page-indicator {
-    bottom: calc(10px + var(--persistent-dock-clearance, 0px));
-    padding: 6px 8px;
-    gap: 8px;
-  }
-
   .persistent-dock[data-position="top"] {
     top: 8px;
   }
@@ -3887,24 +3773,6 @@ body.mode-edit .widget-float-remove:hover {
 
   .dock-widget-empty {
     font-size: 0.7em;
-  }
-
-  .dock-page-state {
-    min-width: 44px;
-    height: 44px;
-    padding: 0 8px;
-    font-size: 0.74em;
-  }
-
-  .page-indicator-dots {
-    --dot-gap: 8px;
-  }
-
-  .page-indicator-add,
-  .page-indicator-remove {
-    width: 22px;
-    height: 22px;
-    font-size: 14px;
   }
 
   .gmail-widget-actions {
