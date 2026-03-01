@@ -248,8 +248,22 @@ body.mode-edit .edit-rail {
   z-index: 1390;
 }
 
+.corner-controls-bottom {
+  position: fixed;
+  right: 10px;
+  bottom: 10px;
+  display: inline-flex;
+  align-items: center;
+  z-index: 1390;
+}
+
+body.mode-edit .corner-controls-bottom {
+  bottom: 72px;
+}
+
 .corner-mode-toggle,
-.corner-bg-refresh {
+.corner-bg-refresh,
+.corner-settings-toggle {
   width: 36px;
   height: 36px;
   display: inline-flex;
@@ -267,15 +281,21 @@ body.mode-edit .edit-rail {
 }
 
 .corner-mode-toggle .icon,
-.corner-bg-refresh .icon {
+.corner-bg-refresh .icon,
+.corner-settings-toggle .icon {
   width: 19px;
   height: 19px;
 }
 
 .corner-mode-toggle:hover,
-.corner-bg-refresh:hover {
+.corner-bg-refresh:hover,
+.corner-settings-toggle:hover {
   opacity: 1;
   transform: translateY(-1px);
+}
+
+body:not(.mode-edit) .corner-settings-toggle {
+  display: none;
 }
 
 body.mode-edit .corner-mode-toggle {
@@ -742,12 +762,8 @@ body.mode-edit .dock-widget-item:hover {
   opacity: 0.16;
 }
 
-.settings-rail-toggle {
+.dock-edit-controls .settings-rail-toggle {
   margin-left: 2px;
-}
-
-body.mode-edit .settings-rail-toggle {
-  display: inline-flex;
 }
 
 .settings-panel-backdrop {
@@ -3648,8 +3664,18 @@ body.mode-edit .widget-float-remove:hover {
     right: 8px;
   }
 
+  .corner-controls-bottom {
+    right: 8px;
+    bottom: 8px;
+  }
+
+  body.mode-edit .corner-controls-bottom {
+    bottom: 62px;
+  }
+
   .corner-mode-toggle,
-  .corner-bg-refresh {
+  .corner-bg-refresh,
+  .corner-settings-toggle {
     width: 34px;
     height: 34px;
   }

@@ -139,6 +139,7 @@ export const bookmarksWidget = {
     folderId: "0",
     showFolders: true,
     showLabels: true,
+    pathVisibility: "headless",
     openInNewTab: false,
     faviconMode: "site",
     fontScale: 1,
@@ -181,10 +182,20 @@ export const bookmarksWidget = {
     },
     { key: "showFolders", label: "Show folders", type: "checkbox" },
     { key: "showLabels", label: "Show labels", type: "checkbox" },
+    {
+      key: "pathVisibility",
+      label: "Current path visibility",
+      type: "select",
+      options: [
+        { value: "headless", label: "Hide in headless" },
+        { value: "always", label: "Always show" },
+        { value: "hidden", label: "Always hide" }
+      ]
+    },
     { key: "openInNewTab", label: "Open links in new tab", type: "checkbox" },
     { key: "fontScale", label: "Grid font scale", type: "number", min: 0.75, max: 1.6, step: 0.05 }
   ],
-  create({ container, getConfig, patchConfig, isEditMode }) {
+  create({ container, getConfig, patchConfig, isEditMode, getWidget }) {
     const nav = document.createElement("div");
     const editor = document.createElement("div");
     const grid = document.createElement("div");
@@ -200,6 +211,66 @@ export const bookmarksWidget = {
     let currentFolderId = "";
     let rootNode = null;
     let parentMap = {};
+    const backStateListeners = new Set();
+    let canGoBackState = false;
+
+    function notifyBackState(nextState) {
+      const normalized = Boolean(nextState);
+      canGoBackState = normalized;
+      for (const listener of backStateListeners) {
+        try {
+          listener(normalized);
+        } catch {}
+      }
+    }
+
+    function updateBackState(activeFolder, root) {
+      notifyBackState(Boolean(activeFolder && root && activeFolder.id !== root.id));
+    }
+
+    function resolvePathVisibility(cfg) {
+      const mode = normalizeText(cfg.pathVisibility).toLowerCase();
+      if (mode === "always" || mode === "headless" || mode === "hidden") {
+        return mode;
+      }
+      if (cfg.showCurrentPath === false) {
+        return "hidden";
+      }
+      if (cfg.showCurrentPath === true) {
+        return "always";
+      }
+      return "headless";
+    }
+
+    function shouldShowCurrentPath(cfg) {
+      const visibility = resolvePathVisibility(cfg);
+      if (visibility === "hidden") {
+        return false;
+      }
+      if (visibility === "headless") {
+        const widget = typeof getWidget === "function" ? getWidget() : null;
+        return widget?.viewMode !== "headless";
+      }
+      return true;
+    }
+
+    function goBack() {
+      if (!rootNode) {
+        notifyBackState(false);
+        return false;
+      }
+
+      const activeFolder = findNodeById(rootNode, currentFolderId) || rootNode;
+      if (!activeFolder || activeFolder.id === rootNode.id) {
+        notifyBackState(false);
+        return false;
+      }
+
+      const parentId = parentMap[activeFolder.id] || rootNode.id;
+      currentFolderId = parentId;
+      void render();
+      return true;
+    }
 
     function renderEditor() {
       editor.replaceChildren();
@@ -320,9 +391,9 @@ export const bookmarksWidget = {
       return chain;
     }
 
-    function renderNav(activeFolder, root) {
+    function renderNav(activeFolder, root, cfg) {
       nav.replaceChildren();
-      if (!activeFolder || !root) {
+      if (!activeFolder || !root || !shouldShowCurrentPath(cfg)) {
         nav.style.display = "none";
         return;
       }
@@ -380,24 +451,7 @@ export const bookmarksWidget = {
         }
       }
 
-      const backBtn = document.createElement("button");
-      backBtn.type = "button";
-      backBtn.className = "bookmark-nav-back";
-      backBtn.textContent = "Back";
-      backBtn.title = "Go back";
-      const canGoBack = activeFolder.id !== root.id;
-      backBtn.disabled = !canGoBack;
-      backBtn.classList.toggle("is-hidden", !canGoBack);
-      backBtn.addEventListener("click", () => {
-        if (!canGoBack) {
-          return;
-        }
-        const parentId = parentMap[activeFolder.id] || root.id;
-        currentFolderId = parentId;
-        void render();
-      });
-
-      nav.append(path, backBtn);
+      nav.append(path);
     }
 
     function createFolderCard(node, cfg) {
@@ -469,6 +523,7 @@ export const bookmarksWidget = {
         }
 
         if (!root) {
+          notifyBackState(false);
           const item = document.createElement("p");
           item.className = "muted";
           item.textContent = "Bookmark folder not found.";
@@ -485,7 +540,8 @@ export const bookmarksWidget = {
         }
 
         const activeFolder = findNodeById(root, currentFolderId) || root;
-        renderNav(activeFolder, root);
+        updateBackState(activeFolder, root);
+        renderNav(activeFolder, root, cfg);
 
         const items = buildVisibleItems(activeFolder, cfg);
         if (!items.length) {
@@ -520,6 +576,7 @@ export const bookmarksWidget = {
         if (token !== renderToken) {
           return;
         }
+        notifyBackState(false);
         nav.style.display = "none";
         const item = document.createElement("p");
         item.className = "muted";
@@ -546,7 +603,20 @@ export const bookmarksWidget = {
       refresh: () => {
         void render();
       },
+      goBack,
+      canGoBack: () => canGoBackState,
+      onBackStateChange(listener) {
+        if (typeof listener !== "function") {
+          return () => {};
+        }
+        backStateListeners.add(listener);
+        listener(canGoBackState);
+        return () => {
+          backStateListeners.delete(listener);
+        };
+      },
       destroy() {
+        backStateListeners.clear();
         chrome.bookmarks.onCreated.removeListener(reload);
         chrome.bookmarks.onChanged.removeListener(reload);
         chrome.bookmarks.onRemoved.removeListener(reload);
