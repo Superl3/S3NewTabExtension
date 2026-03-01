@@ -160,19 +160,11 @@
 
       <main class="workspace">
         <section id="board" class="board" aria-label="Widget board"></section>
-        <div id="pageIndicator" class="page-indicator" aria-label="Launcher pages"></div>
         <section id="persistentDock" class="persistent-dock" aria-label="Persistent dock" data-no-page-swipe>
           <div class="persistent-dock-body">
             <div id="dockWidgetStrip" class="dock-widget-strip" role="toolbar" aria-label="Dock widgets"></div>
             <div class="persistent-dock-actions" role="toolbar" aria-label="Dock controls">
-              <button id="dockPrevBtn" class="dock-action-btn dock-nav-btn" type="button" title="Previous page" aria-label="Previous page">
-                <span aria-hidden="true">&lt;</span>
-              </button>
-              <span id="dockPageState" class="dock-page-state" aria-live="polite">1 / 1</span>
-              <button id="dockNextBtn" class="dock-action-btn dock-nav-btn" type="button" title="Next page" aria-label="Next page">
-                <span aria-hidden="true">&gt;</span>
-              </button>
-              <button id="dockSettingsBtn" class="dock-action-btn" type="button" title="Dock settings" aria-label="Dock settings">
+              <button id="dockSettingsBtn" class="dock-action-btn dock-settings-btn" type="button" title="Dock settings" aria-label="Dock settings">
                 <svg class="icon"><use href="#i-settings"></use></svg>
               </button>
             </div>

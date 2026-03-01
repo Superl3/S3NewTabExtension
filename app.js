@@ -114,9 +114,6 @@ const elements = {
   shortcutIconEditorApplyBtn: document.getElementById("shortcutIconEditorApplyBtn"),
   persistentDock: document.getElementById("persistentDock"),
   dockWidgetStrip: document.getElementById("dockWidgetStrip"),
-  dockPageState: document.getElementById("dockPageState"),
-  dockPrevBtn: document.getElementById("dockPrevBtn"),
-  dockNextBtn: document.getElementById("dockNextBtn"),
   dockSettingsBtn: document.getElementById("dockSettingsBtn"),
   dockSettingsModalOverlay: document.getElementById("dockSettingsModalOverlay"),
   dockSettingsModalBody: document.getElementById("dockSettingsModalBody"),
@@ -126,8 +123,7 @@ const elements = {
   dockSettingsModalDefaultBtn: document.getElementById("dockSettingsModalDefaultBtn"),
   workspace: document.querySelector(".workspace"),
   editDock: document.querySelector(".edit-dock"),
-  editDockGrip: document.getElementById("editDockGrip"),
-  pageIndicator: document.getElementById("pageIndicator")
+  editDockGrip: document.getElementById("editDockGrip")
 };
 
 const runtime = new Map();
@@ -911,15 +907,6 @@ function normalizeDockLength(value, fallback = 6) {
 }
 
 /**
- * @typedef {Object} DockItem
- * @property {string} id
- * @property {string} label
- * @property {string} iconText
- * @property {number | null} badge
- * @property {number} page
- */
-
-/**
  * @typedef {Object} DockConfig
  * @property {boolean} enabled
  * @property {"raised" | "flat"} shape
@@ -1161,24 +1148,19 @@ function nextDockOrder() {
   return maxOrder + 1;
 }
 
-function dockIconTextFromLabel(label) {
-  const compact = normalizeText(label, "W").replace(/\s+/g, "").slice(0, 2);
-  return compact || "W";
-}
-
-function normalizeDockActiveId(items, candidate = dockUiState.activeId) {
-  if (!Array.isArray(items) || !items.length) {
+function normalizeDockActiveId(instances, candidate = dockUiState.activeId) {
+  if (!Array.isArray(instances) || !instances.length) {
     return "";
   }
   const candidateId = normalizeText(candidate);
-  if (candidateId && items.some((item) => item.id === candidateId)) {
+  if (candidateId && instances.some((item) => String(item.id) === candidateId)) {
     return candidateId;
   }
   const selected = normalizeText(state?.selectedWidgetId);
-  if (selected && items.some((item) => item.id === selected)) {
+  if (selected && instances.some((item) => String(item.id) === selected)) {
     return selected;
   }
-  return items[0].id;
+  return String(instances[0].id);
 }
 
 function setDockActiveId(nextId, { rerender = true } = {}) {
@@ -1192,6 +1174,50 @@ function setDockActiveId(nextId, { rerender = true } = {}) {
   }
 }
 
+function dockUnitLayoutSize() {
+  if (!elements.board || !state?.ui?.home || !Array.isArray(state?.instances)) {
+    return { w: 120, h: 120 };
+  }
+
+  if (!isGridLayoutMode()) {
+    const shortcutDefault = widgetRegistry?.shortcut?.defaultLayout || {};
+    const shortcutW = Number(shortcutDefault.w);
+    const shortcutH = Number(shortcutDefault.h);
+    return {
+      w: clamp(Math.round(Number.isFinite(shortcutW) ? shortcutW : 120), 80, 360),
+      h: clamp(Math.round(Number.isFinite(shortcutH) ? shortcutH : 120), 80, 360)
+    };
+  }
+
+  const metrics = gridMetrics();
+  return {
+    w: Math.max(80, Math.round(metrics.cellW)),
+    h: Math.max(80, Math.round(metrics.cellH))
+  };
+}
+
+function isDockEligibleWidget(instance) {
+  if (!instance || instance.enabled === false) {
+    return false;
+  }
+  if (instance.type === "container") {
+    return false;
+  }
+  if (isWidgetInContainer(instance)) {
+    return false;
+  }
+
+  const def = widgetRegistry[instance.type];
+  const fallback = widgetDefaultGridSize(instance.type, def);
+  const grid = normalizeGridLayout(instance.gridLayout, {
+    col: 0,
+    row: 0,
+    colSpan: fallback.colSpan,
+    rowSpan: fallback.rowSpan
+  });
+  return grid.colSpan === 1 && grid.rowSpan === 1;
+}
+
 /** @returns {DockConfig} */
 function buildDockConfig(home = state?.ui?.home) {
   const normalizedHome = normalizeHomeLayout(home || defaultHomeLayout());
@@ -1203,22 +1229,6 @@ function buildDockConfig(home = state?.ui?.home) {
     heightPx: 44,
     position: "bottom"
   };
-}
-
-/** @returns {DockItem[]} */
-function buildDockItems(instances = state?.instances) {
-  const activePage = currentLauncherActivePage();
-  return dockedInstances(instances).map((instance) => {
-    const label = normalizeText(instance.title, widgetRegistry[instance.type]?.title || "Widget");
-    const page = normalizeWidgetPage(instance.page, currentLauncherPageCount(), 0);
-    return {
-      id: instance.id,
-      label,
-      iconText: dockIconTextFromLabel(label),
-      badge: page === activePage ? null : page + 1,
-      page
-    };
-  });
 }
 
 function normalizePageCount(value, fallback = 1) {
@@ -2248,13 +2258,13 @@ function setBodyMode() {
   if (!isEdit) {
     closeWidgetModal(false);
     closeAddWidgetModal();
+    closeDockSettingsModal(false);
     if (state?.ui) {
       state.ui.settingsOpen = false;
     }
   }
 
   syncSettingsPanelVisibility();
-  syncPageIndicator();
   syncPersistentDock();
 }
 
@@ -2397,6 +2407,9 @@ function renderDockSettingsModal() {
 }
 
 function openDockSettingsModal() {
+  if (state.mode !== "edit") {
+    return;
+  }
   if (!elements.dockSettingsModalOverlay || !state?.ui?.home) {
     return;
   }
@@ -4001,6 +4014,9 @@ function tryDockWidgetByDrop(instance, pointerEvent, { record = true } = {}) {
   if (!instance || !pointerEvent || !isDockDropPoint(pointerEvent.clientX, pointerEvent.clientY)) {
     return false;
   }
+  if (!isDockEligibleWidget(instance)) {
+    return false;
+  }
   if (isWidgetDocked(instance) || isWidgetInContainer(instance)) {
     return false;
   }
@@ -4171,14 +4187,14 @@ function renderDockWidgets() {
   }
 
   strip.replaceChildren();
-  const items = buildDockItems();
+  const items = dockedInstances();
   strip.classList.toggle("is-empty", items.length === 0);
 
   if (!items.length) {
     dockUiState.activeId = "";
     const empty = document.createElement("span");
     empty.className = "dock-widget-empty";
-    empty.textContent = "Drop widgets here";
+    empty.textContent = "Drop 1x1 widgets here";
     strip.append(empty);
     syncDockOverflowState();
     return;
@@ -4188,45 +4204,121 @@ function renderDockWidgets() {
   dockUiState.activeId = activeId;
 
   for (const item of items) {
-    const chip = document.createElement("button");
-    chip.type = "button";
-    chip.className = "dock-widget-item";
-    chip.dataset.widgetId = item.id;
-    chip.title = item.label;
-    chip.setAttribute("aria-label", item.label);
+    const label = normalizeText(item.title, widgetRegistry?.[item.type]?.title || "Widget");
+    const monogram = normalizeText(label).slice(0, 1).toUpperCase() || "W";
+
+    const card = document.createElement("article");
+    card.className = "dock-widget-item widget-card";
+    card.dataset.widgetId = item.id;
+    card.dataset.widgetType = item.type;
+    card.setAttribute("role", "button");
+    card.setAttribute("aria-label", label);
+    card.title = label;
+
+    const shell = document.createElement("div");
+    shell.className = "widget-shell";
+
+    const body = document.createElement("section");
+    body.className = "widget-body";
+
+    const host = document.createElement("div");
+    host.className = "widget-content-host";
+
+    const slot = document.createElement("div");
+    slot.className = "widget-content-slot dock-widget-content";
 
     const icon = document.createElement("span");
     icon.className = "dock-item-icon";
-    icon.textContent = item.iconText;
+    icon.textContent = monogram;
+
+    const caption = document.createElement("span");
+    caption.className = "dock-widget-caption";
+    caption.textContent = label;
 
     const indicator = document.createElement("span");
     indicator.className = "dock-item-indicator";
     indicator.setAttribute("aria-hidden", "true");
 
-    chip.append(icon, indicator);
+    slot.append(icon, caption);
+    host.append(slot);
+    body.append(host);
+    shell.append(body);
+    card.append(shell, indicator);
 
-    if (item.badge !== null) {
-      const badge = document.createElement("span");
-      badge.className = "dock-item-badge";
-      badge.textContent = String(item.badge);
-      badge.setAttribute("aria-hidden", "true");
-      chip.append(badge);
-    }
+    applyCardVisual(card, item);
 
-    chip.addEventListener("click", () => {
+    card.addEventListener("pointerdown", (event) => {
+      if (state.mode !== "edit" || event.button !== 0) {
+        return;
+      }
+      if (event.target.closest("button, input, textarea, select, [contenteditable='true']")) {
+        return;
+      }
+
+      event.preventDefault();
+      event.stopPropagation();
+
+      const dockRect = elements.persistentDock?.getBoundingClientRect();
+      if (!dockRect) {
+        return;
+      }
+
+      const ghost = createWidgetDragPreview(item);
+      card.classList.add("dock-widget-item-dragging");
+
+      const updateGhost = (clientX, clientY) => {
+        positionWidgetDragPreview(ghost, clientX, clientY);
+        const inside = pointInsideRect(clientX, clientY, dockRect);
+        elements.persistentDock?.classList.toggle("is-drag-out-active", !inside);
+      };
+
+      updateGhost(event.clientX, event.clientY);
+
+      const finish = (upEvent) => {
+        window.removeEventListener("pointermove", move);
+        window.removeEventListener("pointerup", finish);
+        window.removeEventListener("pointercancel", finish);
+
+        const dropX = Number.isFinite(upEvent?.clientX) ? upEvent.clientX : event.clientX;
+        const dropY = Number.isFinite(upEvent?.clientY) ? upEvent.clientY : event.clientY;
+        const inside = pointInsideRect(dropX, dropY, dockRect);
+
+        elements.persistentDock?.classList.remove("is-drag-out-active");
+        card.classList.remove("dock-widget-item-dragging");
+        ghost.remove();
+
+        if (!inside) {
+          card.dataset.suppressClick = "true";
+          releaseWidgetFromDockByDrop(item.id, {
+            clientX: dropX,
+            clientY: dropY
+          });
+        }
+      };
+
+      const move = (moveEvent) => {
+        updateGhost(moveEvent.clientX, moveEvent.clientY);
+      };
+
+      window.addEventListener("pointermove", move);
+      window.addEventListener("pointerup", finish);
+      window.addEventListener("pointercancel", finish);
+    }, true);
+
+    card.addEventListener("click", () => {
+      if (card.dataset.suppressClick === "true") {
+        card.dataset.suppressClick = "false";
+        return;
+      }
       setDockActiveId(item.id, { rerender: false });
       applyDockActiveVisual(item.id);
       if (state.mode === "edit") {
         setSelected(item.id);
         openWidgetModal(item.id);
-        return;
       }
-      setActiveLauncherPage(item.page, {
-        shouldSave: true,
-        animate: true
-      });
     });
-    strip.append(chip);
+
+    strip.append(card);
   }
 
   applyDockActiveVisual(activeId);
@@ -4254,31 +4346,21 @@ function syncPersistentDock(progress = null) {
   dock.classList.remove("is-disabled");
   dock.setAttribute("aria-hidden", "false");
   dock.dataset.shape = config.shape;
-  dock.dataset.visibility = config.visibility;
+  dock.dataset.visibility = state.mode === "edit" ? config.visibility : "always";
   dock.dataset.position = config.position;
   dock.style.setProperty("--dock-length-units", String(config.lengthUnits));
   dock.style.setProperty("--dock-unit-size", `${config.heightPx}px`);
 
-  const pageCount = currentLauncherPageCount();
-  const activePage = currentLauncherActivePage();
-  const value = Number.isFinite(progress)
-    ? clamp(progress, 0, Math.max(0, pageCount - 1))
-    : activePage;
-  const rounded = clamp(Math.round(value), 0, Math.max(0, pageCount - 1));
-
-  if (elements.dockPageState) {
-    elements.dockPageState.textContent = `${rounded + 1} / ${pageCount}`;
-  }
-  if (elements.dockPrevBtn) {
-    elements.dockPrevBtn.disabled = rounded <= 0;
-  }
-  if (elements.dockNextBtn) {
-    elements.dockNextBtn.disabled = rounded >= pageCount - 1;
-  }
   if (elements.dockSettingsBtn) {
-    const settingsTitle = dockSettingsModalOpen ? "Close dock settings" : "Open dock settings";
+    const canEditDock = state.mode === "edit";
+    const settingsTitle = canEditDock
+      ? (dockSettingsModalOpen ? "Close dock settings" : "Open dock settings")
+      : "Dock settings (Edit mode only)";
     elements.dockSettingsBtn.title = settingsTitle;
     elements.dockSettingsBtn.setAttribute("aria-label", settingsTitle);
+    elements.dockSettingsBtn.disabled = !canEditDock;
+    elements.dockSettingsBtn.tabIndex = canEditDock ? 0 : -1;
+    elements.dockSettingsBtn.classList.toggle("is-hidden", !canEditDock);
     elements.dockSettingsBtn.classList.toggle("is-active", dockSettingsModalOpen);
   }
 
@@ -4289,85 +4371,6 @@ function syncPersistentDock(progress = null) {
       syncDockContentPadding(config);
     });
   }
-}
-
-function syncPageIndicator(progress = null) {
-  const indicator = elements.pageIndicator;
-  if (!indicator || !state?.ui?.home) {
-    return;
-  }
-
-  const pageCount = currentLauncherPageCount();
-  const activePage = currentLauncherActivePage();
-  const allowAdd = state.mode === "edit" && pageCount < MAX_LAUNCHER_PAGES;
-  const allowRemove = state.mode === "edit" && pageCount > 1;
-  const signature = `${pageCount}:${allowAdd ? "add" : "no-add"}:${allowRemove ? "remove" : "no-remove"}`;
-
-  if (indicator.dataset.signature !== signature) {
-    indicator.replaceChildren();
-    indicator.dataset.signature = signature;
-
-    const dots = document.createElement("div");
-    dots.className = "page-indicator-dots";
-
-    for (let i = 0; i < pageCount; i += 1) {
-      const dot = document.createElement("button");
-      dot.type = "button";
-      dot.className = "page-indicator-dot";
-      dot.setAttribute("aria-label", `Open page ${i + 1}`);
-      dot.dataset.pageIndex = String(i);
-      dot.addEventListener("click", () => {
-        setActiveLauncherPage(i, { shouldSave: true, animate: true });
-      });
-      dots.append(dot);
-    }
-
-    const thumb = document.createElement("span");
-    thumb.className = "page-indicator-thumb";
-    dots.append(thumb);
-    indicator.append(dots);
-
-    if (allowAdd) {
-      const addBtn = document.createElement("button");
-      addBtn.type = "button";
-      addBtn.className = "page-indicator-add";
-      addBtn.textContent = "+";
-      addBtn.title = "Add launcher page";
-      addBtn.setAttribute("aria-label", "Add launcher page");
-      addBtn.addEventListener("click", () => {
-        addLauncherPage();
-      });
-      indicator.append(addBtn);
-    }
-
-    if (allowRemove) {
-      const removeBtn = document.createElement("button");
-      removeBtn.type = "button";
-      removeBtn.className = "page-indicator-remove";
-      removeBtn.textContent = "-";
-      removeBtn.title = "Remove current page";
-      removeBtn.setAttribute("aria-label", "Remove current page");
-      removeBtn.addEventListener("click", () => {
-        removeLauncherPage();
-      });
-      indicator.append(removeBtn);
-    }
-  }
-
-  const value = Number.isFinite(progress)
-    ? clamp(progress, 0, Math.max(0, pageCount - 1))
-    : activePage;
-  const rounded = clamp(Math.round(value), 0, Math.max(0, pageCount - 1));
-
-  const dotsWrap = indicator.querySelector(".page-indicator-dots");
-  dotsWrap?.style.setProperty("--page-progress", String(value));
-
-  const dots = indicator.querySelectorAll(".page-indicator-dot");
-  dots.forEach((dot, index) => {
-    const isActive = index === rounded;
-    dot.classList.toggle("active", isActive);
-    dot.setAttribute("aria-current", isActive ? "page" : "false");
-  });
 }
 
 function renderBoardViewport({ dragOffsetX = 0, animate = true, dragging = false } = {}) {
@@ -4391,10 +4394,8 @@ function renderBoardViewport({ dragOffsetX = 0, animate = true, dragging = false
 
   if (dragging) {
     const progress = activePage - offset / boardW;
-    syncPageIndicator(progress);
     syncPersistentDock(progress);
   } else {
-    syncPageIndicator(activePage);
     syncPersistentDock(activePage);
   }
 
@@ -4957,6 +4958,74 @@ function releaseWidgetFromContainerByDrop(widgetId, payload = {}) {
       col: 0,
       row: 0,
       ...widgetDefaultGridSize(instance.type, def)
+    });
+    const spanWidth = metrics.cellW * grid.colSpan + metrics.gapX * (grid.colSpan - 1);
+    const spanHeight = metrics.cellH * grid.rowSpan + metrics.gapY * (grid.rowSpan - 1);
+    const stepX = Math.max(1, metrics.cellW + metrics.gapX);
+    const stepY = Math.max(1, metrics.cellH + metrics.gapY);
+    const localX = clamp(pointerX - boardRect.left - spanWidth / 2, 0, Math.max(0, boardRect.width - spanWidth));
+    const localY = clamp(pointerY - boardRect.top - spanHeight / 2, 0, Math.max(0, boardRect.height - spanHeight));
+
+    grid.col = clamp(Math.round((localX - metrics.marginX) / stepX), 0, Math.max(0, metrics.cols - grid.colSpan));
+    grid.row = clamp(Math.round((localY - metrics.marginY) / stepY), 0, Math.max(0, metrics.rows - grid.rowSpan));
+
+    instance.gridLayout = grid;
+    instance.layout.x = metrics.marginX + grid.col * stepX;
+    instance.layout.y = metrics.marginY + grid.row * stepY;
+    instance.layout.w = spanWidth;
+    instance.layout.h = spanHeight;
+  } else {
+    const maxW = Math.max(80, Math.floor(boardRect.width));
+    const maxH = Math.max(80, Math.floor(boardRect.height));
+    instance.layout.w = clamp(Number(instance.layout.w) || 320, 80, maxW);
+    instance.layout.h = clamp(Number(instance.layout.h) || 220, 80, maxH);
+    const maxX = Math.max(0, boardRect.width - instance.layout.w);
+    const maxY = Math.max(0, boardRect.height - instance.layout.h);
+    const nextX = clamp(pointerX - boardRect.left - instance.layout.w / 2, 0, maxX);
+    const nextY = clamp(pointerY - boardRect.top - instance.layout.h / 2, 0, maxY);
+    instance.layout.x = Math.round(nextX / SNAP) * SNAP;
+    instance.layout.y = Math.round(nextY / SNAP) * SNAP;
+  }
+
+  state.selectedWidgetId = instance.id;
+  renderBoard();
+  queueSave();
+  return true;
+}
+
+function releaseWidgetFromDockByDrop(widgetId, payload = {}) {
+  const instance = instanceById(widgetId);
+  if (!instance || instance.type === "container" || !isWidgetDocked(instance)) {
+    return false;
+  }
+
+  const boardRect = elements.board?.getBoundingClientRect();
+  if (!boardRect) {
+    return false;
+  }
+
+  recordHistorySnapshot("Undock widget");
+
+  instance.dockOrder = null;
+  instance.containerId = "";
+  normalizeDockedWidgetOrders(state.instances);
+
+  const releasePage = currentLauncherActivePage();
+  instance.page = releasePage;
+  state.ui.home.activePage = releasePage;
+
+  const pointerX = Number.isFinite(payload?.clientX) ? payload.clientX : boardRect.left + boardRect.width / 2;
+  const pointerY = Number.isFinite(payload?.clientY) ? payload.clientY : boardRect.top + boardRect.height / 2;
+
+  if (isGridLayoutMode()) {
+    const metrics = gridMetrics();
+    const def = widgetRegistry[instance.type];
+    const fallback = widgetDefaultGridSize(instance.type, def);
+    const grid = normalizeGridLayout(instance.gridLayout, {
+      col: 0,
+      row: 0,
+      colSpan: fallback.colSpan,
+      rowSpan: fallback.rowSpan
     });
     const spanWidth = metrics.cellW * grid.colSpan + metrics.gapX * (grid.colSpan - 1);
     const spanHeight = metrics.cellH * grid.rowSpan + metrics.gapY * (grid.rowSpan - 1);
@@ -7816,7 +7885,6 @@ function canStartBoardSwipeFromTarget(target) {
     ".widget-modal-overlay",
     ".corner-controls",
     ".add-widget-fab",
-    ".page-indicator",
     ".edit-dock",
     ".persistent-dock"
   ].join(",");
@@ -8057,14 +8125,6 @@ function wireEvents() {
       updateBoardBounds();
     });
     queueSave();
-  });
-
-  elements.dockPrevBtn?.addEventListener("click", () => {
-    setActiveLauncherPage(currentLauncherActivePage() - 1, { shouldSave: true, animate: true });
-  });
-
-  elements.dockNextBtn?.addEventListener("click", () => {
-    setActiveLauncherPage(currentLauncherActivePage() + 1, { shouldSave: true, animate: true });
   });
 
   elements.dockSettingsBtn?.addEventListener("click", () => {
