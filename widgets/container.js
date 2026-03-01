@@ -472,6 +472,9 @@ export const containerWidget = {
       const floatingTitle = document.createElement("div");
       floatingTitle.className = "widget-folder-item-floating-title";
       floatingTitle.textContent = normalizeText(child.title, def.title || "Widget");
+      if (child.type === "shortcut") {
+        floatingTitle.classList.add("is-hidden");
+      }
 
       shell.append(body);
       card.append(shell, floatingTitle);

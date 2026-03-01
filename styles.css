@@ -1575,7 +1575,7 @@ body:not(.mode-edit) .widget-resize-handle {
   text-overflow: ellipsis;
 }
 
-.widget-folder-item-card .shortcut-label {
+.widget-folder-item-floating-title.is-hidden {
   display: none;
 }
 
