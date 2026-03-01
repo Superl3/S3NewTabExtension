@@ -97,6 +97,11 @@ const elements = {
   widgetModalCloseBtn: document.getElementById("widgetModalCloseBtn"),
   widgetModalCancelBtn: document.getElementById("widgetModalCancelBtn"),
   widgetModalOkBtn: document.getElementById("widgetModalOkBtn"),
+  widgetTitleRenameOverlay: document.getElementById("widgetTitleRenameOverlay"),
+  widgetTitleRenameInput: document.getElementById("widgetTitleRenameInput"),
+  widgetTitleRenameCloseBtn: document.getElementById("widgetTitleRenameCloseBtn"),
+  widgetTitleRenameCancelBtn: document.getElementById("widgetTitleRenameCancelBtn"),
+  widgetTitleRenameOkBtn: document.getElementById("widgetTitleRenameOkBtn"),
   shortcutIconEditorOverlay: document.getElementById("shortcutIconEditorOverlay"),
   shortcutIconEditorCanvas: document.getElementById("shortcutIconEditorCanvas"),
   shortcutIconEditorShape: document.getElementById("shortcutIconEditorShape"),
@@ -112,6 +117,7 @@ const elements = {
   shortcutIconEditorCancelBtn: document.getElementById("shortcutIconEditorCancelBtn"),
   shortcutIconEditorApplyBtn: document.getElementById("shortcutIconEditorApplyBtn"),
   persistentDock: document.getElementById("persistentDock"),
+  persistentDockBody: document.querySelector("#persistentDock .persistent-dock-body"),
   dockWidgetStrip: document.getElementById("dockWidgetStrip"),
   dockSettingsBtn: document.getElementById("dockSettingsBtn"),
   dockSettingsModalOverlay: document.getElementById("dockSettingsModalOverlay"),
@@ -137,6 +143,11 @@ const modalState = {
   dismissMoved: false,
   dismissStartedOnOverlay: false,
   activeTab: "widget"
+};
+
+const widgetTitleRenameState = {
+  open: false,
+  widgetId: ""
 };
 
 let state = null;
@@ -186,6 +197,9 @@ const dockModalState = {
 };
 const dockUiState = {
   activeId: ""
+};
+const dockEmbeddedUiState = {
+  controllers: new Map()
 };
 const containerDropUiState = {
   targets: new Map(),
@@ -404,6 +418,7 @@ function defaultHomeLayout() {
     dockVisibility: "always",
     dockPosition: "bottom",
     dockLength: 6,
+    dockSize: 44,
     widgetBackdropBlur: true,
     legacyHeadlessSurfaceMigrated: false
   };
@@ -913,6 +928,14 @@ function normalizeDockLength(value, fallback = 6) {
   return clamp(Math.floor(num), 5, 14);
 }
 
+function normalizeDockSize(value, fallback = 44) {
+  const num = Number(value);
+  if (!Number.isFinite(num)) {
+    return clamp(Math.round(fallback), 36, 72);
+  }
+  return clamp(Math.round(num), 36, 72);
+}
+
 /**
  * @typedef {Object} DockConfig
  * @property {boolean} enabled
@@ -1233,7 +1256,7 @@ function buildDockConfig(home = state?.ui?.home) {
     shape: normalizeDockShape(normalizedHome.dockShape, "raised"),
     visibility: normalizeDockVisibility(normalizedHome.dockVisibility, "always"),
     lengthUnits: normalizeDockLength(normalizedHome.dockLength, 6),
-    heightPx: 44,
+    heightPx: normalizeDockSize(normalizedHome.dockSize, 44),
     position: "bottom"
   };
 }
@@ -1308,6 +1331,7 @@ function normalizeHomeLayout(layout) {
     dockVisibility: normalizeDockVisibility(base.dockVisibility, "always"),
     dockPosition: normalizeDockPosition(base.dockPosition, "bottom"),
     dockLength: normalizeDockLength(base.dockLength, 6),
+    dockSize: normalizeDockSize(base.dockSize, 44),
     widgetBackdropBlur: base.widgetBackdropBlur !== false,
     legacyHeadlessSurfaceMigrated: base.legacyHeadlessSurfaceMigrated === true
   };
@@ -1961,6 +1985,7 @@ function buildHistoryHomeSnapshot(home) {
     dockVisibility: source.dockVisibility,
     dockPosition: source.dockPosition,
     dockLength: source.dockLength,
+    dockSize: source.dockSize,
     widgetBackdropBlur: source.widgetBackdropBlur,
     legacyHeadlessSurfaceMigrated: source.legacyHeadlessSurfaceMigrated
   };
@@ -2380,6 +2405,10 @@ function isInsideDockSettingsModalOverlay(target) {
   return target instanceof Element && Boolean(target.closest("#dockSettingsModalOverlay"));
 }
 
+function isInsideWidgetTitleRenameOverlay(target) {
+  return target instanceof Element && Boolean(target.closest("#widgetTitleRenameOverlay"));
+}
+
 function dockSettingsFields() {
   return [
     {
@@ -2406,6 +2435,14 @@ function dockSettingsFields() {
       type: "number",
       min: 5,
       max: 14,
+      step: 1
+    },
+    {
+      key: "dockSize",
+      label: "Dock size (px)",
+      type: "number",
+      min: 36,
+      max: 72,
       step: 1
     }
   ];
@@ -2445,12 +2482,16 @@ function openDockSettingsModal() {
   if (shortcutIconEditorState.open) {
     closeShortcutIconEditor();
   }
+  if (widgetTitleRenameState.open) {
+    closeWidgetTitleRenameModal();
+  }
 
   const home = normalizeHomeLayout(state.ui.home);
   dockModalState.draft = {
     dockShape: normalizeDockShape(home.dockShape, "raised"),
     dockVisibility: normalizeDockVisibility(home.dockVisibility, "always"),
-    dockLength: normalizeDockLength(home.dockLength, 6)
+    dockLength: normalizeDockLength(home.dockLength, 6),
+    dockSize: normalizeDockSize(home.dockSize, 44)
   };
 
   dockSettingsModalOpen = true;
@@ -2479,7 +2520,7 @@ function closeDockSettingsModal(rerender = false) {
   elements.dockSettingsModalOverlay?.setAttribute("aria-hidden", "true");
   elements.dockSettingsModalBody?.replaceChildren();
 
-  if (!modalState.open && !addWidgetModalOpen && !shortcutIconEditorState.open) {
+  if (!modalState.open && !addWidgetModalOpen && !shortcutIconEditorState.open && !widgetTitleRenameState.open) {
     setModalInteractionLock(false);
   }
 
@@ -2497,7 +2538,8 @@ function resetDockSettingsDraftToDefault() {
   dockModalState.draft = {
     dockShape: defaults.dockShape,
     dockVisibility: defaults.dockVisibility,
-    dockLength: defaults.dockLength
+    dockLength: defaults.dockLength,
+    dockSize: defaults.dockSize
   };
   renderDockSettingsModal();
 }
@@ -2511,7 +2553,8 @@ function applyDockSettingsModal() {
     dockShape: normalizeDockShape(dockModalState.draft.dockShape, "raised"),
     dockVisibility: normalizeDockVisibility(dockModalState.draft.dockVisibility, "always"),
     dockPosition: "bottom",
-    dockLength: normalizeDockLength(dockModalState.draft.dockLength, 6)
+    dockLength: normalizeDockLength(dockModalState.draft.dockLength, 6),
+    dockSize: normalizeDockSize(dockModalState.draft.dockSize, 44)
   };
 
   closeDockSettingsModal(false);
@@ -2849,10 +2892,13 @@ function loadImageIntoShortcutEditor(file) {
 }
 
 function blockOutsideModalEvent(event) {
-  if (!modalState.open && !addWidgetModalOpen && !shortcutIconEditorState.open && !dockSettingsModalOpen) {
+  if (!modalState.open && !addWidgetModalOpen && !shortcutIconEditorState.open && !dockSettingsModalOpen && !widgetTitleRenameState.open) {
     return;
   }
   if (dockSettingsModalOpen && isInsideDockSettingsModalOverlay(event.target)) {
+    return;
+  }
+  if (widgetTitleRenameState.open && isInsideWidgetTitleRenameOverlay(event.target)) {
     return;
   }
   if (shortcutIconEditorState.open && isInsideShortcutIconEditorOverlay(event.target)) {
@@ -2897,7 +2943,7 @@ function applyCardVisual(card, instance) {
   card.style.setProperty("--widget-pad-right", `${padding.right}px`);
   card.style.setProperty("--widget-pad-bottom", `${padding.bottom}px`);
   card.style.setProperty("--widget-pad-left", `${padding.left}px`);
-  card.style.setProperty("--widget-head-offset", instance.viewMode === "headless" ? "0px" : "40px");
+  card.style.setProperty("--widget-head-offset", instance.viewMode === "headless" ? "0px" : "44px");
   instance.contentPaddingTop = padding.top;
   instance.contentPaddingRight = padding.right;
   instance.contentPaddingBottom = padding.bottom;
@@ -3759,6 +3805,9 @@ function openAddWidgetModal() {
   if (modalState.open) {
     closeWidgetModal(false);
   }
+  if (widgetTitleRenameState.open) {
+    closeWidgetTitleRenameModal();
+  }
 
   const firstType = widgetList[0]?.type;
   if (firstType && !widgetRegistry[elements.widgetTypeSelect?.value]) {
@@ -3784,9 +3833,97 @@ function closeAddWidgetModal() {
   addWidgetModalOpen = false;
   elements.addWidgetModalOverlay?.classList.remove("open");
   elements.addWidgetModalOverlay?.setAttribute("aria-hidden", "true");
-  if (!modalState.open) {
+  if (!modalState.open && !dockSettingsModalOpen && !shortcutIconEditorState.open && !widgetTitleRenameState.open) {
     setModalInteractionLock(false);
   }
+}
+
+function openWidgetTitleRenameModal(instanceId) {
+  const instance = instanceById(instanceId);
+  if (!instance || !elements.widgetTitleRenameOverlay || !elements.widgetTitleRenameInput) {
+    return;
+  }
+
+  if (modalState.open || addWidgetModalOpen || dockSettingsModalOpen || shortcutIconEditorState.open) {
+    return;
+  }
+
+  const def = widgetRegistry[instance.type];
+  const fallbackTitle = def?.title || "Widget";
+
+  widgetTitleRenameState.open = true;
+  widgetTitleRenameState.widgetId = instance.id;
+  elements.widgetTitleRenameInput.value = instance.title || fallbackTitle;
+  elements.widgetTitleRenameOverlay.classList.add("open");
+  elements.widgetTitleRenameOverlay.setAttribute("aria-hidden", "false");
+  setModalInteractionLock(true);
+
+  requestAnimationFrame(() => {
+    elements.widgetTitleRenameInput?.focus();
+    elements.widgetTitleRenameInput?.select();
+  });
+}
+
+function closeWidgetTitleRenameModal() {
+  if (!widgetTitleRenameState.open) {
+    return;
+  }
+
+  widgetTitleRenameState.open = false;
+  widgetTitleRenameState.widgetId = "";
+  elements.widgetTitleRenameOverlay?.classList.remove("open");
+  elements.widgetTitleRenameOverlay?.setAttribute("aria-hidden", "true");
+
+  if (!modalState.open && !addWidgetModalOpen && !shortcutIconEditorState.open && !dockSettingsModalOpen) {
+    setModalInteractionLock(false);
+  }
+}
+
+function applyWidgetTitleRenameModal() {
+  if (!widgetTitleRenameState.open || !widgetTitleRenameState.widgetId) {
+    return;
+  }
+
+  const instance = instanceById(widgetTitleRenameState.widgetId);
+  if (!instance) {
+    closeWidgetTitleRenameModal();
+    return;
+  }
+
+  const def = widgetRegistry[instance.type];
+  const fallbackTitle = def?.title || "Widget";
+  const nextTitle = normalizeText(elements.widgetTitleRenameInput?.value, fallbackTitle);
+  if (instance.title === nextTitle) {
+    closeWidgetTitleRenameModal();
+    return;
+  }
+
+  recordHistorySnapshot("Rename widget title");
+  instance.title = nextTitle;
+
+  const rt = runtime.get(instance.id);
+  if (rt?.card) {
+    const titleEl = rt.card.querySelector(".widget-title");
+    if (titleEl) {
+      titleEl.textContent = nextTitle;
+    }
+  }
+
+  if (modalState.open && modalState.widgetId === instance.id && modalState.draft) {
+    modalState.draft.title = nextTitle;
+    renderWidgetModal();
+  }
+
+  if (isWidgetInContainer(instance)) {
+    refreshWidgetsByType("container");
+  }
+  if (isWidgetDocked(instance)) {
+    renderDockWidgets();
+  }
+
+  renderSettings();
+  queueSave();
+  closeWidgetTitleRenameModal();
 }
 
 function applyAddWidgetModal() {
@@ -3871,7 +4008,37 @@ function pointInsideRect(x, y, rect) {
   return x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom;
 }
 
-function createWidgetDragPreview(instance) {
+function getPersistentDockHitRect() {
+  const target = elements.persistentDockBody ?? elements.persistentDock;
+  return target?.getBoundingClientRect() ?? null;
+}
+
+function createWidgetDragPreview(instance, options = {}) {
+  const sourceCard = options?.sourceCard;
+  if (sourceCard instanceof HTMLElement) {
+    const rect = sourceCard.getBoundingClientRect();
+    const preview = sourceCard.cloneNode(true);
+    preview.classList.remove("is-active", "dock-widget-item-dragging");
+    preview.classList.add("widget-drag-preview-card");
+    preview.removeAttribute("aria-current");
+    preview.removeAttribute("tabindex");
+    preview.style.left = `${Math.round(rect.left)}px`;
+    preview.style.top = `${Math.round(rect.top)}px`;
+    preview.style.width = `${Math.max(1, Math.round(rect.width))}px`;
+    preview.style.height = `${Math.max(1, Math.round(rect.height))}px`;
+
+    const pointerX = Number(options?.pointerEvent?.clientX);
+    const pointerY = Number(options?.pointerEvent?.clientY);
+    const offsetX = Number.isFinite(pointerX) ? clamp(pointerX - rect.left, 0, rect.width) : rect.width / 2;
+    const offsetY = Number.isFinite(pointerY) ? clamp(pointerY - rect.top, 0, rect.height) : rect.height / 2;
+
+    preview.dataset.dragOffsetX = String(offsetX);
+    preview.dataset.dragOffsetY = String(offsetY);
+
+    document.body.append(preview);
+    return preview;
+  }
+
   const preview = document.createElement("div");
   preview.className = "widget-drag-preview";
   const fallbackTitle = widgetRegistry?.[instance?.type]?.title || "Widget";
@@ -3885,6 +4052,13 @@ function positionWidgetDragPreview(preview, clientX, clientY) {
     return;
   }
   if (!Number.isFinite(clientX) || !Number.isFinite(clientY)) {
+    return;
+  }
+  const offsetX = Number(preview.dataset.dragOffsetX);
+  const offsetY = Number(preview.dataset.dragOffsetY);
+  if (Number.isFinite(offsetX) && Number.isFinite(offsetY)) {
+    preview.style.left = `${Math.round(clientX - offsetX)}px`;
+    preview.style.top = `${Math.round(clientY - offsetY)}px`;
     return;
   }
   preview.style.left = `${Math.round(clientX + 14)}px`;
@@ -4012,7 +4186,11 @@ function isDockDropPoint(x, y) {
   if (!dock || dock.classList.contains("is-disabled")) {
     return false;
   }
-  return pointInsideRect(x, y, dock.getBoundingClientRect());
+  const dockRect = getPersistentDockHitRect();
+  if (!dockRect) {
+    return false;
+  }
+  return pointInsideRect(x, y, dockRect);
 }
 
 function tryContainerWidgetByDrop(instance, pointerEvent, { record = true } = {}) {
@@ -4185,6 +4363,7 @@ function onDockStripWheel(event) {
 function syncDockContentPadding(config) {
   const root = document.documentElement;
   const dock = elements.persistentDock;
+  const dockBody = elements.persistentDockBody;
 
   if (!config?.enabled || !dock || dock.classList.contains("is-disabled")) {
     root.style.setProperty("--persistent-dock-height", "0px");
@@ -4193,7 +4372,7 @@ function syncDockContentPadding(config) {
     return;
   }
 
-  const measured = Math.ceil(dock.getBoundingClientRect().height || 0);
+  const measured = Math.ceil((dockBody ?? dock).getBoundingClientRect().height || 0);
   const dockHeight = Math.max(config.heightPx, measured);
   const contentPadding = dockHeight + 12;
 
@@ -4202,22 +4381,26 @@ function syncDockContentPadding(config) {
   root.style.setProperty("--persistent-dock-clearance", `${contentPadding}px`);
 }
 
+function destroyDockEmbeddedControllers() {
+  for (const entry of dockEmbeddedUiState.controllers.values()) {
+    entry?.destroy?.();
+  }
+  dockEmbeddedUiState.controllers.clear();
+}
+
 function renderDockWidgets() {
   const strip = elements.dockWidgetStrip;
   if (!strip) {
     return;
   }
 
+  destroyDockEmbeddedControllers();
   strip.replaceChildren();
   const items = dockedInstances();
   strip.classList.toggle("is-empty", items.length === 0);
 
   if (!items.length) {
     dockUiState.activeId = "";
-    const empty = document.createElement("span");
-    empty.className = "dock-widget-empty";
-    empty.textContent = "Drop 1x1 widgets here";
-    strip.append(empty);
     syncDockOverflowState();
     return;
   }
@@ -4227,10 +4410,9 @@ function renderDockWidgets() {
 
   for (const item of items) {
     const label = normalizeText(item.title, widgetRegistry?.[item.type]?.title || "Widget");
-    const monogram = normalizeText(label).slice(0, 1).toUpperCase() || "W";
 
     const card = document.createElement("article");
-    card.className = "dock-widget-item widget-card";
+    card.className = "dock-widget-item widget-card widget-folder-item-card";
     card.dataset.widgetId = item.id;
     card.dataset.widgetType = item.type;
     card.setAttribute("role", "button");
@@ -4249,28 +4431,66 @@ function renderDockWidgets() {
     const slot = document.createElement("div");
     slot.className = "widget-content-slot dock-widget-content";
 
-    const icon = document.createElement("span");
-    icon.className = "dock-item-icon";
-    icon.textContent = monogram;
-
-    const caption = document.createElement("span");
-    caption.className = "dock-widget-caption";
-    caption.textContent = label;
-
-    const indicator = document.createElement("span");
-    indicator.className = "dock-item-indicator";
-    indicator.setAttribute("aria-hidden", "true");
-
-    slot.append(icon, caption);
     host.append(slot);
     body.append(host);
     shell.append(body);
-    card.append(shell, indicator);
+    card.append(shell);
 
     applyCardVisual(card, item);
 
+    const def = widgetRegistry[item.type];
+    if (def && typeof def.create === "function") {
+      const controller = def.create({
+        container: slot,
+        getConfig: () => item.config,
+        getUi: () => state.ui,
+        getWidget: () => item,
+        getAllWidgets: () => state.instances,
+        getWidgetDefinition: (type) => widgetRegistry[type] || null,
+        getGridMetrics: () => gridMetrics(),
+        getWidgetRuntimeCard: (widgetId) => runtime.get(widgetId)?.card || null,
+        patchConfig: (patch, options = {}) => patchWidgetConfig(item.id, patch, options),
+        patchWidgetConfigById: (widgetId, patch, options = {}) => patchWidgetConfig(widgetId, patch, options),
+        setWidgetContainer: (widgetId, containerId) => setWidgetContainer(widgetId, containerId),
+        releaseWidgetFromContainerByDrop: (widgetId, payload) => releaseWidgetFromContainerByDrop(widgetId, payload),
+        registerContainerDropTarget: (containerId, element, options = {}) =>
+          registerContainerDropTarget(containerId, element, options),
+        unregisterContainerDropTarget: (containerId) => unregisterContainerDropTarget(containerId),
+        isEditMode: () => state.mode === "edit",
+        openSettings: () => {
+          if (state.mode !== "edit") {
+            return;
+          }
+          setSelected(item.id);
+          openWidgetModal(item.id);
+        },
+        openWidgetSettingsById: (widgetId) => {
+          if (state.mode !== "edit") {
+            return;
+          }
+          const target = instanceById(widgetId);
+          if (!target) {
+            return;
+          }
+          setSelected(target.id);
+          openWidgetModal(target.id);
+        }
+      });
+
+      dockEmbeddedUiState.controllers.set(item.id, {
+        destroy() {
+          controller?.destroy?.();
+        }
+      });
+    } else {
+      const fallback = document.createElement("span");
+      fallback.className = "dock-item-icon";
+      fallback.textContent = normalizeText(label).slice(0, 1).toUpperCase() || "W";
+      slot.append(fallback);
+    }
+
     card.addEventListener("pointerdown", (event) => {
-      if (state.mode !== "edit" || event.button !== 0) {
+      if (event.button !== 0) {
         return;
       }
       if (event.target.closest("button, input, textarea, select, [contenteditable='true']")) {
@@ -4280,12 +4500,20 @@ function renderDockWidgets() {
       event.preventDefault();
       event.stopPropagation();
 
-      const dockRect = elements.persistentDock?.getBoundingClientRect();
+      const dockRect = getPersistentDockHitRect();
       if (!dockRect) {
         return;
       }
 
-      const ghost = createWidgetDragPreview(item);
+      const pointerId = Number.isFinite(event?.pointerId) ? event.pointerId : null;
+      if (pointerId !== null) {
+        card.setPointerCapture?.(pointerId);
+      }
+
+      const ghost = createWidgetDragPreview(item, {
+        sourceCard: card,
+        pointerEvent: event
+      });
       card.classList.add("dock-widget-item-dragging");
 
       const updateGhost = (clientX, clientY) => {
@@ -4297,6 +4525,9 @@ function renderDockWidgets() {
       updateGhost(event.clientX, event.clientY);
 
       const finish = (upEvent) => {
+        if (pointerId !== null) {
+          card.releasePointerCapture?.(pointerId);
+        }
         window.removeEventListener("pointermove", move);
         window.removeEventListener("pointerup", finish);
         window.removeEventListener("pointercancel", finish);
@@ -4347,7 +4578,7 @@ function renderDockWidgets() {
   syncDockOverflowState();
 }
 
-function syncPersistentDock(progress = null) {
+function syncPersistentDock() {
   const dock = elements.persistentDock;
   if (!dock) {
     syncDockContentPadding({ enabled: false, heightPx: 0 });
@@ -4357,6 +4588,7 @@ function syncPersistentDock(progress = null) {
   const config = buildDockConfig(state?.ui?.home);
   if (!config.enabled) {
     setDockDropTargetActive(false);
+    destroyDockEmbeddedControllers();
     elements.dockWidgetStrip?.replaceChildren();
     dockUiState.activeId = "";
     dock.classList.add("is-disabled");
@@ -4388,11 +4620,9 @@ function syncPersistentDock(progress = null) {
 
   renderDockWidgets();
   syncDockContentPadding(config);
-  if (!Number.isFinite(progress)) {
-    requestAnimationFrame(() => {
-      syncDockContentPadding(config);
-    });
-  }
+  requestAnimationFrame(() => {
+    syncDockContentPadding(config);
+  });
 }
 
 function renderBoardViewport({ dragOffsetX = 0, animate = true, dragging = false } = {}) {
@@ -4414,11 +4644,8 @@ function renderBoardViewport({ dragOffsetX = 0, animate = true, dragging = false
   elements.board.classList.toggle("no-page-transition", !animate);
   elements.board.classList.toggle("is-page-dragging", dragging);
 
-  if (dragging) {
-    const progress = activePage - offset / boardW;
-    syncPersistentDock(progress);
-  } else {
-    syncPersistentDock(activePage);
+  if (!dragging) {
+    syncPersistentDock();
   }
 
   refreshWidgetsByType("container");
@@ -5092,6 +5319,7 @@ function createWidgetCard(instance) {
   const body = fragment.querySelector(".widget-body");
   const contentHost = fragment.querySelector(".widget-content-host");
   const inlineActions = fragment.querySelector(".widget-inline-actions");
+  const inlineActionsBottom = fragment.querySelector(".widget-inline-actions-bottom");
   const contentSlot = fragment.querySelector(".widget-content-slot");
   const selectBtn = fragment.querySelector(".widget-select-btn");
   const removeBtn = fragment.querySelector(".widget-remove-btn");
@@ -5197,35 +5425,59 @@ function createWidgetCard(instance) {
   removeBtn.addEventListener("click", removeCurrent);
   floatRemoveBtn?.addEventListener("click", removeCurrent);
 
-  if (instance.type === "bookmarks" && typeof controller?.refresh === "function") {
-    const makeRefreshButton = (className, titleText) => {
+  const placeFloatTopAction = (btn) => {
+    if (floatSelectBtn?.parentElement === inlineActions) {
+      inlineActions.insertBefore(btn, floatSelectBtn);
+    } else {
+      inlineActions?.prepend(btn);
+    }
+  };
+
+  const placeFloatBottomAction = (btn) => {
+    inlineActionsBottom?.append(btn);
+  };
+
+  if (instance.type === "bookmarks") {
+    const makeActionButton = (className, titleText, iconId, action) => {
       const btn = document.createElement("button");
       btn.type = "button";
       btn.className = className;
       btn.title = titleText;
-      btn.innerHTML = '<svg class="icon"><use href="#i-reset"></use></svg>';
+      btn.innerHTML = `<svg class="icon"><use href="#${iconId}"></use></svg>`;
       btn.addEventListener("click", (event) => {
         event.preventDefault();
         event.stopPropagation();
-        controller.refresh();
+        Promise.resolve(action?.());
       });
       return btn;
     };
 
-    const headRefresh = makeRefreshButton("icon-btn widget-refresh-btn", "Refresh bookmarks");
-    if (selectBtn?.parentElement === headActions) {
-      headActions.insertBefore(headRefresh, selectBtn);
-    } else {
-      headActions?.prepend(headRefresh);
+    if (typeof controller?.goBack === "function") {
+      const floatBack = makeActionButton("icon-btn widget-float-back", "Go back", "i-undo", () => controller.goBack?.());
+      placeFloatBottomAction(floatBack);
+
+      const syncBackState = (canGoBack) => {
+        const enabled = Boolean(canGoBack);
+        floatBack.disabled = !enabled;
+        floatBack.title = enabled ? "Go back" : "Go back (root folder)";
+      };
+
+      if (typeof controller?.onBackStateChange === "function") {
+        controller.onBackStateChange(syncBackState);
+      } else {
+        syncBackState(typeof controller?.canGoBack === "function" ? controller.canGoBack() : true);
+      }
     }
 
-    const floatRefresh = makeRefreshButton("icon-btn widget-float-refresh", "Refresh bookmarks");
-    if (floatSelectBtn?.parentElement === inlineActions) {
-      inlineActions.insertBefore(floatRefresh, floatSelectBtn);
-    } else {
-      inlineActions?.prepend(floatRefresh);
+    if (typeof controller?.refresh === "function") {
+      const floatRefresh = makeActionButton(
+        "icon-btn widget-float-refresh",
+        "Refresh bookmarks",
+        "i-reset",
+        () => controller.refresh?.()
+      );
+      placeFloatBottomAction(floatRefresh);
     }
-    card.classList.add("supports-headless-refresh");
   }
 
   if (instance.type === "mondayAssigned") {
@@ -5250,14 +5502,6 @@ function createWidgetCard(instance) {
         headActions.insertBefore(btn, selectBtn);
       } else {
         headActions?.prepend(btn);
-      }
-    };
-
-    const placeFloatAction = (btn) => {
-      if (floatSelectBtn?.parentElement === inlineActions) {
-        inlineActions.insertBefore(btn, floatSelectBtn);
-      } else {
-        inlineActions?.prepend(btn);
       }
     };
 
@@ -5314,7 +5558,7 @@ function createWidgetCard(instance) {
         runRefresh,
         syncAuthButtonState
       );
-      placeFloatAction(floatRefresh);
+      placeFloatBottomAction(floatRefresh);
     }
 
     if (typeof controller?.openMonday === "function") {
@@ -5332,7 +5576,7 @@ function createWidgetCard(instance) {
         "i-open",
         runOpenMonday
       );
-      placeFloatAction(floatOpen);
+      placeFloatTopAction(floatOpen);
     }
 
     if (typeof controller?.toggleConnection === "function") {
@@ -5352,11 +5596,9 @@ function createWidgetCard(instance) {
       );
       authButtons.push(headAuth, floatAuth);
       placeHeadAction(headAuth);
-      placeFloatAction(floatAuth);
+      placeFloatTopAction(floatAuth);
       syncAuthButtonState();
     }
-
-    card.classList.add("supports-headless-refresh");
   }
 
   if (instance.type === "githubPrList") {
@@ -5379,14 +5621,6 @@ function createWidgetCard(instance) {
         headActions.insertBefore(btn, selectBtn);
       } else {
         headActions?.prepend(btn);
-      }
-    };
-
-    const placeFloatAction = (btn) => {
-      if (floatSelectBtn?.parentElement === inlineActions) {
-        inlineActions.insertBefore(btn, floatSelectBtn);
-      } else {
-        inlineActions?.prepend(btn);
       }
     };
 
@@ -5425,7 +5659,7 @@ function createWidgetCard(instance) {
         "i-reset",
         runRefresh
       );
-      placeFloatAction(floatRefresh);
+      placeFloatBottomAction(floatRefresh);
     }
 
     if (typeof controller?.openRepository === "function") {
@@ -5443,10 +5677,8 @@ function createWidgetCard(instance) {
         "i-open",
         runOpenRepository
       );
-      placeFloatAction(floatOpen);
+      placeFloatTopAction(floatOpen);
     }
-
-    card.classList.add("supports-headless-refresh");
   }
 
   card.addEventListener(
@@ -6056,6 +6288,9 @@ function createWidgetCard(instance) {
     if (state.mode !== "edit") {
       return;
     }
+    if (event.target instanceof Element && event.target.closest(".widget-title")) {
+      return;
+    }
     startDrag({ event, target: event.target, fromHandleButton: false });
   });
 
@@ -6072,36 +6307,16 @@ function createWidgetCard(instance) {
     if (state.mode !== "edit") {
       return;
     }
-    startDrag({ event, target: event.target, fromHandleButton: false });
-  });
-
-  title?.addEventListener("pointerdown", (event) => {
-    if (instance.type === "container") {
-      return;
-    }
-    if (instance.viewMode === "headless") {
-      return;
-    }
-    if (state.mode !== "edit") {
+    if (event.target instanceof Element && event.target.closest(".widget-title")) {
       return;
     }
     startDrag({ event, target: event.target, fromHandleButton: false });
   });
 
-  title?.addEventListener("mousedown", (event) => {
-    if (typeof window.PointerEvent !== "undefined") {
-      return;
-    }
-    if (instance.type === "container") {
-      return;
-    }
-    if (instance.viewMode === "headless") {
-      return;
-    }
-    if (state.mode !== "edit") {
-      return;
-    }
-    startDrag({ event, target: event.target, fromHandleButton: false });
+  title?.addEventListener("dblclick", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    openWidgetTitleRenameModal(instance.id);
   });
 
   card.addEventListener(
@@ -7460,6 +7675,10 @@ function openWidgetModal(instanceId) {
     return;
   }
 
+  if (widgetTitleRenameState.open) {
+    closeWidgetTitleRenameModal();
+  }
+
   const padding = resolveWidgetPadding(instance);
 
   modalState.open = true;
@@ -8153,6 +8372,24 @@ function wireEvents() {
     closeWidgetModal(false);
   });
 
+  elements.widgetTitleRenameCloseBtn?.addEventListener("click", () => {
+    closeWidgetTitleRenameModal();
+  });
+
+  elements.widgetTitleRenameCancelBtn?.addEventListener("click", () => {
+    closeWidgetTitleRenameModal();
+  });
+
+  elements.widgetTitleRenameOkBtn?.addEventListener("click", () => {
+    applyWidgetTitleRenameModal();
+  });
+
+  elements.widgetTitleRenameOverlay?.addEventListener("pointerdown", (event) => {
+    if (event.target === elements.widgetTitleRenameOverlay) {
+      closeWidgetTitleRenameModal();
+    }
+  });
+
   elements.dockSettingsModalCloseBtn?.addEventListener("click", () => {
     closeDockSettingsModal(false);
   });
@@ -8338,6 +8575,26 @@ function wireEvents() {
         redoLastChange();
       }
       return;
+    }
+
+    if (widgetTitleRenameState.open) {
+      if (!isInsideWidgetTitleRenameOverlay(event.target)) {
+        event.preventDefault();
+        event.stopPropagation();
+        return;
+      }
+
+      if (event.key === "Escape") {
+        event.preventDefault();
+        closeWidgetTitleRenameModal();
+        return;
+      }
+
+      if (event.key === "Enter" && event.target instanceof HTMLInputElement) {
+        event.preventDefault();
+        applyWidgetTitleRenameModal();
+        return;
+      }
     }
 
     if (addWidgetModalOpen) {

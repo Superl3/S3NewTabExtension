@@ -485,34 +485,11 @@ body.mode-edit .dock-edit-controls {
 }
 
 .persistent-dock[data-shape="raised"] .persistent-dock-body {
-  box-shadow:
-    0 14px 26px var(--shadow-edge),
-    0 2px 0 color-mix(in srgb, var(--line), var(--tone-dark) 20%);
+  box-shadow: 0 14px 26px var(--shadow-edge);
 }
 
 .persistent-dock[data-shape="raised"] .persistent-dock-body::after {
-  content: "";
-  position: absolute;
-  left: 14%;
-  right: 14%;
-  bottom: -8px;
-  height: 10px;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--line), var(--tone-dark) 18%);
-  opacity: 0.58;
-  z-index: -1;
-}
-
-.persistent-dock[data-shape="raised"][data-position="left"] .persistent-dock-body::after {
-  inset: 14% auto 14% -8px;
-  width: 10px;
-  height: auto;
-}
-
-.persistent-dock[data-shape="raised"][data-position="right"] .persistent-dock-body::after {
-  inset: 14% -8px 14% auto;
-  width: 10px;
-  height: auto;
+  content: none;
 }
 
 .persistent-dock[data-shape="flat"] .persistent-dock-body {
@@ -576,24 +553,30 @@ body.mode-edit .dock-edit-controls {
 }
 
 .dock-widget-item {
-  position: relative !important;
-  width: 44px;
-  height: 44px;
-  min-width: 44px;
-  min-height: 44px;
+  position: relative;
+  width: var(--dock-unit-size);
+  height: var(--dock-unit-size);
+  min-width: var(--dock-unit-size);
+  min-height: var(--dock-unit-size);
   padding: 0;
   flex: 0 0 auto;
+  border-radius: calc(var(--dock-unit-size) * 0.28);
+  overflow: hidden;
   cursor: pointer;
-  transition: transform 0.16s ease, border-color 0.16s ease, box-shadow 0.16s ease;
+  transition: transform 0.16s ease, box-shadow 0.16s ease;
 }
 
-.dock-widget-item:hover {
+.dock-widget-item.widget-folder-item-card {
+  width: var(--dock-unit-size);
+  height: var(--dock-unit-size);
+}
+
+body.mode-edit .dock-widget-item:hover {
   transform: translateY(-1px);
 }
 
 .dock-widget-item.is-active {
-  border-color: color-mix(in srgb, var(--primary), var(--tone-dark) 18%);
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--primary), var(--tone-light) 22%), var(--shadow);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--primary), var(--tone-light) 24%);
 }
 
 .dock-widget-item .widget-shell,
@@ -612,9 +595,19 @@ body.mode-edit .dock-edit-controls {
 
 .dock-widget-content {
   position: relative;
-  display: grid;
-  place-items: center;
+  display: flex;
+  align-items: stretch;
+  justify-content: stretch;
   overflow: hidden;
+}
+
+.dock-widget-content,
+.dock-widget-content * {
+  pointer-events: none;
+}
+
+.dock-widget-item .shortcut-label {
+  display: none;
 }
 
 .dock-item-icon {
@@ -626,45 +619,6 @@ body.mode-edit .dock-edit-controls {
   color: color-mix(in srgb, var(--widget-effective-text), var(--primary) 22%);
 }
 
-.dock-widget-caption {
-  position: absolute;
-  left: 4px;
-  right: 4px;
-  bottom: 4px;
-  border-radius: 999px;
-  padding: 1px 5px;
-  font-size: 8px;
-  font-weight: 650;
-  line-height: 1.25;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  text-align: center;
-  background: color-mix(in srgb, var(--surface), transparent 28%);
-  border: 1px solid color-mix(in srgb, var(--line), transparent 36%);
-  color: color-mix(in srgb, var(--widget-effective-text), var(--primary) 10%);
-}
-
-.dock-item-indicator {
-  position: absolute;
-  left: 50%;
-  bottom: 4px;
-  width: 18px;
-  height: 3px;
-  border-radius: 999px;
-  transform: translateX(-50%) scaleX(0.45);
-  transform-origin: center;
-  background: color-mix(in srgb, var(--line), transparent 12%);
-  opacity: 0.2;
-  transition: transform 0.16s ease, opacity 0.16s ease, background-color 0.16s ease;
-}
-
-.dock-widget-item.is-active .dock-item-indicator {
-  transform: translateX(-50%) scaleX(1);
-  opacity: 1;
-  background: color-mix(in srgb, var(--primary), var(--tone-light) 14%);
-}
-
 .persistent-dock[data-position="left"] .dock-widget-strip,
 .persistent-dock[data-position="right"] .dock-widget-strip {
   flex-direction: column;
@@ -672,23 +626,18 @@ body.mode-edit .dock-edit-controls {
 }
 
 .persistent-dock-actions {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: auto;
-  height: auto;
-  flex: 0 0 auto;
-  gap: 7px;
-}
-
-.persistent-dock[data-position="left"] .persistent-dock-actions,
-.persistent-dock[data-position="right"] .persistent-dock-actions {
-  flex-direction: column;
+  position: absolute;
+  inset-block-start: -10px;
+  inset-inline-end: -10px;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+  z-index: 4;
 }
 
 .dock-action-btn {
-  width: 44px;
-  height: 44px;
+  width: 30px;
+  height: 30px;
   border: 1px solid color-mix(in srgb, var(--line), transparent 20%);
   border-radius: 999px;
   background: color-mix(in srgb, var(--surface), transparent 14%);
@@ -698,26 +647,22 @@ body.mode-edit .dock-edit-controls {
   justify-content: center;
   padding: 0;
   cursor: pointer;
+  pointer-events: auto;
   font: inherit;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 700;
   line-height: 1;
   transition: transform 0.18s ease, background-color 0.18s ease, opacity 0.18s ease;
 }
 
 .dock-action-btn .icon {
-  width: 17px;
-  height: 17px;
+  width: 14px;
+  height: 14px;
 }
 
 .dock-action-btn:hover:not(:disabled) {
   transform: translateY(-1px);
   background: color-mix(in srgb, var(--surface), var(--primary) 11%);
-}
-
-.persistent-dock[data-position="left"] .dock-action-btn:hover:not(:disabled),
-.persistent-dock[data-position="right"] .dock-action-btn:hover:not(:disabled) {
-  transform: translateX(-1px);
 }
 
 .dock-action-btn:disabled {
@@ -762,7 +707,7 @@ body.mode-edit .dock-edit-controls {
 }
 
 .persistent-dock[data-visibility="hover"] .persistent-dock-handle {
-  display: block;
+  display: none;
 }
 
 .persistent-dock[data-visibility="hover"][data-position="top"] .persistent-dock-handle,
@@ -918,7 +863,7 @@ body.mode-edit.settings-open .settings-rail-toggle {
   --widget-pad-right: 10px;
   --widget-pad-bottom: 10px;
   --widget-pad-left: 10px;
-  --widget-head-offset: 40px;
+  --widget-head-offset: 44px;
   --widget-label-backdrop-blur: 0px;
   --widget-effective-text: var(--widget-transparent-text, var(--widget-custom-text, var(--widget-theme-text, var(--text))));
   --widget-effective-accent: var(--widget-custom-accent, var(--widget-theme-accent, var(--accent)));
@@ -1046,7 +991,7 @@ body.mode-edit.settings-open .settings-rail-toggle {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  min-height: 38px;
+  min-height: 42px;
   padding: 7px 10px;
   border-bottom: 1px solid color-mix(in srgb, var(--line), transparent 22%);
   background: transparent;
@@ -1068,18 +1013,12 @@ body.mode-edit .drag-handle {
 }
 
 .widget-head-actions {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  min-height: 32px;
-  min-width: 0;
-  flex: 0 0 auto;
-  justify-content: flex-end;
+  display: none;
 }
 
 .widget-body {
   padding: var(--widget-content-padding, 10px);
-  height: calc(100% - 40px);
+  height: calc(100% - 44px);
   overflow: auto;
   font-size: calc(15px * var(--content-font-scale) * var(--widget-content-font-scale, 1));
 }
@@ -1149,68 +1088,66 @@ body.mode-edit .drag-handle {
   height: 100%;
 }
 
-.widget-inline-actions {
+.widget-inline-actions,
+.widget-inline-actions-bottom {
   position: absolute;
-  top: 0;
-  right: 0;
   z-index: 12;
   display: inline-flex;
+  align-items: center;
   gap: 6px;
-  opacity: 0;
-  pointer-events: none;
-  transform: translateY(-4px);
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(0);
   transition: opacity 0.16s ease, transform 0.16s ease;
 }
 
-.widget-card.headless .widget-content-host {
-  position: static;
-}
-
-.widget-card.headless .widget-inline-actions {
+.widget-inline-actions {
   top: 6px;
   right: 6px;
 }
 
-body.mode-edit .widget-card.headless .widget-inline-actions {
-  opacity: 0;
-  pointer-events: none;
+.widget-inline-actions-bottom {
+  right: 6px;
+  bottom: 6px;
 }
 
-body.mode-edit .widget-card.headless:hover .widget-inline-actions,
-body.mode-edit .widget-card.headless:focus-within .widget-inline-actions {
-  opacity: 1;
-  pointer-events: auto;
-  transform: translateY(0);
-}
-
-.widget-card.headless.supports-headless-refresh:hover .widget-inline-actions,
-.widget-card.headless.supports-headless-refresh:focus-within .widget-inline-actions {
-  opacity: 1;
-  pointer-events: auto;
-  transform: translateY(0);
-}
-
-body:not(.mode-edit) .widget-card.headless .widget-inline-actions .widget-drag-btn,
-body:not(.mode-edit) .widget-card.headless .widget-inline-actions .widget-float-select,
-body:not(.mode-edit) .widget-card.headless .widget-inline-actions .widget-float-remove {
+.widget-inline-actions-bottom:empty {
   display: none;
 }
 
-body:not(.mode-edit) .widget-card.headless .widget-inline-actions .widget-float-auth-toggle {
+.widget-card.headless .widget-inline-actions {
+  left: 6px;
+  right: 6px;
+  justify-content: flex-end;
+}
+
+.widget-card.headless .widget-inline-actions .widget-drag-btn {
+  margin-right: auto;
+}
+
+.widget-card:not(.headless) .widget-inline-actions .widget-drag-btn {
   display: none;
 }
 
-body:not(.mode-edit) .widget-head .widget-remove-btn,
-body:not(.mode-edit) .widget-head .widget-select-btn {
+body:not(.mode-edit) .widget-inline-actions .widget-drag-btn,
+body:not(.mode-edit) .widget-inline-actions .widget-float-select,
+body:not(.mode-edit) .widget-inline-actions .widget-float-remove,
+body:not(.mode-edit) .widget-inline-actions .widget-float-auth-toggle {
   display: none;
 }
 
-body:not(.mode-edit) .widget-head .widget-auth-toggle-btn {
+body.mode-edit .widget-inline-actions .widget-float-refresh,
+body.mode-edit .widget-inline-actions .widget-float-open,
+body.mode-edit .widget-inline-actions .widget-float-back,
+body.mode-edit .widget-inline-actions-bottom .widget-float-refresh,
+body.mode-edit .widget-inline-actions-bottom .widget-float-open,
+body.mode-edit .widget-inline-actions-bottom .widget-float-back {
   display: none;
 }
 
 .widget-refresh-btn,
 .widget-float-refresh,
+.widget-float-back,
 .widget-open-btn,
 .widget-float-open,
 .widget-auth-toggle-btn,
@@ -1227,6 +1164,16 @@ body:not(.mode-edit) .widget-head .widget-auth-toggle-btn {
 .widget-open-btn .icon,
 .widget-float-open .icon {
   stroke-width: 1.9;
+}
+
+.widget-float-back .icon {
+  stroke-width: 1.95;
+}
+
+.widget-float-back:disabled {
+  border-color: color-mix(in srgb, var(--line), transparent 10%);
+  color: var(--muted);
+  cursor: default;
 }
 
 .widget-auth-toggle-btn .icon,
@@ -1645,6 +1592,25 @@ body.mode-edit .widget-folder-item-card .widget-head {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.widget-drag-preview-card {
+  position: fixed;
+  z-index: 6400;
+  pointer-events: none;
+  margin: 0;
+  transform: translateZ(0) scale(1.02);
+  transform-origin: top left;
+  box-shadow:
+    0 0 0 2px color-mix(in srgb, var(--accent), var(--tone-light) 24%),
+    0 18px 34px var(--shadow-strong);
+}
+
+.widget-drag-preview-card .widget-inline-actions,
+.widget-drag-preview-card .widget-resize-handle,
+.widget-drag-preview-card .widget-padding-handle,
+.widget-drag-preview-card .widget-folder-item-floating-title {
+  display: none !important;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -2908,29 +2874,6 @@ body.mode-edit .widget-float-remove:hover {
   color: var(--muted);
 }
 
-.bookmark-nav-back {
-  flex: 0 0 36px;
-  width: 36px;
-  height: 22px;
-  border: none;
-  background: transparent;
-  color: var(--muted);
-  font: inherit;
-  font-size: 0.8em;
-  cursor: pointer;
-  text-align: right;
-  padding: 0;
-}
-
-.bookmark-nav-back:hover {
-  color: color-mix(in srgb, var(--widget-effective-accent), var(--tone-light) 8%);
-}
-
-.bookmark-nav-back.is-hidden {
-  visibility: hidden;
-  pointer-events: none;
-}
-
 .bookmark-grid {
   --bookmarks-font-scale: 1;
   display: grid;
@@ -3391,6 +3334,18 @@ body.mode-edit .widget-float-remove:hover {
   width: min(460px, 92vw);
 }
 
+.widget-title-rename-modal {
+  width: min(380px, 92vw);
+}
+
+.widget-title-rename-body {
+  overflow: visible;
+}
+
+.widget-title-rename-row {
+  margin-bottom: 0;
+}
+
 .add-widget-modal-body .field {
   min-width: 0;
   width: 100%;
@@ -3734,14 +3689,19 @@ body.mode-edit .widget-float-remove:hover {
   }
 
   .dock-action-btn {
-    width: 44px;
-    height: 44px;
+    width: 28px;
+    height: 28px;
+  }
+
+  .dock-action-btn .icon {
+    width: 13px;
+    height: 13px;
   }
 
   .dock-widget-item {
-    width: 44px;
-    height: 44px;
-    border-radius: 13px;
+    width: var(--dock-unit-size);
+    height: var(--dock-unit-size);
+    border-radius: calc(var(--dock-unit-size) * 0.28);
   }
 
   .dock-widget-empty {
