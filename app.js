@@ -66,7 +66,6 @@ const elements = {
   modeToggleBtn: document.getElementById("modeToggleBtn"),
   addWidgetBtn: document.getElementById("addWidgetBtn"),
   resetBtn: document.getElementById("resetBtn"),
-  autoArrangeBtn: document.getElementById("autoArrangeBtn"),
   undoBtn: document.getElementById("undoBtn"),
   redoBtn: document.getElementById("redoBtn"),
   tabGlobalBtn: document.getElementById("tabGlobalBtn"),
@@ -4624,96 +4623,6 @@ function updateBoardBounds() {
   renderBoardViewport({ animate: false, dragging: false, dragOffsetX: 0 });
 }
 
-function autoArrangeWidgets() {
-  if (state.mode !== "edit") {
-    return;
-  }
-
-  syncLauncherPagingState({ expandToFitInstances: true });
-
-  if (isGridLayoutMode()) {
-    applyGridLayout({ commitFreeLayout: false, shouldSave: true });
-    return;
-  }
-
-  const items = state.instances.filter(
-    (instance) => instance.enabled !== false && !isWidgetDocked(instance) && !isWidgetInContainer(instance)
-  );
-  if (!items.length) {
-    return;
-  }
-
-  const boardW = Math.max(1, Math.floor(elements.board.clientWidth));
-  const boardH = Math.max(1, Math.floor(elements.board.clientHeight));
-  const gap = boardW < 900 ? 10 : 14;
-
-  const byPage = new Map();
-  for (const instance of items) {
-    const page = normalizeWidgetPage(instance.page, state.ui.home.pageCount, 0);
-    instance.page = page;
-    if (!byPage.has(page)) {
-      byPage.set(page, []);
-    }
-    byPage.get(page).push(instance);
-  }
-
-  for (const pageItems of byPage.values()) {
-    let best = null;
-    for (let columns = 1; columns <= pageItems.length; columns += 1) {
-      const rows = Math.ceil(pageItems.length / columns);
-      const cellW = Math.floor((boardW - gap * (columns + 1)) / columns);
-      const cellH = Math.floor((boardH - gap * (rows + 1)) / rows);
-      if (cellW < 90 || cellH < 70) {
-        continue;
-      }
-
-      const ratioPenalty = Math.abs(columns / rows - boardW / Math.max(1, boardH));
-      const score = cellW * cellH - ratioPenalty * 12000;
-      if (!best || score > best.score) {
-        best = {
-          score,
-          columns,
-          rows,
-          cellW,
-          cellH
-        };
-      }
-    }
-
-    if (!best) {
-      best = {
-        columns: 1,
-        rows: pageItems.length,
-        cellW: Math.max(90, boardW - gap * 2),
-        cellH: Math.max(70, Math.floor((boardH - gap * (pageItems.length + 1)) / Math.max(1, pageItems.length)))
-      };
-    }
-
-    for (let i = 0; i < pageItems.length; i += 1) {
-      const row = Math.floor(i / best.columns);
-      const col = i % best.columns;
-      const x = gap + col * (best.cellW + gap);
-      const y = gap + row * (best.cellH + gap);
-
-      const instance = pageItems[i];
-      instance.layout.x = x;
-      instance.layout.y = y;
-      instance.layout.w = best.cellW;
-      instance.layout.h = best.cellH;
-
-      const rt = runtime.get(instance.id);
-      if (rt?.card) {
-        applyLayout(rt.card, instance.layout, instance.page);
-      }
-    }
-  }
-
-  closeWidgetModal(false);
-  setSelected(state.selectedWidgetId);
-  updateBoardBounds();
-  queueSave();
-}
-
 function instanceById(instanceId) {
   return state.instances.find((item) => item.id === instanceId) || null;
 }
@@ -8197,10 +8106,6 @@ function wireEvents() {
       return;
     }
     resetState();
-  });
-
-  elements.autoArrangeBtn?.addEventListener("click", () => {
-    autoArrangeWidgets();
   });
 
   elements.undoBtn?.addEventListener("click", () => {
