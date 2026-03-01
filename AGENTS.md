@@ -5,11 +5,15 @@ These rules are mandatory for this repository across sessions.
 ## Required Git Flow
 
 1. Never commit directly on `main` for feature or bugfix changes.
-2. Use a feature branch per task (`feat/*`, `fix/*`, `chore/*`).
+2. Use consolidated work branches:
+   - Route all bugfix work to the shared `fix` branch (do not split into per-fix `fix/*` branches).
+   - Group feature work into shared `feat/<area>` branches (for example: `feat/dock`, `feat/widget-ui`, `feat/weather`) instead of creating overly granular feature branches.
+   - Reuse the closest matching existing `feat/<area>` branch when possible; create a new one only when no suitable area branch exists.
+   - Keep `chore/*` branches task-specific when that remains the clearest option.
 3. For each completed modification request:
    - Commit the related files.
-   - Push the feature branch.
-   - Merge the feature branch into `main` with `--no-ff`.
+   - Push the selected work branch.
+   - Merge the selected work branch into `main` with `--no-ff`.
    - Push `main`.
 4. Keep unrelated working tree changes out of commits.
 
