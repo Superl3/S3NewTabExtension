@@ -141,6 +141,7 @@ const modalState = {
 
 let state = null;
 let saveTimer = null;
+let saveAllowsNonUserMutation = false;
 let lastSavedFingerprint = "";
 let lastSavedUserMutationAt = 0;
 let saveInFlightFingerprint = "";
@@ -1873,10 +1874,13 @@ function hydrate(raw) {
   };
 }
 
-function queueSave() {
+function queueSave(options = {}) {
   if (!state) {
     return;
   }
+
+  const allowWithoutUserMutation = options.allowWithoutUserMutation === true;
+  saveAllowsNonUserMutation = saveAllowsNonUserMutation || allowWithoutUserMutation;
 
   if (saveTimer) {
     clearTimeout(saveTimer);
@@ -1884,9 +1888,11 @@ function queueSave() {
 
   saveTimer = setTimeout(() => {
     saveTimer = null;
+    const allowNonUserMutation = saveAllowsNonUserMutation;
+    saveAllowsNonUserMutation = false;
     const snapshot = buildPersistSnapshot();
     const userMutationAt = readUserMutationClock(snapshot);
-    if (userMutationAt <= lastSavedUserMutationAt) {
+    if (!allowNonUserMutation && userMutationAt <= lastSavedUserMutationAt) {
       return;
     }
     const fingerprint = snapshotFingerprint(snapshot);
@@ -3476,7 +3482,7 @@ async function loadVideoLoop({ force = false } = {}) {
     elements.bgVideo.style.filter = "none";
     state.ui.background.videoCacheSignature = signature;
     state.ui.background.videoCacheStoredAt = Date.now();
-    queueSave();
+    queueSave({ allowWithoutUserMutation: true });
   } catch (error) {
     if (token !== videoLoadToken) {
       return;
@@ -3554,7 +3560,7 @@ async function refreshWallpaper({ signature = null, force = false } = {}) {
   state.ui.background.wallpaperCachedAt = Date.now();
   state.ui.background.wallpaperCachedSignature = activeSignature;
   wallpaperSourceSignature = activeSignature;
-  queueSave();
+  queueSave({ allowWithoutUserMutation: true });
 
   applyWallpaperSwap(nextUrl, token);
 }
@@ -8444,7 +8450,7 @@ async function init() {
   state = hydrate(loaded);
   wireStorageSync();
   if (state.ui.home.legacyHeadlessSurfaceMigrated && loaded?.ui?.home?.legacyHeadlessSurfaceMigrated !== true) {
-    queueSave();
+    queueSave({ allowWithoutUserMutation: true });
   }
 
   applyTheme();
