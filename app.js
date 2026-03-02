@@ -4069,6 +4069,52 @@ function positionWidgetDragPreview(preview, clientX, clientY) {
   preview.style.top = `${Math.round(clientY + 14)}px`;
 }
 
+function createDragPreviewSession(instance, options = {}) {
+  const sourceCard = options?.sourceCard;
+  const pointerEvent = options?.pointerEvent;
+  const pointerX = Number.isFinite(Number(options?.pointerX))
+    ? Number(options.pointerX)
+    : Number(pointerEvent?.clientX);
+  const pointerY = Number.isFinite(Number(options?.pointerY))
+    ? Number(options.pointerY)
+    : Number(pointerEvent?.clientY);
+
+  if (!Number.isFinite(pointerX) || !Number.isFinite(pointerY)) {
+    return null;
+  }
+
+  const pointerId = Number.isFinite(pointerEvent?.pointerId) ? pointerEvent.pointerId : null;
+  if (pointerId !== null && sourceCard instanceof HTMLElement) {
+    sourceCard.setPointerCapture?.(pointerId);
+  }
+
+  const preview = createWidgetDragPreview(instance, {
+    sourceCard,
+    pointerEvent,
+    pointerX,
+    pointerY
+  });
+  positionWidgetDragPreview(preview, pointerX, pointerY);
+
+  let disposed = false;
+  return {
+    preview,
+    update(clientX, clientY) {
+      positionWidgetDragPreview(preview, clientX, clientY);
+    },
+    dispose() {
+      if (disposed) {
+        return;
+      }
+      disposed = true;
+      if (pointerId !== null && sourceCard instanceof HTMLElement) {
+        sourceCard.releasePointerCapture?.(pointerId);
+      }
+      preview.remove();
+    }
+  };
+}
+
 function createWidgetDropSilhouette(card) {
   const board = elements.board;
   if (!(board instanceof HTMLElement)) {
@@ -4460,6 +4506,7 @@ function renderDockWidgets() {
         registerContainerDropTarget: (containerId, element, options = {}) =>
           registerContainerDropTarget(containerId, element, options),
         unregisterContainerDropTarget: (containerId) => unregisterContainerDropTarget(containerId),
+        createDragPreviewSession: (widget, options = {}) => createDragPreviewSession(widget, options),
         createWidgetDragPreview: (widget, options = {}) => createWidgetDragPreview(widget, options),
         positionWidgetDragPreview,
         isEditMode: () => state.mode === "edit",
@@ -4511,19 +4558,20 @@ function renderDockWidgets() {
         return;
       }
 
-      const pointerId = Number.isFinite(event?.pointerId) ? event.pointerId : null;
-      if (pointerId !== null) {
-        card.setPointerCapture?.(pointerId);
+      const previewSession = createDragPreviewSession(item, {
+        sourceCard: card,
+        pointerEvent: event,
+        pointerX: event.clientX,
+        pointerY: event.clientY
+      });
+      if (!previewSession) {
+        return;
       }
 
-      const ghost = createWidgetDragPreview(item, {
-        sourceCard: card,
-        pointerEvent: event
-      });
       card.classList.add("dock-widget-item-dragging");
 
       const updateGhost = (clientX, clientY) => {
-        positionWidgetDragPreview(ghost, clientX, clientY);
+        previewSession.update(clientX, clientY);
         const inside = pointInsideRect(clientX, clientY, dockRect);
         elements.persistentDock?.classList.toggle("is-drag-out-active", !inside);
       };
@@ -4531,9 +4579,6 @@ function renderDockWidgets() {
       updateGhost(event.clientX, event.clientY);
 
       const finish = (upEvent) => {
-        if (pointerId !== null) {
-          card.releasePointerCapture?.(pointerId);
-        }
         window.removeEventListener("pointermove", move);
         window.removeEventListener("pointerup", finish);
         window.removeEventListener("pointercancel", finish);
@@ -4544,7 +4589,7 @@ function renderDockWidgets() {
 
         elements.persistentDock?.classList.remove("is-drag-out-active");
         card.classList.remove("dock-widget-item-dragging");
-        ghost.remove();
+        previewSession.dispose();
 
         if (!inside) {
           card.dataset.suppressClick = "true";
@@ -5389,6 +5434,7 @@ function createWidgetCard(instance) {
     registerContainerDropTarget: (containerId, element, options = {}) =>
       registerContainerDropTarget(containerId, element, options),
     unregisterContainerDropTarget: (containerId) => unregisterContainerDropTarget(containerId),
+    createDragPreviewSession: (widget, options = {}) => createDragPreviewSession(widget, options),
     createWidgetDragPreview: (widget, options = {}) => createWidgetDragPreview(widget, options),
     positionWidgetDragPreview,
     isEditMode: () => state.mode === "edit",
@@ -5779,21 +5825,21 @@ function createWidgetCard(instance) {
       card.classList.remove("longpress-drag-armed");
     }
 
-    const dragPointerId = Number.isFinite(event?.pointerId) ? event.pointerId : null;
-    if (dragPointerId !== null) {
-      card.setPointerCapture?.(dragPointerId);
-    }
-
     bringWidgetToFront(instance.id);
     card.classList.add("widget-drag-active");
-    const dragPreview = createWidgetDragPreview(instance, {
+    const previewSession = createDragPreviewSession(instance, {
       sourceCard: card,
       pointerEvent: event,
       pointerX: dragStartX,
       pointerY: dragStartY
     });
+    if (!previewSession) {
+      card.classList.remove("widget-drag-active");
+      return false;
+    }
+
     const dropSilhouette = createWidgetDropSilhouette(card);
-    positionWidgetDragPreview(dragPreview, dragStartX, dragStartY);
+    previewSession.update(dragStartX, dragStartY);
 
     const pageSwitchThreshold = 42;
     const pageSwitchCooldownMs = 190;
@@ -5891,7 +5937,7 @@ function createWidgetCard(instance) {
       };
 
       const move = (moveEvent) => {
-        positionWidgetDragPreview(dragPreview, moveEvent.clientX, moveEvent.clientY);
+        previewSession.update(moveEvent.clientX, moveEvent.clientY);
         const dx = moveEvent.clientX - lastPointerX;
         const dy = moveEvent.clientY - lastPointerY;
         lastPointerX = moveEvent.clientX;
@@ -5934,9 +5980,6 @@ function createWidgetCard(instance) {
       };
 
       const up = (upEvent) => {
-        if (dragPointerId !== null) {
-          card.releasePointerCapture?.(dragPointerId);
-        }
         window.removeEventListener("pointermove", move);
         window.removeEventListener("pointerup", up);
         window.removeEventListener("pointercancel", up);
@@ -5945,7 +5988,7 @@ function createWidgetCard(instance) {
         card.classList.remove("longpress-drag-armed");
         card.classList.remove("widget-drag-active");
         dropSilhouette?.remove();
-        dragPreview.remove();
+        previewSession.dispose();
         lastDragEndAt = Date.now();
 
         if (tryContainerWidgetByDrop(instance, upEvent, { record: false })) {
@@ -5988,7 +6031,7 @@ function createWidgetCard(instance) {
     };
 
     const move = (moveEvent) => {
-      positionWidgetDragPreview(dragPreview, moveEvent.clientX, moveEvent.clientY);
+      previewSession.update(moveEvent.clientX, moveEvent.clientY);
       const dx = moveEvent.clientX - lastPointerX;
       const dy = moveEvent.clientY - lastPointerY;
       lastPointerX = moveEvent.clientX;
@@ -6032,9 +6075,6 @@ function createWidgetCard(instance) {
     };
 
     const up = (upEvent) => {
-      if (dragPointerId !== null) {
-        card.releasePointerCapture?.(dragPointerId);
-      }
       window.removeEventListener("pointermove", move);
       window.removeEventListener("pointerup", up);
       window.removeEventListener("pointercancel", up);
@@ -6043,7 +6083,7 @@ function createWidgetCard(instance) {
       card.classList.remove("longpress-drag-armed");
       card.classList.remove("widget-drag-active");
       dropSilhouette?.remove();
-      dragPreview.remove();
+      previewSession.dispose();
       lastDragEndAt = Date.now();
 
       if (tryContainerWidgetByDrop(instance, upEvent, { record: true })) {
