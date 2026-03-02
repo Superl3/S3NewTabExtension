@@ -91,13 +91,13 @@
         <path d="M6.8 9.2 4 12l2.8 2.8" />
         <path d="M17.2 9.2 20 12l-2.8 2.8" />
       </symbol>
-      <symbol id="i-undo" viewBox="0 0 24 24">
-        <path d="M9 8H4v5" />
-        <path d="M4 13c1.4-3.4 4.2-5 7.5-5 4.2 0 7.3 2.6 8.5 6" />
+      <symbol id="i-undo" viewBox="0 0 512 512">
+        <path stroke-width="56" d="M166 134 74 228l92 94" />
+        <path stroke-width="56" d="M78 228h186c96 0 174 78 174 174" />
       </symbol>
-      <symbol id="i-redo" viewBox="0 0 24 24">
-        <path d="M15 8h5v5" />
-        <path d="M20 13c-1.4-3.4-4.2-5-7.5-5-4.2 0-7.3 2.6-8.5 6" />
+      <symbol id="i-redo" viewBox="0 0 512 512">
+        <path stroke-width="56" d="M346 134l92 94-92 94" />
+        <path stroke-width="56" d="M434 228H248c-96 0-174 78-174 174" />
       </symbol>
     </svg>
 
@@ -126,19 +126,6 @@
             <button id="redoBtn" class="btn dock-btn" type="button" title="Redo (Ctrl/Cmd+Y)">
               <svg class="icon"><use href="#i-redo"></use></svg>
               <span class="btn-label">Redo</span>
-            </button>
-
-            <button
-              id="settingsRailToggleBtn"
-              class="btn dock-btn settings-rail-toggle"
-              type="button"
-              title="Open settings"
-              aria-label="Toggle settings panel"
-              aria-controls="settingsPanel"
-              aria-expanded="false"
-            >
-              <svg class="icon"><use href="#i-settings"></use></svg>
-              <span class="btn-label">Settings</span>
             </button>
           </div>
           <button id="editDockGrip" class="edit-dock-grip" type="button" title="Drag control bar" aria-label="Drag control bar">
@@ -185,15 +172,29 @@
           <svg class="icon"><use href="#i-plus"></use></svg>
         </button>
 
-        <div class="corner-controls" aria-label="Quick controls">
+        <div class="corner-controls-bottom" aria-label="Wallpaper refresh control">
           <button
             id="bgRefreshBtn"
-            class="corner-bg-refresh"
+            class="corner-bg-refresh corner-bg-refresh-bottom"
             type="button"
             title="Refresh wallpaper"
             aria-label="Refresh wallpaper"
           >
             <svg class="icon"><use href="#i-reset"></use></svg>
+          </button>
+        </div>
+
+        <div class="corner-controls" aria-label="Quick controls">
+          <button
+            id="settingsRailToggleBtn"
+            class="corner-settings-toggle settings-rail-toggle"
+            type="button"
+            title="Open settings"
+            aria-label="Toggle settings panel"
+            aria-controls="settingsPanel"
+            aria-expanded="false"
+          >
+            <svg class="icon"><use href="#i-settings"></use></svg>
           </button>
 
           <button
@@ -223,19 +224,20 @@
               </button>
             </div>
           </header>
+          <div class="widget-inline-actions">
+            <button class="icon-btn widget-drag-btn" title="Move widget">
+              <svg class="icon"><use href="#i-move"></use></svg>
+            </button>
+            <button class="icon-btn widget-float-select" title="Widget Setting">
+              <svg class="icon"><use href="#i-settings"></use></svg>
+            </button>
+            <button class="icon-btn widget-float-remove" title="Remove widget">
+              <svg class="icon"><use href="#i-trash"></use></svg>
+            </button>
+          </div>
+          <div class="widget-inline-actions-bottom"></div>
           <section class="widget-body">
             <div class="widget-content-host">
-              <div class="widget-inline-actions">
-                <button class="icon-btn widget-drag-btn" title="Move widget">
-                  <svg class="icon"><use href="#i-move"></use></svg>
-                </button>
-                <button class="icon-btn widget-float-select" title="Widget Setting">
-                  <svg class="icon"><use href="#i-settings"></use></svg>
-                </button>
-                <button class="icon-btn widget-float-remove" title="Remove widget">
-                  <svg class="icon"><use href="#i-trash"></use></svg>
-                </button>
-              </div>
               <div class="widget-content-slot"></div>
             </div>
           </section>
@@ -270,6 +272,29 @@
           <button id="widgetModalDefaultBtn" class="btn btn-inverted" type="button">Reset to default</button>
           <button id="widgetModalCancelBtn" class="btn">Cancel</button>
           <button id="widgetModalOkBtn" class="btn btn-primary">OK</button>
+        </footer>
+      </section>
+    </div>
+
+    <div id="widgetTitleRenameOverlay" class="widget-modal-overlay" aria-hidden="true">
+      <section class="widget-modal widget-title-rename-modal" role="dialog" aria-modal="true" aria-label="Rename Widget">
+        <header class="widget-modal-head">
+          <div class="widget-modal-head-top">
+            <h3>Rename Widget</h3>
+            <button id="widgetTitleRenameCloseBtn" class="icon-btn" title="Close rename modal">
+              <svg class="icon"><use href="#i-close"></use></svg>
+            </button>
+          </div>
+        </header>
+        <div class="widget-modal-body widget-title-rename-body">
+          <label class="form-row widget-title-rename-row">
+            <span>Title</span>
+            <input id="widgetTitleRenameInput" type="text" maxlength="80" placeholder="Enter widget name" />
+          </label>
+        </div>
+        <footer class="widget-modal-actions">
+          <button id="widgetTitleRenameCancelBtn" class="btn" type="button">Cancel</button>
+          <button id="widgetTitleRenameOkBtn" class="btn btn-primary" type="button">Apply</button>
         </footer>
       </section>
     </div>
