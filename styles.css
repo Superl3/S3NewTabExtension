@@ -1550,25 +1550,6 @@ body.mode-edit .widget-folder-item-card .widget-head {
   opacity: 0.58;
 }
 
-.widget-folder-drag-ghost {
-  position: fixed;
-  z-index: 6200;
-  max-width: min(280px, 52vw);
-  pointer-events: none;
-  border: 1px solid color-mix(in srgb, var(--line), transparent 15%);
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--surface), transparent 8%);
-  box-shadow: 0 10px 20px var(--shadow-medium);
-  backdrop-filter: blur(12px);
-  color: color-mix(in srgb, var(--text), var(--primary) 18%);
-  font-size: 0.82em;
-  font-weight: 650;
-  padding: 6px 12px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
 .widget-drop-silhouette {
   position: absolute;
   z-index: 5400;

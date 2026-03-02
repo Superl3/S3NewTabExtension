@@ -96,14 +96,6 @@ function pointInsideRect(x, y, rect) {
   return x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom;
 }
 
-function createDragGhost(label) {
-  const ghost = document.createElement("div");
-  ghost.className = "widget-folder-drag-ghost";
-  ghost.textContent = normalizeText(label, "Widget");
-  document.body.append(ghost);
-  return ghost;
-}
-
 export const containerWidget = {
   type: "container",
   title: "Widget Folder",
@@ -184,6 +176,7 @@ export const containerWidget = {
     registerContainerDropTarget,
     unregisterContainerDropTarget,
     releaseWidgetFromContainerByDrop,
+    createDragPreviewSession,
     createWidgetDragPreview,
     positionWidgetDragPreview
   }) {
@@ -390,24 +383,44 @@ export const containerWidget = {
         event.preventDefault();
         event.stopPropagation();
 
+        const previewSession =
+          typeof createDragPreviewSession === "function"
+            ? createDragPreviewSession(child, {
+              sourceCard: card,
+              pointerEvent: event,
+              pointerX: event.clientX,
+              pointerY: event.clientY
+            })
+            : null;
+
         const pointerId = Number.isFinite(event?.pointerId) ? event.pointerId : null;
-        if (pointerId !== null) {
+        if (!previewSession && pointerId !== null) {
           card.setPointerCapture?.(pointerId);
         }
 
         const ghost =
-          typeof createWidgetDragPreview === "function"
+          previewSession?.preview ||
+          (typeof createWidgetDragPreview === "function"
             ? createWidgetDragPreview(child, {
               sourceCard: card,
               pointerEvent: event,
               pointerX: event.clientX,
               pointerY: event.clientY
             })
-            : createDragGhost(normalizeText(child.title, child.type));
+            : null);
+        if (!(ghost instanceof HTMLElement)) {
+          if (!previewSession && pointerId !== null) {
+            card.releasePointerCapture?.(pointerId);
+          }
+          return;
+        }
+
         card.classList.add("widget-folder-item-dragging");
 
         const updateGhost = (clientX, clientY) => {
-          if (typeof positionWidgetDragPreview === "function") {
+          if (previewSession) {
+            previewSession.update(clientX, clientY);
+          } else if (typeof positionWidgetDragPreview === "function") {
             positionWidgetDragPreview(ghost, clientX, clientY);
           } else {
             ghost.style.left = `${Math.round(clientX + 12)}px`;
@@ -424,7 +437,7 @@ export const containerWidget = {
         };
 
         const finish = (upEvent) => {
-          if (pointerId !== null) {
+          if (!previewSession && pointerId !== null) {
             card.releasePointerCapture?.(pointerId);
           }
           window.removeEventListener("pointermove", move);
@@ -437,7 +450,11 @@ export const containerWidget = {
 
           panel.classList.remove("is-drag-out-active");
           card.classList.remove("widget-folder-item-dragging");
-          ghost?.remove?.();
+          if (previewSession) {
+            previewSession.dispose();
+          } else {
+            ghost.remove();
+          }
 
           if (!inside) {
             releaseWidgetFromContainerByDrop(child.id, {
