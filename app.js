@@ -4027,8 +4027,12 @@ function createWidgetDragPreview(instance, options = {}) {
     preview.style.width = `${Math.max(1, Math.round(rect.width))}px`;
     preview.style.height = `${Math.max(1, Math.round(rect.height))}px`;
 
-    const pointerX = Number(options?.pointerEvent?.clientX);
-    const pointerY = Number(options?.pointerEvent?.clientY);
+    const pointerX = Number.isFinite(Number(options?.pointerX))
+      ? Number(options.pointerX)
+      : Number(options?.pointerEvent?.clientX);
+    const pointerY = Number.isFinite(Number(options?.pointerY))
+      ? Number(options.pointerY)
+      : Number(options?.pointerEvent?.clientY);
     const offsetX = Number.isFinite(pointerX) ? clamp(pointerX - rect.left, 0, rect.width) : rect.width / 2;
     const offsetY = Number.isFinite(pointerY) ? clamp(pointerY - rect.top, 0, rect.height) : rect.height / 2;
 
@@ -4456,6 +4460,8 @@ function renderDockWidgets() {
         registerContainerDropTarget: (containerId, element, options = {}) =>
           registerContainerDropTarget(containerId, element, options),
         unregisterContainerDropTarget: (containerId) => unregisterContainerDropTarget(containerId),
+        createWidgetDragPreview: (widget, options = {}) => createWidgetDragPreview(widget, options),
+        positionWidgetDragPreview,
         isEditMode: () => state.mode === "edit",
         openSettings: () => {
           if (state.mode !== "edit") {
@@ -5383,6 +5389,8 @@ function createWidgetCard(instance) {
     registerContainerDropTarget: (containerId, element, options = {}) =>
       registerContainerDropTarget(containerId, element, options),
     unregisterContainerDropTarget: (containerId) => unregisterContainerDropTarget(containerId),
+    createWidgetDragPreview: (widget, options = {}) => createWidgetDragPreview(widget, options),
+    positionWidgetDragPreview,
     isEditMode: () => state.mode === "edit",
     openSettings: () => {
       if (state.mode !== "edit") {
@@ -5770,9 +5778,20 @@ function createWidgetCard(instance) {
     if (fromLongPress) {
       card.classList.remove("longpress-drag-armed");
     }
+
+    const dragPointerId = Number.isFinite(event?.pointerId) ? event.pointerId : null;
+    if (dragPointerId !== null) {
+      card.setPointerCapture?.(dragPointerId);
+    }
+
     bringWidgetToFront(instance.id);
     card.classList.add("widget-drag-active");
-    const dragPreview = createWidgetDragPreview(instance);
+    const dragPreview = createWidgetDragPreview(instance, {
+      sourceCard: card,
+      pointerEvent: event,
+      pointerX: dragStartX,
+      pointerY: dragStartY
+    });
     const dropSilhouette = createWidgetDropSilhouette(card);
     positionWidgetDragPreview(dragPreview, dragStartX, dragStartY);
 
@@ -5915,6 +5934,9 @@ function createWidgetCard(instance) {
       };
 
       const up = (upEvent) => {
+        if (dragPointerId !== null) {
+          card.releasePointerCapture?.(dragPointerId);
+        }
         window.removeEventListener("pointermove", move);
         window.removeEventListener("pointerup", up);
         window.removeEventListener("pointercancel", up);
@@ -6010,6 +6032,9 @@ function createWidgetCard(instance) {
     };
 
     const up = (upEvent) => {
+      if (dragPointerId !== null) {
+        card.releasePointerCapture?.(dragPointerId);
+      }
       window.removeEventListener("pointermove", move);
       window.removeEventListener("pointerup", up);
       window.removeEventListener("pointercancel", up);

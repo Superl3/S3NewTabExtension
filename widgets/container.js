@@ -183,7 +183,9 @@ export const containerWidget = {
     getWidgetRuntimeCard,
     registerContainerDropTarget,
     unregisterContainerDropTarget,
-    releaseWidgetFromContainerByDrop
+    releaseWidgetFromContainerByDrop,
+    createWidgetDragPreview,
+    positionWidgetDragPreview
   }) {
     const root = document.createElement("section");
     root.className = "widget-folder";
@@ -388,12 +390,29 @@ export const containerWidget = {
         event.preventDefault();
         event.stopPropagation();
 
-        const ghost = createDragGhost(normalizeText(child.title, child.type));
+        const pointerId = Number.isFinite(event?.pointerId) ? event.pointerId : null;
+        if (pointerId !== null) {
+          card.setPointerCapture?.(pointerId);
+        }
+
+        const ghost =
+          typeof createWidgetDragPreview === "function"
+            ? createWidgetDragPreview(child, {
+              sourceCard: card,
+              pointerEvent: event,
+              pointerX: event.clientX,
+              pointerY: event.clientY
+            })
+            : createDragGhost(normalizeText(child.title, child.type));
         card.classList.add("widget-folder-item-dragging");
 
         const updateGhost = (clientX, clientY) => {
-          ghost.style.left = `${Math.round(clientX + 12)}px`;
-          ghost.style.top = `${Math.round(clientY + 12)}px`;
+          if (typeof positionWidgetDragPreview === "function") {
+            positionWidgetDragPreview(ghost, clientX, clientY);
+          } else {
+            ghost.style.left = `${Math.round(clientX + 12)}px`;
+            ghost.style.top = `${Math.round(clientY + 12)}px`;
+          }
           const inside = pointInsideRect(clientX, clientY, panel.getBoundingClientRect());
           panel.classList.toggle("is-drag-out-active", !inside);
         };
@@ -405,6 +424,9 @@ export const containerWidget = {
         };
 
         const finish = (upEvent) => {
+          if (pointerId !== null) {
+            card.releasePointerCapture?.(pointerId);
+          }
           window.removeEventListener("pointermove", move);
           window.removeEventListener("pointerup", finish);
           window.removeEventListener("pointercancel", finish);
@@ -415,7 +437,7 @@ export const containerWidget = {
 
           panel.classList.remove("is-drag-out-active");
           card.classList.remove("widget-folder-item-dragging");
-          ghost.remove();
+          ghost?.remove?.();
 
           if (!inside) {
             releaseWidgetFromContainerByDrop(child.id, {
