@@ -1152,6 +1152,21 @@ body:not(.mode-edit) .widget-inline-actions .widget-float-auth-toggle {
   display: none;
 }
 
+body.mode-edit .widget-inline-actions .widget-drag-btn,
+body.mode-edit .widget-inline-actions .widget-float-select,
+body.mode-edit .widget-inline-actions .widget-float-remove {
+  display: none;
+}
+
+body.mode-edit .widget-card:hover .widget-inline-actions .widget-drag-btn,
+body.mode-edit .widget-card:hover .widget-inline-actions .widget-float-select,
+body.mode-edit .widget-card:hover .widget-inline-actions .widget-float-remove,
+body.mode-edit .widget-card:focus-within .widget-inline-actions .widget-drag-btn,
+body.mode-edit .widget-card:focus-within .widget-inline-actions .widget-float-select,
+body.mode-edit .widget-card:focus-within .widget-inline-actions .widget-float-remove {
+  display: inline-flex;
+}
+
 body.mode-edit .widget-inline-actions .widget-float-refresh,
 body.mode-edit .widget-inline-actions .widget-float-open,
 body.mode-edit .widget-inline-actions .widget-float-back,
