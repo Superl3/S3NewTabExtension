@@ -3363,10 +3363,37 @@ body.mode-edit .widget-float-remove:hover {
   width: 100%;
 }
 
-.add-widget-size-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
+.add-widget-title-row {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 6px;
+  align-items: stretch;
+}
+
+.add-widget-title-row > span:first-child:not(.form-row-label) {
+  margin-bottom: 2px;
+}
+
+.app-toast {
+  position: fixed;
+  left: 50%;
+  bottom: 20px;
+  z-index: 1700;
+  transform: translate(-50%, 10px);
+  opacity: 0;
+  pointer-events: none;
+  max-width: min(92vw, 520px);
+  padding: 10px 14px;
+  border-radius: 10px;
+  border: 1px solid color-mix(in srgb, var(--line), transparent 10%);
+  background: color-mix(in srgb, var(--surface), var(--tone-dark) 18%);
+  color: var(--tone-light);
+  box-shadow: var(--shadow);
+  transition: opacity 180ms ease, transform 180ms ease;
+}
+
+.app-toast.show {
+  opacity: 1;
+  transform: translate(-50%, 0);
 }
 
 .widget-modal-head {
@@ -3649,10 +3676,6 @@ body.mode-edit .widget-float-remove:hover {
 
   .dock-btn .btn-label {
     display: none;
-  }
-
-  .add-widget-size-grid {
-    grid-template-columns: 1fr;
   }
 
   .corner-controls {
