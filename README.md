@@ -39,6 +39,7 @@
 - Calendar
 - RSS Feed
 - Monday Assigned Issues
+- Monday Meeting Note
 - Weather
 - Widget Folder (Container)
 
@@ -81,6 +82,14 @@
 - `Board ID`는 Monday 보드 URL의 숫자 ID에서 확인할 수 있습니다. 예: `/boards/123456789`
 - Auth connector 콜백은 확장 프로그램 redirect URL로 `access_token`(선택: `account`/`email`)을 반환해야 합니다.
 - OAuth 결과 토큰은 브라우저 로컬 스토리지에 저장되므로 민감 정보로 관리하세요.
+
+## Monday Meeting Note 위젯
+
+- 특정 보드의 최신 아이템 1개와 해당 아이템의 `Meeting note column ID`에 해당하는 노트 텍스트 1개를 표시합니다.
+- 기본 그리드 크기는 `1x2`입니다.
+- 위젯 설정의 컬럼 입력은 `Meeting note column ID` 또는 컬럼명(예: `미팅 노트`) 둘 다 사용할 수 있습니다.
+- 데이터 갱신은 캐시 우선이며, 자동 갱신은 평일 `09:00`, `13:00` 슬롯 또는 수동 Refresh에서만 실행됩니다.
+- Monday Assigned Issues 위젯과 동일한 로컬 스토리지 세션 키를 사용하므로 페이지 내에서 Monday 인증을 공유합니다.
 
 ## Design Memory
 

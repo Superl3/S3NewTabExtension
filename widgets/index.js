@@ -10,6 +10,7 @@ import { gmailWidget } from "./gmail.js";
 import { rssWidget } from "./rss.js";
 import { calendarWidget } from "./calendar.js";
 import { mondayAssignedWidget } from "./mondayAssigned.js";
+import { mondayMeetingNoteWidget } from "./mondayMeetingNote.js";
 import { githubPrListWidget } from "./githubPrList.js";
 import { weatherWidget } from "./weather.js";
 import { containerWidget } from "./container.js";
@@ -27,6 +28,7 @@ export const widgetRegistry = {
   [rssWidget.type]: rssWidget,
   [calendarWidget.type]: calendarWidget,
   [mondayAssignedWidget.type]: mondayAssignedWidget,
+  [mondayMeetingNoteWidget.type]: mondayMeetingNoteWidget,
   [githubPrListWidget.type]: githubPrListWidget,
   [weatherWidget.type]: weatherWidget,
   [containerWidget.type]: containerWidget
