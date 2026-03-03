@@ -1088,6 +1088,7 @@ export const mondayAssignedWidget = {
     let requestSerial = 0;
     let timer = null;
     let sessionSyncSerial = 0;
+    let storageListener = null;
 
     function clearRefreshTimer() {
       if (timer) {
@@ -1233,6 +1234,45 @@ export const mondayAssignedWidget = {
 
       await clearConnectionState({ clearStored: false });
       return false;
+    }
+
+    function installStorageListener() {
+      if (storageListener || !chrome?.storage?.onChanged?.addListener) {
+        return;
+      }
+
+      storageListener = (changes, areaName) => {
+        if (
+          areaName !== "local" ||
+          !changes ||
+          !Object.prototype.hasOwnProperty.call(changes, MONDAY_AUTH_STORAGE_KEY)
+        ) {
+          return;
+        }
+
+        const cfg = normalizedConfig(getConfig());
+        if (!hasConnectorConfig(cfg)) {
+          return;
+        }
+
+        void syncStoredSessionForConfig(cfg).finally(() => {
+          render();
+          scheduleRefresh();
+          if (!loading && hasBoardConfig(cfg) && hasActiveConnection(cfg)) {
+            void loadIssues({ reason: "auth-sync" });
+          }
+        });
+      };
+
+      chrome.storage.onChanged.addListener(storageListener);
+    }
+
+    function removeStorageListener() {
+      if (!storageListener || !chrome?.storage?.onChanged?.removeListener) {
+        return;
+      }
+      chrome.storage.onChanged.removeListener(storageListener);
+      storageListener = null;
     }
 
     async function connectAccount() {
@@ -1512,6 +1552,9 @@ export const mondayAssignedWidget = {
           throw new Error("Set auth connector URL first.");
         }
         if (!hasActiveConnection(cfg)) {
+          await syncStoredSessionForConfig(cfg);
+        }
+        if (!hasActiveConnection(cfg)) {
           throw new Error("Connect Monday account first.");
         }
         if (!hasBoardConfig(cfg)) {
@@ -1583,6 +1626,7 @@ export const mondayAssignedWidget = {
     applyCachedSnapshotIfPresent(initialRawCfg, initialCfg);
     lastSignature = configSignature(initialCfg);
     render();
+    installStorageListener();
     void syncStoredSessionForConfig(initialCfg).finally(() => {
       render();
       if (shouldRunAutoNow()) {
@@ -1644,6 +1688,7 @@ export const mondayAssignedWidget = {
       destroy() {
         requestSerial += 1;
         clearRefreshTimer();
+        removeStorageListener();
       }
     };
   }
