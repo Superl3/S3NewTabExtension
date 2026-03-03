@@ -1,0 +1,34 @@
+.widget-card {
+  --widget-drag-jiggle-x: 1px;
+  --widget-drag-jiggle-y: 1.1px;
+}
+
+@keyframes widget-drag-jiggle {
+  0% {
+    transform: translate3d(0, 0, 0);
+  }
+  22% {
+    transform: translate3d(
+      calc(var(--widget-drag-jiggle-x) * -1),
+      calc(var(--widget-drag-jiggle-y) * 0.45),
+      0
+    );
+  }
+  50% {
+    transform: translate3d(0, var(--widget-drag-jiggle-y), 0);
+  }
+  78% {
+    transform: translate3d(
+      var(--widget-drag-jiggle-x),
+      calc(var(--widget-drag-jiggle-y) * 0.45),
+      0
+    );
+  }
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+.widget-card.widget-drag-active {
+  transform-origin: 50% 50%;
+}
