@@ -89,6 +89,125 @@ function tokenFingerprint(token) {
   return `${text.length}:${checksum}`;
 }
 
+function formatUpdatedLabelFromTimestamp(parsedTimestamp) {
+  const parsed = Number(parsedTimestamp);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return "";
+  }
+
+  const elapsedMs = Date.now() - parsed;
+  if (!Number.isFinite(elapsedMs) || elapsedMs < 0) {
+    return new Date(parsed).toLocaleString();
+  }
+
+  const minutes = Math.floor(elapsedMs / 60000);
+  if (minutes < 1) {
+    return "just now";
+  }
+  if (minutes < 60) {
+    return `${minutes}m ago`;
+  }
+
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) {
+    return `${hours}h ago`;
+  }
+
+  const days = Math.floor(hours / 24);
+  if (days < 7) {
+    return `${days}d ago`;
+  }
+
+  return new Date(parsed).toLocaleDateString();
+}
+
+function normalizeCachedPullItem(entry) {
+  const id = normalizeText(entry?.id);
+  if (!id) {
+    return null;
+  }
+
+  const updatedAt = Number(entry?.updatedAt);
+  const normalizedUpdatedAt = Number.isFinite(updatedAt) ? updatedAt : 0;
+
+  return {
+    id,
+    number: Number(entry?.number) || 0,
+    title: normalizeText(entry?.title, "(No title)"),
+    htmlUrl: normalizeText(entry?.htmlUrl),
+    author: normalizeText(entry?.author, "unknown"),
+    draft: entry?.draft === true,
+    updatedAt: normalizedUpdatedAt,
+    updatedLabel:
+      normalizeText(entry?.updatedLabel) ||
+      formatUpdatedLabelFromTimestamp(normalizedUpdatedAt),
+    headRef: normalizeText(entry?.headRef),
+    baseRef: normalizeText(entry?.baseRef),
+    reviewRequested: entry?.reviewRequested === true,
+    reviewerNames: normalizeText(entry?.reviewerNames),
+    teamCount: Math.max(0, Math.floor(Number(entry?.teamCount) || 0))
+  };
+}
+
+function toCachedPullItem(entry) {
+  const normalized = normalizeCachedPullItem(entry);
+  if (!normalized) {
+    return null;
+  }
+
+  return {
+    id: normalized.id,
+    number: normalized.number,
+    title: normalized.title,
+    htmlUrl: normalized.htmlUrl,
+    author: normalized.author,
+    draft: normalized.draft,
+    updatedAt: normalized.updatedAt,
+    headRef: normalized.headRef,
+    baseRef: normalized.baseRef,
+    reviewRequested: normalized.reviewRequested,
+    reviewerNames: normalized.reviewerNames,
+    teamCount: normalized.teamCount
+  };
+}
+
+function readCachedSnapshot(rawConfig, cfg) {
+  if (!cfg.repository) {
+    return null;
+  }
+
+  const cachedRepository = normalizeRepository(rawConfig?.cacheRepository);
+  if (!cachedRepository || cachedRepository !== cfg.repository) {
+    return null;
+  }
+
+  const expectedTokenHash = tokenFingerprint(cfg.accessToken);
+  const cachedTokenHash = normalizeText(rawConfig?.cacheTokenFingerprint);
+  if (cachedTokenHash) {
+    if (cachedTokenHash !== expectedTokenHash) {
+      return null;
+    }
+  } else if (normalizeText(cfg.accessToken)) {
+    return null;
+  }
+
+  const cachedPullItems = Array.isArray(rawConfig?.cachePullItems)
+    ? rawConfig.cachePullItems.map(normalizeCachedPullItem).filter(Boolean)
+    : [];
+  const cacheAt = Math.max(0, Number(rawConfig?.cacheAt) || 0);
+  if (!cachedPullItems.length && !cacheAt) {
+    return null;
+  }
+
+  return {
+    pullItems: cachedPullItems
+      .slice()
+      .sort((a, b) => b.updatedAt - a.updatedAt)
+      .slice(0, cfg.maxItems),
+    cacheAt
+  };
+}
+
 function normalizedConfig(config) {
   return {
     repository: normalizeRepository(config?.repository),
@@ -150,34 +269,7 @@ function parseGitHubError(text, status) {
 
 function formatUpdatedLabel(rawDate) {
   const parsed = Date.parse(rawDate);
-  if (!Number.isFinite(parsed)) {
-    return "";
-  }
-
-  const elapsedMs = Date.now() - parsed;
-  if (!Number.isFinite(elapsedMs) || elapsedMs < 0) {
-    return new Date(parsed).toLocaleString();
-  }
-
-  const minutes = Math.floor(elapsedMs / 60000);
-  if (minutes < 1) {
-    return "just now";
-  }
-  if (minutes < 60) {
-    return `${minutes}m ago`;
-  }
-
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) {
-    return `${hours}h ago`;
-  }
-
-  const days = Math.floor(hours / 24);
-  if (days < 7) {
-    return `${days}d ago`;
-  }
-
-  return new Date(parsed).toLocaleDateString();
+  return formatUpdatedLabelFromTimestamp(parsed);
 }
 
 function formatSyncedLabel(timestampMs) {
@@ -270,7 +362,11 @@ export const githubPrListWidget = {
     refreshMinutes: 1,
     openInNewTab: true,
     showBranchInfo: true,
-    showReviewerInfo: true
+    showReviewerInfo: true,
+    cacheRepository: "",
+    cacheTokenFingerprint: "",
+    cacheAt: 0,
+    cachePullItems: []
   },
   defaultLayout: {
     x: 560,
@@ -317,7 +413,7 @@ export const githubPrListWidget = {
     { key: "showReviewerInfo", label: "Show requested reviewers", type: "checkbox" },
     { key: "openInNewTab", label: "Open links in new tab", type: "checkbox" }
   ],
-  create({ container, getConfig, isEditMode, openSettings }) {
+  create({ container, getConfig, patchConfig, isEditMode, openSettings }) {
     container.classList.add("github-pr-widget");
 
     const shell = document.createElement("div");
@@ -345,6 +441,55 @@ export const githubPrListWidget = {
         clearTimeout(timer);
         timer = null;
       }
+    }
+
+    function applyCachedSnapshotIfPresent(rawConfig, cfg) {
+      const cached = readCachedSnapshot(rawConfig, cfg);
+      if (!cached) {
+        return false;
+      }
+
+      pullItems = cached.pullItems;
+      lastSyncedAt = cached.cacheAt;
+      return true;
+    }
+
+    function clearCachedState() {
+      pullItems = [];
+      lastSyncedAt = 0;
+    }
+
+    function persistSnapshot(cfg) {
+      if (typeof patchConfig !== "function") {
+        return;
+      }
+
+      const cachePullItems = pullItems
+        .map(toCachedPullItem)
+        .filter(Boolean)
+        .slice(0, normalizeMaxItems(cfg.maxItems, 20));
+
+      const currentCfg = getConfig();
+      const currentCachePullItems = Array.isArray(currentCfg?.cachePullItems)
+        ? currentCfg.cachePullItems.map(toCachedPullItem).filter(Boolean)
+        : [];
+      const expectedTokenHash = tokenFingerprint(cfg.accessToken);
+
+      const unchanged =
+        normalizeRepository(currentCfg?.cacheRepository) === cfg.repository &&
+        normalizeText(currentCfg?.cacheTokenFingerprint) === expectedTokenHash &&
+        JSON.stringify(currentCachePullItems) === JSON.stringify(cachePullItems);
+
+      if (unchanged) {
+        return;
+      }
+
+      patchConfig({
+        cacheRepository: cfg.repository,
+        cacheTokenFingerprint: expectedTokenHash,
+        cacheAt: Date.now(),
+        cachePullItems
+      });
     }
 
     function scheduleRefresh() {
@@ -437,7 +582,9 @@ export const githubPrListWidget = {
 
         const updated = document.createElement("span");
         updated.className = "github-pr-updated";
-        updated.textContent = pull.updatedLabel;
+        updated.textContent =
+          formatUpdatedLabelFromTimestamp(Number(pull.updatedAt)) ||
+          normalizeText(pull.updatedLabel);
 
         top.append(title, updated);
 
@@ -490,9 +637,8 @@ export const githubPrListWidget = {
       try {
         const cfg = normalizedConfig(getConfig());
         if (!cfg.repository) {
-          pullItems = [];
+          clearCachedState();
           lastSignature = configSignature(cfg);
-          lastSyncedAt = 0;
           return;
         }
         const pulls = await fetchPullRequests(cfg);
@@ -504,11 +650,11 @@ export const githubPrListWidget = {
         pullItems = pulls.slice(0, cfg.maxItems);
         lastSignature = configSignature(cfg);
         lastSyncedAt = Date.now();
+        persistSnapshot(cfg);
       } catch (error) {
         if (requestId !== requestSerial) {
           return;
         }
-        pullItems = [];
         errorMessage = normalizeErrorMessage(error);
       } finally {
         if (requestId !== requestSerial) {
@@ -520,14 +666,26 @@ export const githubPrListWidget = {
       }
     }
 
+    const initialRawCfg = getConfig();
+    const initialCfg = normalizedConfig(initialRawCfg);
+    lastSignature = configSignature(initialCfg);
+    if (!applyCachedSnapshotIfPresent(initialRawCfg, initialCfg)) {
+      clearCachedState();
+    }
     render();
     void loadPullRequests();
 
     return {
       refresh() {
+        const cfg = normalizedConfig(getConfig());
+        const signature = configSignature(cfg);
         render();
-        const signature = configSignature(normalizedConfig(getConfig()));
         if (!loading && signature !== lastSignature) {
+          lastSignature = signature;
+          if (!applyCachedSnapshotIfPresent(getConfig(), cfg)) {
+            clearCachedState();
+          }
+          render();
           void loadPullRequests();
           return;
         }

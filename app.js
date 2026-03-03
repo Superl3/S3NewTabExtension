@@ -259,22 +259,11 @@ const RUNTIME_ONLY_WIDGET_CONFIG_DEFAULTS = Object.freeze({
   }),
   mondayAssigned: Object.freeze({
     autoRefreshDayKey: "",
-    autoRefreshSlotsDone: "",
-    cacheBoardId: 0,
-    cacheAt: 0,
-    cacheBoardName: "",
-    cacheAssigneeName: "",
-    cacheGroups: [],
-    cacheIssues: []
+    autoRefreshSlotsDone: ""
   }),
   mondayMeetingNote: Object.freeze({
     autoRefreshDayKey: "",
-    autoRefreshSlotsDone: "",
-    cacheBoardId: 0,
-    cacheMeetingNoteColumnId: "",
-    cacheAt: 0,
-    cacheBoardName: "",
-    cacheLatest: null
+    autoRefreshSlotsDone: ""
   })
 });
 
@@ -401,7 +390,6 @@ function applyRuntimeOnlyPolicyToSnapshot(snapshot) {
 
   return snapshot;
 }
-
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
 }
@@ -571,7 +559,7 @@ function defaultHomeLayout() {
     dockVisibility: "always",
     dockPosition: "bottom",
     dockLength: 6,
-    dockSize: 44,
+    dockHeight: 44,
     widgetBackdropBlur: true,
     legacyHeadlessSurfaceMigrated: false
   };
@@ -1081,7 +1069,7 @@ function normalizeDockLength(value, fallback = 6) {
   return clamp(Math.floor(num), 5, 14);
 }
 
-function normalizeDockSize(value, fallback = 44) {
+function normalizeDockHeight(value, fallback = 44) {
   const num = Number(value);
   if (!Number.isFinite(num)) {
     return clamp(Math.round(fallback), 36, 72);
@@ -1627,7 +1615,7 @@ function buildDockConfig(home = state?.ui?.home) {
     shape: normalizeDockShape(normalizedHome.dockShape, "raised"),
     visibility: normalizeDockVisibility(normalizedHome.dockVisibility, "always"),
     lengthUnits: normalizeDockLength(normalizedHome.dockLength, 6),
-    heightPx: normalizeDockSize(normalizedHome.dockSize, 44),
+    heightPx: normalizeDockHeight(normalizedHome.dockHeight, 44),
     position: "bottom"
   };
 }
@@ -1702,7 +1690,7 @@ function normalizeHomeLayout(layout) {
     dockVisibility: normalizeDockVisibility(base.dockVisibility, "always"),
     dockPosition: normalizeDockPosition(base.dockPosition, "bottom"),
     dockLength: normalizeDockLength(base.dockLength, 6),
-    dockSize: normalizeDockSize(base.dockSize, 44),
+    dockHeight: normalizeDockHeight(base.dockHeight ?? base.dockSize, 44),
     widgetBackdropBlur: base.widgetBackdropBlur !== false,
     legacyHeadlessSurfaceMigrated: base.legacyHeadlessSurfaceMigrated === true
   };
