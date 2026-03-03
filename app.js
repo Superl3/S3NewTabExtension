@@ -171,6 +171,7 @@ let sampledWallpaperBaseLuminance = null;
 let sampledWallpaperSource = "";
 let wallpaperSampleToken = 0;
 let currentVideoObjectUrl = "";
+let runtimeSettingsPanelOpen = false;
 const dockDragState = {
   active: false,
   pointerId: null,
@@ -251,6 +252,155 @@ const SHORTCUT_ICON_PRESETS = [
   { id: "bolt", label: "Bolt", viewBox: "0 0 24 24", markup: '<path d="M13.8 3.8 6.5 13h4.8l-1.1 7.2 7.3-9.1h-4.8z" />' },
   { id: "link", label: "Link", viewBox: "0 0 24 24", markup: '<path d="M10 14 8.2 15.8a3.2 3.2 0 0 1-4.6-4.6L6 8.8a3.2 3.2 0 0 1 4.6 0" /><path d="M14 10l1.8-1.8a3.2 3.2 0 0 1 4.6 4.6L18 15.2a3.2 3.2 0 0 1-4.6 0" /><path d="M8.8 15.2 15.2 8.8" />' }
 ];
+
+const RUNTIME_ONLY_WIDGET_CONFIG_DEFAULTS = Object.freeze({
+  container: Object.freeze({
+    expanded: false
+  }),
+  mondayAssigned: Object.freeze({
+    autoRefreshDayKey: "",
+    autoRefreshSlotsDone: "",
+    cacheBoardId: 0,
+    cacheAt: 0,
+    cacheBoardName: "",
+    cacheAssigneeName: "",
+    cacheGroups: [],
+    cacheIssues: []
+  }),
+  mondayMeetingNote: Object.freeze({
+    autoRefreshDayKey: "",
+    autoRefreshSlotsDone: "",
+    cacheBoardId: 0,
+    cacheMeetingNoteColumnId: "",
+    cacheAt: 0,
+    cacheBoardName: "",
+    cacheLatest: null
+  })
+});
+
+function runtimeOnlyWidgetConfigDefaults(widgetType) {
+  return RUNTIME_ONLY_WIDGET_CONFIG_DEFAULTS[widgetType] || null;
+}
+
+function cloneRuntimeDefaultValue(value) {
+  return value && typeof value === "object" ? structuredClone(value) : value;
+}
+
+function applyRuntimeOnlyWidgetConfigDefaults(widgetType, config) {
+  const defaults = runtimeOnlyWidgetConfigDefaults(widgetType);
+  if (!defaults || !config || typeof config !== "object" || Array.isArray(config)) {
+    return config;
+  }
+
+  for (const [key, value] of Object.entries(defaults)) {
+    config[key] = cloneRuntimeDefaultValue(value);
+  }
+
+  return config;
+}
+
+function stripRuntimeOnlyWidgetConfigFields(widgetType, config) {
+  const defaults = runtimeOnlyWidgetConfigDefaults(widgetType);
+  if (!defaults || !config || typeof config !== "object" || Array.isArray(config)) {
+    return config;
+  }
+
+  for (const key of Object.keys(defaults)) {
+    if (Object.prototype.hasOwnProperty.call(config, key)) {
+      delete config[key];
+    }
+  }
+
+  return config;
+}
+
+function buildPersistableWidgetConfigPatch(widgetType, patch) {
+  if (!patch || typeof patch !== "object" || Array.isArray(patch)) {
+    return {};
+  }
+
+  const persistablePatch = { ...patch };
+  stripRuntimeOnlyWidgetConfigFields(widgetType, persistablePatch);
+  return persistablePatch;
+}
+
+function applyRuntimeOnlyPolicyToPresetSnapshot(snapshot) {
+  if (!snapshot || typeof snapshot !== "object" || Array.isArray(snapshot)) {
+    return snapshot;
+  }
+
+  if (snapshot.ui && typeof snapshot.ui === "object" && !Array.isArray(snapshot.ui)) {
+    if (snapshot.ui.home && typeof snapshot.ui.home === "object" && !Array.isArray(snapshot.ui.home)) {
+      snapshot.ui.home.activePage = 0;
+    }
+  }
+
+  if (Array.isArray(snapshot.instances)) {
+    for (const instance of snapshot.instances) {
+      if (!instance || typeof instance !== "object" || Array.isArray(instance)) {
+        continue;
+      }
+      if (!instance.config || typeof instance.config !== "object" || Array.isArray(instance.config)) {
+        continue;
+      }
+      stripRuntimeOnlyWidgetConfigFields(instance.type, instance.config);
+    }
+  }
+
+  return snapshot;
+}
+
+function applyRuntimeOnlyPolicyToSnapshot(snapshot) {
+  if (!snapshot || typeof snapshot !== "object" || Array.isArray(snapshot)) {
+    return snapshot;
+  }
+
+  snapshot.mode = "use";
+  snapshot.selectedWidgetId = "";
+
+  if (snapshot.ui && typeof snapshot.ui === "object" && !Array.isArray(snapshot.ui)) {
+    snapshot.ui.activeTab = "global";
+    if (Object.prototype.hasOwnProperty.call(snapshot.ui, "settingsOpen")) {
+      delete snapshot.ui.settingsOpen;
+    }
+    if (snapshot.ui.home && typeof snapshot.ui.home === "object" && !Array.isArray(snapshot.ui.home)) {
+      snapshot.ui.home.activePage = 0;
+    }
+    if (
+      snapshot.ui.defaultProfileSnapshot &&
+      typeof snapshot.ui.defaultProfileSnapshot === "object" &&
+      !Array.isArray(snapshot.ui.defaultProfileSnapshot)
+    ) {
+      applyRuntimeOnlyPolicyToPresetSnapshot(snapshot.ui.defaultProfileSnapshot);
+    }
+  }
+
+  if (Array.isArray(snapshot.presets)) {
+    for (const preset of snapshot.presets) {
+      if (!preset || typeof preset !== "object" || Array.isArray(preset)) {
+        continue;
+      }
+      if (!preset.snapshot || typeof preset.snapshot !== "object" || Array.isArray(preset.snapshot)) {
+        continue;
+      }
+      applyRuntimeOnlyPolicyToPresetSnapshot(preset.snapshot);
+    }
+  }
+
+  if (Array.isArray(snapshot.instances)) {
+    for (const instance of snapshot.instances) {
+      if (!instance || typeof instance !== "object" || Array.isArray(instance)) {
+        continue;
+      }
+      if (!instance.config || typeof instance.config !== "object" || Array.isArray(instance.config)) {
+        continue;
+      }
+      stripRuntimeOnlyWidgetConfigFields(instance.type, instance.config);
+    }
+  }
+
+  return snapshot;
+}
 
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
@@ -394,7 +544,6 @@ function defaultBackground() {
 function defaultUi() {
   return {
     activeTab: "global",
-    settingsOpen: false,
     theme: defaultTheme(),
     background: defaultBackground(),
     home: defaultHomeLayout(),
@@ -1627,7 +1776,7 @@ function defaultState() {
 }
 
 function clonePresetSnapshot(snapshot) {
-  return {
+  const cloned = {
     ui: {
       theme: { ...(snapshot?.ui?.theme || {}) },
       background: { ...(snapshot?.ui?.background || {}) },
@@ -1639,6 +1788,9 @@ function clonePresetSnapshot(snapshot) {
       ? snapshot.instances.map((instance) => ({ ...instance, config: { ...(instance.config || {}) } }))
       : []
   };
+
+  applyRuntimeOnlyPolicyToPresetSnapshot(cloned);
+  return cloned;
 }
 
 function createStateSnapshot() {
@@ -1930,6 +2082,8 @@ function hydrate(raw) {
       mergedConfig.model = normalizeText(mergedConfig.model, mergedConfig.providerMode === "browser" ? "gpt-4.1-mini" : "gpt-4o-mini");
     }
 
+    applyRuntimeOnlyWidgetConfigDefaults(item.type, mergedConfig);
+
     const normalizedGrid = normalizeGridLayout(item.gridLayout, {
       col: normalized.length % 4,
       row: Math.floor(normalized.length / 4),
@@ -2041,18 +2195,7 @@ function hydrate(raw) {
         name: normalizeText(preset.name, "Preset"),
         createdAt: Number(preset.createdAt) || Date.now(),
         updatedAt: Number(preset.updatedAt) || Date.now(),
-        snapshot: {
-          ui: {
-            theme: { ...(snapshot.ui?.theme || {}) },
-            background: { ...(snapshot.ui?.background || {}) },
-            home: { ...(snapshot.ui?.home || {}) },
-            widgetCommonMaster: { ...(snapshot.ui?.widgetCommonMaster || {}) },
-            shortcuts: { ...(snapshot.ui?.shortcuts || {}) }
-          },
-          instances: Array.isArray(snapshot.instances)
-            ? snapshot.instances.map((instance) => ({ ...instance }))
-            : []
-        }
+        snapshot: clonePresetSnapshot(snapshot)
       };
     })
     .filter(Boolean);
@@ -2106,7 +2249,6 @@ function hydrate(raw) {
           : rawUi.activeTab === "profile"
             ? "profile"
             : "global",
-      settingsOpen: Boolean(rawUi.settingsOpen),
       theme,
       background,
       home,
@@ -2190,7 +2332,7 @@ function queueSave(options = {}) {
   }, 150);
 }
 
-function buildPersistSnapshot() {
+function buildSessionSnapshot() {
   return structuredClone({
     mode: state.mode,
     selectedWidgetId: state.selectedWidgetId,
@@ -2200,6 +2342,12 @@ function buildPersistSnapshot() {
     presets: state.presets,
     instances: state.instances
   });
+}
+
+function buildPersistSnapshot() {
+  const snapshot = buildSessionSnapshot();
+  applyRuntimeOnlyPolicyToSnapshot(snapshot);
+  return snapshot;
 }
 
 function buildHistoryBackgroundSnapshot(background) {
@@ -2260,7 +2408,7 @@ function buildHistorySnapshot() {
 }
 
 function materializeHistorySnapshot(historySnapshotInput) {
-  const base = buildPersistSnapshot();
+  const base = buildSessionSnapshot();
   if (!isStateObject(historySnapshotInput)) {
     return base;
   }
@@ -2341,7 +2489,12 @@ function isStateObject(value) {
 }
 
 function normalizeStoredSnapshot(value) {
-  return isStateObject(value) ? value : null;
+  if (!isStateObject(value)) {
+    return null;
+  }
+  const normalized = structuredClone(value);
+  applyRuntimeOnlyPolicyToSnapshot(normalized);
+  return normalized;
 }
 
 async function readStoredSnapshot() {
@@ -2557,9 +2710,7 @@ function setBodyMode() {
     closeWidgetModal(false);
     closeAddWidgetModal();
     closeDockSettingsModal(false);
-    if (state?.ui) {
-      state.ui.settingsOpen = false;
-    }
+    runtimeSettingsPanelOpen = false;
   }
 
   syncSettingsPanelVisibility();
@@ -2596,7 +2747,7 @@ function applyEditDockPosition(left, top) {
 }
 
 function syncSettingsPanelVisibility() {
-  const open = Boolean(state?.mode === "edit" && state?.ui?.settingsOpen);
+  const open = Boolean(state?.mode === "edit" && runtimeSettingsPanelOpen);
   document.body.classList.toggle("settings-open", open);
   elements.settingsRailToggleBtn?.setAttribute("aria-expanded", String(open));
   elements.settingsPanel?.setAttribute("aria-hidden", String(!open));
@@ -5376,7 +5527,7 @@ function renderBoardViewport({ dragOffsetX = 0, animate = true, dragging = false
   refreshWidgetsByType("container");
 }
 
-function setActiveLauncherPage(page, { shouldSave = false, animate = true } = {}) {
+function setActiveLauncherPage(page, { animate = true } = {}) {
   if (!state?.ui?.home) {
     return false;
   }
@@ -5390,9 +5541,6 @@ function setActiveLauncherPage(page, { shouldSave = false, animate = true } = {}
 
   renderBoardViewport({ animate, dragging: false, dragOffsetX: 0 });
 
-  if (changed && shouldSave) {
-    queueSave();
-  }
   return changed;
 }
 
@@ -5616,7 +5764,6 @@ function setSelected(instanceId) {
   }
   renderDockWidgets();
   renderSettings();
-  queueSave();
 }
 
 function patchTheme(patch) {
@@ -5741,15 +5888,23 @@ function patchWidgetConfig(instanceId, patch, { record = true } = {}) {
   if (!instance) {
     return;
   }
-  if (record) {
+
+  const patchObject = patch && typeof patch === "object" && !Array.isArray(patch) ? patch : {};
+  const persistablePatch = buildPersistableWidgetConfigPatch(instance.type, patchObject);
+  const shouldPersist = Object.keys(persistablePatch).length > 0;
+
+  if (record && shouldPersist) {
     recordHistorySnapshot("Update widget settings");
-  } else {
+  } else if (!record && shouldPersist) {
     touchUserMutationClock();
   }
-  instance.config = { ...instance.config, ...patch };
+
+  instance.config = { ...instance.config, ...patchObject };
   runtime.get(instanceId)?.controller?.refresh?.();
   renderSettings();
-  queueSave();
+  if (shouldPersist) {
+    queueSave();
+  }
 }
 
 function setWidgetContainer(instanceId, containerId, { record = true, rerender = true, save = true } = {}) {
@@ -8924,7 +9079,7 @@ function beginBoardSwipe(event) {
   if (modalState.open || addWidgetModalOpen || shortcutIconEditorState.open || dockSettingsModalOpen) {
     return;
   }
-  if (state.mode === "edit" && state.ui.settingsOpen) {
+  if (state.mode === "edit" && runtimeSettingsPanelOpen) {
     return;
   }
 
@@ -9084,18 +9239,16 @@ function wireEvents() {
     if (state.mode !== "edit") {
       return;
     }
-    state.ui.settingsOpen = !state.ui.settingsOpen;
+    runtimeSettingsPanelOpen = !runtimeSettingsPanelOpen;
     syncSettingsPanelVisibility();
-    queueSave();
   });
 
   elements.settingsPanelBackdrop?.addEventListener("click", () => {
-    if (!state.ui.settingsOpen) {
+    if (!runtimeSettingsPanelOpen) {
       return;
     }
-    state.ui.settingsOpen = false;
+    runtimeSettingsPanelOpen = false;
     syncSettingsPanelVisibility();
-    queueSave();
   });
 
   elements.bgRefreshBtn?.addEventListener("click", () => {
@@ -9114,7 +9267,6 @@ function wireEvents() {
     requestAnimationFrame(() => {
       updateBoardBounds();
     });
-    queueSave();
   });
 
   elements.dockSettingsBtn?.addEventListener("click", () => {
@@ -9134,19 +9286,16 @@ function wireEvents() {
   elements.tabGlobalBtn?.addEventListener("click", () => {
     state.ui.activeTab = "global";
     renderSettings();
-    queueSave();
   });
 
   elements.tabBackgroundBtn?.addEventListener("click", () => {
     state.ui.activeTab = "background";
     renderSettings();
-    queueSave();
   });
 
   elements.tabProfileBtn?.addEventListener("click", () => {
     state.ui.activeTab = "profile";
     renderSettings();
-    queueSave();
   });
 
   elements.widgetTypeSelect?.addEventListener("change", () => {
@@ -9558,12 +9707,17 @@ async function init() {
   populateTypeSelect();
   syncAddWidgetSizeInputs();
   const loaded = await loadState(defaultState());
-  lastSavedFingerprint = snapshotFingerprint(loaded);
-  lastSavedUserMutationAt = readUserMutationClock(loaded);
+  const normalizedLoaded = applyRuntimeOnlyPolicyToSnapshot(structuredClone(loaded));
+  lastSavedFingerprint = snapshotFingerprint(normalizedLoaded);
+  lastSavedUserMutationAt = readUserMutationClock(normalizedLoaded);
   saveInFlightFingerprint = "";
-  state = hydrate(loaded);
+  state = hydrate(normalizedLoaded);
+  runtimeSettingsPanelOpen = false;
   wireStorageSync();
-  if (state.ui.home.legacyHeadlessSurfaceMigrated && loaded?.ui?.home?.legacyHeadlessSurfaceMigrated !== true) {
+  if (
+    state.ui.home.legacyHeadlessSurfaceMigrated &&
+    normalizedLoaded?.ui?.home?.legacyHeadlessSurfaceMigrated !== true
+  ) {
     queueSave({ allowWithoutUserMutation: true });
   }
 
