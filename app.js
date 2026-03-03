@@ -80,8 +80,7 @@ const elements = {
   addWidgetModalCancelBtn: document.getElementById("addWidgetModalCancelBtn"),
   addWidgetModalOkBtn: document.getElementById("addWidgetModalOkBtn"),
   addWidgetTitleInput: document.getElementById("addWidgetTitleInput"),
-  addWidgetColSpanInput: document.getElementById("addWidgetColSpanInput"),
-  addWidgetRowSpanInput: document.getElementById("addWidgetRowSpanInput"),
+  addWidgetToast: document.getElementById("addWidgetToast"),
   settingsContent: document.getElementById("settingsContent"),
   template: document.getElementById("widgetTemplate"),
   bgLayer: document.getElementById("bgLayer"),
@@ -156,6 +155,7 @@ let saveAllowsNonUserMutation = false;
 let lastSavedFingerprint = "";
 let lastSavedUserMutationAt = 0;
 let saveInFlightFingerprint = "";
+let saveChain = Promise.resolve();
 let wallpaperTimer = null;
 let wallpaperCounter = 0;
 let lastDragEndAt = 0;
@@ -164,6 +164,7 @@ let wallpaperSourceSignature = "";
 let zCounter = 1;
 let addWidgetModalOpen = false;
 let dockSettingsModalOpen = false;
+let addWidgetToastTimer = null;
 let wallpaperLoadToken = 0;
 let videoLoadToken = 0;
 let sampledWallpaperBaseLuminance = null;
@@ -204,6 +205,9 @@ const dockEmbeddedUiState = {
 const containerDropUiState = {
   targets: new Map(),
   activeId: ""
+};
+const dragGuideUiState = {
+  host: null
 };
 const shortcutIconEditorState = {
   open: false,
@@ -961,12 +965,14 @@ function isWidgetDocked(instance) {
   return normalizeDockOrder(instance?.dockOrder, null) !== null;
 }
 
-function normalizeDockedWidgetOrders(instances) {
+function normalizeDockedWidgetOrders(instances, home = state?.ui?.home) {
   if (!Array.isArray(instances) || !instances.length) {
-    return;
+    return false;
   }
+
+  const slotCount = Math.max(1, buildDockConfig(home).lengthUnits);
   const docked = instances
-    .filter((instance) => isWidgetDocked(instance))
+    .filter((instance) => instance && instance.enabled !== false && isWidgetDocked(instance) && !isWidgetInContainer(instance))
     .sort((a, b) => {
       const orderA = normalizeDockOrder(a.dockOrder, Number.MAX_SAFE_INTEGER);
       const orderB = normalizeDockOrder(b.dockOrder, Number.MAX_SAFE_INTEGER);
@@ -976,9 +982,49 @@ function normalizeDockedWidgetOrders(instances) {
       return String(a.id).localeCompare(String(b.id));
     });
 
-  for (let i = 0; i < docked.length; i += 1) {
-    docked[i].dockOrder = i;
+  let changed = false;
+  const occupied = new Set();
+  const nextAvailableSlot = () => {
+    for (let slot = 0; slot < slotCount; slot += 1) {
+      if (!occupied.has(slot)) {
+        return slot;
+      }
+    }
+    return null;
+  };
+
+  for (const instance of docked) {
+    const current = normalizeDockOrder(instance.dockOrder, null);
+    if (current !== null && current < slotCount && !occupied.has(current)) {
+      occupied.add(current);
+      continue;
+    }
+
+    const fallback = nextAvailableSlot();
+    if (fallback === null) {
+      if (instance.dockOrder !== null) {
+        instance.dockOrder = null;
+        changed = true;
+      }
+      continue;
+    }
+
+    if (instance.dockOrder !== fallback) {
+      instance.dockOrder = fallback;
+      changed = true;
+    }
+    occupied.add(fallback);
   }
+
+  for (const instance of instances) {
+    if (!instance || !isWidgetDocked(instance) || !isWidgetInContainer(instance)) {
+      continue;
+    }
+    instance.dockOrder = null;
+    changed = true;
+  }
+
+  return changed;
 }
 
 function normalizeContainerId(value) {
@@ -1166,16 +1212,195 @@ function dockedInstances(instances = state?.instances) {
     });
 }
 
-function nextDockOrder() {
-  let maxOrder = -1;
+function dockSlotCount(home = state?.ui?.home) {
+  return Math.max(1, buildDockConfig(home).lengthUnits);
+}
+
+function isHorizontalDock(config = buildDockConfig(state?.ui?.home)) {
+  return config.position === "top" || config.position === "bottom";
+}
+
+function dockSlotOccupants({ excludeWidgetId = "" } = {}) {
+  const slotCount = dockSlotCount();
+  const excluded = normalizeText(excludeWidgetId);
+  const occupied = new Map();
   for (const instance of state?.instances || []) {
-    const order = normalizeDockOrder(instance?.dockOrder, null);
-    if (order === null) {
+    if (!instance || instance.enabled === false || !isWidgetDocked(instance) || isWidgetInContainer(instance)) {
       continue;
     }
-    maxOrder = Math.max(maxOrder, order);
+    if (excluded && String(instance.id) === excluded) {
+      continue;
+    }
+    const slot = normalizeDockOrder(instance.dockOrder, null);
+    if (slot === null || slot < 0 || slot >= slotCount || occupied.has(slot)) {
+      continue;
+    }
+    occupied.set(slot, instance);
   }
-  return maxOrder + 1;
+  return occupied;
+}
+
+function firstAvailableDockSlot({ excludeWidgetId = "" } = {}) {
+  const slotCount = dockSlotCount();
+  const occupied = dockSlotOccupants({ excludeWidgetId });
+  for (let slot = 0; slot < slotCount; slot += 1) {
+    if (!occupied.has(slot)) {
+      return slot;
+    }
+  }
+  return null;
+}
+
+function dockSlotIndexAtPoint(clientX, clientY, { clampToRange = false } = {}) {
+  const strip = elements.dockWidgetStrip;
+  if (!(strip instanceof HTMLElement)) {
+    return null;
+  }
+
+  const config = buildDockConfig(state?.ui?.home);
+  if (!config.enabled) {
+    return null;
+  }
+
+  const slotCount = Math.max(1, config.lengthUnits);
+  const rect = strip.getBoundingClientRect();
+  if (!pointInsideRect(clientX, clientY, rect) && !clampToRange) {
+    return null;
+  }
+
+  const stripStyle = window.getComputedStyle(strip);
+  const gapFallback = cssPixelValue(stripStyle.gap, 6);
+  const horizontal = isHorizontalDock(config);
+  const gap = horizontal
+    ? cssPixelValue(stripStyle.columnGap, gapFallback)
+    : cssPixelValue(stripStyle.rowGap, gapFallback);
+  const step = Math.max(1, Number(config.heightPx) + gap);
+  const local = horizontal
+    ? clamp(clientX - rect.left, 0, Math.max(0, rect.width - 1))
+    : clamp(clientY - rect.top, 0, Math.max(0, rect.height - 1));
+
+  const slot = Math.floor((local + gap * 0.5) / step);
+  if (slot < 0 || slot >= slotCount) {
+    if (!clampToRange) {
+      return null;
+    }
+    return clamp(slot, 0, slotCount - 1);
+  }
+  return slot;
+}
+
+function dockSlotRectRelativeToHost(slotIndex) {
+  const dockHost = elements.persistentDockBody ?? elements.persistentDock;
+  const strip = elements.dockWidgetStrip;
+  if (!(dockHost instanceof HTMLElement) || !(strip instanceof HTMLElement)) {
+    return null;
+  }
+
+  const config = buildDockConfig(state?.ui?.home);
+  const slotCount = Math.max(1, config.lengthUnits);
+  if (!Number.isFinite(slotIndex) || slotIndex < 0 || slotIndex >= slotCount) {
+    return null;
+  }
+
+  const stripStyle = window.getComputedStyle(strip);
+  const gapFallback = cssPixelValue(stripStyle.gap, 6);
+  const horizontal = isHorizontalDock(config);
+  const gap = horizontal
+    ? cssPixelValue(stripStyle.columnGap, gapFallback)
+    : cssPixelValue(stripStyle.rowGap, gapFallback);
+  const unit = Math.max(1, Number(config.heightPx) || 44);
+
+  const dockRect = dockHost.getBoundingClientRect();
+  const stripRect = strip.getBoundingClientRect();
+  const baseX = stripRect.left - dockRect.left;
+  const baseY = stripRect.top - dockRect.top;
+  const offset = slotIndex * (unit + gap);
+
+  return {
+    x: Math.round(baseX + (horizontal ? offset : 0)),
+    y: Math.round(baseY + (horizontal ? 0 : offset)),
+    w: unit,
+    h: unit,
+    borderRadius: Math.round(unit * 0.28)
+  };
+}
+
+function resolveDockDropSlotIndex(clientX, clientY, draggedInstance = null) {
+  const config = buildDockConfig(state?.ui?.home);
+  if (!config.enabled) {
+    return null;
+  }
+
+  const direct = dockSlotIndexAtPoint(clientX, clientY, { clampToRange: true });
+  if (direct !== null) {
+    return direct;
+  }
+
+  const current = normalizeDockOrder(draggedInstance?.dockOrder, null);
+  if (current !== null && current < config.lengthUnits) {
+    return current;
+  }
+
+  return firstAvailableDockSlot({ excludeWidgetId: draggedInstance?.id }) ?? 0;
+}
+
+function moveWidgetToDockSlot(instance, targetSlot, { record = true } = {}) {
+  if (!instance || !Number.isFinite(targetSlot)) {
+    return false;
+  }
+
+  const config = buildDockConfig(state?.ui?.home);
+  const slotCount = Math.max(1, config.lengthUnits);
+  const clampedSlot = clamp(Math.floor(targetSlot), 0, slotCount - 1);
+
+  if (!isDockEligibleWidget(instance)) {
+    return false;
+  }
+
+  const previousSlot = normalizeDockOrder(instance.dockOrder, null);
+  const occupied = dockSlotOccupants({ excludeWidgetId: instance.id });
+  const occupant = occupied.get(clampedSlot) || null;
+
+  if (previousSlot === clampedSlot && !isWidgetInContainer(instance)) {
+    return false;
+  }
+
+  if (occupant && previousSlot !== null && previousSlot >= 0 && previousSlot < slotCount) {
+    occupant.dockOrder = previousSlot;
+  } else if (occupant) {
+    const fallback = firstAvailableDockSlot({ excludeWidgetId: instance.id });
+    if (fallback === null) {
+      return false;
+    }
+    occupant.dockOrder = fallback;
+  }
+
+  if (record) {
+    recordHistorySnapshot("Dock widget");
+  } else {
+    touchUserMutationClock();
+  }
+
+  if (isWidgetInContainer(instance)) {
+    setWidgetContainer(instance.id, "", {
+      record: false,
+      rerender: false,
+      save: false
+    });
+  }
+
+  instance.dockOrder = clampedSlot;
+  normalizeDockedWidgetOrders(state.instances, state?.ui?.home);
+  setDockActiveId(instance.id, { rerender: false });
+
+  if (state.selectedWidgetId === instance.id) {
+    state.selectedWidgetId = "";
+  }
+  if (modalState.open && modalState.widgetId === instance.id) {
+    closeWidgetModal(false);
+  }
+
+  return true;
 }
 
 function normalizeDockActiveId(instances, candidate = dockUiState.activeId) {
@@ -1231,9 +1456,6 @@ function isDockEligibleWidget(instance) {
     return false;
   }
   if (instance.type === "container") {
-    return false;
-  }
-  if (isWidgetInContainer(instance)) {
     return false;
   }
 
@@ -1767,10 +1989,10 @@ function hydrate(raw) {
     });
   }
 
-  normalizeDockedWidgetOrders(normalized);
+  const rawUi = raw?.ui || {};
+  normalizeDockedWidgetOrders(normalized, rawUi.home);
   normalizeContainerAssignments(normalized);
 
-  const rawUi = raw?.ui || {};
   const theme = {
     ...defaultTheme(),
     ...(rawUi.theme || {})
@@ -1898,6 +2120,59 @@ function hydrate(raw) {
   };
 }
 
+function persistLatestSnapshot({ allowNonUserMutation = false } = {}) {
+  if (!state) {
+    return;
+  }
+
+  const snapshot = buildPersistSnapshot();
+  const userMutationAt = readUserMutationClock(snapshot);
+  if (!allowNonUserMutation && userMutationAt <= lastSavedUserMutationAt) {
+    return;
+  }
+
+  const fingerprint = snapshotFingerprint(snapshot);
+  if (!fingerprint) {
+    return;
+  }
+
+  if (fingerprint === lastSavedFingerprint || fingerprint === saveInFlightFingerprint) {
+    return;
+  }
+
+  saveInFlightFingerprint = fingerprint;
+
+  const executeSave = async () => {
+    try {
+      await saveSnapshotIfNotStale(snapshot, fingerprint, userMutationAt);
+    } catch (error) {
+      console.warn("Failed to persist dashboard state", error);
+    } finally {
+      if (saveInFlightFingerprint === fingerprint) {
+        saveInFlightFingerprint = "";
+      }
+    }
+  };
+
+  saveChain = saveChain.then(executeSave, executeSave);
+}
+
+function flushPendingSave(options = {}) {
+  if (!state) {
+    return;
+  }
+
+  if (saveTimer) {
+    clearTimeout(saveTimer);
+    saveTimer = null;
+  }
+
+  const allowNonUserMutation =
+    saveAllowsNonUserMutation || options.allowWithoutUserMutation === true;
+  saveAllowsNonUserMutation = false;
+  persistLatestSnapshot({ allowNonUserMutation });
+}
+
 function queueSave(options = {}) {
   if (!state) {
     return;
@@ -1911,31 +2186,7 @@ function queueSave(options = {}) {
   }
 
   saveTimer = setTimeout(() => {
-    saveTimer = null;
-    const allowNonUserMutation = saveAllowsNonUserMutation;
-    saveAllowsNonUserMutation = false;
-    const snapshot = buildPersistSnapshot();
-    const userMutationAt = readUserMutationClock(snapshot);
-    if (!allowNonUserMutation && userMutationAt <= lastSavedUserMutationAt) {
-      return;
-    }
-    const fingerprint = snapshotFingerprint(snapshot);
-    if (!fingerprint) {
-      return;
-    }
-    if (fingerprint === lastSavedFingerprint || fingerprint === saveInFlightFingerprint) {
-      return;
-    }
-
-    saveInFlightFingerprint = fingerprint;
-    void saveSnapshotIfNotStale(snapshot, fingerprint, userMutationAt)
-      .catch(() => {
-      })
-      .finally(() => {
-        if (saveInFlightFingerprint === fingerprint) {
-          saveInFlightFingerprint = "";
-        }
-      });
+    flushPendingSave();
   }, 150);
 }
 
@@ -3777,20 +4028,34 @@ function syncAddWidgetSizeInputs() {
     return;
   }
 
-  const size = widgetDefaultGridSize(type, def);
-  const fixedSingleCell = type === "container";
-  if (elements.addWidgetColSpanInput) {
-    elements.addWidgetColSpanInput.value = String(size.colSpan);
-    elements.addWidgetColSpanInput.disabled = fixedSingleCell;
-  }
-  if (elements.addWidgetRowSpanInput) {
-    elements.addWidgetRowSpanInput.value = String(size.rowSpan);
-    elements.addWidgetRowSpanInput.disabled = fixedSingleCell;
-  }
   if (elements.addWidgetTitleInput) {
     elements.addWidgetTitleInput.placeholder = `Default: ${def.title}`;
     elements.addWidgetTitleInput.value = "";
   }
+}
+
+function showAddWidgetToast(message, { duration = 2800 } = {}) {
+  const toast = elements.addWidgetToast;
+  const text = normalizeText(message);
+  if (!toast || !text) {
+    return;
+  }
+
+  if (addWidgetToastTimer) {
+    clearTimeout(addWidgetToastTimer);
+    addWidgetToastTimer = null;
+  }
+
+  toast.textContent = text;
+  toast.classList.add("show");
+  toast.setAttribute("aria-hidden", "false");
+
+  const timeout = clamp(Math.round(Number(duration) || 2800), 1200, 8000);
+  addWidgetToastTimer = window.setTimeout(() => {
+    toast.classList.remove("show");
+    toast.setAttribute("aria-hidden", "true");
+    addWidgetToastTimer = null;
+  }, timeout);
 }
 
 function openAddWidgetModal() {
@@ -3934,21 +4199,18 @@ function applyAddWidgetModal() {
   }
 
   const defaultSize = widgetDefaultGridSize(type, def);
-  const isContainerType = type === "container";
-  const colSpan = isContainerType
-    ? 1
-    : normalizeGridSpanValue(elements.addWidgetColSpanInput?.value, defaultSize.colSpan, GRID_MAX_COLUMNS);
-  const rowSpan = isContainerType
-    ? 1
-    : normalizeGridSpanValue(elements.addWidgetRowSpanInput?.value, defaultSize.rowSpan, GRID_MAX_ROW_SPAN);
+  const colSpan = type === "container" ? 1 : defaultSize.colSpan;
+  const rowSpan = type === "container" ? 1 : defaultSize.rowSpan;
   const title = normalizeText(elements.addWidgetTitleInput?.value, def.title);
 
-  addWidget(type, {
+  const added = addWidget(type, {
     colSpan,
     rowSpan,
     title
   });
-  closeAddWidgetModal();
+  if (added) {
+    closeAddWidgetModal();
+  }
 }
 
 function syncLauncherPagingState({ expandToFitInstances = true } = {}) {
@@ -4115,41 +4377,356 @@ function createDragPreviewSession(instance, options = {}) {
   };
 }
 
-function createWidgetDropSilhouette(card) {
+function cssPixelValue(value, fallback = 0) {
+  const parsed = Number.parseFloat(String(value ?? ""));
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function clearWidgetDropGuideHost(host) {
+  if (!(host instanceof HTMLElement)) {
+    return;
+  }
+  host.classList.remove("is-drop-guide-active");
+  host.removeAttribute("data-drop-guide-mode");
+  host.style.removeProperty("--drop-guide-left");
+  host.style.removeProperty("--drop-guide-top");
+  host.style.removeProperty("--drop-guide-width");
+  host.style.removeProperty("--drop-guide-height");
+  host.style.removeProperty("--drop-guide-radius");
+}
+
+function clearWidgetDropGuide() {
+  if (!dragGuideUiState.host) {
+    return;
+  }
+  clearWidgetDropGuideHost(dragGuideUiState.host);
+  dragGuideUiState.host = null;
+}
+
+function applyWidgetDropGuide(host, { mode = "full", rect = null, borderRadius = null } = {}) {
+  if (!(host instanceof HTMLElement)) {
+    clearWidgetDropGuide();
+    return;
+  }
+
+  if (dragGuideUiState.host && dragGuideUiState.host !== host) {
+    clearWidgetDropGuideHost(dragGuideUiState.host);
+  }
+
+  const hasSlotRect =
+    mode === "slot" &&
+    rect &&
+    Number.isFinite(rect.x) &&
+    Number.isFinite(rect.y) &&
+    Number.isFinite(rect.w) &&
+    Number.isFinite(rect.h);
+
+  host.classList.add("is-drop-guide-active");
+  host.dataset.dropGuideMode = hasSlotRect ? "slot" : "full";
+
+  if (hasSlotRect) {
+    host.style.setProperty("--drop-guide-left", `${Math.round(rect.x)}px`);
+    host.style.setProperty("--drop-guide-top", `${Math.round(rect.y)}px`);
+    host.style.setProperty("--drop-guide-width", `${Math.max(1, Math.round(rect.w))}px`);
+    host.style.setProperty("--drop-guide-height", `${Math.max(1, Math.round(rect.h))}px`);
+  } else {
+    host.style.removeProperty("--drop-guide-left");
+    host.style.removeProperty("--drop-guide-top");
+    host.style.removeProperty("--drop-guide-width");
+    host.style.removeProperty("--drop-guide-height");
+  }
+
+  if (Number.isFinite(borderRadius)) {
+    host.style.setProperty("--drop-guide-radius", `${Math.max(0, Math.round(borderRadius))}px`);
+  } else {
+    host.style.removeProperty("--drop-guide-radius");
+  }
+
+  dragGuideUiState.host = host;
+}
+
+function boardPageDropGuideRect(page) {
   const board = elements.board;
   if (!(board instanceof HTMLElement)) {
     return null;
   }
+  return {
+    x: widgetPageOffsetX(page),
+    y: 0,
+    w: Math.max(1, Math.round(board.clientWidth || 1)),
+    h: Math.max(1, Math.round(board.clientHeight || 1))
+  };
+}
 
-  const silhouette = document.createElement("div");
-  silhouette.className = "widget-drop-silhouette";
+function projectedBoardSlotRect(layout, page = 0) {
+  if (!layout) {
+    return null;
+  }
+  return {
+    x: Math.round((Number(layout.x) || 0) + widgetPageOffsetX(page)),
+    y: Math.round(Number(layout.y) || 0),
+    w: Math.max(1, Math.round(Number(layout.w) || 1)),
+    h: Math.max(1, Math.round(Number(layout.h) || 1))
+  };
+}
 
-  if (card instanceof HTMLElement) {
-    const borderRadius = normalizeText(window.getComputedStyle(card).borderRadius);
-    if (borderRadius) {
-      silhouette.style.borderRadius = borderRadius;
+function dockDropGuideSlotRect(draggedInstance, clientX, clientY) {
+  const slotIndex = resolveDockDropSlotIndex(clientX, clientY, draggedInstance);
+  if (slotIndex === null) {
+    return null;
+  }
+  return dockSlotRectRelativeToHost(slotIndex);
+}
+
+function containerDropGuideSlotRect(containerId, draggedInstance, host) {
+  if (!(host instanceof HTMLElement) || !host.classList.contains("widget-folder-panel") || !draggedInstance) {
+    return null;
+  }
+
+  const body = host.querySelector(".widget-folder-panel-body");
+  if (!(body instanceof HTMLElement)) {
+    return null;
+  }
+
+  const containerInstance = instanceById(containerId);
+  if (!containerInstance || containerInstance.type !== "container") {
+    return null;
+  }
+
+  const containerSpan = resolveContainerSpan(containerInstance);
+  const cols = Math.max(1, Math.floor(containerSpan.cols || 1));
+  const rows = Math.max(1, Math.floor(containerSpan.rows || 1));
+  const occupancy = Array.from({ length: rows }, () => Array(cols).fill(false));
+
+  const canFit = (row, col, rowSpan, colSpan) => {
+    if (row < 0 || col < 0 || row + rowSpan > rows || col + colSpan > cols) {
+      return false;
+    }
+    for (let y = row; y < row + rowSpan; y += 1) {
+      for (let x = col; x < col + colSpan; x += 1) {
+        if (occupancy[y][x]) {
+          return false;
+        }
+      }
+    }
+    return true;
+  };
+
+  const occupy = (row, col, rowSpan, colSpan) => {
+    for (let y = row; y < row + rowSpan; y += 1) {
+      for (let x = col; x < col + colSpan; x += 1) {
+        occupancy[y][x] = true;
+      }
+    }
+  };
+
+  let targetPlacement = null;
+  const draggedId = String(draggedInstance.id);
+  const normalizedContainerId = normalizeContainerId(containerId);
+
+  for (const item of state.instances || []) {
+    if (!item || item.enabled === false || item.type === "container") {
+      continue;
+    }
+
+    const itemId = String(item.id);
+    const inTargetContainer =
+      itemId === draggedId || normalizeContainerId(item.containerId) === normalizedContainerId;
+    if (!inTargetContainer) {
+      continue;
+    }
+
+    const span = resolveWidgetSpanInContainer(item, containerSpan);
+    const colSpan = clamp(Math.round(span.cols || 1), 1, cols);
+    const rowSpan = clamp(Math.round(span.rows || 1), 1, rows);
+
+    let placed = null;
+    for (let row = 0; row < rows && !placed; row += 1) {
+      for (let col = 0; col < cols; col += 1) {
+        if (!canFit(row, col, rowSpan, colSpan)) {
+          continue;
+        }
+        placed = { row, col };
+        break;
+      }
+    }
+
+    if (!placed) {
+      continue;
+    }
+
+    occupy(placed.row, placed.col, rowSpan, colSpan);
+
+    if (itemId === draggedId) {
+      targetPlacement = {
+        row: placed.row,
+        col: placed.col,
+        rowSpan,
+        colSpan
+      };
+      break;
     }
   }
 
-  board.append(silhouette);
-  return silhouette;
+  if (!targetPlacement) {
+    return null;
+  }
+
+  const hostRect = host.getBoundingClientRect();
+  const bodyRect = body.getBoundingClientRect();
+  const bodyStyle = window.getComputedStyle(body);
+  const gapX = cssPixelValue(bodyStyle.columnGap, cssPixelValue(bodyStyle.gap, 0));
+  const gapY = cssPixelValue(bodyStyle.rowGap, cssPixelValue(bodyStyle.gap, 0));
+  const padLeft = cssPixelValue(bodyStyle.paddingLeft, 0);
+  const padRight = cssPixelValue(bodyStyle.paddingRight, 0);
+  const padTop = cssPixelValue(bodyStyle.paddingTop, 0);
+  const padBottom = cssPixelValue(bodyStyle.paddingBottom, 0);
+
+  const usableWidth = Math.max(1, bodyRect.width - padLeft - padRight - gapX * Math.max(0, cols - 1));
+  const usableHeight = Math.max(1, bodyRect.height - padTop - padBottom - gapY * Math.max(0, rows - 1));
+  const cellW = usableWidth / cols;
+  const cellH = usableHeight / rows;
+  if (!Number.isFinite(cellW) || !Number.isFinite(cellH) || cellW <= 0 || cellH <= 0) {
+    return null;
+  }
+
+  const bodyLocalLeft = bodyRect.left - hostRect.left;
+  const bodyLocalTop = bodyRect.top - hostRect.top;
+
+  return {
+    x: Math.round(bodyLocalLeft + padLeft + targetPlacement.col * (cellW + gapX)),
+    y: Math.round(bodyLocalTop + padTop + targetPlacement.row * (cellH + gapY)),
+    w: Math.max(1, Math.round(cellW * targetPlacement.colSpan + gapX * Math.max(0, targetPlacement.colSpan - 1))),
+    h: Math.max(1, Math.round(cellH * targetPlacement.rowSpan + gapY * Math.max(0, targetPlacement.rowSpan - 1))),
+    borderRadius: 10
+  };
 }
 
-function positionWidgetDropSilhouette(silhouette, layout, page = 0) {
-  if (!(silhouette instanceof HTMLElement) || !layout) {
-    return;
+function updateWidgetDragGuideAtPointer(
+  draggedInstance,
+  clientX,
+  clientY,
+  { boardLayout = null, boardPage = null } = {}
+) {
+  if (!draggedInstance || !Number.isFinite(clientX) || !Number.isFinite(clientY)) {
+    return {
+      containerDropTargetId: "",
+      dockDropActive: false
+    };
   }
-  silhouette.style.left = `${Math.round(layout.x + widgetPageOffsetX(page))}px`;
-  silhouette.style.top = `${Math.round(layout.y)}px`;
-  silhouette.style.width = `${Math.max(1, Math.round(layout.w))}px`;
-  silhouette.style.height = `${Math.max(1, Math.round(layout.h))}px`;
+
+  const containerDropTargetId = containerDropTargetAtPoint(clientX, clientY, draggedInstance);
+  const dockDropActive = !containerDropTargetId && isDockDropPoint(clientX, clientY);
+
+  setContainerDropTargetActive(containerDropTargetId);
+  setDockDropTargetActive(dockDropActive);
+
+  const freeMode = !isGridLayoutMode();
+
+  if (containerDropTargetId) {
+    const entry = containerDropUiState.targets.get(containerDropTargetId);
+    const host = entry?.element;
+    if (host instanceof HTMLElement) {
+      if (freeMode) {
+        applyWidgetDropGuide(host, { mode: "full" });
+      } else {
+        const rect = containerDropGuideSlotRect(containerDropTargetId, draggedInstance, host);
+        if (rect) {
+          applyWidgetDropGuide(host, {
+            mode: "slot",
+            rect,
+            borderRadius: rect.borderRadius
+          });
+        } else {
+          applyWidgetDropGuide(host, { mode: "full" });
+        }
+      }
+    } else {
+      clearWidgetDropGuide();
+    }
+
+    return {
+      containerDropTargetId,
+      dockDropActive
+    };
+  }
+
+  if (dockDropActive) {
+    const host = elements.persistentDockBody ?? elements.persistentDock;
+    if (!(host instanceof HTMLElement)) {
+      clearWidgetDropGuide();
+    } else if (freeMode) {
+      applyWidgetDropGuide(host, { mode: "full" });
+    } else {
+      const rect = dockDropGuideSlotRect(draggedInstance, clientX, clientY);
+      if (rect) {
+        applyWidgetDropGuide(host, {
+          mode: "slot",
+          rect,
+          borderRadius: rect.borderRadius
+        });
+      } else {
+        applyWidgetDropGuide(host, { mode: "full" });
+      }
+    }
+
+    return {
+      containerDropTargetId,
+      dockDropActive
+    };
+  }
+
+  const board = elements.board;
+  if (!(board instanceof HTMLElement)) {
+    clearWidgetDropGuide();
+    return {
+      containerDropTargetId,
+      dockDropActive
+    };
+  }
+
+  const resolvedBoardPage = Number.isFinite(boardPage) ? boardPage : draggedInstance.page;
+
+  if (freeMode) {
+    const rect = boardPageDropGuideRect(resolvedBoardPage);
+    if (rect) {
+      applyWidgetDropGuide(board, {
+        mode: "slot",
+        rect,
+        borderRadius: 14
+      });
+    } else {
+      applyWidgetDropGuide(board, { mode: "full" });
+    }
+  } else {
+    const fallbackLayout = {
+      x: Number(draggedInstance.layout?.x) || 0,
+      y: Number(draggedInstance.layout?.y) || 0,
+      w: Number(draggedInstance.layout?.w) || 1,
+      h: Number(draggedInstance.layout?.h) || 1
+    };
+    const rect = projectedBoardSlotRect(boardLayout || fallbackLayout, resolvedBoardPage);
+    if (rect) {
+      applyWidgetDropGuide(board, {
+        mode: "slot",
+        rect,
+        borderRadius: 12
+      });
+    } else {
+      clearWidgetDropGuide();
+    }
+  }
+
+  return {
+    containerDropTargetId,
+    dockDropActive
+  };
 }
 
-function setWidgetDropSilhouetteVisible(silhouette, visible) {
-  if (!(silhouette instanceof HTMLElement)) {
-    return;
-  }
-  silhouette.classList.toggle("is-visible", Boolean(visible));
+function clearWidgetDragGuideState() {
+  setDockDropTargetActive(false);
+  setContainerDropTargetActive("");
+  clearWidgetDropGuide();
 }
 
 function registerContainerDropTarget(containerId, element, options = {}) {
@@ -4243,6 +4820,69 @@ function isDockDropPoint(x, y) {
   return pointInsideRect(x, y, dockRect);
 }
 
+function projectWidgetBoardDropLayout(instance, clientX, clientY, { preferredPage = null } = {}) {
+  if (!instance) {
+    return null;
+  }
+
+  const boardRect = elements.board?.getBoundingClientRect();
+  if (!boardRect) {
+    return null;
+  }
+
+  const projectedPage = normalizeWidgetPage(preferredPage, currentLauncherPageCount(), currentLauncherActivePage());
+  const pointerX = Number.isFinite(clientX) ? clientX : boardRect.left + boardRect.width / 2;
+  const pointerY = Number.isFinite(clientY) ? clientY : boardRect.top + boardRect.height / 2;
+
+  if (isGridLayoutMode()) {
+    const metrics = gridMetrics();
+    const def = widgetRegistry[instance.type];
+    const grid = normalizeGridLayout(instance.gridLayout, {
+      col: 0,
+      row: 0,
+      ...widgetDefaultGridSize(instance.type, def)
+    });
+    const spanWidth = metrics.cellW * grid.colSpan + metrics.gapX * (grid.colSpan - 1);
+    const spanHeight = metrics.cellH * grid.rowSpan + metrics.gapY * (grid.rowSpan - 1);
+    const stepX = Math.max(1, metrics.cellW + metrics.gapX);
+    const stepY = Math.max(1, metrics.cellH + metrics.gapY);
+    const localX = clamp(pointerX - boardRect.left - spanWidth / 2, 0, Math.max(0, boardRect.width - spanWidth));
+    const localY = clamp(pointerY - boardRect.top - spanHeight / 2, 0, Math.max(0, boardRect.height - spanHeight));
+
+    const col = clamp(Math.round((localX - metrics.marginX) / stepX), 0, Math.max(0, metrics.cols - grid.colSpan));
+    const row = clamp(Math.round((localY - metrics.marginY) / stepY), 0, Math.max(0, metrics.rows - grid.rowSpan));
+
+    return {
+      page: projectedPage,
+      layout: {
+        x: metrics.marginX + col * stepX,
+        y: metrics.marginY + row * stepY,
+        w: spanWidth,
+        h: spanHeight
+      }
+    };
+  }
+
+  const maxW = Math.max(80, Math.floor(boardRect.width));
+  const maxH = Math.max(80, Math.floor(boardRect.height));
+  const width = clamp(Number(instance.layout?.w) || 320, 80, maxW);
+  const height = clamp(Number(instance.layout?.h) || 220, 80, maxH);
+  const maxX = Math.max(0, boardRect.width - width);
+  const maxY = Math.max(0, boardRect.height - height);
+  const nextX = clamp(pointerX - boardRect.left - width / 2, 0, maxX);
+  const nextY = clamp(pointerY - boardRect.top - height / 2, 0, maxY);
+
+  return {
+    page: projectedPage,
+    layout: {
+      x: Math.round(nextX / SNAP) * SNAP,
+      y: Math.round(nextY / SNAP) * SNAP,
+      w: width,
+      h: height
+    }
+  };
+}
+
 function tryContainerWidgetByDrop(instance, pointerEvent, { record = true } = {}) {
   if (!instance || !pointerEvent) {
     return false;
@@ -4264,28 +4904,13 @@ function tryDockWidgetByDrop(instance, pointerEvent, { record = true } = {}) {
   if (!instance || !pointerEvent || !isDockDropPoint(pointerEvent.clientX, pointerEvent.clientY)) {
     return false;
   }
-  if (!isDockEligibleWidget(instance)) {
+
+  const targetSlot = resolveDockDropSlotIndex(pointerEvent.clientX, pointerEvent.clientY, instance);
+  if (targetSlot === null) {
     return false;
   }
-  if (isWidgetDocked(instance) || isWidgetInContainer(instance)) {
-    return false;
-  }
 
-  if (record) {
-    recordHistorySnapshot("Dock widget");
-  }
-
-  instance.dockOrder = nextDockOrder();
-  normalizeDockedWidgetOrders(state.instances);
-  setDockActiveId(instance.id, { rerender: false });
-
-  if (state.selectedWidgetId === instance.id) {
-    state.selectedWidgetId = "";
-  }
-  if (modalState.open && modalState.widgetId === instance.id) {
-    closeWidgetModal(false);
-  }
-  return true;
+  return moveWidgetToDockSlot(instance, targetSlot, { record });
 }
 
 function dockButtonsInStrip() {
@@ -4446,6 +5071,12 @@ function renderDockWidgets() {
 
   destroyDockEmbeddedControllers();
   strip.replaceChildren();
+  const changedByNormalization = normalizeDockedWidgetOrders(state.instances, state?.ui?.home);
+  if (changedByNormalization) {
+    renderBoard();
+  }
+  const config = buildDockConfig(state?.ui?.home);
+  const horizontalDock = isHorizontalDock(config);
   const items = dockedInstances();
   strip.classList.toggle("is-empty", items.length === 0);
 
@@ -4459,12 +5090,20 @@ function renderDockWidgets() {
   dockUiState.activeId = activeId;
 
   for (const item of items) {
+    const slotIndex = normalizeDockOrder(item.dockOrder, null);
+    if (slotIndex === null || slotIndex < 0 || slotIndex >= config.lengthUnits) {
+      continue;
+    }
+
     const label = normalizeText(item.title, widgetRegistry?.[item.type]?.title || "Widget");
 
     const card = document.createElement("article");
     card.className = "dock-widget-item widget-card widget-folder-item-card";
     card.dataset.widgetId = item.id;
     card.dataset.widgetType = item.type;
+    card.dataset.dockSlot = String(slotIndex);
+    card.style.gridColumnStart = horizontalDock ? String(slotIndex + 1) : "1";
+    card.style.gridRowStart = horizontalDock ? "1" : String(slotIndex + 1);
     card.setAttribute("role", "button");
     card.setAttribute("aria-label", label);
     card.title = label;
@@ -4509,6 +5148,21 @@ function renderDockWidgets() {
         createDragPreviewSession: (widget, options = {}) => createDragPreviewSession(widget, options),
         createWidgetDragPreview: (widget, options = {}) => createWidgetDragPreview(widget, options),
         positionWidgetDragPreview,
+        updateWidgetDragGuideAtPointer: (widget, clientX, clientY, options = {}) =>
+          updateWidgetDragGuideAtPointer(widget, clientX, clientY, options),
+        clearWidgetDragGuideState,
+        projectWidgetBoardDropLayout: (widget, clientX, clientY, options = {}) =>
+          projectWidgetBoardDropLayout(widget, clientX, clientY, options),
+        dropWidgetToContainerByPointer: (widget, pointerEvent, options = {}) =>
+          tryContainerWidgetByDrop(widget, pointerEvent, options),
+        dropWidgetToDockByPointer: (widget, pointerEvent, options = {}) => {
+          const moved = tryDockWidgetByDrop(widget, pointerEvent, options);
+          if (moved) {
+            renderBoard();
+            queueSave();
+          }
+          return moved;
+        },
         isEditMode: () => state.mode === "edit",
         openSettings: () => {
           if (state.mode !== "edit") {
@@ -4552,11 +5206,7 @@ function renderDockWidgets() {
 
       event.preventDefault();
       event.stopPropagation();
-
-      const dockRect = getPersistentDockHitRect();
-      if (!dockRect) {
-        return;
-      }
+      card.classList.add("widget-drag-active");
 
       const previewSession = createDragPreviewSession(item, {
         sourceCard: card,
@@ -4565,6 +5215,7 @@ function renderDockWidgets() {
         pointerY: event.clientY
       });
       if (!previewSession) {
+        card.classList.remove("widget-drag-active");
         return;
       }
 
@@ -4572,8 +5223,13 @@ function renderDockWidgets() {
 
       const updateGhost = (clientX, clientY) => {
         previewSession.update(clientX, clientY);
-        const inside = pointInsideRect(clientX, clientY, dockRect);
-        elements.persistentDock?.classList.toggle("is-drag-out-active", !inside);
+        const projectedBoardDrop = projectWidgetBoardDropLayout(item, clientX, clientY, {
+          preferredPage: currentLauncherActivePage()
+        });
+        updateWidgetDragGuideAtPointer(item, clientX, clientY, {
+          boardLayout: projectedBoardDrop?.layout || null,
+          boardPage: projectedBoardDrop?.page
+        });
       };
 
       updateGhost(event.clientX, event.clientY);
@@ -4585,19 +5241,37 @@ function renderDockWidgets() {
 
         const dropX = Number.isFinite(upEvent?.clientX) ? upEvent.clientX : event.clientX;
         const dropY = Number.isFinite(upEvent?.clientY) ? upEvent.clientY : event.clientY;
-        const inside = pointInsideRect(dropX, dropY, dockRect);
+        const pointerEventLike = {
+          clientX: dropX,
+          clientY: dropY
+        };
+        const insideDock = isDockDropPoint(dropX, dropY);
 
-        elements.persistentDock?.classList.remove("is-drag-out-active");
+        clearWidgetDragGuideState();
         card.classList.remove("dock-widget-item-dragging");
+        card.classList.remove("widget-drag-active");
         previewSession.dispose();
 
-        if (!inside) {
-          card.dataset.suppressClick = "true";
-          releaseWidgetFromDockByDrop(item.id, {
-            clientX: dropX,
-            clientY: dropY
-          });
+        if (insideDock) {
+          const targetSlot = resolveDockDropSlotIndex(dropX, dropY, item);
+          if (
+            targetSlot !== null &&
+            moveWidgetToDockSlot(item, targetSlot, { record: true })
+          ) {
+            card.dataset.suppressClick = "true";
+            renderDockWidgets();
+            queueSave();
+          }
+          return;
         }
+
+        card.dataset.suppressClick = "true";
+
+        if (tryContainerWidgetByDrop(item, pointerEventLike, { record: true })) {
+          return;
+        }
+
+        releaseWidgetFromDockByDrop(item.id, pointerEventLike);
       };
 
       const move = (moveEvent) => {
@@ -4638,7 +5312,7 @@ function syncPersistentDock() {
 
   const config = buildDockConfig(state?.ui?.home);
   if (!config.enabled) {
-    setDockDropTargetActive(false);
+    clearWidgetDragGuideState();
     destroyDockEmbeddedControllers();
     elements.dockWidgetStrip?.replaceChildren();
     dockUiState.activeId = "";
@@ -5437,6 +6111,21 @@ function createWidgetCard(instance) {
     createDragPreviewSession: (widget, options = {}) => createDragPreviewSession(widget, options),
     createWidgetDragPreview: (widget, options = {}) => createWidgetDragPreview(widget, options),
     positionWidgetDragPreview,
+    updateWidgetDragGuideAtPointer: (widget, clientX, clientY, options = {}) =>
+      updateWidgetDragGuideAtPointer(widget, clientX, clientY, options),
+    clearWidgetDragGuideState,
+    projectWidgetBoardDropLayout: (widget, clientX, clientY, options = {}) =>
+      projectWidgetBoardDropLayout(widget, clientX, clientY, options),
+    dropWidgetToContainerByPointer: (widget, pointerEvent, options = {}) =>
+      tryContainerWidgetByDrop(widget, pointerEvent, options),
+    dropWidgetToDockByPointer: (widget, pointerEvent, options = {}) => {
+      const moved = tryDockWidgetByDrop(widget, pointerEvent, options);
+      if (moved) {
+        renderBoard();
+        queueSave();
+      }
+      return moved;
+    },
     isEditMode: () => state.mode === "edit",
     openSettings: () => {
       if (state.mode !== "edit") {
@@ -5534,7 +6223,7 @@ function createWidgetCard(instance) {
     }
   }
 
-  if (instance.type === "mondayAssigned") {
+  if (instance.type === "mondayAssigned" || instance.type === "mondayMeetingNote") {
     const makeActionButton = (className, titleText, iconId, action, onAfter = null) => {
       const btn = document.createElement("button");
       btn.type = "button";
@@ -5586,9 +6275,14 @@ function createWidgetCard(instance) {
     const syncAuthButtonState = () => {
       const connected =
         typeof controller?.isConnected === "function" ? Boolean(controller.isConnected()) : false;
+      const iconId = connected ? "i-unplug" : "i-plug";
       for (const btn of authButtons) {
         btn.classList.toggle("is-disconnect", connected);
         btn.title = connected ? "Disconnect Monday" : "Connect Monday";
+        const iconUse = btn.querySelector("use");
+        if (iconUse) {
+          iconUse.setAttribute("href", `#${iconId}`);
+        }
       }
     };
 
@@ -5598,7 +6292,7 @@ function createWidgetCard(instance) {
     ) {
       const headRefresh = makeActionButton(
         "icon-btn widget-refresh-btn",
-        "Refresh Monday issues",
+        "Refresh Monday data",
         "i-reset",
         runRefresh,
         syncAuthButtonState
@@ -5607,7 +6301,7 @@ function createWidgetCard(instance) {
 
       const floatRefresh = makeActionButton(
         "icon-btn widget-float-refresh",
-        "Refresh Monday issues",
+        "Refresh Monday data",
         "i-reset",
         runRefresh,
         syncAuthButtonState
@@ -5838,7 +6532,8 @@ function createWidgetCard(instance) {
       return false;
     }
 
-    const dropSilhouette = createWidgetDropSilhouette(card);
+    card.classList.add("widget-drag-origin-hidden");
+
     previewSession.update(dragStartX, dragStartY);
 
     const pageSwitchThreshold = 42;
@@ -5942,10 +6637,6 @@ function createWidgetCard(instance) {
         const dy = moveEvent.clientY - lastPointerY;
         lastPointerX = moveEvent.clientX;
         lastPointerY = moveEvent.clientY;
-        const containerDropTargetId = containerDropTargetAtPoint(moveEvent.clientX, moveEvent.clientY, instance);
-        const dockDropActive = !containerDropTargetId && isDockDropPoint(moveEvent.clientX, moveEvent.clientY);
-        setContainerDropTargetActive(containerDropTargetId);
-        setDockDropTargetActive(dockDropActive);
 
         const maxX = Math.max(0, boardRect.width - instance.layout.w);
         const maxY = Math.max(0, boardRect.height - instance.layout.h);
@@ -5971,23 +6662,20 @@ function createWidgetCard(instance) {
           }
         }
 
-        const shouldShowDropSilhouette = !containerDropTargetId && !dockDropActive;
-        if (shouldShowDropSilhouette) {
-          const projected = projectedGridDropLayout();
-          positionWidgetDropSilhouette(dropSilhouette, projected.layout, instance.page);
-        }
-        setWidgetDropSilhouetteVisible(dropSilhouette, shouldShowDropSilhouette);
+        const projected = projectedGridDropLayout();
+        updateWidgetDragGuideAtPointer(instance, moveEvent.clientX, moveEvent.clientY, {
+          boardLayout: projected.layout
+        });
       };
 
       const up = (upEvent) => {
         window.removeEventListener("pointermove", move);
         window.removeEventListener("pointerup", up);
         window.removeEventListener("pointercancel", up);
-        setDockDropTargetActive(false);
-        setContainerDropTargetActive("");
+        clearWidgetDragGuideState();
         card.classList.remove("longpress-drag-armed");
         card.classList.remove("widget-drag-active");
-        dropSilhouette?.remove();
+        card.classList.remove("widget-drag-origin-hidden");
         previewSession.dispose();
         lastDragEndAt = Date.now();
 
@@ -6010,8 +6698,9 @@ function createWidgetCard(instance) {
       window.addEventListener("pointerup", up);
       window.addEventListener("pointercancel", up);
       const projected = projectedGridDropLayout();
-      positionWidgetDropSilhouette(dropSilhouette, projected.layout, instance.page);
-      setWidgetDropSilhouetteVisible(dropSilhouette, true);
+      updateWidgetDragGuideAtPointer(instance, dragStartX, dragStartY, {
+        boardLayout: projected.layout
+      });
       return true;
     }
 
@@ -6036,10 +6725,6 @@ function createWidgetCard(instance) {
       const dy = moveEvent.clientY - lastPointerY;
       lastPointerX = moveEvent.clientX;
       lastPointerY = moveEvent.clientY;
-      const containerDropTargetId = containerDropTargetAtPoint(moveEvent.clientX, moveEvent.clientY, instance);
-      const dockDropActive = !containerDropTargetId && isDockDropPoint(moveEvent.clientX, moveEvent.clientY);
-      setContainerDropTargetActive(containerDropTargetId);
-      setDockDropTargetActive(dockDropActive);
       const maxX = Math.max(0, boardRect.width - instance.layout.w);
       const maxY = Math.max(0, boardRect.height - instance.layout.h);
 
@@ -6067,22 +6752,19 @@ function createWidgetCard(instance) {
         lastPointerY = moveEvent.clientY;
       });
 
-      const shouldShowDropSilhouette = !containerDropTargetId && !dockDropActive;
-      if (shouldShowDropSilhouette) {
-        positionWidgetDropSilhouette(dropSilhouette, projectedFreeDropLayout(), instance.page);
-      }
-      setWidgetDropSilhouetteVisible(dropSilhouette, shouldShowDropSilhouette);
+      updateWidgetDragGuideAtPointer(instance, moveEvent.clientX, moveEvent.clientY, {
+        boardLayout: projectedFreeDropLayout()
+      });
     };
 
     const up = (upEvent) => {
       window.removeEventListener("pointermove", move);
       window.removeEventListener("pointerup", up);
       window.removeEventListener("pointercancel", up);
-      setDockDropTargetActive(false);
-      setContainerDropTargetActive("");
+      clearWidgetDragGuideState();
       card.classList.remove("longpress-drag-armed");
       card.classList.remove("widget-drag-active");
-      dropSilhouette?.remove();
+      card.classList.remove("widget-drag-origin-hidden");
       previewSession.dispose();
       lastDragEndAt = Date.now();
 
@@ -6119,8 +6801,9 @@ function createWidgetCard(instance) {
     window.addEventListener("pointermove", move);
     window.addEventListener("pointerup", up);
     window.addEventListener("pointercancel", up);
-    positionWidgetDropSilhouette(dropSilhouette, projectedFreeDropLayout(), instance.page);
-    setWidgetDropSilhouetteVisible(dropSilhouette, true);
+    updateWidgetDragGuideAtPointer(instance, dragStartX, dragStartY, {
+      boardLayout: projectedFreeDropLayout()
+    });
     return true;
   };
 
@@ -6521,6 +7204,7 @@ function createWidgetCard(instance) {
 }
 
 function renderBoard() {
+  clearWidgetDragGuideState();
   clearContainerDropTargets();
   for (const rt of runtime.values()) {
     rt.controller?.destroy?.();
@@ -7909,17 +8593,94 @@ function renderSettings() {
   renderGlobalSettings();
 }
 
+function canFitGridPlacement(occupancy, row, col, rowSpan, colSpan) {
+  for (let y = row; y < row + rowSpan; y += 1) {
+    for (let x = col; x < col + colSpan; x += 1) {
+      if (occupancy[y][x]) {
+        return false;
+      }
+    }
+  }
+  return true;
+}
+
+function occupyGridPlacement(occupancy, row, col, rowSpan, colSpan) {
+  for (let y = row; y < row + rowSpan; y += 1) {
+    for (let x = col; x < col + colSpan; x += 1) {
+      occupancy[y][x] = true;
+    }
+  }
+}
+
+function findFirstAvailableBoardGridSlot(page, colSpan, rowSpan) {
+  if (!isGridLayoutMode()) {
+    return null;
+  }
+
+  const home = syncLauncherPagingState({ expandToFitInstances: true });
+  const metrics = gridMetrics();
+  const cols = Math.max(1, Math.floor(metrics.cols || 1));
+  const rows = Math.max(1, Math.floor(metrics.rows || 1));
+  const placementColSpan = clamp(Math.max(1, Math.floor(colSpan || 1)), 1, cols);
+  const placementRowSpan = clamp(Math.max(1, Math.floor(rowSpan || 1)), 1, rows);
+  const targetPage = normalizeWidgetPage(page, home.pageCount, 0);
+  const occupancy = Array.from({ length: rows }, () => Array(cols).fill(false));
+
+  for (const instance of state.instances || []) {
+    if (!instance || instance.enabled === false || isWidgetDocked(instance) || isWidgetInContainer(instance)) {
+      continue;
+    }
+    if (normalizeWidgetPage(instance.page, home.pageCount, 0) !== targetPage) {
+      continue;
+    }
+
+    const def = widgetRegistry[instance.type];
+    const fallback = widgetDefaultGridSize(instance.type, def);
+    const grid = normalizeGridLayout(instance.gridLayout, {
+      col: 0,
+      row: 0,
+      colSpan: fallback.colSpan,
+      rowSpan: fallback.rowSpan
+    });
+
+    if (instance.type === "container") {
+      grid.colSpan = 1;
+      grid.rowSpan = 1;
+    }
+
+    const occupiedColSpan = clamp(grid.colSpan, 1, cols);
+    const occupiedRowSpan = clamp(grid.rowSpan, 1, rows);
+    const occupiedCol = clamp(grid.col, 0, Math.max(0, cols - occupiedColSpan));
+    const occupiedRow = clamp(grid.row, 0, Math.max(0, rows - occupiedRowSpan));
+    occupyGridPlacement(occupancy, occupiedRow, occupiedCol, occupiedRowSpan, occupiedColSpan);
+  }
+
+  for (let row = 0; row <= rows - placementRowSpan; row += 1) {
+    for (let col = 0; col <= cols - placementColSpan; col += 1) {
+      if (!canFitGridPlacement(occupancy, row, col, placementRowSpan, placementColSpan)) {
+        continue;
+      }
+      return {
+        row,
+        col,
+        rowSpan: placementRowSpan,
+        colSpan: placementColSpan
+      };
+    }
+  }
+
+  return null;
+}
+
 function addWidget(type, options = {}) {
   if (state.mode !== "edit") {
-    return;
+    return false;
   }
 
   const def = widgetRegistry[type];
   if (!def) {
-    return;
+    return false;
   }
-
-  recordHistorySnapshot("Add widget");
 
   syncLauncherPagingState({ expandToFitInstances: true });
   const targetPage = currentLauncherActivePage();
@@ -7936,6 +8697,18 @@ function addWidget(type, options = {}) {
   const requestedRowSpan = normalizeGridSpanValue(options.rowSpan, defaultSize.rowSpan, GRID_MAX_ROW_SPAN);
   const colSpan = type === "container" ? 1 : requestedColSpan;
   const rowSpan = type === "container" ? 1 : requestedRowSpan;
+  let gridPlacement = null;
+
+  if (isGridLayoutMode()) {
+    gridPlacement = findFirstAvailableBoardGridSlot(targetPage, colSpan, rowSpan);
+    if (!gridPlacement) {
+      showAddWidgetToast("빈 공간이 없어 위젯을 추가하지 못했습니다. 공간을 비우거나 새 페이지를 추가해 주세요.");
+      return false;
+    }
+  }
+
+  recordHistorySnapshot("Add widget");
+
   const defaultPadding = widgetPaddingFallback(type);
 
   const instance = {
@@ -7973,10 +8746,10 @@ function addWidget(type, options = {}) {
     enabled: true,
     config: structuredClone(def.defaultConfig || {}),
     gridLayout: normalizeGridLayout(null, {
-      col: pageLocalIndex % 4,
-      row: Math.floor(pageLocalIndex / 4),
-      colSpan,
-      rowSpan
+      col: gridPlacement ? gridPlacement.col : pageLocalIndex % 4,
+      row: gridPlacement ? gridPlacement.row : Math.floor(pageLocalIndex / 4),
+      colSpan: gridPlacement ? gridPlacement.colSpan : colSpan,
+      rowSpan: gridPlacement ? gridPlacement.rowSpan : rowSpan
     }),
     layout: cloneLayout(def.defaultLayout)
   };
@@ -8011,6 +8784,7 @@ function addWidget(type, options = {}) {
   setSelected(instance.id);
   updateBoardBounds();
   queueSave();
+  return true;
 }
 
 function resetState() {
@@ -8431,6 +9205,24 @@ function wireEvents() {
     }
     updateBoardBounds();
     syncPersistentDock();
+  });
+
+  const flushStateOnLifecycleEvent = () => {
+    flushPendingSave({ allowWithoutUserMutation: true });
+  };
+
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "hidden") {
+      flushStateOnLifecycleEvent();
+    }
+  });
+
+  window.addEventListener("pagehide", () => {
+    flushStateOnLifecycleEvent();
+  });
+
+  window.addEventListener("beforeunload", () => {
+    flushStateOnLifecycleEvent();
   });
 
   elements.widgetModalCloseBtn?.addEventListener("click", () => {
