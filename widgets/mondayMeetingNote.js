@@ -449,16 +449,6 @@ function formatDateLabel(rawDateTime) {
   return new Date(parsed).toLocaleString();
 }
 
-function formatTimeLabel(date) {
-  if (!(date instanceof Date) || !Number.isFinite(date.getTime())) {
-    return "";
-  }
-  return date.toLocaleTimeString([], {
-    hour: "2-digit",
-    minute: "2-digit"
-  });
-}
-
 function resolveBoardUrl(config) {
   if (hasBoardConfig(config)) {
     return `${MONDAY_WEB_URL}boards/${config.boardId}`;
@@ -515,21 +505,258 @@ function extractColumnText(columnValue) {
   return normalizeText(columnValue?.text);
 }
 
-function extractMeetingNote(item) {
-  const columns = Array.isArray(item?.column_values) ? item.column_values : [];
-  if (!columns.length) {
+function pushUnique(list, value) {
+  const normalized = normalizeText(value);
+  if (!normalized || list.includes(normalized)) {
+    return;
+  }
+  list.push(normalized);
+}
+
+function sortColumnsByPreference(columns, preferredColumnIds = []) {
+  const normalized = Array.isArray(columns) ? columns : [];
+  if (!preferredColumnIds.length) {
+    return normalized;
+  }
+
+  const preferred = preferredColumnIds.map((id) => normalizeText(id)).filter(Boolean);
+  const indexById = new Map(preferred.map((id, index) => [id, index]));
+
+  return [...normalized].sort((left, right) => {
+    const leftIndex = indexById.has(normalizeText(left?.id))
+      ? indexById.get(normalizeText(left?.id))
+      : Number.MAX_SAFE_INTEGER;
+    const rightIndex = indexById.has(normalizeText(right?.id))
+      ? indexById.get(normalizeText(right?.id))
+      : Number.MAX_SAFE_INTEGER;
+    return leftIndex - rightIndex;
+  });
+}
+
+function normalizeDocId(value) {
+  const text = normalizeText(value);
+  if (!/^\d{4,}$/.test(text)) {
+    return "";
+  }
+  return text;
+}
+
+function parseUrlSafely(rawUrl) {
+  const text = normalizeText(rawUrl);
+  if (!text) {
+    return null;
+  }
+
+  try {
+    return new URL(text);
+  } catch {
+    return null;
+  }
+}
+
+function extractDocIdFromUrl(urlText) {
+  const parsed = parseUrlSafely(urlText);
+  if (parsed) {
+    const fromQuery = normalizeDocId(parsed.searchParams.get("doc_id"));
+    if (fromQuery) {
+      return fromQuery;
+    }
+  }
+
+  const text = normalizeText(urlText);
+  const match = text.match(/[?&#]doc_id=(\d{4,})/i);
+  if (match?.[1]) {
+    return normalizeDocId(match[1]);
+  }
+
+  return "";
+}
+
+function extractDocIdFromText(textValue) {
+  const text = normalizeText(textValue);
+  if (!text) {
     return "";
   }
 
-  for (const column of columns) {
-    const value = extractColumnText(column);
-    const oneNote = pickSingleNote(value);
-    if (oneNote) {
-      return oneNote;
+  const directUrlDocId = extractDocIdFromUrl(text);
+  if (directUrlDocId) {
+    return directUrlDocId;
+  }
+
+  const match = text.match(/doc[_-]?id[^\d]*(\d{4,})/i);
+  if (match?.[1]) {
+    return normalizeDocId(match[1]);
+  }
+
+  return normalizeDocId(text);
+}
+
+function buildDocUrlFromItemUrl(itemUrl, docId) {
+  const normalizedDocId = normalizeDocId(docId);
+  if (!normalizedDocId) {
+    return "";
+  }
+
+  const parsed = parseUrlSafely(itemUrl);
+  if (parsed) {
+    parsed.searchParams.set("doc_id", normalizedDocId);
+    parsed.hash = "";
+    return parsed.toString();
+  }
+
+  const text = normalizeText(itemUrl);
+  const baseMatch = text.match(/^(https?:\/\/[^/]+\/boards\/\d+\/pulses\/\d+)/i);
+  if (baseMatch?.[1]) {
+    return `${baseMatch[1]}?doc_id=${normalizedDocId}`;
+  }
+
+  return "";
+}
+
+function extractUrlsFromText(rawValue) {
+  const text = normalizeText(rawValue);
+  if (!text) {
+    return [];
+  }
+
+  const matches = text.match(/https?:\/\/[^\s"'<>]+/gi);
+  if (!matches) {
+    return [];
+  }
+
+  return matches.map((entry) => entry.replace(/[),.;]+$/g, ""));
+}
+
+function collectNestedStringValues(value, output, depth = 0) {
+  if (depth > 4 || output.length > 120) {
+    return;
+  }
+
+  if (typeof value === "string") {
+    const text = normalizeText(value);
+    if (text) {
+      output.push(text);
+    }
+    return;
+  }
+
+  if (typeof value === "number") {
+    output.push(String(value));
+    return;
+  }
+
+  if (Array.isArray(value)) {
+    for (const entry of value) {
+      collectNestedStringValues(entry, output, depth + 1);
+    }
+    return;
+  }
+
+  if (value && typeof value === "object") {
+    for (const entry of Object.values(value)) {
+      collectNestedStringValues(entry, output, depth + 1);
+    }
+  }
+}
+
+function collectColumnTextCandidates(columnValue) {
+  const out = [];
+  pushUnique(out, columnValue?.text);
+  pushUnique(out, columnValue?.display_value);
+  pushUnique(out, columnValue?.url);
+  pushUnique(out, columnValue?.url_text);
+
+  const rawValue = normalizeText(columnValue?.value);
+  if (rawValue) {
+    pushUnique(out, rawValue);
+    const parsed = tryParseJson(rawValue);
+    const nestedValues = [];
+    collectNestedStringValues(parsed, nestedValues, 0);
+    for (const entry of nestedValues) {
+      pushUnique(out, entry);
+    }
+  }
+
+  return out;
+}
+
+function extractDocUrlFromCandidates(candidates, itemUrl) {
+  const normalizedItemUrl = normalizeText(itemUrl);
+  const list = Array.isArray(candidates) ? candidates : [];
+
+  for (const candidate of list) {
+    const text = normalizeText(candidate);
+    if (!text) {
+      continue;
+    }
+
+    const directDocId = extractDocIdFromUrl(text);
+    if (directDocId) {
+      return buildDocUrlFromItemUrl(normalizedItemUrl, directDocId) || text;
+    }
+
+    const embeddedUrls = extractUrlsFromText(text);
+    for (const urlEntry of embeddedUrls) {
+      const embeddedDocId = extractDocIdFromUrl(urlEntry);
+      if (embeddedDocId) {
+        return buildDocUrlFromItemUrl(normalizedItemUrl, embeddedDocId) || urlEntry;
+      }
+    }
+
+    const docIdFromText = extractDocIdFromText(text);
+    if (docIdFromText) {
+      const built = buildDocUrlFromItemUrl(normalizedItemUrl, docIdFromText);
+      if (built) {
+        return built;
+      }
     }
   }
 
   return "";
+}
+
+function extractDocUrlFromColumnValue(columnValue, itemUrl) {
+  return extractDocUrlFromCandidates(collectColumnTextCandidates(columnValue), itemUrl);
+}
+
+function extractMeetingNote(item, preferredColumnIds = [], selectorText = "") {
+  const columns = Array.isArray(item?.column_values) ? item.column_values : [];
+  const itemUrl = normalizeText(item?.url);
+  const orderedColumns = sortColumnsByPreference(columns, preferredColumnIds);
+
+  let note = "";
+  let docUrl = "";
+
+  for (const column of orderedColumns) {
+    if (!note) {
+      const value = extractColumnText(column);
+      const oneNote = pickSingleNote(value);
+      if (oneNote) {
+        note = oneNote;
+      }
+    }
+
+    if (!docUrl) {
+      docUrl = extractDocUrlFromColumnValue(column, itemUrl);
+    }
+
+    if (note && docUrl) {
+      break;
+    }
+  }
+
+  if (!docUrl) {
+    docUrl = extractDocUrlFromCandidates([itemUrl, selectorText], itemUrl);
+  }
+
+  if (!note && docUrl) {
+    note = "미팅 노트 문서 열기";
+  }
+
+  return {
+    note,
+    docUrl
+  };
 }
 
 function itemTimestamp(item) {
@@ -567,37 +794,53 @@ function parseBoardColumns(rawColumns) {
     .filter((column) => column.id || column.title);
 }
 
-function resolveMeetingNoteColumnId(columns, selector) {
+function resolveMeetingNoteColumnIds(columns, selector) {
   const normalizedSelector = normalizeText(selector);
   if (!normalizedSelector) {
-    return "";
+    return [];
   }
 
+  const out = [];
   const normalizedColumns = Array.isArray(columns) ? columns : [];
-  const exactId = normalizedColumns.find((column) => normalizeText(column?.id) === normalizedSelector);
-  if (exactId?.id) {
-    return normalizeText(exactId.id);
+
+  for (const column of normalizedColumns) {
+    if (normalizeText(column?.id) === normalizedSelector) {
+      pushUnique(out, column?.id);
+    }
   }
 
   const selectorKey = normalizeSelectorKey(normalizedSelector);
   if (!selectorKey) {
-    return "";
+    return out;
   }
 
-  const exactTitle = normalizedColumns.find((column) => normalizeSelectorKey(column?.title) === selectorKey);
-  if (exactTitle?.id) {
-    return normalizeText(exactTitle.id);
+  for (const column of normalizedColumns) {
+    if (normalizeSelectorKey(column?.title) === selectorKey) {
+      pushUnique(out, column?.id);
+    }
   }
 
   const compactSelectorKey = selectorKey.replace(/\s+/g, "");
-  const looseTitle = normalizedColumns.find(
-    (column) => normalizeSelectorKey(column?.title).replace(/\s+/g, "") === compactSelectorKey
-  );
-  if (looseTitle?.id) {
-    return normalizeText(looseTitle.id);
+
+  for (const column of normalizedColumns) {
+    const titleKey = normalizeSelectorKey(column?.title);
+    const compactTitle = titleKey.replace(/\s+/g, "");
+    if (!titleKey || !compactTitle) {
+      continue;
+    }
+
+    if (
+      compactTitle === compactSelectorKey ||
+      compactTitle.includes(compactSelectorKey) ||
+      compactSelectorKey.includes(compactTitle) ||
+      titleKey.includes(selectorKey) ||
+      selectorKey.includes(titleKey)
+    ) {
+      pushUnique(out, column?.id);
+    }
   }
 
-  return "";
+  return out;
 }
 
 function buildBoardContextQuery(config) {
@@ -636,8 +879,36 @@ async function fetchBoardContext(config, accessToken) {
   return context;
 }
 
-function buildOrderedLatestQuery(config, columnId) {
-  const columnIdLiteral = JSON.stringify(columnId);
+function buildColumnValuesSelection(columnIds) {
+  const normalizedIds = [];
+  for (const entry of Array.isArray(columnIds) ? columnIds : []) {
+    pushUnique(normalizedIds, entry);
+  }
+
+  const idsFragment = normalizedIds.length
+    ? `(ids: [${normalizedIds.map((id) => JSON.stringify(id)).join(", ")}])`
+    : "";
+
+  return `
+            column_values${idsFragment} {
+              id
+              type
+              text
+              value
+              ... on LongTextValue {
+                text
+              }
+              ... on MirrorValue {
+                display_value
+              }
+              ... on BoardRelationValue {
+                display_value
+              }
+            }`;
+}
+
+function buildOrderedLatestQuery(config, columnIds = []) {
+  const columnValuesSelection = buildColumnValuesSelection(columnIds);
   return `
     query {
       boards(ids: [${config.boardId}]) {
@@ -655,20 +926,7 @@ function buildOrderedLatestQuery(config, columnId) {
             url
             created_at
             updated_at
-            column_values(ids: [${columnIdLiteral}]) {
-              id
-              type
-              text
-              ... on LongTextValue {
-                text
-              }
-              ... on MirrorValue {
-                display_value
-              }
-              ... on BoardRelationValue {
-                display_value
-              }
-            }
+${columnValuesSelection}
           }
         }
       }
@@ -676,8 +934,8 @@ function buildOrderedLatestQuery(config, columnId) {
   `;
 }
 
-function buildFallbackLatestQuery(config, columnId) {
-  const columnIdLiteral = JSON.stringify(columnId);
+function buildFallbackLatestQuery(config, columnIds = []) {
+  const columnValuesSelection = buildColumnValuesSelection(columnIds);
   return `
     query {
       boards(ids: [${config.boardId}]) {
@@ -690,20 +948,7 @@ function buildFallbackLatestQuery(config, columnId) {
             url
             created_at
             updated_at
-            column_values(ids: [${columnIdLiteral}]) {
-              id
-              type
-              text
-              ... on LongTextValue {
-                text
-              }
-              ... on MirrorValue {
-                display_value
-              }
-              ... on BoardRelationValue {
-                display_value
-              }
-            }
+${columnValuesSelection}
           }
         }
       }
@@ -772,21 +1017,16 @@ async function mondayFetchGraphql(accessToken, query) {
 
 async function fetchLatestMeetingNote(config, accessToken) {
   const boardContext = await fetchBoardContext(config, accessToken);
-  const resolvedColumnId = resolveMeetingNoteColumnId(
+  const resolvedColumnIds = resolveMeetingNoteColumnIds(
     boardContext.columns,
     config.meetingNoteColumnId
   );
-  if (!resolvedColumnId) {
-    throw new Error(
-      `Meeting note column \"${config.meetingNoteColumnId}\" not found on this board.`
-    );
-  }
 
   let parsed;
   try {
     const orderedData = await mondayFetchGraphql(
       accessToken,
-      buildOrderedLatestQuery(config, resolvedColumnId)
+      buildOrderedLatestQuery(config, resolvedColumnIds)
     );
     parsed = parseQueryData(orderedData);
   } catch (error) {
@@ -795,7 +1035,7 @@ async function fetchLatestMeetingNote(config, accessToken) {
     }
     const fallbackData = await mondayFetchGraphql(
       accessToken,
-      buildFallbackLatestQuery(config, resolvedColumnId)
+      buildFallbackLatestQuery(config, resolvedColumnIds)
     );
     parsed = parseQueryData(fallbackData);
   }
@@ -808,14 +1048,20 @@ async function fetchLatestMeetingNote(config, accessToken) {
     };
   }
 
+  const extracted = extractMeetingNote(
+    latestItem,
+    resolvedColumnIds,
+    config.meetingNoteColumnId
+  );
+
   return {
     boardName: normalizeText(parsed?.boardName, `Board ${config.boardId}`),
     latest: {
       id: normalizeText(latestItem?.id),
       title: normalizeText(latestItem?.name, "(Untitled item)"),
-      itemUrl: normalizeText(latestItem?.url),
+      itemUrl: extracted.docUrl || normalizeText(latestItem?.url),
       updatedLabel: formatDateLabel(normalizeText(latestItem?.updated_at, latestItem?.created_at)),
-      note: extractMeetingNote(latestItem)
+      note: extracted.note
     }
   };
 }
@@ -888,10 +1134,7 @@ export const mondayMeetingNoteWidget = {
     const panel = document.createElement("div");
     panel.className = "monday-meeting-panel";
 
-    const status = document.createElement("p");
-    status.className = "monday-meeting-status";
-
-    shell.append(panel, status);
+    shell.append(panel);
     container.append(shell);
 
     let loading = false;
@@ -906,7 +1149,6 @@ export const mondayMeetingNoteWidget = {
     let sessionSyncSerial = 0;
     let requestSerial = 0;
     let lastSignature = "";
-    let nextAutoRunAt = null;
     let timer = null;
     let storageListener = null;
 
@@ -1065,13 +1307,11 @@ export const mondayMeetingNoteWidget = {
         !hasMeetingNoteColumnConfig(cfg) ||
         !hasActiveConnection(cfg)
       ) {
-        nextAutoRunAt = null;
         renderStatus();
         return;
       }
 
       const next = nextAutoSlot(cfg, new Date());
-      nextAutoRunAt = next?.runAt || null;
       renderStatus();
 
       if (!next) {
@@ -1085,36 +1325,7 @@ export const mondayMeetingNoteWidget = {
     }
 
     function renderStatus() {
-      const cfg = normalizedConfig(getConfig());
-      status.classList.toggle("is-error", Boolean(errorMessage));
-
-      let text = "";
-      if (loading) {
-        text = "Syncing Monday meeting note...";
-      } else if (errorMessage) {
-        text = errorMessage;
-      } else if (!hasConnectorConfig(cfg)) {
-        text = "Set auth connector URL";
-      } else if (!hasActiveConnection(cfg)) {
-        text = "Monday not connected";
-      } else if (!hasBoardConfig(cfg)) {
-        text = `${accountLabel || "Connected"} · Set board ID (from /boards/<id>)`;
-      } else if (!hasMeetingNoteColumnConfig(cfg)) {
-        text = `${boardName || `Board ${cfg.boardId}`} · Set meeting note column (ID or name)`;
-      } else if (latest) {
-        text = `${boardName || `Board ${cfg.boardId}`} · Latest item`;
-      } else if (hasFetched) {
-        text = `${boardName || `Board ${cfg.boardId}`} · No items`;
-      } else {
-        text = `${boardName || `Board ${cfg.boardId}`} connected · press Refresh`;
-      }
-
-      const nextAutoLabel = formatTimeLabel(nextAutoRunAt);
-      if (!loading && nextAutoLabel && hasBoardConfig(cfg) && hasMeetingNoteColumnConfig(cfg) && hasActiveConnection(cfg)) {
-        text = `${text} · Next auto ${nextAutoLabel}`;
-      }
-
-      status.textContent = text;
+      return;
     }
 
     function makeEmptyMessage(text) {
@@ -1293,7 +1504,6 @@ export const mondayMeetingNoteWidget = {
       await clearConnectionState({ clearStored: true });
       errorMessage = "";
       clearSnapshotState();
-      nextAutoRunAt = null;
       clearRefreshTimer();
       loading = false;
       render();

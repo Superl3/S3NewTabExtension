@@ -18,3 +18,10 @@
   - Global content font scale applies to widget content only (not widget heads/titles).
   - Widget-level content font scale exists in common widget settings.
   - Scaling preserves relative size ratios between text elements.
+
+## Single-Item Widget Surface Rule
+
+- For widgets that render a single primary content item, only the outer widget surface (`.widget-card`) should be visible.
+- Inner content panels/cards inside those widgets must stay transparent with no extra background fill.
+- Inner panel borders should also be removed so a second nested surface is not perceived.
+- This rule should be applied by default when introducing new single-item widgets.
