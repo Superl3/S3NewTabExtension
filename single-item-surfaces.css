@@ -1,0 +1,33 @@
+.clock-variant-tile .clock-wrap {
+  border: none;
+  border-radius: 0;
+  background: transparent;
+}
+
+.monday-meeting-empty,
+.monday-meeting-link,
+.monday-meeting-link:hover {
+  border: none;
+  border-radius: 0;
+  background: transparent;
+}
+
+.monday-meeting-empty,
+.monday-meeting-link {
+  padding: 0;
+}
+
+.weather-widget-shell {
+  border: none;
+  border-radius: 0;
+  background: transparent;
+}
+
+.shortcut-tile,
+.shortcut-tile:hover,
+.widget-card.surface-transparent .shortcut-tile,
+.widget-card.surface-transparent .shortcut-tile:hover {
+  border: none;
+  border-radius: 0;
+  background: transparent;
+}
