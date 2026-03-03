@@ -389,25 +389,14 @@
           <label class="form-row" title="Widget type">
             <span>Widget</span>
             <div class="field field-select">
-              <svg class="icon"><use href="#i-widget"></use></svg>
               <select id="widgetTypeSelect"></select>
             </div>
           </label>
 
-          <div class="add-widget-size-grid">
-            <label class="form-row">
-              <span>Title (optional)</span>
-              <input id="addWidgetTitleInput" type="text" placeholder="Use default widget name" />
-            </label>
-            <label class="form-row">
-              <span>Width (cols)</span>
-              <input id="addWidgetColSpanInput" type="number" min="1" max="16" step="1" value="2" />
-            </label>
-            <label class="form-row">
-              <span>Height (rows)</span>
-              <input id="addWidgetRowSpanInput" type="number" min="1" max="24" step="1" value="2" />
-            </label>
-          </div>
+          <label class="form-row add-widget-title-row">
+            <span>Title (optional)</span>
+            <input id="addWidgetTitleInput" type="text" placeholder="Use default widget name" />
+          </label>
         </div>
         <footer class="widget-modal-actions">
           <button id="addWidgetModalCancelBtn" class="btn">Cancel</button>
@@ -415,6 +404,8 @@
         </footer>
       </section>
     </div>
+
+    <div id="addWidgetToast" class="app-toast" role="status" aria-live="polite" aria-atomic="true" aria-hidden="true"></div>
 
     <script type="module" src="app.js"></script>
   </body>
