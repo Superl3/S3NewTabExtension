@@ -551,7 +551,7 @@ export const gmailWidget = {
           if (result.error || result.errorDescription) {
             throw new Error(result.errorDescription || result.error || "Gmail connection failed.");
           }
-          if (result.state && result.state !== state) {
+          if (!result.state || result.state !== state) {
             throw new Error("Gmail connection failed (invalid state).");
           }
 

@@ -58,6 +58,7 @@ const FONT_OPTIONS = [
 
 const VIDEO_CACHE_NAME = "s3newtab-loop-video-cache-v1";
 const VIDEO_CACHE_KEY_PREFIX = "https://s3newtab.local/loop-video/";
+const VIDEO_CACHE_MAX_ENTRIES = 6;
 
 const elements = {
   appRoot: document.getElementById("app"),
@@ -3276,13 +3277,64 @@ async function sampleImageBaseLuminanceFromUrl(url) {
 function requestWallpaperLuminanceSample(url) {
   const source = normalizeText(url);
   if (!source || sampledWallpaperSource === source) {
+function sampleImageBaseLuminanceFromElement(image) {
+  if (!image || !image.complete || image.naturalWidth <= 0 || image.naturalHeight <= 0) {
+    throw new Error("backdrop-luminance:image-not-ready");
+  }
+
+  const sampleSize = 24;
+  const canvas = document.createElement("canvas");
+  canvas.width = sampleSize;
+  canvas.height = sampleSize;
+  const ctx = canvas.getContext("2d", { willReadFrequently: true });
+  if (!ctx) {
+    throw new Error("backdrop-luminance:no-canvas");
+  }
+
+  ctx.drawImage(image, 0, 0, sampleSize, sampleSize);
+  const pixels = ctx.getImageData(0, 0, sampleSize, sampleSize).data;
+  let luminanceSum = 0;
+  let alphaWeight = 0;
+  for (let i = 0; i < pixels.length; i += 4) {
+    const alpha = pixels[i + 3] / 255;
+    if (alpha <= 0.01) {
+      continue;
+    }
+    const lum = 0.2126 * srgbToLinear(pixels[i]) + 0.7152 * srgbToLinear(pixels[i + 1]) + 0.0722 * srgbToLinear(pixels[i + 2]);
+    luminanceSum += lum * alpha;
+    alphaWeight += alpha;
+  }
+
+  if (alphaWeight <= 0) {
+    throw new Error("backdrop-luminance:no-pixels");
+  }
+
+  return clamp(luminanceSum / alphaWeight, 0, 1);
+}
+
     return;
   }
 
   const token = ++wallpaperSampleToken;
   void (async () => {
     try {
-      const baseLum = await sampleImageBaseLuminanceFromUrl(source);
+      let baseLum;
+      const currentSrc = normalizeText(elements.bgImage.currentSrc || elements.bgImage.getAttribute("src"));
+      const canSampleCurrentImage =
+        currentSrc === source &&
+        elements.bgImage.complete &&
+        elements.bgImage.naturalWidth > 0 &&
+        elements.bgImage.naturalHeight > 0;
+
+      if (canSampleCurrentImage) {
+        try {
+          baseLum = sampleImageBaseLuminanceFromElement(elements.bgImage);
+        } catch {
+          baseLum = await sampleImageBaseLuminanceFromUrl(source);
+        }
+      } else {
+        baseLum = await sampleImageBaseLuminanceFromUrl(source);
+      }
       if (token !== wallpaperSampleToken || state?.ui?.background?.mode !== "wallpaper") {
         return;
       }
@@ -3609,6 +3661,27 @@ async function fetchLoopVideoResponse(url) {
 async function ensureCachedLoopVideoResponse(cfg, signature, { force = false } = {}) {
   const remoteUrl = await resolveVideoRemoteUrl(cfg);
   const cacheKey = buildVideoCacheKey(signature);
+function isLoopVideoCacheRequest(request) {
+  if (!request) {
+    return false;
+  }
+  const key = typeof request === "string" ? request : request.url;
+  return normalizeText(key).startsWith(VIDEO_CACHE_KEY_PREFIX);
+}
+
+async function pruneLoopVideoCache(cache, keepCount = VIDEO_CACHE_MAX_ENTRIES) {
+  const boundedKeepCount = clamp(Number(keepCount) || VIDEO_CACHE_MAX_ENTRIES, 1, 24);
+  const keys = await cache.keys();
+  const videoKeys = keys.filter((request) => isLoopVideoCacheRequest(request));
+  const overflow = Math.max(0, videoKeys.length - boundedKeepCount);
+  if (!overflow) {
+    return;
+  }
+
+  const staleEntries = videoKeys.slice(0, overflow);
+  await Promise.all(staleEntries.map((request) => cache.delete(request)));
+}
+
   if (!cacheKey || typeof caches === "undefined") {
     return fetchLoopVideoResponse(remoteUrl);
   }
@@ -3624,6 +3697,11 @@ async function ensureCachedLoopVideoResponse(cfg, signature, { force = false } =
       return cached.clone();
     }
   }
+      await cache.put(cacheKey, cached.clone());
+      try {
+        await pruneLoopVideoCache(cache);
+      } catch {
+      }
 
   const response = await fetchLoopVideoResponse(remoteUrl);
   const clone = response.clone();
@@ -3631,6 +3709,10 @@ async function ensureCachedLoopVideoResponse(cfg, signature, { force = false } =
   return response;
 }
 
+  try {
+    await pruneLoopVideoCache(cache);
+  } catch {
+  }
 async function loadVideoLoop({ force = false } = {}) {
   const cfg = state.ui.background;
   if (cfg.mode !== "video") {
