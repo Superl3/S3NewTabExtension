@@ -31,14 +31,41 @@ export const notesWidget = {
     container.append(textarea);
 
     let timer = null;
+    let lastSavedContent = "";
+
+    function flushPendingSave() {
+      if (timer) {
+        clearTimeout(timer);
+        timer = null;
+      }
+
+      const nextContent = textarea.value;
+      const currentContent = String(getConfig().content || "");
+      if (nextContent === currentContent || nextContent === lastSavedContent) {
+        return;
+      }
+
+      lastSavedContent = nextContent;
+      patchConfig({ content: nextContent });
+    }
 
     function render() {
       const cfg = getConfig();
       const align = cfg.textAlign === "center" || cfg.textAlign === "right" ? cfg.textAlign : "left";
+      const configContent = String(cfg.content || "");
       textarea.placeholder = cfg.placeholder || "Write notes";
       textarea.style.textAlign = align;
-      if (textarea.value !== (cfg.content || "")) {
-        textarea.value = cfg.content || "";
+
+      if (document.activeElement === textarea) {
+        if (timer && textarea.value !== configContent) {
+          flushPendingSave();
+        }
+        return;
+      }
+
+      lastSavedContent = configContent;
+      if (textarea.value !== configContent) {
+        textarea.value = configContent;
       }
     }
 
@@ -47,8 +74,12 @@ export const notesWidget = {
         clearTimeout(timer);
       }
       timer = setTimeout(() => {
-        patchConfig({ content: textarea.value });
+        flushPendingSave();
       }, 120);
+    });
+
+    textarea.addEventListener("blur", () => {
+      flushPendingSave();
     });
 
     render();
@@ -56,9 +87,7 @@ export const notesWidget = {
     return {
       refresh: render,
       destroy() {
-        if (timer) {
-          clearTimeout(timer);
-        }
+        flushPendingSave();
       }
     };
   }

@@ -92,6 +92,104 @@ export const clockWidget = {
 
     let timer = null;
 
+    function clearTimer() {
+      if (timer) {
+        clearTimeout(timer);
+      }
+      timer = null;
+    }
+
+    function resolveDateParts(now, timeZone) {
+      const options = {
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit"
+      };
+      if (timeZone) {
+        options.timeZone = timeZone;
+      }
+      let parts = [];
+      try {
+        parts = new Intl.DateTimeFormat("en-CA", options).formatToParts(now);
+      } catch {
+        try {
+          parts = new Intl.DateTimeFormat("en-CA", {
+            year: "numeric",
+            month: "2-digit",
+            day: "2-digit"
+          }).formatToParts(now);
+        } catch {
+          const year = String(now.getFullYear());
+          const month = String(now.getMonth() + 1).padStart(2, "0");
+          const day = String(now.getDate()).padStart(2, "0");
+          return { year, month, day };
+        }
+      }
+      let year = "0000";
+      let month = "01";
+      let day = "01";
+
+      for (const part of parts) {
+        if (part.type === "year") {
+          year = part.value;
+        } else if (part.type === "month") {
+          month = part.value;
+        } else if (part.type === "day") {
+          day = part.value;
+        }
+      }
+
+      return { year, month, day };
+    }
+
+    function formatTimeSafe(now, locale, options) {
+      try {
+        return now.toLocaleTimeString(locale, options);
+      } catch {
+        const fallbackOptions = {
+          hour: options.hour,
+          minute: options.minute,
+          second: options.second,
+          hour12: options.hour12
+        };
+        try {
+          return now.toLocaleTimeString(locale || "ko-KR", fallbackOptions);
+        } catch {
+          try {
+            return now.toLocaleTimeString("ko-KR", fallbackOptions);
+          } catch {
+            const hours = String(now.getHours()).padStart(2, "0");
+            const minutes = String(now.getMinutes()).padStart(2, "0");
+            if (!options.second) {
+              return `${hours}:${minutes}`;
+            }
+            const seconds = String(now.getSeconds()).padStart(2, "0");
+            return `${hours}:${minutes}:${seconds}`;
+          }
+        }
+      }
+    }
+
+    function formatWeekdaySafe(now, locale, timeZone) {
+      const weekdayOptions = { weekday: "short" };
+      if (timeZone) {
+        weekdayOptions.timeZone = timeZone;
+      }
+      try {
+        return now.toLocaleDateString(locale, weekdayOptions);
+      } catch {
+        try {
+          return now.toLocaleDateString(locale || "ko-KR", { weekday: "short" });
+        } catch {
+          try {
+            return now.toLocaleDateString("ko-KR", { weekday: "short" });
+          } catch {
+            return now.toDateString().split(" ")[0] || "";
+          }
+        }
+      }
+    }
+
     function applyStyleClasses(cfg) {
       container.classList.remove(
         "clock-font-mono",
@@ -126,57 +224,59 @@ export const clockWidget = {
       const now = new Date();
       applyStyleClasses(cfg);
       const locale = cfg.locale || "ko-KR";
+      const timeZone = cfg.timeZone || undefined;
       const options = {
         hour: "2-digit",
         minute: "2-digit",
         second: cfg.showSeconds ? "2-digit" : undefined,
-        hour12: Boolean(cfg.hour12)
+        hour12: Boolean(cfg.hour12),
+        timeZone
       };
-      if (cfg.timeZone) {
-        options.timeZone = cfg.timeZone;
-      }
 
-      timeEl.textContent = now.toLocaleTimeString(locale, options);
+      timeEl.textContent = formatTimeSafe(now, locale, options);
       if (cfg.showWeekday === false) {
         dateEl.style.display = "none";
       } else {
-        const weekdayOptions = { weekday: "short" };
-        if (cfg.timeZone) {
-          weekdayOptions.timeZone = cfg.timeZone;
-        }
+        const { year, month, day } = resolveDateParts(now, timeZone);
 
-        const year = now.getFullYear();
-        const month = `${now.getMonth() + 1}`.padStart(2, "0");
-        const day = `${now.getDate()}`.padStart(2, "0");
         const format = cfg.dateFormat || "yyyy-MM-dd";
         let dateText = format;
-        dateText = dateText.replaceAll("yyyy", String(year));
+        dateText = dateText.replaceAll("yyyy", year);
         dateText = dateText.replaceAll("MM", month);
         dateText = dateText.replaceAll("dd", day);
 
-        const weekday = now.toLocaleDateString(locale, weekdayOptions);
+        const weekday = formatWeekdaySafe(now, locale, timeZone);
         dateEl.style.display = "block";
         dateEl.textContent = `${dateText} ${weekday}`;
       }
     }
 
+    function scheduleNextTick() {
+      clearTimer();
+      const cfg = getConfig();
+      const intervalMs = cfg.showSeconds ? 1000 : 60000;
+      const minDelayMs = cfg.showSeconds ? 25 : 250;
+      const delayMs = Math.max(minDelayMs, intervalMs - (Date.now() % intervalMs));
+      timer = setTimeout(() => {
+        render();
+        scheduleNextTick();
+      }, delayMs);
+    }
+
     function start() {
-      stop();
+      clearTimer();
       render();
-      timer = setInterval(render, 1000);
+      scheduleNextTick();
     }
 
     function stop() {
-      if (timer) {
-        clearInterval(timer);
-      }
-      timer = null;
+      clearTimer();
     }
 
     start();
 
     return {
-      refresh: render,
+      refresh: start,
       destroy: stop
     };
   }
