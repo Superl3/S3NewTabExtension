@@ -44,9 +44,11 @@ function findFolderByPath(rootNodes, pathSegments) {
 
   const startSegment = pathSegments[0];
   const queue = [...rootNodes];
+  let queueIndex = 0;
 
-  while (queue.length) {
-    const node = queue.shift();
+  while (queueIndex < queue.length) {
+    const node = queue[queueIndex];
+    queueIndex += 1;
     if (!node) {
       continue;
     }
@@ -89,7 +91,7 @@ export async function resolveBookmarkRoot(config) {
   if (rawId) {
     try {
       const subTree = await getSubTree(rawId);
-      if (subTree?.[0]) {
+      if (subTree?.[0] && !subTree[0].url) {
         return subTree[0];
       }
     } catch {
