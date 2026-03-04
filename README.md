@@ -103,7 +103,8 @@ Gmail 위젯과 Calendar 위젯은 Auth connector 기반 OAuth로 동작합니�
 2. 또는 각 위젯의 `Access token (optional)`에 토큰을 직접 입력
 3. 위젯에서 `Connect` 클릭 후 동의 진행
 4. Auth connector 콜백이 확장 redirect URL로 `access_token`(선택: `account`/`email`) 반환
-5. 연결 후 `Refresh`로 메일/일정 동기화
+5. Auth connector OAuth callback의 `state`가 누락되거나 불일치하면 연결을 거부합니다.
+6. 연결 후 `Refresh`로 메일/일정 동기화
 
 > 참고: Gmail과 Calendar는 각각 connector 세션을 로컬 스토리지에 저장합니다.
 
@@ -120,9 +121,15 @@ Gmail 위젯과 Calendar 위젯은 Auth connector 기반 OAuth로 동작합니�
 | Gmail / Calendar | `GOOGLE_ACCESS_TOKEN`, optional `GOOGLE_ACCOUNT_LABEL` | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` |
 | AI Chat / OpenAI | `OPENAI_ACCESS_TOKEN`, optional `OPENAI_ACCOUNT_LABEL` | n/a |
 
-Quick tokens immediately relay the env value as `access_token`; supplying OAuth client IDs/secrets lets the connector perform the full OAuth flows for Monday and Google. Because the widgets default to `http://localhost:8787/api/auth/start`, you no longer need to manually enter connector URLs unless you run the backend elsewhere. You can also paste tokens directly into each widget's `Access token (optional)` field to skip popup-based auth.
+Supplying OAuth client IDs/secrets lets the connector perform the full OAuth flows for Monday and Google. Because the widgets default to `http://localhost:8787/api/auth/start`, you no longer need to manually enter connector URLs unless you run the backend elsewhere. You can also paste tokens directly into each widget's `Access token (optional)` field to skip popup-based auth.
 
-If Edge reports `chrome.identity.launchWebAuthFlow is not available`, set the appropriate `*_ACCESS_TOKEN` (and optional `*_ACCOUNT_LABEL`) in `connector/.env`; the connector will use the token relay fallback automatically.
+Security defaults (Q3 hardening):
+- connector bind host defaults to loopback (`CONNECTOR_HOST=127.0.0.1`)
+- `/api/auth/start?mode=token` is disabled by default (`ENABLE_TOKEN_RELAY=1` required, loopback-only)
+- `chrome-extension://` redirect is allowed only when both `ALLOW_CHROME_EXTENSION_REDIRECT=1` and the extension ID is listed in `ALLOWED_EXTENSION_IDS`
+- `https://<extension-id>.chromiumapp.org` redirect also requires the extension ID to be listed in `ALLOWED_EXTENSION_IDS`
+
+If Edge reports `chrome.identity.launchWebAuthFlow is not available`, set the appropriate `*_ACCESS_TOKEN` (and optional `*_ACCOUNT_LABEL`) in `connector/.env`. Token relay fallback is not automatic: it only works when `ENABLE_TOKEN_RELAY=1` is set and the connector remains loopback-only.
 
 ## 설치 방법 (개발자 모드)
 
@@ -159,11 +166,13 @@ If Edge reports `chrome.identity.launchWebAuthFlow is not available`, set the ap
 
 - Edit 모드에서 위젯의 설정 아이콘 클릭
 - 중앙 모달에서 설정 후 `OK`로 적용
+- `Shortcut URL`과 `RSS Feed URL`은 `http/https`만 허용되며, 비웹 스킴은 차단됩니다.
 
 ### 4) 북마크 위젯
 
 - `Folder path` 또는 `Folder ID` 설정
 - 항목 연필 아이콘으로 표시명/아이콘/링크 개별 수정
+- 링크 override는 http/https만 허용되고 유효하지 않으면 비활성 처리됨.
 
 ## 권한/저장
 
@@ -172,6 +181,7 @@ If Edge reports `chrome.identity.launchWebAuthFlow is not available`, set the ap
   - `storage`: 사용자 설정/레이아웃 저장
   - `bookmarks`: 북마크 트리 조회/갱신 반영
   - `identity`: connector OAuth redirect 처리
+  - 저장소 로드 실패/손상 데이터 시 기본 상태 안전 복구.
 - Host permissions: `http://*/*`, `https://*/*`
 
 > 참고: AI Chat / Monday / Gmail / Calendar 위젯의 Auth connector 세션 토큰이 chrome.storage.local에 저장됩니다. 민감 정보 취급에 주의하세요.

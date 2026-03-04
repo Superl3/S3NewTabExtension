@@ -52,6 +52,8 @@ export const todoWidget = {
         const checkbox = document.createElement("input");
         checkbox.type = "checkbox";
         checkbox.checked = Boolean(item.done);
+        checkbox.dataset.action = "toggle";
+        checkbox.dataset.id = item.id;
         checkbox.setAttribute("aria-label", "Mark task done");
 
         const text = document.createElement("span");
@@ -66,6 +68,8 @@ export const todoWidget = {
         del.className = "todo-delete-btn";
         del.type = "button";
         del.textContent = "×";
+        del.dataset.action = "delete";
+        del.dataset.id = item.id;
         del.setAttribute("aria-label", "Delete task");
 
         const actions = document.createElement("div");
@@ -88,25 +92,57 @@ export const todoWidget = {
         statusBadge.textContent = item.done ? "Done" : "To do";
         badges.append(statusBadge);
 
-        checkbox.addEventListener("change", () => {
-          const next = items.map((entry) => {
-            if (entry.id !== item.id) {
-              return entry;
-            }
-            return { ...entry, done: checkbox.checked };
-          });
-          saveItems(next);
-        });
-
-        del.addEventListener("click", () => {
-          const next = items.filter((entry) => entry.id !== item.id);
-          saveItems(next);
-        });
-
         li.append(top, meta, badges);
         list.append(li);
       }
     }
+
+    list.addEventListener("change", (event) => {
+      const target = event.target;
+      if (!(target instanceof HTMLInputElement)) {
+        return;
+      }
+      if (target.dataset.action !== "toggle") {
+        return;
+      }
+
+      const itemId = target.dataset.id;
+      if (!itemId) {
+        return;
+      }
+
+      const cfg = getConfig();
+      const items = Array.isArray(cfg.items) ? cfg.items : [];
+      const next = items.map((entry) => {
+        if (entry.id !== itemId) {
+          return entry;
+        }
+        return { ...entry, done: target.checked };
+      });
+      saveItems(next);
+    });
+
+    list.addEventListener("click", (event) => {
+      const target = event.target;
+      if (!(target instanceof Element)) {
+        return;
+      }
+
+      const button = target.closest("button[data-action='delete']");
+      if (!button) {
+        return;
+      }
+
+      const itemId = button.dataset.id;
+      if (!itemId) {
+        return;
+      }
+
+      const cfg = getConfig();
+      const items = Array.isArray(cfg.items) ? cfg.items : [];
+      const next = items.filter((entry) => entry.id !== itemId);
+      saveItems(next);
+    });
 
     form.addEventListener("submit", (event) => {
       event.preventDefault();

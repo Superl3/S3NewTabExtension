@@ -2,6 +2,7 @@ const GEOCODING_API_URL = "https://geocoding-api.open-meteo.com/v1/search";
 const FORECAST_API_URL = "https://api.open-meteo.com/v1/forecast";
 const DEFAULT_LOCATION_QUERY = "Seoul";
 const WEATHER_CACHE_PREFIX = "s3newtab:weather-cache:v1";
+const WEATHER_CACHE_MAX_ENTRIES = 12;
 
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
@@ -129,8 +130,48 @@ function writeWeatherCache(config, snapshot, fetchedAt) {
   };
   try {
     localStorage.setItem(weatherCacheStorageKey(config), JSON.stringify(payload));
+    pruneWeatherCacheEntries(WEATHER_CACHE_MAX_ENTRIES);
   } catch {
     // noop
+  }
+}
+
+function pruneWeatherCacheEntries(maxEntries = WEATHER_CACHE_MAX_ENTRIES) {
+  if (typeof localStorage === "undefined") {
+    return;
+  }
+
+  const limit = Math.max(1, Number(maxEntries) || WEATHER_CACHE_MAX_ENTRIES);
+  const entries = [];
+
+  for (let index = 0; index < localStorage.length; index += 1) {
+    const key = localStorage.key(index);
+    if (!key || !key.startsWith(`${WEATHER_CACHE_PREFIX}:`)) {
+      continue;
+    }
+
+    let fetchedAt = 0;
+    try {
+      const parsed = tryParseJson(localStorage.getItem(key) || "");
+      fetchedAt = Number(parsed?.fetchedAt) || 0;
+    } catch {
+      fetchedAt = 0;
+    }
+
+    entries.push({ key, fetchedAt });
+  }
+
+  if (entries.length <= limit) {
+    return;
+  }
+
+  entries.sort((left, right) => right.fetchedAt - left.fetchedAt);
+  for (const entry of entries.slice(limit)) {
+    try {
+      localStorage.removeItem(entry.key);
+    } catch {
+      // noop
+    }
   }
 }
 

@@ -25,12 +25,16 @@ function deepMerge(base, patch) {
 }
 
 export async function loadState(defaultState) {
-  const stored = await chrome.storage.local.get(STORAGE_KEY);
-  const current = stored?.[STORAGE_KEY];
-  if (!current || !isObject(current)) {
+  try {
+    const stored = await chrome.storage.local.get(STORAGE_KEY);
+    const current = stored?.[STORAGE_KEY];
+    if (!current || !isObject(current)) {
+      return structuredClone(defaultState);
+    }
+    return deepMerge(defaultState, current);
+  } catch {
     return structuredClone(defaultState);
   }
-  return deepMerge(defaultState, current);
 }
 
 export async function saveState(state) {

@@ -10,7 +10,12 @@ const ENV_PATH = path.join(__dirname, ".env");
 const LOCAL_ENV = loadEnvFile(ENV_PATH);
 const env = { ...process.env, ...LOCAL_ENV };
 const PORT = Number(env.PORT) || 8787;
+const CONNECTOR_HOST = normalizeText(env.CONNECTOR_HOST) || "127.0.0.1";
 const BASE_URL = env.CONNECTOR_BASE_URL || `http://localhost:${PORT}`;
+const ALLOWED_EXTENSION_IDS = parseAllowedExtensionIds(env.ALLOWED_EXTENSION_IDS);
+const ALLOW_CHROME_EXTENSION_REDIRECT = normalizeText(env.ALLOW_CHROME_EXTENSION_REDIRECT) === "1";
+const ENABLE_TOKEN_RELAY = normalizeText(env.ENABLE_TOKEN_RELAY) === "1";
+const OAUTH_REQUEST_TIMEOUT_MS = parseClampedInt(env.OAUTH_REQUEST_TIMEOUT_MS, 15000, 1000, 120000);
 const STATE_TTL = 10 * 60 * 1000;
 const pendingStates = new Map();
 
@@ -72,7 +77,7 @@ const server = http.createServer((req, res) => {
     if (method !== "GET") {
       return sendText(res, "Method not allowed", 405);
     }
-    return handleStart(res, parsedUrl);
+    return handleStart(req, res, parsedUrl);
   }
 
   if (pathname === "/api/auth/callback/monday" || pathname === "/api/auth/callback/google") {
@@ -90,8 +95,8 @@ const server = http.createServer((req, res) => {
   sendText(res, "Not found", 404);
 });
 
-server.listen(PORT, () => {
-  console.log(`Connector server listening at ${BASE_URL}`);
+server.listen(PORT, CONNECTOR_HOST, () => {
+  console.log(`Connector server listening at ${BASE_URL} (bind ${CONNECTOR_HOST}:${PORT})`);
 });
 
 function loadEnvFile(filePath) {
@@ -160,9 +165,10 @@ function createRandomId(length = 16) {
 function isAllowedRedirectUri(value) {
   try {
     const parsed = new URL(value);
+    const extensionId = extractExtensionId(parsed);
     if (parsed.protocol === "https:") {
       if (parsed.hostname.endsWith(".chromiumapp.org")) {
-        return true;
+        return extensionId && ALLOWED_EXTENSION_IDS.has(extensionId);
       }
       if (normalizeText(env.ALLOW_ANY_HTTPS_REDIRECT) === "1") {
         return true;
@@ -170,7 +176,13 @@ function isAllowedRedirectUri(value) {
       return false;
     }
     if (parsed.protocol === "chrome-extension:") {
-      return true;
+      if (!extensionId) {
+        return false;
+      }
+      if (!ALLOW_CHROME_EXTENSION_REDIRECT || ALLOWED_EXTENSION_IDS.size === 0) {
+        return false;
+      }
+      return ALLOWED_EXTENSION_IDS.has(extensionId);
     }
     if (parsed.protocol === "http:") {
       return parsed.hostname === "localhost" || parsed.hostname === "127.0.0.1";
@@ -189,6 +201,43 @@ function normalizeText(value) {
     return "";
   }
   return String(value).trim();
+}
+
+function parseAllowedExtensionIds(value) {
+  const set = new Set();
+  const normalized = normalizeText(value);
+  if (!normalized) {
+    return set;
+  }
+  for (const item of normalized.split(",")) {
+    const candidate = normalizeText(item).toLowerCase();
+    if (/^[a-p]{32}$/.test(candidate)) {
+      set.add(candidate);
+    }
+  }
+  return set;
+}
+
+function parseClampedInt(value, fallback, min, max) {
+  const parsed = Number.parseInt(normalizeText(value), 10);
+  if (!Number.isFinite(parsed)) {
+    return fallback;
+  }
+  return Math.max(min, Math.min(max, parsed));
+}
+
+function extractExtensionId(parsed) {
+  if (!parsed) {
+    return "";
+  }
+  if (parsed.protocol === "chrome-extension:") {
+    return normalizeText(parsed.hostname).toLowerCase();
+  }
+  if (parsed.protocol === "https:") {
+    const match = normalizeText(parsed.hostname).toLowerCase().match(/^([a-p]{32})\.chromiumapp\.org$/);
+    return match ? match[1] : "";
+  }
+  return "";
 }
 
 function redirectWithHash(res, redirectUri, params) {
@@ -245,13 +294,24 @@ function buildAuthUrl(provider, oauth, callbackUrl, callbackState) {
   return url.toString();
 }
 
-function handleStart(res, parsedUrl) {
+function isLoopbackRequest(req) {
+  const remoteAddress = normalizeText(req?.socket?.remoteAddress || req?.connection?.remoteAddress || "").toLowerCase();
+  return remoteAddress === "127.0.0.1" || remoteAddress === "::1" || remoteAddress === "::ffff:127.0.0.1";
+}
+
+function handleStart(req, res, parsedUrl) {
   cleanupPendingStates();
   const params = parsedUrl.searchParams;
   const mode = params.get("mode");
   const provider = params.get("provider");
 
   if (mode === "token") {
+    if (!ENABLE_TOKEN_RELAY) {
+      return sendText(res, "Token relay is disabled", 403);
+    }
+    if (!isLoopbackRequest(req)) {
+      return sendText(res, "Token relay is limited to local requests", 403);
+    }
     if (!provider) {
       return sendText(res, "Missing provider", 400);
     }
@@ -282,7 +342,7 @@ function handleStart(res, parsedUrl) {
     return sendText(res, "Redirect URI is not allowed", 400);
   }
 
-  if (attemptTokenRelay(provider, extState, redirectUri, res)) {
+  if (ENABLE_TOKEN_RELAY && isLoopbackRequest(req) && attemptTokenRelay(provider, extState, redirectUri, res)) {
     return;
   }
 
@@ -410,11 +470,27 @@ async function exchangeCode(provider, code, callbackUrl) {
 
 function postForm(urlString, params) {
   return new Promise((resolve, reject) => {
+    let settled = false;
+    const finishResolve = (value) => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      resolve(value);
+    };
+    const finishReject = (error) => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      reject(error);
+    };
+
     let parsedUrl;
     try {
       parsedUrl = new URL(urlString);
     } catch (error) {
-      return reject(error);
+      return finishReject(error);
     }
 
     const payload = params.toString();
@@ -441,14 +517,17 @@ function postForm(urlString, params) {
           const normalized = body ? tryParseJson(body) : {};
           if (status >= 400) {
             const message = normalized?.error_description || normalized?.error || `HTTP ${status}`;
-            return reject(new Error(message));
+            return finishReject(new Error(message));
           }
-          return resolve(normalized);
+          return finishResolve(normalized);
         });
       }
     );
 
-    request.on("error", reject);
+    request.setTimeout(OAUTH_REQUEST_TIMEOUT_MS, () => {
+      request.destroy(new Error(`OAuth request timed out after ${OAUTH_REQUEST_TIMEOUT_MS}ms`));
+    });
+    request.on("error", finishReject);
     request.write(payload);
     request.end();
   });

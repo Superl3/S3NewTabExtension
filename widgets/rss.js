@@ -38,6 +38,23 @@ function normalizeErrorMessage(error) {
   return "Unknown error";
 }
 
+function normalizeSafeUrl(value, fallback = DEFAULT_FEED_URL) {
+  const text = normalizeText(value, fallback);
+  if (!text) {
+    return fallback;
+  }
+
+  try {
+    const parsed = new URL(text);
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+      return fallback;
+    }
+    return parsed.toString();
+  } catch {
+    return fallback;
+  }
+}
+
 function asFetchUrl(value) {
   const text = normalizeText(value);
   if (!text) {
@@ -293,8 +310,8 @@ export const rssWidget = {
 
     function applyOpenFeedButton() {
       const cfg = normalizedConfig(getConfig());
-      const href = normalizeText(cfg.feedUrl);
-      openFeedBtn.href = href || DEFAULT_FEED_URL;
+      const feedUrl = normalizeSafeUrl(cfg.feedUrl, DEFAULT_FEED_URL);
+      openFeedBtn.href = feedUrl;
       openFeedBtn.target = cfg.openInNewTab ? "_blank" : "_self";
     }
 
@@ -322,7 +339,8 @@ export const rssWidget = {
 
         const link = document.createElement("a");
         link.className = "rss-feed-link";
-        link.href = item.link || cfg.feedUrl;
+        const feedUrl = normalizeSafeUrl(cfg.feedUrl, DEFAULT_FEED_URL);
+        link.href = normalizeSafeUrl(item.link, feedUrl);
         link.target = cfg.openInNewTab ? "_blank" : "_self";
         link.rel = "noreferrer";
 

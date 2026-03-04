@@ -540,7 +540,7 @@ export const aiChatWidget = {
           if (result.error || result.errorDescription) {
             throw new Error(result.errorDescription || result.error || "Authentication failed.");
           }
-          if (result.state && result.state !== state) {
+          if (!result.state || result.state !== state) {
             throw new Error("Authentication failed (invalid state).");
           }
 
@@ -616,33 +616,40 @@ export const aiChatWidget = {
       log.scrollTop = log.scrollHeight;
     }
 
+    function appendHistoryMessage(message) {
+      const nextHistory = [...getHistory(), message].slice(-40);
+      patchConfig({ history: nextHistory });
+      return message;
+    }
+
+    function appendUserMessage(text) {
+      return appendHistoryMessage(toMessage("user", text));
+    }
+
+    function appendAssistantMessage(text) {
+      return appendHistoryMessage(toMessage("assistant", text));
+    }
+
     async function sendMessage(text) {
       const cfg = getConfig();
       const endpoint = resolveEndpoint(cfg);
       const history = getHistory();
-      const next = [...history, toMessage("user", text)];
-      patchConfig({ history: next.slice(-40) });
+      appendUserMessage(text);
 
       if (!endpoint) {
-        patchConfig({
-          history: [...next, toMessage("assistant", "Endpoint is required.")].slice(-40)
-        });
+        appendAssistantMessage("Endpoint is required.");
         return;
       }
 
       const connectorUrl = getConnectorUrl();
       if (!connectorUrl && !activeSession?.accessToken) {
-        patchConfig({
-          history: [...next, toMessage("assistant", "Auth connector URL is required in settings.")].slice(-40)
-        });
+        appendAssistantMessage("Auth connector URL is required in settings.");
         return;
       }
 
       const token = activeSession?.accessToken;
       if (!token) {
-        patchConfig({
-          history: [...next, toMessage("assistant", "Tap Connect above to authenticate before sending messages.")].slice(-40)
-        });
+        appendAssistantMessage("Tap Connect above to authenticate before sending messages.");
         return;
       }
 
@@ -652,11 +659,9 @@ export const aiChatWidget = {
             ? await callOpenAIBrowserMode(cfg, history, text, token)
             : await callOpenAIStyleApi(cfg, history, text, token);
 
-        patchConfig({ history: [...next, toMessage("assistant", reply)].slice(-40) });
+        appendAssistantMessage(reply);
       } catch (error) {
-        patchConfig({
-          history: [...next, toMessage("assistant", `Request failed: ${error.message}`)].slice(-40)
-        });
+        appendAssistantMessage(`Request failed: ${error.message}`);
       }
     }
 

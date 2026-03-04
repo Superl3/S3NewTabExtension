@@ -3,6 +3,23 @@ function normalizeText(value, fallback = "") {
   return text || fallback;
 }
 
+function normalizeSafeUrl(value, fallback = "https://www.google.com") {
+  const text = normalizeText(value, fallback);
+  if (!text) {
+    return fallback;
+  }
+
+  try {
+    const parsed = new URL(text);
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+      return fallback;
+    }
+    return parsed.toString();
+  } catch {
+    return fallback;
+  }
+}
+
 const SHORTCUT_FAVICON_CACHE_KEY = "s3newtab-shortcut-favicon-cache-v1";
 const SHORTCUT_FAVICON_CACHE_LIMIT = 240;
 
@@ -226,7 +243,7 @@ export const shortcutWidget = {
 
       const cfg = getConfig();
       const ui = typeof getUi === "function" ? getUi() : null;
-      const url = normalizeText(cfg.url, "https://www.google.com");
+      const url = normalizeSafeUrl(cfg.url, "https://www.google.com");
       const text = normalizeText(cfg.label, "Shortcut");
       const iconValue = normalizeText(cfg.icon);
       const globalSize = Number(ui?.shortcuts?.iconSizePercent);

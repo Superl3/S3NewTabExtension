@@ -1314,7 +1314,7 @@ export const mondayAssignedWidget = {
           if (result.error || result.errorDescription) {
             throw new Error(result.errorDescription || result.error || "Monday connection failed.");
           }
-          if (result.state && result.state !== state) {
+          if (!result.state || result.state !== state) {
             throw new Error("Monday connection failed (invalid state).");
           }
 

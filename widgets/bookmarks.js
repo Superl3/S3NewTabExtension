@@ -11,6 +11,24 @@ function normalizeText(value) {
   return String(value || "").trim();
 }
 
+function normalizeSafeLink(value) {
+  const raw = normalizeText(value);
+  if (!raw) {
+    return "";
+  }
+
+  try {
+    const parsed = new URL(raw);
+    const protocol = parsed.protocol.toLowerCase();
+    if (protocol === "http:" || protocol === "https:") {
+      return parsed.href;
+    }
+  } catch {
+  }
+
+  return "";
+}
+
 function isUrlIcon(value) {
   return (
     value.startsWith("http://") ||
@@ -37,9 +55,15 @@ function buildNodeUrl(node, cfg) {
   if (!node.url) {
     return "";
   }
+
+  const fallbackUrl = normalizeSafeLink(node.url);
   const urlMap = asRecord(cfg.urlMap);
   const custom = normalizeText(urlMap[node.id]);
-  return custom || node.url;
+  const customUrl = normalizeSafeLink(custom);
+  if (customUrl) {
+    return customUrl;
+  }
+  return fallbackUrl;
 }
 
 function buildIconNode(node, cfg) {
@@ -335,24 +359,26 @@ export const bookmarksWidget = {
       closeBtn.textContent = "Close";
 
       saveBtn.addEventListener("click", () => {
+        const latestCfg = getConfig();
         const nextLabel = normalizeText(labelInput.value);
         const nextIcon = normalizeText(iconInput.value);
         const nextUrl = editingNode.url ? normalizeText(urlInput.value) : "";
 
         patchConfig({
-          labelMap: setMapValue(cfg.labelMap, editingNode.id, nextLabel),
-          iconMap: setMapValue(cfg.iconMap, editingNode.id, nextIcon),
+          labelMap: setMapValue(latestCfg.labelMap, editingNode.id, nextLabel),
+          iconMap: setMapValue(latestCfg.iconMap, editingNode.id, nextIcon),
           urlMap: editingNode.url
-            ? setMapValue(cfg.urlMap, editingNode.id, nextUrl)
-            : setMapValue(cfg.urlMap, editingNode.id, "")
+            ? setMapValue(latestCfg.urlMap, editingNode.id, nextUrl)
+            : setMapValue(latestCfg.urlMap, editingNode.id, "")
         });
       });
 
       clearBtn.addEventListener("click", () => {
+        const latestCfg = getConfig();
         patchConfig({
-          labelMap: setMapValue(cfg.labelMap, editingNode.id, ""),
-          iconMap: setMapValue(cfg.iconMap, editingNode.id, ""),
-          urlMap: setMapValue(cfg.urlMap, editingNode.id, "")
+          labelMap: setMapValue(latestCfg.labelMap, editingNode.id, ""),
+          iconMap: setMapValue(latestCfg.iconMap, editingNode.id, ""),
+          urlMap: setMapValue(latestCfg.urlMap, editingNode.id, "")
         });
       });
 
@@ -479,11 +505,22 @@ export const bookmarksWidget = {
     function createBookmarkCard(node, cfg) {
       const card = document.createElement("a");
       card.className = "bookmark-grid-card bookmark-link-card";
-      card.href = buildNodeUrl(node, cfg);
-
-      if (cfg.openInNewTab) {
-        card.target = "_blank";
-        card.rel = "noreferrer";
+      const href = buildNodeUrl(node, cfg);
+      if (href) {
+        card.href = href;
+        if (cfg.openInNewTab) {
+          card.target = "_blank";
+          card.rel = "noreferrer";
+        }
+      } else {
+        card.removeAttribute("href");
+        card.setAttribute("aria-disabled", "true");
+        card.tabIndex = -1;
+        card.style.opacity = "0.6";
+        card.style.cursor = "not-allowed";
+        card.addEventListener("click", (event) => {
+          event.preventDefault();
+        });
       }
 
       const icon = buildIconNode(node, cfg);
@@ -524,6 +561,10 @@ export const bookmarksWidget = {
 
         if (!root) {
           notifyBackState(false);
+          nav.style.display = "none";
+          rootNode = null;
+          currentFolderId = "";
+          parentMap = {};
           const item = document.createElement("p");
           item.className = "muted";
           item.textContent = "Bookmark folder not found.";
