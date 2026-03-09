@@ -4509,6 +4509,9 @@ function createWidgetDragPreview(instance, options = {}) {
     preview.style.top = `${Math.round(rect.top)}px`;
     preview.style.width = `${Math.max(1, Math.round(rect.width))}px`;
     preview.style.height = `${Math.max(1, Math.round(rect.height))}px`;
+    preview.style.position = "fixed";
+    preview.style.zIndex = "9000";
+    preview.style.pointerEvents = "none";
 
     const pointerX = Number.isFinite(Number(options?.pointerX))
       ? Number(options.pointerX)
@@ -4530,6 +4533,9 @@ function createWidgetDragPreview(instance, options = {}) {
   preview.className = "widget-drag-preview";
   const fallbackTitle = widgetRegistry?.[instance?.type]?.title || "Widget";
   preview.textContent = normalizeText(instance?.title, fallbackTitle);
+  preview.style.position = "fixed";
+  preview.style.zIndex = "9000";
+  preview.style.pointerEvents = "none";
   document.body.append(preview);
   return preview;
 }
@@ -4826,6 +4832,8 @@ function containerDropGuideSlotRect(containerId, draggedInstance, host) {
 function createWidgetDropSilhouette(sourceElement = null) {
   const silhouette = document.createElement("div");
   silhouette.className = "widget-drop-silhouette";
+  silhouette.style.position = "fixed";
+  silhouette.style.zIndex = "8990";
 
   const sourceRect = sourceElement?.getBoundingClientRect?.();
   if (sourceRect) {
@@ -5637,7 +5645,10 @@ function renderDockWidgets() {
       let lastPageSwitchAt = 0;
       let pendingPageSwitchDirection = 0;
       let pendingPageSwitchSince = 0;
+      let pendingPageSwitchTimer = 0;
       let dragReleasePage = currentLauncherActivePage();
+      let lastPointerX = event.clientX;
+      let lastPointerY = event.clientY;
 
       const edgeDirectionFromPointer = (clientX) => {
         const boardRect = elements.board?.getBoundingClientRect();
@@ -5656,25 +5667,18 @@ function renderDockWidgets() {
       const resetPendingPageSwitch = () => {
         pendingPageSwitchDirection = 0;
         pendingPageSwitchSince = 0;
+        if (pendingPageSwitchTimer) {
+          window.clearTimeout(pendingPageSwitchTimer);
+          pendingPageSwitchTimer = 0;
+        }
       };
 
-      const trySwitchPage = (direction) => {
+      const commitPageSwitch = (direction) => {
         if (!direction) {
-          resetPendingPageSwitch();
           return false;
         }
 
         const now = performance.now();
-        if (direction !== pendingPageSwitchDirection) {
-          pendingPageSwitchDirection = direction;
-          pendingPageSwitchSince = now;
-          return false;
-        }
-
-        if (now - pendingPageSwitchSince < pageSwitchHoldMs) {
-          return false;
-        }
-
         if (now - lastPageSwitchAt < pageSwitchCooldownMs) {
           return false;
         }
@@ -5682,24 +5686,57 @@ function renderDockWidgets() {
         const pageCount = currentLauncherPageCount();
         const nextPage = dragReleasePage + direction;
         if (nextPage < 0 || nextPage >= pageCount) {
-          resetPendingPageSwitch();
           return false;
         }
 
         dragReleasePage = nextPage;
         lastPageSwitchAt = now;
-        pendingPageSwitchSince = now;
         setActiveLauncherPage(nextPage, { shouldSave: false, animate: true });
         return true;
       };
 
+      const schedulePageSwitch = (direction) => {
+        if (!direction) {
+          resetPendingPageSwitch();
+          return false;
+        }
+
+        if (direction === pendingPageSwitchDirection && pendingPageSwitchTimer) {
+          return false;
+        }
+
+        resetPendingPageSwitch();
+        pendingPageSwitchDirection = direction;
+        pendingPageSwitchSince = performance.now();
+        pendingPageSwitchTimer = window.setTimeout(() => {
+          pendingPageSwitchTimer = 0;
+          const currentDirection = edgeDirectionFromPointer(lastPointerX);
+          if (currentDirection !== direction) {
+            resetPendingPageSwitch();
+            return;
+          }
+
+          const switched = commitPageSwitch(direction);
+          if (switched) {
+            schedulePageSwitch(direction);
+            return;
+          }
+
+          resetPendingPageSwitch();
+        }, pageSwitchHoldMs);
+
+        return false;
+      };
+
       const updateGhost = (clientX, clientY) => {
         previewSession.update(clientX, clientY);
+        lastPointerX = clientX;
+        lastPointerY = clientY;
         const insideDock = isDockDropPoint(clientX, clientY);
         elements.persistentDock?.classList.toggle("is-drag-out-active", !insideDock);
 
         if (!insideDock) {
-          trySwitchPage(edgeDirectionFromPointer(clientX));
+          schedulePageSwitch(edgeDirectionFromPointer(clientX));
         }
 
         const projection = projectWidgetBoardDropLayout(item, {
@@ -7324,6 +7361,7 @@ function createWidgetCard(instance) {
     let pageChangedDuringDrag = false;
     let pendingPageSwitchDirection = 0;
     let pendingPageSwitchSince = 0;
+    let pendingPageSwitchTimer = 0;
 
     const edgeDirectionFromPointer = (clientX) => {
       const rect = elements.board.getBoundingClientRect();
@@ -7342,25 +7380,18 @@ function createWidgetCard(instance) {
     const resetPendingPageSwitch = () => {
       pendingPageSwitchDirection = 0;
       pendingPageSwitchSince = 0;
+      if (pendingPageSwitchTimer) {
+        window.clearTimeout(pendingPageSwitchTimer);
+        pendingPageSwitchTimer = 0;
+      }
     };
 
-    const trySwitchPage = (direction, moveEvent, onSwitched = null) => {
+    const commitPageSwitch = (direction, moveEvent, onSwitched = null) => {
       if (!direction) {
-        resetPendingPageSwitch();
         return false;
       }
 
       const now = performance.now();
-      if (direction !== pendingPageSwitchDirection) {
-        pendingPageSwitchDirection = direction;
-        pendingPageSwitchSince = now;
-        return false;
-      }
-
-      if (now - pendingPageSwitchSince < pageSwitchHoldMs) {
-        return false;
-      }
-
       if (now - lastPageSwitchAt < pageSwitchCooldownMs) {
         return false;
       }
@@ -7369,7 +7400,6 @@ function createWidgetCard(instance) {
       const currentPage = normalizeWidgetPage(instance.page, pageCount, 0);
       const nextPage = currentPage + direction;
       if (nextPage < 0 || nextPage >= pageCount) {
-        resetPendingPageSwitch();
         return false;
       }
 
@@ -7377,7 +7407,6 @@ function createWidgetCard(instance) {
       state.ui.home.activePage = nextPage;
       pageChangedDuringDrag = true;
       lastPageSwitchAt = now;
-      pendingPageSwitchSince = now;
 
       if (typeof onSwitched === "function") {
         onSwitched(direction, nextPage, currentPage, moveEvent);
@@ -7387,6 +7416,46 @@ function createWidgetCard(instance) {
       return true;
     };
 
+    const schedulePageSwitch = (direction, moveEvent, onSwitched = null) => {
+      if (!direction) {
+        resetPendingPageSwitch();
+        return false;
+      }
+
+      if (direction === pendingPageSwitchDirection && pendingPageSwitchTimer) {
+        return false;
+      }
+
+      resetPendingPageSwitch();
+      pendingPageSwitchDirection = direction;
+      pendingPageSwitchSince = performance.now();
+      pendingPageSwitchTimer = window.setTimeout(() => {
+        pendingPageSwitchTimer = 0;
+        const currentDirection = edgeDirectionFromPointer(lastPointerX);
+        if (currentDirection !== direction) {
+          resetPendingPageSwitch();
+          return;
+        }
+
+        const syntheticEvent = {
+          clientX: lastPointerX,
+          clientY: lastPointerY
+        };
+        const switched = commitPageSwitch(direction, syntheticEvent, onSwitched);
+        if (switched) {
+          schedulePageSwitch(direction, syntheticEvent, onSwitched);
+          return;
+        }
+
+        resetPendingPageSwitch();
+      }, pageSwitchHoldMs);
+
+      return false;
+    };
+
+    const boardRect = elements.board.getBoundingClientRect();
+    let lastPointerX = dragStartX;
+    let lastPointerY = dragStartY;
     if (isGridLayoutMode()) {
       recordHistorySnapshot("Move widget");
       const metrics = gridMetrics();
@@ -7398,10 +7467,6 @@ function createWidgetCard(instance) {
       };
       const stepX = Math.max(1, metrics.cellW + metrics.gapX);
       const stepY = Math.max(1, metrics.cellH + metrics.gapY);
-      const boardRect = elements.board.getBoundingClientRect();
-      let lastPointerX = dragStartX;
-      let lastPointerY = dragStartY;
-
       const projectedGridDropLayout = () => {
         const currentGrid = normalizeGridLayout(instance.gridLayout, gridFallback);
         const maxCol = Math.max(0, metrics.cols - currentGrid.colSpan);
@@ -7447,7 +7512,7 @@ function createWidgetCard(instance) {
         instance.layout.y = clamp(instance.layout.y + dy, 0, maxY);
 
         const direction = edgeDirectionFromPointer(moveEvent.clientX);
-        trySwitchPage(direction, moveEvent, (switchDirection) => {
+        schedulePageSwitch(direction, moveEvent, (switchDirection) => {
           const edgeInset = clamp(Math.round(instance.layout.w * 0.18), 16, 64);
           const maxLocalX = Math.max(0, boardRect.width - instance.layout.w);
           const nextLocalX = switchDirection > 0 ? edgeInset : maxLocalX - edgeInset;
@@ -7499,10 +7564,6 @@ function createWidgetCard(instance) {
       return true;
     }
 
-    const boardRect = elements.board.getBoundingClientRect();
-    let lastPointerX = dragStartX;
-    let lastPointerY = dragStartY;
-
     const projectedFreeDropLayout = () => {
       const maxX = Math.max(0, boardRect.width - instance.layout.w);
       const maxY = Math.max(0, boardRect.height - instance.layout.h);
@@ -7532,7 +7593,7 @@ function createWidgetCard(instance) {
       }, { record: false });
 
       const direction = edgeDirectionFromPointer(moveEvent.clientX);
-      trySwitchPage(direction, moveEvent, (switchDirection) => {
+      schedulePageSwitch(direction, moveEvent, (switchDirection) => {
         const edgeInset = clamp(Math.round(instance.layout.w * 0.18), 16, 64);
         const maxLocalX = Math.max(0, boardRect.width - instance.layout.w);
         const nextLocalX = switchDirection > 0 ? edgeInset : maxLocalX - edgeInset;
