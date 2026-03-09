@@ -66,11 +66,17 @@
 - 위젯 추가는 **드래그해서 열린 컨테이너 영역에 드롭** 방식만 지원합니다.
 - 위젯 꺼내기는 **컨테이너 내부 위젯을 바깥으로 드래그 드롭** 방식만 지원합니다.
 
+## Gmail 위젯
+
+- 브라우저에 로그인된 Gmail 세션의 Atom feed(읽기 전용)를 사용합니다.
+- 안 읽은 메일 목록을 보여주며, 항목 클릭 시 해당 Gmail 메일로 바로 이동합니다.
+- `Account index (u/N)`으로 여러 Gmail 로그인 계정 중 표시 대상을 선택할 수 있습니다.
+
 ## Calendar 위젯
 
-- 월간 달력과 다가오는 일정 목록을 함께 표시합니다.
-- 위젯 설정에서 달력 뷰를 `Monthly` / `Weekly`로 전환할 수 있습니다.
-- Google Calendar 연동 시 `Connect`로 OAuth 동의를 진행한 뒤 일정을 불러옵니다.
+- Google Calendar의 비공개 ICS URL(읽기 전용)로 일정을 불러옵니다.
+- 월간 달력과 다가오는 일정 목록을 함께 표시하며, 뷰를 `Monthly` / `Weekly`로 전환할 수 있습니다.
+- 편집 기능 없이 조회만 지원하고, 일정 항목 클릭 시 이벤트 링크(없으면 캘린더 홈)로 이동합니다.
 
 ## Monday Assigned Issues 위젯
 
@@ -95,33 +101,30 @@
 
 - Monday 위젯 UI 스타일 메모: `DESIGN_MEMORY.md`
 
-## Gmail / Google Calendar 연동 설정 (선택)
+## Gmail / Calendar 최소 조회 설정 (선택)
 
-Gmail 위젯과 Calendar 위젯은 Auth connector 기반 OAuth로 동작합니다.
+Gmail/Calendar 위젯은 OAuth 없이 조회 전용으로 동작합니다.
 
-1. 기본 `Auth connector URL`(`http://localhost:8787/api/auth/start`)을 그대로 사용
-2. 또는 각 위젯의 `Access token (optional)`에 토큰을 직접 입력
-3. 위젯에서 `Connect` 클릭 후 동의 진행
-4. Auth connector 콜백이 확장 redirect URL로 `access_token`(선택: `account`/`email`) 반환
-5. Auth connector OAuth callback의 `state`가 누락되거나 불일치하면 연결을 거부합니다.
-6. 연결 후 `Refresh`로 메일/일정 동기화
+1. Gmail: 브라우저에서 Gmail 로그인 후 위젯의 `Account index (u/N)`를 계정 탭 번호와 맞춥니다.
+2. Gmail: 목록 항목을 클릭하면 해당 메일로 바로 이동합니다.
+3. Calendar: `Calendar ICS URL`을 비워두고 `Refresh`를 누르면, 로그인된 Google Calendar 세션에서 ICS를 자동 탐지합니다.
+4. Calendar 자동 설정이 실패하면 `Open Google Calendar`를 눌러 설정 페이지를 연 뒤 다시 `Refresh`를 누르거나, `Secret address in iCal format`을 직접 붙여 넣습니다.
 
-> 참고: Gmail과 Calendar는 각각 connector 세션을 로컬 스토리지에 저장합니다.
+> 참고: ICS URL은 비밀키처럼 취급해야 하며, URL이 유출되면 일정 정보가 노출될 수 있습니다.
 
 ## Local Auth Connector (Recommended)
 
 1. Copy `connector/.env.example` to `connector/.env` and set at least one token or OAuth client.
-2. Provide tokens/credentials for the providers you use (see mapping below).
+2. Provide tokens/credentials for the providers you use (Monday / AI Chat).
 3. Run `node connector/server.mjs` to start the local connector on port `8787` (override `PORT` in `.env` if needed).
-4. Reload the extension and use each widget's `Connect` button—the default connector URL is already wired to `http://localhost:8787/api/auth/start`.
+4. Reload the extension and use `Connect` in Monday 관련 위젯 또는 AI Chat 위젯.
 
 | Provider | Quick token env | OAuth client envs |
 |----------|----------------|------------------|
 | Monday Assigned | `MONDAY_ACCESS_TOKEN`, optional `MONDAY_ACCOUNT_LABEL` | `MONDAY_CLIENT_ID`, `MONDAY_CLIENT_SECRET` |
-| Gmail / Calendar | `GOOGLE_ACCESS_TOKEN`, optional `GOOGLE_ACCOUNT_LABEL` | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` |
 | AI Chat / OpenAI | `OPENAI_ACCESS_TOKEN`, optional `OPENAI_ACCOUNT_LABEL` | n/a |
 
-Supplying OAuth client IDs/secrets lets the connector perform the full OAuth flows for Monday and Google. Because the widgets default to `http://localhost:8787/api/auth/start`, you no longer need to manually enter connector URLs unless you run the backend elsewhere. You can also paste tokens directly into each widget's `Access token (optional)` field to skip popup-based auth.
+Supplying OAuth client IDs/secrets lets the connector perform OAuth for Monday. You can also paste tokens directly into each widget's `Access token (optional)` field to skip popup-based auth.
 
 Security defaults (Q3 hardening):
 - connector bind host defaults to loopback (`CONNECTOR_HOST=127.0.0.1`)
@@ -129,7 +132,7 @@ Security defaults (Q3 hardening):
 - `chrome-extension://` redirect is allowed only when both `ALLOW_CHROME_EXTENSION_REDIRECT=1` and the extension ID is listed in `ALLOWED_EXTENSION_IDS`
 - `https://<extension-id>.chromiumapp.org` redirect also requires the extension ID to be listed in `ALLOWED_EXTENSION_IDS`
 
-If Edge reports `chrome.identity.launchWebAuthFlow is not available`, set the appropriate `*_ACCESS_TOKEN` (and optional `*_ACCOUNT_LABEL`) in `connector/.env`. Token relay fallback is not automatic: it only works when `ENABLE_TOKEN_RELAY=1` is set and the connector remains loopback-only.
+If Edge reports `chrome.identity.launchWebAuthFlow is not available` for Monday OAuth, set `MONDAY_ACCESS_TOKEN` (and optional `MONDAY_ACCOUNT_LABEL`) in `connector/.env`. Token relay fallback is not automatic: it only works when `ENABLE_TOKEN_RELAY=1` is set and the connector remains loopback-only.
 
 ## 설치 방법 (개발자 모드)
 
@@ -184,7 +187,7 @@ If Edge reports `chrome.identity.launchWebAuthFlow is not available`, set the ap
   - 저장소 로드 실패/손상 데이터 시 기본 상태 안전 복구.
 - Host permissions: `http://*/*`, `https://*/*`
 
-> 참고: AI Chat / Monday / Gmail / Calendar 위젯의 Auth connector 세션 토큰이 chrome.storage.local에 저장됩니다. 민감 정보 취급에 주의하세요.
+> 참고: AI Chat / Monday 위젯의 Auth connector 세션 토큰이 chrome.storage.local에 저장됩니다. 민감 정보 취급에 주의하세요.
 
 ## 프로젝트 구조
 

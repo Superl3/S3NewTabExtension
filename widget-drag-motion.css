@@ -32,3 +32,16 @@
 .widget-card.widget-drag-active {
   transform-origin: 50% 50%;
 }
+
+
+.widget-card.widget-drag-origin-hidden {
+  opacity: 0.3;
+  filter: saturate(0.85);
+  transition: opacity 0.14s ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .widget-card.widget-drag-origin-hidden {
+    transition: none;
+  }
+}

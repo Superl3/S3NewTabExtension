@@ -178,7 +178,8 @@ export const containerWidget = {
     releaseWidgetFromContainerByDrop,
     createDragPreviewSession,
     createWidgetDragPreview,
-    positionWidgetDragPreview
+    positionWidgetDragPreview,
+    startPointerDragSession
   }) {
     const root = document.createElement("section");
     root.className = "widget-folder";
@@ -393,11 +394,6 @@ export const containerWidget = {
             })
             : null;
 
-        const pointerId = Number.isFinite(event?.pointerId) ? event.pointerId : null;
-        if (!previewSession && pointerId !== null) {
-          card.setPointerCapture?.(pointerId);
-        }
-
         const ghost =
           previewSession?.preview ||
           (typeof createWidgetDragPreview === "function"
@@ -409,9 +405,6 @@ export const containerWidget = {
             })
             : null);
         if (!(ghost instanceof HTMLElement)) {
-          if (!previewSession && pointerId !== null) {
-            card.releasePointerCapture?.(pointerId);
-          }
           return;
         }
 
@@ -430,22 +423,39 @@ export const containerWidget = {
           panel.classList.toggle("is-drag-out-active", !inside);
         };
 
-        updateGhost(event.clientX, event.clientY);
+        let queuedMove = null;
+        let moveRafId = 0;
 
-        const move = (moveEvent) => {
-          updateGhost(moveEvent.clientX, moveEvent.clientY);
+        const flushQueuedMove = () => {
+          if (!queuedMove) {
+            return;
+          }
+          const payload = queuedMove;
+          queuedMove = null;
+          updateGhost(payload.clientX, payload.clientY);
         };
 
-        const finish = (upEvent) => {
-          if (!previewSession && pointerId !== null) {
-            card.releasePointerCapture?.(pointerId);
+        const scheduleGhostMove = (clientX, clientY) => {
+          queuedMove = { clientX, clientY };
+          if (moveRafId) {
+            return;
           }
-          window.removeEventListener("pointermove", move);
-          window.removeEventListener("pointerup", finish);
-          window.removeEventListener("pointercancel", finish);
+          moveRafId = requestAnimationFrame(() => {
+            moveRafId = 0;
+            flushQueuedMove();
+          });
+        };
 
-          const dropX = Number.isFinite(upEvent?.clientX) ? upEvent.clientX : event.clientX;
-          const dropY = Number.isFinite(upEvent?.clientY) ? upEvent.clientY : event.clientY;
+        updateGhost(event.clientX, event.clientY);
+
+        const finish = (endEvent, { cancelled = false } = {}) => {
+          if (moveRafId) {
+            cancelAnimationFrame(moveRafId);
+            moveRafId = 0;
+          }
+          flushQueuedMove();
+          const dropX = Number.isFinite(endEvent?.clientX) ? endEvent.clientX : event.clientX;
+          const dropY = Number.isFinite(endEvent?.clientY) ? endEvent.clientY : event.clientY;
           const inside = pointInsideRect(dropX, dropY, panel.getBoundingClientRect());
 
           panel.classList.remove("is-drag-out-active");
@@ -456,7 +466,7 @@ export const containerWidget = {
             ghost.remove();
           }
 
-          if (!inside) {
+          if (!cancelled && !inside) {
             releaseWidgetFromContainerByDrop(child.id, {
               sourceContainerId: folder.id,
               clientX: dropX,
@@ -465,9 +475,33 @@ export const containerWidget = {
           }
         };
 
+        if (typeof startPointerDragSession === "function") {
+          startPointerDragSession({
+            sourceEvent: event,
+            captureTarget: card,
+            onMove: (moveEvent) => {
+              scheduleGhostMove(moveEvent.clientX, moveEvent.clientY);
+            },
+            onEnd: (endEvent, details = {}) => {
+              finish(endEvent, details);
+            }
+          });
+          return;
+        }
+
+        const move = (moveEvent) => {
+          updateGhost(moveEvent.clientX, moveEvent.clientY);
+        };
+        const legacyFinish = (endEvent) => {
+          window.removeEventListener("pointermove", move);
+          window.removeEventListener("pointerup", legacyFinish);
+          window.removeEventListener("pointercancel", legacyFinish);
+          finish(endEvent, { cancelled: endEvent?.type === "pointercancel" });
+        };
+
         window.addEventListener("pointermove", move);
-        window.addEventListener("pointerup", finish);
-        window.addEventListener("pointercancel", finish);
+        window.addEventListener("pointerup", legacyFinish);
+        window.addEventListener("pointercancel", legacyFinish);
       };
 
       card.addEventListener("pointerdown", onPointerDown, true);
@@ -537,6 +571,7 @@ export const containerWidget = {
         registerContainerDropTarget,
         unregisterContainerDropTarget,
         releaseWidgetFromContainerByDrop,
+        startPointerDragSession,
         isEditMode,
         openSettings: () => {
           openWidgetSettingsById?.(child.id);

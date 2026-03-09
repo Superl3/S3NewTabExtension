@@ -1,7 +1,5 @@
-const CALENDAR_API_BASE = "https://www.googleapis.com/calendar/v3/calendars/primary/events";
-const GOOGLE_CALENDAR_WEB_URL = "https://calendar.google.com/calendar/u/0/r";
-const CALENDAR_AUTH_STORAGE_KEY = "s3newtab-calendar-auth-session-v1";
-const LOCAL_AUTH_CONNECTOR_URL = "http://localhost:8787/api/auth/start";
+const GOOGLE_CALENDAR_HOST = "https://calendar.google.com";
+const GOOGLE_CALENDAR_WEB_URL = `${GOOGLE_CALENDAR_HOST}/calendar/u/0/r`;
 
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
@@ -10,6 +8,26 @@ function clamp(value, min, max) {
 function normalizeText(value, fallback = "") {
   const text = String(value || "").trim();
   return text || fallback;
+}
+
+function normalizeAccountIndex(value, fallback = 0) {
+  const num = Number(value);
+  if (!Number.isFinite(num)) {
+    return clamp(Math.round(fallback), 0, 9);
+  }
+  return clamp(Math.round(num), 0, 9);
+}
+
+function calendarAppBaseUrl(accountIndex) {
+  return `${GOOGLE_CALENDAR_HOST}/calendar/u/${normalizeAccountIndex(accountIndex)}/r`;
+}
+
+function calendarSettingsUrl(accountIndex) {
+  return `${calendarAppBaseUrl(accountIndex)}/settings`;
+}
+
+function calendarHomeUrl(accountIndex) {
+  return calendarAppBaseUrl(accountIndex);
 }
 
 function normalizeMaxResults(value, fallback = 8) {
@@ -28,12 +46,55 @@ function normalizeDaysAhead(value, fallback = 21) {
   return clamp(Math.round(num), 1, 90);
 }
 
+function normalizeRefreshMinutes(value, fallback = 30) {
+  const num = Number(value);
+  if (!Number.isFinite(num)) {
+    return clamp(Math.round(fallback), 1, 240);
+  }
+  return clamp(Math.round(num), 1, 240);
+}
+
 function normalizeWeekStartsOn(value) {
   return normalizeText(value).toLowerCase() === "sunday" ? "sunday" : "monday";
 }
 
 function normalizeViewMode(value) {
   return normalizeText(value).toLowerCase() === "week" ? "week" : "month";
+}
+
+function normalizeIcsUrl(value) {
+  const text = normalizeText(value);
+  if (!text) {
+    return "";
+  }
+
+  const normalized = text.replace(/^webcal:/i, "https:");
+  try {
+    const parsed = new URL(normalized);
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+      return "";
+    }
+    return parsed.toString();
+  } catch {
+    return "";
+  }
+}
+
+function normalizeEventLink(value, fallback = GOOGLE_CALENDAR_WEB_URL) {
+  const text = normalizeText(value);
+  if (!text) {
+    return fallback;
+  }
+
+  try {
+    const parsed = new URL(text);
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+      return fallback;
+    }
+    return parsed.toString();
+  } catch {
+    return fallback;
+  }
 }
 
 function normalizeErrorMessage(error) {
@@ -49,179 +110,6 @@ function normalizeErrorMessage(error) {
   return "Unknown error";
 }
 
-function rewriteAuthorizationLoadError(message) {
-  const text = normalizeText(message).toLowerCase();
-  if (text.includes("authorization page") && (text.includes("load") || text.includes("not loaded"))) {
-    return "Authorization page could not be loaded. Check that connector server is running at http://localhost:8787 and then try Connect again.";
-  }
-  return message;
-}
-
-function isAuthErrorMessage(message) {
-  const text = normalizeText(message).toLowerCase();
-  return (
-    text.includes("unauthorized") ||
-    text.includes("invalid token") ||
-    text.includes("not authenticated") ||
-    text.includes("forbidden") ||
-    text.includes("access denied")
-  );
-}
-
-function isAuthCancelledMessage(message) {
-  const text = normalizeText(message).toLowerCase();
-  return (
-    text.includes("cancel") ||
-    text.includes("canceled") ||
-    text.includes("cancelled") ||
-    text.includes("did not approve") ||
-    text.includes("closed") ||
-    text.includes("interaction")
-  );
-}
-
-function normalizeConnectorUrl(value, fallback = LOCAL_AUTH_CONNECTOR_URL) {
-  const text = normalizeText(value, fallback);
-  if (!text) {
-    return "";
-  }
-
-  try {
-    const parsed = new URL(text);
-    const isLocalhost = parsed.hostname === "localhost" || parsed.hostname === "127.0.0.1";
-    if (parsed.protocol !== "https:" && !(isLocalhost && parsed.protocol === "http:")) {
-      return "";
-    }
-    parsed.hash = "";
-    return parsed.toString();
-  } catch {
-    return "";
-  }
-}
-
-function createAuthState() {
-  const bytes = new Uint8Array(16);
-  crypto.getRandomValues(bytes);
-  return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
-}
-
-function buildAuthConnectorStartUrl(connectorUrl, redirectUri, state, provider = "") {
-  const url = new URL(connectorUrl);
-  url.searchParams.set("redirect_uri", redirectUri);
-  url.searchParams.set("state", state);
-  if (provider) {
-    url.searchParams.set("provider", provider);
-  }
-  return url.toString();
-}
-
-function parseAuthFlowResult(callbackUrl) {
-  const parsed = new URL(callbackUrl);
-  const hashText = parsed.hash.startsWith("#") ? parsed.hash.slice(1) : parsed.hash;
-  const hashParams = new URLSearchParams(hashText);
-  const queryParams = parsed.searchParams;
-  const read = (key) => normalizeText(queryParams.get(key) || hashParams.get(key));
-
-  return {
-    state: read("state"),
-    accessToken:
-      read("access_token") ||
-      read("accessToken") ||
-      read("token") ||
-      read("id_token"),
-    accountLabel: read("account") || read("email") || read("user") || read("name"),
-    error: read("error"),
-    errorDescription: read("error_description")
-  };
-}
-
-function tryParseJson(value) {
-  try {
-    return value ? JSON.parse(value) : {};
-  } catch {
-    return {};
-  }
-}
-
-async function fetchConnectorToken(connectorUrl, provider) {
-  const url = new URL(connectorUrl);
-  url.searchParams.set("mode", "token");
-  url.searchParams.set("provider", provider);
-  const response = await fetch(url.toString());
-  const text = normalizeText(await response.text());
-  const payload = tryParseJson(text);
-  if (!response.ok) {
-    const message =
-      normalizeText(payload?.message) ||
-      normalizeText(payload?.error) ||
-      normalizeText(payload?.error_description) ||
-      `Token relay failed (HTTP ${response.status})`;
-    throw new Error(message);
-  }
-  const token =
-    normalizeText(payload?.access_token) ||
-    normalizeText(payload?.accessToken) ||
-    normalizeText(payload?.token) ||
-    normalizeText(payload?.id_token);
-  if (!token) {
-    throw new Error("Token relay response missing access_token.");
-  }
-  const accountLabel =
-    normalizeText(payload?.account) ||
-    normalizeText(payload?.email) ||
-    normalizeText(payload?.user) ||
-    normalizeText(payload?.name);
-  return { accessToken: token, accountLabel };
-}
-
-function normalizeStoredAuthSession(raw) {
-  if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
-    return null;
-  }
-
-  const rawConnector = normalizeText(raw.connectorUrl);
-  if (!rawConnector) {
-    return null;
-  }
-  const connectorUrl = normalizeConnectorUrl(rawConnector, "");
-  const accessToken = normalizeText(raw.accessToken);
-  if (!connectorUrl || !accessToken) {
-    return null;
-  }
-
-  return {
-    connectorUrl,
-    accessToken,
-    accountLabel: normalizeText(raw.accountLabel)
-  };
-}
-
-async function loadStoredAuthSession() {
-  try {
-    const stored = await chrome.storage.local.get(CALENDAR_AUTH_STORAGE_KEY);
-    return normalizeStoredAuthSession(stored?.[CALENDAR_AUTH_STORAGE_KEY]);
-  } catch {
-    return null;
-  }
-}
-
-async function saveStoredAuthSession(session) {
-  await chrome.storage.local.set({
-    [CALENDAR_AUTH_STORAGE_KEY]: {
-      connectorUrl: normalizeConnectorUrl(session?.connectorUrl, ""),
-      accessToken: normalizeText(session?.accessToken),
-      accountLabel: normalizeText(session?.accountLabel)
-    }
-  });
-}
-
-async function clearStoredAuthSession() {
-  try {
-    await chrome.storage.local.remove(CALENDAR_AUTH_STORAGE_KEY);
-  } catch {
-  }
-}
-
 function toLocalDateKey(date) {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, "0");
@@ -229,160 +117,246 @@ function toLocalDateKey(date) {
   return `${year}-${month}-${day}`;
 }
 
-function parseEventStartInfo(start) {
-  const dateTime = normalizeText(start?.dateTime);
-  if (dateTime) {
-    const parsed = new Date(dateTime);
-    const timestamp = parsed.getTime();
-    if (!Number.isFinite(timestamp)) {
-      return null;
+function unfoldIcsLines(rawText) {
+  const normalized = String(rawText || "").replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+  const sourceLines = normalized.split("\n");
+  const out = [];
+
+  for (const line of sourceLines) {
+    if ((line.startsWith(" ") || line.startsWith("\t")) && out.length) {
+      out[out.length - 1] += line.slice(1);
+      continue;
     }
-    return {
-      allDay: false,
-      startDate: parsed,
-      startTs: timestamp,
-      dateKey: toLocalDateKey(parsed),
-      dateLabel: parsed.toLocaleDateString(undefined, {
-        month: "short",
-        day: "numeric",
-        weekday: "short"
-      }),
-      timeLabel: parsed.toLocaleTimeString(undefined, {
-        hour: "numeric",
-        minute: "2-digit"
-      })
-    };
+    out.push(line);
   }
 
-  const allDayDate = normalizeText(start?.date);
-  if (!allDayDate) {
+  return out;
+}
+
+function parseIcsLine(line) {
+  const colonIndex = line.indexOf(":");
+  if (colonIndex <= 0) {
     return null;
   }
 
-  const parsed = new Date(`${allDayDate}T00:00:00`);
-  if (!Number.isFinite(parsed.getTime())) {
-    return {
-      allDay: true,
-      startDate: null,
-      startTs: Number.POSITIVE_INFINITY,
-      dateKey: allDayDate,
-      dateLabel: allDayDate,
-      timeLabel: "All day"
-    };
+  const left = line.slice(0, colonIndex);
+  const value = line.slice(colonIndex + 1);
+  const [rawName, ...rawParams] = left.split(";");
+  const name = normalizeText(rawName).toUpperCase();
+  if (!name) {
+    return null;
   }
 
+  const params = {};
+  for (const paramChunk of rawParams) {
+    const equalIndex = paramChunk.indexOf("=");
+    if (equalIndex <= 0) {
+      continue;
+    }
+    const key = normalizeText(paramChunk.slice(0, equalIndex)).toUpperCase();
+    if (!key) {
+      continue;
+    }
+    const paramValue = normalizeText(paramChunk.slice(equalIndex + 1)).replace(/^"|"$/g, "");
+    params[key] = paramValue;
+  }
+
+  return { name, params, value };
+}
+
+function unescapeIcsText(value) {
+  return String(value || "")
+    .replace(/\\n/gi, "\n")
+    .replace(/\\,/g, ",")
+    .replace(/\\;/g, ";")
+    .replace(/\\\\/g, "\\");
+}
+
+function parseDateParts(parts, utc = false) {
+  const [year, month, day, hour = 0, minute = 0, second = 0] = parts.map((part) => Number(part));
+  if (
+    !Number.isFinite(year) ||
+    !Number.isFinite(month) ||
+    !Number.isFinite(day) ||
+    !Number.isFinite(hour) ||
+    !Number.isFinite(minute) ||
+    !Number.isFinite(second)
+  ) {
+    return null;
+  }
+
+  const date = utc
+    ? new Date(Date.UTC(year, month - 1, day, hour, minute, second))
+    : new Date(year, month - 1, day, hour, minute, second);
+  if (!Number.isFinite(date.getTime())) {
+    return null;
+  }
+  return date;
+}
+
+function buildDateInfo(date, allDay) {
   return {
-    allDay: true,
-    startDate: parsed,
-    startTs: parsed.getTime(),
-    dateKey: allDayDate,
-    dateLabel: parsed.toLocaleDateString(undefined, {
+    allDay,
+    startDate: date,
+    startTs: date.getTime(),
+    dateKey: toLocalDateKey(date),
+    dateLabel: date.toLocaleDateString(undefined, {
       month: "short",
       day: "numeric",
       weekday: "short"
     }),
-    timeLabel: "All day"
+    timeLabel: allDay
+      ? "All day"
+      : date.toLocaleTimeString(undefined, {
+          hour: "numeric",
+          minute: "2-digit"
+        })
   };
+}
+
+function parseIcsStartDate(rawValue, params = {}) {
+  const value = normalizeText(rawValue);
+  if (!value) {
+    return null;
+  }
+
+  const valueType = normalizeText(params.VALUE).toUpperCase();
+  if (valueType === "DATE" || /^\d{8}$/.test(value)) {
+    const match = value.match(/^(\d{4})(\d{2})(\d{2})$/);
+    if (!match) {
+      return null;
+    }
+    const date = parseDateParts([match[1], match[2], match[3]]);
+    if (!date) {
+      return null;
+    }
+    return buildDateInfo(date, true);
+  }
+
+  let date = null;
+  const utcMatch = value.match(/^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})Z$/);
+  if (utcMatch) {
+    date = parseDateParts(utcMatch.slice(1), true);
+  }
+
+  if (!date) {
+    const localMatch = value.match(/^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})$/);
+    if (localMatch) {
+      date = parseDateParts(localMatch.slice(1), false);
+    }
+  }
+
+  if (!date) {
+    const parsed = new Date(value);
+    if (Number.isFinite(parsed.getTime())) {
+      date = parsed;
+    }
+  }
+
+  if (!date) {
+    return null;
+  }
+
+  return buildDateInfo(date, false);
+}
+
+function parseIcsEvents(icsText, fallbackLink) {
+  const lines = unfoldIcsLines(icsText);
+  const rawEvents = [];
+  let current = null;
+
+  for (const line of lines) {
+    const upper = normalizeText(line).toUpperCase();
+    if (upper === "BEGIN:VEVENT") {
+      current = {};
+      continue;
+    }
+    if (upper === "END:VEVENT") {
+      if (current) {
+        rawEvents.push(current);
+      }
+      current = null;
+      continue;
+    }
+    if (!current) {
+      continue;
+    }
+
+    const parsed = parseIcsLine(line);
+    if (!parsed) {
+      continue;
+    }
+
+    const { name, params, value } = parsed;
+    if (!Object.prototype.hasOwnProperty.call(current, name)) {
+      current[name] = { value, params };
+    }
+  }
+
+  const events = [];
+  let fallbackIndex = 0;
+  for (const entry of rawEvents) {
+    const status = normalizeText(entry.STATUS?.value).toUpperCase();
+    if (status === "CANCELLED") {
+      continue;
+    }
+
+    const start = parseIcsStartDate(entry.DTSTART?.value, entry.DTSTART?.params || {});
+    if (!start) {
+      continue;
+    }
+
+    const title = normalizeText(unescapeIcsText(entry.SUMMARY?.value), "(No title)");
+    const location = normalizeText(unescapeIcsText(entry.LOCATION?.value));
+    const id = normalizeText(unescapeIcsText(entry.UID?.value), `event-${fallbackIndex}`);
+    const link = normalizeEventLink(unescapeIcsText(entry.URL?.value), fallbackLink);
+    fallbackIndex += 1;
+
+    events.push({
+      id,
+      title,
+      location,
+      link,
+      allDay: start.allDay,
+      startTs: start.startTs,
+      dateKey: start.dateKey,
+      dateLabel: start.dateLabel,
+      timeLabel: start.timeLabel
+    });
+  }
+
+  return events;
+}
+
+function filterUpcomingEvents(events, daysAhead) {
+  const now = new Date();
+  const rangeStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  const rangeEnd = rangeStart + normalizeDaysAhead(daysAhead, 21) * 24 * 60 * 60 * 1000;
+
+  return events.filter((event) => {
+    if (!event || !Number.isFinite(event.startTs)) {
+      return false;
+    }
+    return event.startTs >= rangeStart && event.startTs < rangeEnd;
+  });
 }
 
 function normalizeFetchConfig(config) {
   return {
-    connectorUrl: normalizeConnectorUrl(config?.connectorUrl),
-    accessToken: normalizeText(config?.accessToken),
+    accountIndex: normalizeAccountIndex(config?.accountIndex, 0),
+    icsUrl: normalizeIcsUrl(config?.icsUrl),
     maxResults: normalizeMaxResults(config?.maxResults, 8),
     daysAhead: normalizeDaysAhead(config?.daysAhead, 21),
+    refreshMinutes: normalizeRefreshMinutes(config?.refreshMinutes, 30),
     viewMode: normalizeViewMode(config?.viewMode),
     weekStartsOn: normalizeWeekStartsOn(config?.weekStartsOn),
-    showLocation: config?.showLocation !== false
+    showLocation: config?.showLocation !== false,
+    openInNewTab: config?.openInNewTab !== false
   };
 }
 
 function fetchSignature(config) {
-  return `${config.connectorUrl}|${config.accessToken}|${config.maxResults}|${config.daysAhead}|${config.viewMode}|${config.weekStartsOn}|${config.showLocation ? 1 : 0}`;
-}
-
-function hasConnectorConfig(config) {
-  return Boolean(normalizeConnectorUrl(config?.connectorUrl)) || Boolean(normalizeText(config?.accessToken));
-}
-
-function buildEventsUrl(config) {
-  const now = new Date();
-  const rangeStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const timeMax = new Date(rangeStart.getTime() + normalizeDaysAhead(config.daysAhead, 21) * 24 * 60 * 60 * 1000);
-  const params = new URLSearchParams();
-  params.set("timeMin", rangeStart.toISOString());
-  params.set("timeMax", timeMax.toISOString());
-  params.set("maxResults", String(normalizeMaxResults(config.maxResults, 8)));
-  params.set("singleEvents", "true");
-  params.set("orderBy", "startTime");
-  params.set("showDeleted", "false");
-
-  const timezone = normalizeText(Intl.DateTimeFormat().resolvedOptions().timeZone);
-  if (timezone) {
-    params.set("timeZone", timezone);
-  }
-
-  return `${CALENDAR_API_BASE}?${params.toString()}`;
-}
-
-async function calendarFetchJson(url, token) {
-  const response = await fetch(url, {
-    headers: {
-      Authorization: `Bearer ${token}`
-    }
-  });
-
-  const body = normalizeText(await response.text());
-  if (!response.ok) {
-    const error = new Error(body || `HTTP ${response.status}`);
-    if (response.status === 401 || response.status === 403 || isAuthErrorMessage(body)) {
-      error.code = "auth";
-    }
-    throw error;
-  }
-
-  return body ? JSON.parse(body) : {};
-}
-
-function mapCalendarEvent(entry) {
-  const status = normalizeText(entry?.status).toLowerCase();
-  if (status === "cancelled") {
-    return null;
-  }
-
-  const start = parseEventStartInfo(entry?.start || {});
-  if (!start) {
-    return null;
-  }
-
-  return {
-    id: normalizeText(entry?.id),
-    title: normalizeText(entry?.summary, "(No title)"),
-    location: normalizeText(entry?.location),
-    link: normalizeText(entry?.htmlLink, GOOGLE_CALENDAR_WEB_URL),
-    allDay: start.allDay,
-    startTs: start.startTs,
-    dateKey: start.dateKey,
-    dateLabel: start.dateLabel,
-    timeLabel: start.timeLabel
-  };
-}
-
-async function fetchUpcomingEvents(config, token) {
-  const data = await calendarFetchJson(buildEventsUrl(config), token);
-  const items = Array.isArray(data?.items) ? data.items : [];
-  const mapped = items
-    .map(mapCalendarEvent)
-    .filter(Boolean);
-
-  mapped.sort((a, b) => {
-    if (a.startTs === b.startTs) {
-      return a.title.localeCompare(b.title);
-    }
-    return a.startTs - b.startTs;
-  });
-
-  return mapped;
+  return `${config.accountIndex}|${config.icsUrl}|${config.maxResults}|${config.daysAhead}|${config.refreshMinutes}|${config.viewMode}|${config.weekStartsOn}|${config.showLocation ? 1 : 0}|${config.openInNewTab ? 1 : 0}`;
 }
 
 function monthStart(date) {
@@ -429,6 +403,7 @@ function weekStart(date, weekStartsOn) {
 function weekCells(anchorDate, weekStartsOn) {
   const start = weekStart(anchorDate, weekStartsOn);
   const cells = [];
+
   for (let i = 0; i < 7; i += 1) {
     const date = addDays(start, i);
     cells.push({
@@ -437,6 +412,7 @@ function weekCells(anchorDate, weekStartsOn) {
       inMonth: true
     });
   }
+
   return cells;
 }
 
@@ -473,13 +449,15 @@ export const calendarWidget = {
   type: "calendar",
   title: "Calendar",
   defaultConfig: {
-    connectorUrl: LOCAL_AUTH_CONNECTOR_URL,
-    accessToken: "",
+    accountIndex: 0,
+    icsUrl: "",
     maxResults: 8,
     daysAhead: 21,
+    refreshMinutes: 30,
     viewMode: "month",
     weekStartsOn: "monday",
-    showLocation: true
+    showLocation: true,
+    openInNewTab: true
   },
   defaultLayout: {
     x: 1060,
@@ -493,18 +471,20 @@ export const calendarWidget = {
   },
   settingsSchema: [
     {
-      key: "connectorUrl",
-      label: "Auth connector URL",
-      type: "url",
-      placeholder: "https://your-backend.example.com/api/google/oauth/start",
-      helpText: "Connector should redirect with access_token and optional account/email/user."
+      key: "accountIndex",
+      label: "Account index (u/N)",
+      type: "number",
+      min: 0,
+      max: 9,
+      step: 1,
+      helpText: "Use 0 for the primary signed-in Google account (used for auto setup)."
     },
     {
-      key: "accessToken",
-      label: "Access token (optional)",
-      type: "password",
-      placeholder: "Google access token",
-      helpText: "If set, Connect uses this token directly and skips connector popup/relay."
+      key: "icsUrl",
+      label: "Calendar ICS URL",
+      type: "url",
+      placeholder: "https://calendar.google.com/calendar/ical/.../basic.ics",
+      helpText: "Optional. Leave empty to auto-detect from your signed-in Google Calendar session."
     },
     {
       key: "maxResults",
@@ -520,6 +500,14 @@ export const calendarWidget = {
       type: "number",
       min: 1,
       max: 90,
+      step: 1
+    },
+    {
+      key: "refreshMinutes",
+      label: "Refresh every (minutes)",
+      type: "number",
+      min: 1,
+      max: 240,
       step: 1
     },
     {
@@ -540,47 +528,14 @@ export const calendarWidget = {
         { value: "sunday", label: "Sunday" }
       ]
     },
-    { key: "showLocation", label: "Show location", type: "checkbox" }
+    { key: "showLocation", label: "Show location", type: "checkbox" },
+    { key: "openInNewTab", label: "Open event in new tab", type: "checkbox" }
   ],
-  create({ container, getConfig, isEditMode, openSettings }) {
+  create({ container, getConfig, patchConfig, isEditMode, openSettings }) {
     container.classList.add("calendar-widget");
 
     const shell = document.createElement("div");
     shell.className = "calendar-widget-shell";
-
-    const toolbar = document.createElement("div");
-    toolbar.className = "calendar-widget-toolbar";
-
-    const status = document.createElement("p");
-    status.className = "calendar-widget-status";
-
-    const actions = document.createElement("div");
-    actions.className = "calendar-widget-actions";
-
-    const connectBtn = document.createElement("button");
-    connectBtn.type = "button";
-    connectBtn.className = "btn btn-primary";
-    connectBtn.textContent = "Connect";
-
-    const refreshBtn = document.createElement("button");
-    refreshBtn.type = "button";
-    refreshBtn.className = "btn";
-    refreshBtn.textContent = "Refresh";
-
-    const disconnectBtn = document.createElement("button");
-    disconnectBtn.type = "button";
-    disconnectBtn.className = "btn";
-    disconnectBtn.textContent = "Disconnect";
-
-    const openCalendar = document.createElement("a");
-    openCalendar.className = "btn";
-    openCalendar.textContent = "Open Google Calendar";
-    openCalendar.href = GOOGLE_CALENDAR_WEB_URL;
-    openCalendar.target = "_blank";
-    openCalendar.rel = "noreferrer";
-
-    actions.append(connectBtn, refreshBtn, disconnectBtn, openCalendar);
-    toolbar.append(status, actions);
 
     const monthPanel = document.createElement("section");
     monthPanel.className = "calendar-month-panel";
@@ -616,168 +571,144 @@ export const calendarWidget = {
     const eventList = document.createElement("ul");
     eventList.className = "calendar-event-list";
 
-    shell.append(toolbar, monthPanel, eventList);
+    const status = document.createElement("p");
+    status.className = "calendar-widget-status";
+
+    shell.append(monthPanel, eventList, status);
     container.append(shell);
 
     let loading = false;
-    let connected = false;
-    let accountLabel = "";
-    let accessToken = "";
-    let sessionConnectorUrl = "";
+    let setupInProgress = false;
+    let autoSetupAttempted = false;
     let errorMessage = "";
     let eventItems = [];
     let eventDayCountMap = new Map();
     let lastFetchSig = "";
     let requestSerial = 0;
     let viewDate = new Date();
-    let sessionSyncSerial = 0;
+    let timer = null;
 
-    function hasActiveConnection(config) {
-      const connectorUrl = normalizeConnectorUrl(config?.connectorUrl);
-      const configuredToken = normalizeText(config?.accessToken);
-      if (configuredToken && accessToken === configuredToken) {
-        return true;
+    function clearRefreshTimer() {
+      if (timer) {
+        clearTimeout(timer);
+        timer = null;
       }
+    }
+
+    function scheduleRefresh() {
+      clearRefreshTimer();
+      const cfg = normalizeFetchConfig(getConfig());
+      if (!cfg.icsUrl) {
+        return;
+      }
+      timer = setTimeout(() => {
+        void loadEvents();
+      }, cfg.refreshMinutes * 60000);
+    }
+
+    function openCalendarPage() {
+      const cfg = normalizeFetchConfig(getConfig());
+      const href = cfg.icsUrl ? calendarHomeUrl(cfg.accountIndex) : calendarSettingsUrl(cfg.accountIndex);
+      if (cfg.openInNewTab) {
+        window.open(href, "_blank", "noopener,noreferrer");
+      } else {
+        window.location.href = href;
+      }
+    }
+
+    function decodeCalendarPageText(rawText) {
+      return String(rawText || "")
+        .replace(/\\u003d/gi, "=")
+        .replace(/\\u0026/gi, "&")
+        .replace(/\\u002f/gi, "/")
+        .replace(/\\\//g, "/")
+        .replace(/&amp;/gi, "&");
+    }
+
+    function extractIcsUrlFromPage(rawText) {
+      const decoded = decodeCalendarPageText(rawText);
+      const matches = decoded.match(
+        /(?:https?:\/\/|webcal:\/\/)calendar\.google\.com\/calendar\/ical\/[^"'\s<>]+\/(?:basic|full)\.ics/gi
+      );
+      if (!matches?.length) {
+        return "";
+      }
+
+      const normalized = Array.from(new Set(matches.map((match) => normalizeIcsUrl(match)).filter(Boolean)));
+      if (!normalized.length) {
+        return "";
+      }
+
+      const privateFeed = normalized.find((url) => /\/private[-/]/i.test(url));
+      return privateFeed || normalized[0];
+    }
+
+    function isCalendarLoginPage(responseUrl, bodyText) {
+      const body = String(bodyText || "").toLowerCase();
       return (
-        connected &&
-        Boolean(accessToken) &&
-        Boolean(sessionConnectorUrl) &&
-        connectorUrl === sessionConnectorUrl
+        String(responseUrl || "").includes("accounts.google.com") ||
+        body.includes("servicelogin") ||
+        body.includes("interactive login")
       );
     }
 
-    async function clearConnectionState({ clearStored = true } = {}) {
-      connected = false;
-      accountLabel = "";
-      accessToken = "";
-      sessionConnectorUrl = "";
-      if (clearStored) {
-        await clearStoredAuthSession();
-      }
+    function settingsCandidateUrls(accountIndex) {
+      const settingsUrl = calendarSettingsUrl(accountIndex);
+      return [
+        settingsUrl,
+        `${settingsUrl}?tab=mc`,
+        `${settingsUrl}/calendar`,
+        `${settingsUrl}/calendar/primary`,
+        `${settingsUrl}/export`
+      ];
     }
 
-    async function syncStoredSessionForConfig(config) {
-      const syncId = ++sessionSyncSerial;
-      const connectorUrl = normalizeConnectorUrl(config?.connectorUrl);
-      const configuredToken = normalizeText(config?.accessToken);
-      if (configuredToken) {
-        connected = true;
-        accessToken = configuredToken;
-        accountLabel = "Configured token";
-        sessionConnectorUrl = connectorUrl;
-        return true;
+    async function fetchCandidateIcsFromUrl(url) {
+      const response = await fetch(url, {
+        cache: "no-store",
+        credentials: "include",
+        redirect: "follow"
+      });
+      const bodyText = await response.text();
+
+      if (isCalendarLoginPage(response.url, bodyText)) {
+        throw new Error("Google Calendar web session not found. Sign in to Calendar in this browser first.");
+      }
+      if (!response.ok) {
+        return "";
       }
 
-      if (!connectorUrl) {
-        await clearConnectionState({ clearStored: false });
-        return false;
-      }
-
-      const stored = await loadStoredAuthSession();
-      if (syncId !== sessionSyncSerial) {
-        return false;
-      }
-
-      if (stored && stored.connectorUrl === connectorUrl) {
-        connected = true;
-        accessToken = stored.accessToken;
-        accountLabel = stored.accountLabel;
-        sessionConnectorUrl = stored.connectorUrl;
-        return true;
-      }
-
-      await clearConnectionState({ clearStored: false });
-      return false;
+      return extractIcsUrlFromPage(bodyText);
     }
 
-    async function connectAccount() {
+    async function autoSetupIcsFromSession() {
       const cfg = normalizeFetchConfig(getConfig());
-      if (!hasConnectorConfig(cfg)) {
-        errorMessage = "Set auth connector URL in widget settings first.";
-        render();
-        return;
+      const candidates = Array.from(new Set(settingsCandidateUrls(cfg.accountIndex)));
+      let lastError = null;
+
+      for (const candidateUrl of candidates) {
+        try {
+          const found = await fetchCandidateIcsFromUrl(candidateUrl);
+          if (!found) {
+            continue;
+          }
+          if (typeof patchConfig === "function" && found !== cfg.icsUrl) {
+            patchConfig({ icsUrl: found });
+          }
+          return found;
+        } catch (error) {
+          const message = normalizeErrorMessage(error).toLowerCase();
+          if (message.includes("web session not found") || message.includes("sign in")) {
+            throw error;
+          }
+          lastError = error;
+        }
       }
 
-      loading = true;
-      errorMessage = "";
-      render();
-
-      try {
-        let token = normalizeText(cfg.accessToken);
-        let tokenAccount = token ? "Configured token" : "";
-        let tokenRelayFailureMessage = "";
-        if (!token && cfg.connectorUrl) {
-          try {
-            const fallback = await fetchConnectorToken(cfg.connectorUrl, "google-calendar");
-            token = fallback.accessToken;
-            tokenAccount = fallback.accountLabel;
-          } catch (relayError) {
-            tokenRelayFailureMessage = normalizeErrorMessage(relayError);
-          }
-        }
-
-        if (!token && chrome.identity?.launchWebAuthFlow && chrome.identity?.getRedirectURL) {
-          const state = createAuthState();
-          const redirectUri = chrome.identity.getRedirectURL("calendar-auth");
-          const startUrl = buildAuthConnectorStartUrl(cfg.connectorUrl, redirectUri, state, "google-calendar");
-          const callbackUrl = await chrome.identity.launchWebAuthFlow({
-            url: startUrl,
-            interactive: true
-          });
-
-          const result = parseAuthFlowResult(callbackUrl);
-          if (result.error || result.errorDescription) {
-            throw new Error(result.errorDescription || result.error || "Google Calendar connection failed.");
-          }
-          if (!result.state || result.state !== state) {
-            throw new Error("Google Calendar connection failed (invalid state).");
-          }
-
-          token = normalizeText(result.accessToken);
-          if (!token) {
-            throw new Error("Auth connector did not return access_token.");
-          }
-
-          tokenAccount = normalizeText(result.accountLabel);
-        }
-
-        if (!token) {
-          throw new Error(
-            tokenRelayFailureMessage ||
-              "Unable to obtain Google Calendar connector token. Try Connect again."
-          );
-        }
-
-        connected = true;
-        accessToken = token;
-        accountLabel = tokenAccount;
-        sessionConnectorUrl = cfg.connectorUrl;
-        if (!normalizeText(cfg.accessToken)) {
-          await saveStoredAuthSession({
-            connectorUrl: cfg.connectorUrl,
-            accessToken: token,
-            accountLabel
-          });
-        }
-
-        errorMessage = "";
-      } catch (error) {
-        await clearConnectionState({ clearStored: true });
-        let message = normalizeErrorMessage(error);
-        message = rewriteAuthorizationLoadError(message);
-        if (isAuthCancelledMessage(message)) {
-          errorMessage = "Google Calendar connection was cancelled.";
-        } else {
-          errorMessage = message;
-        }
-      } finally {
-        loading = false;
-        render();
+      if (lastError) {
+        throw lastError;
       }
-
-      if (connected) {
-        void loadEvents(false);
-      }
+      return "";
     }
 
     function renderCalendarPanel() {
@@ -807,7 +738,11 @@ export const calendarWidget = {
       }
 
       monthGrid.replaceChildren();
-      const cells = cfg.viewMode === "week" ? weekCells(viewDate, cfg.weekStartsOn) : monthCells(viewDate, cfg.weekStartsOn);
+      const cells =
+        cfg.viewMode === "week"
+          ? weekCells(viewDate, cfg.weekStartsOn)
+          : monthCells(viewDate, cfg.weekStartsOn);
+
       for (const cellData of cells) {
         const cell = document.createElement("div");
         cell.className = "calendar-day";
@@ -842,16 +777,17 @@ export const calendarWidget = {
     function renderEventList() {
       eventList.replaceChildren();
       const cfg = normalizeFetchConfig(getConfig());
+      const calendarHomeHref = calendarHomeUrl(cfg.accountIndex);
 
       if (!eventItems.length) {
         const empty = document.createElement("li");
         empty.className = "calendar-event-empty";
-        if (loading) {
+        if (loading || setupInProgress) {
           empty.textContent = "Loading upcoming events...";
-        } else if (!hasConnectorConfig(cfg)) {
-          empty.textContent = "Set auth connector URL in widget settings to enable Google Calendar connection.";
-        } else if (!hasActiveConnection(cfg)) {
-          empty.textContent = "Connect Google Calendar to show upcoming events.";
+        } else if (!cfg.icsUrl) {
+          empty.textContent = "Trying auto setup. If it fails, click Open Google Calendar once and press Refresh.";
+        } else if (errorMessage) {
+          empty.textContent = "Calendar feed is not available.";
         } else {
           empty.textContent = "No upcoming events in this range.";
         }
@@ -865,8 +801,8 @@ export const calendarWidget = {
 
         const link = document.createElement("a");
         link.className = "calendar-event-link";
-        link.href = event.link || GOOGLE_CALENDAR_WEB_URL;
-        link.target = "_blank";
+        link.href = normalizeEventLink(event.link, calendarHomeHref);
+        link.target = cfg.openInNewTab ? "_blank" : "_self";
         link.rel = "noreferrer";
 
         link.addEventListener("click", (ev) => {
@@ -912,21 +848,17 @@ export const calendarWidget = {
     function renderStatus() {
       const cfg = normalizeFetchConfig(getConfig());
       status.classList.toggle("is-error", Boolean(errorMessage));
-      if (loading) {
-        status.textContent = "Syncing Google Calendar...";
+      if (setupInProgress) {
+        status.textContent = "Detecting Calendar ICS from your signed-in browser session...";
+      } else if (loading) {
+        status.textContent = "Syncing calendar feed...";
       } else if (errorMessage) {
         status.textContent = errorMessage;
-      } else if (!hasConnectorConfig(cfg)) {
-        status.textContent = "Set auth connector URL";
-      } else if (connected) {
-        status.textContent = accountLabel || "Connected";
+      } else if (!cfg.icsUrl) {
+        status.textContent = "Calendar auto setup pending";
       } else {
-        status.textContent = "Google Calendar not connected";
+        status.textContent = `${eventItems.length} upcoming event${eventItems.length === 1 ? "" : "s"}`;
       }
-
-      connectBtn.disabled = loading || !hasConnectorConfig(cfg);
-      refreshBtn.disabled = loading || !hasActiveConnection(cfg);
-      disconnectBtn.disabled = loading || !connected;
     }
 
     function render() {
@@ -935,52 +867,64 @@ export const calendarWidget = {
       renderEventList();
     }
 
-    async function disconnectAccount() {
-      const cfg = normalizeFetchConfig(getConfig());
-      if (normalizeText(cfg.accessToken)) {
-        errorMessage = "Remove Access token in settings to disconnect.";
-        render();
-        return;
-      }
-
-      loading = true;
-      render();
-      await clearConnectionState({ clearStored: true });
-      errorMessage = "";
-      eventItems = [];
-      eventDayCountMap = new Map();
-      loading = false;
-      render();
-    }
-
-    async function loadEvents(interactive) {
+    async function loadEvents() {
       const requestId = ++requestSerial;
       loading = true;
       errorMessage = "";
       render();
 
       try {
-        const cfg = normalizeFetchConfig(getConfig());
-        if (!hasConnectorConfig(cfg)) {
-          throw new Error("Set auth connector URL first.");
-        }
-        if (!hasActiveConnection(cfg)) {
-          throw new Error("Connect Google Calendar first.");
+        let cfg = normalizeFetchConfig(getConfig());
+        if (!cfg.icsUrl) {
+          if (autoSetupAttempted) {
+            throw new Error("Auto setup did not find ICS. Click Open Google Calendar once, then press Refresh.");
+          }
+
+          autoSetupAttempted = true;
+          setupInProgress = true;
+          render();
+
+          try {
+            const foundIcs = await autoSetupIcsFromSession();
+            if (requestId !== requestSerial) {
+              return;
+            }
+            if (!foundIcs) {
+              throw new Error("Could not auto-detect ICS from Calendar settings.");
+            }
+            cfg = normalizeFetchConfig({
+              ...getConfig(),
+              icsUrl: foundIcs
+            });
+          } finally {
+            if (requestId === requestSerial) {
+              setupInProgress = false;
+            }
+          }
         }
 
-        const token = normalizeText(accessToken);
-        if (!token) {
-          throw new Error("Missing connector access token.");
+        const response = await fetch(cfg.icsUrl, {
+          cache: "no-store"
+        });
+        if (!response.ok) {
+          throw new Error(`Calendar feed request failed: HTTP ${response.status}`);
         }
 
-        const upcoming = await fetchUpcomingEvents(cfg, token);
+        const icsText = await response.text();
+        const calendarHomeHref = calendarHomeUrl(cfg.accountIndex);
+        const parsedEvents = parseIcsEvents(icsText, calendarHomeHref);
+        const upcoming = filterUpcomingEvents(parsedEvents, cfg.daysAhead).sort((a, b) => {
+          if (a.startTs === b.startTs) {
+            return a.title.localeCompare(b.title);
+          }
+          return a.startTs - b.startTs;
+        });
 
         if (requestId !== requestSerial) {
           return;
         }
 
-        connected = true;
-        eventItems = upcoming;
+        eventItems = upcoming.slice(0, cfg.maxResults);
         eventDayCountMap = buildDayCountMap(upcoming);
         lastFetchSig = fetchSignature(cfg);
       } catch (error) {
@@ -988,26 +932,18 @@ export const calendarWidget = {
           return;
         }
 
-        if (error?.code === "auth") {
-          await clearConnectionState({ clearStored: true });
-          eventItems = [];
-          eventDayCountMap = new Map();
-          errorMessage = "Session expired. Connect Google Calendar again.";
-          return;
-        }
-
-        const message = normalizeErrorMessage(error);
-        if (interactive && isAuthCancelledMessage(message)) {
-          errorMessage = "Google Calendar connection was cancelled.";
-        } else {
-          errorMessage = message;
-        }
+        eventItems = [];
+        eventDayCountMap = new Map();
+        errorMessage = normalizeErrorMessage(error);
       } finally {
         if (requestId !== requestSerial) {
           return;
         }
+
         loading = false;
+        setupInProgress = false;
         render();
+        scheduleRefresh();
       }
     }
 
@@ -1021,27 +957,6 @@ export const calendarWidget = {
       renderCalendarPanel();
     }
 
-    connectBtn.addEventListener("click", () => {
-      void connectAccount();
-    });
-
-    refreshBtn.addEventListener("click", () => {
-      void loadEvents(false);
-    });
-
-    disconnectBtn.addEventListener("click", () => {
-      void disconnectAccount();
-    });
-
-    openCalendar.addEventListener("click", (event) => {
-      if (!isEditMode?.()) {
-        return;
-      }
-      event.preventDefault();
-      event.stopPropagation();
-      openSettings?.();
-    });
-
     prevMonthBtn.addEventListener("click", () => {
       shiftPeriod(-1);
     });
@@ -1050,39 +965,47 @@ export const calendarWidget = {
       shiftPeriod(1);
     });
 
-    const initialFetchConfig = normalizeFetchConfig(getConfig());
-    lastFetchSig = fetchSignature(initialFetchConfig);
+    const initialConfig = normalizeFetchConfig(getConfig());
+    lastFetchSig = fetchSignature(initialConfig);
     render();
-    void syncStoredSessionForConfig(getConfig()).finally(() => {
-      render();
-      if (hasActiveConnection(getConfig())) {
-        void loadEvents(false);
-      }
-    });
+    void loadEvents();
 
     return {
       refresh() {
-        const cfg = getConfig();
-        const nextConfig = normalizeFetchConfig(cfg);
-        const nextSig = fetchSignature(nextConfig);
-        render();
+        const cfg = normalizeFetchConfig(getConfig());
+        const nextSig = fetchSignature(cfg);
 
-        if (!loading) {
-          const connectorUrl = normalizeConnectorUrl(cfg.connectorUrl);
-          if (connectorUrl !== sessionConnectorUrl || !hasActiveConnection(cfg)) {
-            void syncStoredSessionForConfig(cfg).finally(() => {
-              render();
-            });
-            return;
+        if (!cfg.icsUrl) {
+          clearRefreshTimer();
+          eventItems = [];
+          eventDayCountMap = new Map();
+          errorMessage = "";
+          lastFetchSig = nextSig;
+          render();
+          if (!loading && !setupInProgress && !autoSetupAttempted) {
+            void loadEvents();
           }
+          return;
         }
 
-        if (connected && !loading && nextSig !== lastFetchSig) {
-          void loadEvents(false);
+        autoSetupAttempted = false;
+        render();
+        if (!loading && nextSig !== lastFetchSig) {
+          void loadEvents();
+          return;
         }
+        scheduleRefresh();
+      },
+      manualRefresh() {
+        autoSetupAttempted = false;
+        return loadEvents();
+      },
+      openCalendar() {
+        openCalendarPage();
       },
       destroy() {
         requestSerial += 1;
+        clearRefreshTimer();
       }
     };
   }
