@@ -4395,6 +4395,7 @@ function startPointerDragSession({
 } = {}) {
   const pointerId = Number.isFinite(sourceEvent?.pointerId) ? sourceEvent.pointerId : null;
   const trackingSpecificPointer = pointerId !== null;
+  const usingMouseFallback = !trackingSpecificPointer && typeof window.PointerEvent === "undefined";
   const captureHost = captureTarget instanceof HTMLElement ? captureTarget : null;
   let active = true;
 
@@ -4421,9 +4422,11 @@ function startPointerDragSession({
   };
 
   const removeListeners = () => {
-    window.removeEventListener("pointermove", handleMove);
+    window.removeEventListener("pointermove", handlePointerMove);
     window.removeEventListener("pointerup", handlePointerUp);
     window.removeEventListener("pointercancel", handlePointerCancel);
+    window.removeEventListener("mousemove", handleMouseMove);
+    window.removeEventListener("mouseup", handleMouseUp);
     captureHost?.removeEventListener("lostpointercapture", handleLostPointerCapture);
   };
 
@@ -4444,7 +4447,7 @@ function startPointerDragSession({
     });
   };
 
-  function handleMove(event) {
+  function handlePointerMove(event) {
     if (!active || !pointerMatches(event)) {
       return;
     }
@@ -4463,16 +4466,32 @@ function startPointerDragSession({
     finish(event, { cancelled: true });
   }
 
-  window.addEventListener("pointermove", handleMove);
-  window.addEventListener("pointerup", handlePointerUp);
-  window.addEventListener("pointercancel", handlePointerCancel);
+  function handleMouseMove(event) {
+    if (!active) {
+      return;
+    }
+    onMove?.(event, { pointerId: null });
+  }
 
-  if (trackingSpecificPointer && captureHost) {
-    captureHost.addEventListener("lostpointercapture", handleLostPointerCapture);
-    try {
-      captureHost.setPointerCapture?.(pointerId);
-    } catch {
-      // Ignore pointer-capture failures.
+  function handleMouseUp(event) {
+    finish(event, { cancelled: false });
+  }
+
+  if (usingMouseFallback) {
+    window.addEventListener("mousemove", handleMouseMove);
+    window.addEventListener("mouseup", handleMouseUp);
+  } else {
+    window.addEventListener("pointermove", handlePointerMove);
+    window.addEventListener("pointerup", handlePointerUp);
+    window.addEventListener("pointercancel", handlePointerCancel);
+
+    if (trackingSpecificPointer && captureHost) {
+      captureHost.addEventListener("lostpointercapture", handleLostPointerCapture);
+      try {
+        captureHost.setPointerCapture?.(pointerId);
+      } catch {
+        // Ignore pointer-capture failures.
+      }
     }
   }
 
@@ -7015,7 +7034,7 @@ function createWidgetCard(instance) {
       onMove: (moveEvent) => {
         move(moveEvent);
       },
-      onEnd: (_endEvent, { cancelled }) => {
+      onEnd: () => {
         if (!changed) {
           return;
         }
