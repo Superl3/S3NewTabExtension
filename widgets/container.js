@@ -178,7 +178,8 @@ export const containerWidget = {
     releaseWidgetFromContainerByDrop,
     createDragPreviewSession,
     createWidgetDragPreview,
-    positionWidgetDragPreview
+    positionWidgetDragPreview,
+    startPointerDragSession
   }) {
     const root = document.createElement("section");
     root.className = "widget-folder";
@@ -393,11 +394,6 @@ export const containerWidget = {
             })
             : null;
 
-        const pointerId = Number.isFinite(event?.pointerId) ? event.pointerId : null;
-        if (!previewSession && pointerId !== null) {
-          card.setPointerCapture?.(pointerId);
-        }
-
         const ghost =
           previewSession?.preview ||
           (typeof createWidgetDragPreview === "function"
@@ -409,9 +405,6 @@ export const containerWidget = {
             })
             : null);
         if (!(ghost instanceof HTMLElement)) {
-          if (!previewSession && pointerId !== null) {
-            card.releasePointerCapture?.(pointerId);
-          }
           return;
         }
 
@@ -432,20 +425,9 @@ export const containerWidget = {
 
         updateGhost(event.clientX, event.clientY);
 
-        const move = (moveEvent) => {
-          updateGhost(moveEvent.clientX, moveEvent.clientY);
-        };
-
-        const finish = (upEvent) => {
-          if (!previewSession && pointerId !== null) {
-            card.releasePointerCapture?.(pointerId);
-          }
-          window.removeEventListener("pointermove", move);
-          window.removeEventListener("pointerup", finish);
-          window.removeEventListener("pointercancel", finish);
-
-          const dropX = Number.isFinite(upEvent?.clientX) ? upEvent.clientX : event.clientX;
-          const dropY = Number.isFinite(upEvent?.clientY) ? upEvent.clientY : event.clientY;
+        const finish = (endEvent, { cancelled = false } = {}) => {
+          const dropX = Number.isFinite(endEvent?.clientX) ? endEvent.clientX : event.clientX;
+          const dropY = Number.isFinite(endEvent?.clientY) ? endEvent.clientY : event.clientY;
           const inside = pointInsideRect(dropX, dropY, panel.getBoundingClientRect());
 
           panel.classList.remove("is-drag-out-active");
@@ -456,7 +438,7 @@ export const containerWidget = {
             ghost.remove();
           }
 
-          if (!inside) {
+          if (!cancelled && !inside) {
             releaseWidgetFromContainerByDrop(child.id, {
               sourceContainerId: folder.id,
               clientX: dropX,
@@ -465,9 +447,33 @@ export const containerWidget = {
           }
         };
 
+        if (typeof startPointerDragSession === "function") {
+          startPointerDragSession({
+            sourceEvent: event,
+            captureTarget: card,
+            onMove: (moveEvent) => {
+              updateGhost(moveEvent.clientX, moveEvent.clientY);
+            },
+            onEnd: (endEvent, details = {}) => {
+              finish(endEvent, details);
+            }
+          });
+          return;
+        }
+
+        const move = (moveEvent) => {
+          updateGhost(moveEvent.clientX, moveEvent.clientY);
+        };
+        const legacyFinish = (endEvent) => {
+          window.removeEventListener("pointermove", move);
+          window.removeEventListener("pointerup", legacyFinish);
+          window.removeEventListener("pointercancel", legacyFinish);
+          finish(endEvent, { cancelled: endEvent?.type === "pointercancel" });
+        };
+
         window.addEventListener("pointermove", move);
-        window.addEventListener("pointerup", finish);
-        window.addEventListener("pointercancel", finish);
+        window.addEventListener("pointerup", legacyFinish);
+        window.addEventListener("pointercancel", legacyFinish);
       };
 
       card.addEventListener("pointerdown", onPointerDown, true);
@@ -537,6 +543,7 @@ export const containerWidget = {
         registerContainerDropTarget,
         unregisterContainerDropTarget,
         releaseWidgetFromContainerByDrop,
+        startPointerDragSession,
         isEditMode,
         openSettings: () => {
           openWidgetSettingsById?.(child.id);

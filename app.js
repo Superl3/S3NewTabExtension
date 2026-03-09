@@ -1454,6 +1454,9 @@ function normalizeHomeLayout(layout) {
     ...(layout || {})
   };
   const pageCount = normalizePageCount(base.pageCount, 1);
+  const hasExplicitDockHeight =
+    layout && typeof layout === "object" && Object.prototype.hasOwnProperty.call(layout, "dockHeight");
+  const dockHeightSource = hasExplicitDockHeight ? base.dockHeight : (base.dockSize ?? base.dockHeight);
 
   return {
     mode: normalizeHomeMode(base.mode, "grid"),
@@ -2123,7 +2126,7 @@ function buildHistoryHomeSnapshot(home) {
     dockVisibility: source.dockVisibility,
     dockPosition: source.dockPosition,
     dockLength: source.dockLength,
-    dockSize: source.dockSize,
+    dockHeight: source.dockHeight ?? source.dockSize,
     widgetBackdropBlur: source.widgetBackdropBlur,
     legacyHeadlessSurfaceMigrated: source.legacyHeadlessSurfaceMigrated
   };
@@ -2576,8 +2579,8 @@ function dockSettingsFields() {
       step: 1
     },
     {
-      key: "dockSize",
-      label: "Dock size (px)",
+      key: "dockHeight",
+      label: "Dock height (px)",
       type: "number",
       min: 36,
       max: 72,
@@ -2629,7 +2632,7 @@ function openDockSettingsModal() {
     dockShape: normalizeDockShape(home.dockShape, "raised"),
     dockVisibility: normalizeDockVisibility(home.dockVisibility, "always"),
     dockLength: normalizeDockLength(home.dockLength, 6),
-    dockSize: normalizeDockSize(home.dockSize, 44)
+    dockHeight: normalizeDockHeight(home.dockHeight ?? home.dockSize, 44)
   };
 
   dockSettingsModalOpen = true;
@@ -2677,7 +2680,7 @@ function resetDockSettingsDraftToDefault() {
     dockShape: defaults.dockShape,
     dockVisibility: defaults.dockVisibility,
     dockLength: defaults.dockLength,
-    dockSize: defaults.dockSize
+    dockHeight: defaults.dockHeight
   };
   renderDockSettingsModal();
 }
@@ -2692,7 +2695,7 @@ function applyDockSettingsModal() {
     dockVisibility: normalizeDockVisibility(dockModalState.draft.dockVisibility, "always"),
     dockPosition: "bottom",
     dockLength: normalizeDockLength(dockModalState.draft.dockLength, 6),
-    dockSize: normalizeDockSize(dockModalState.draft.dockSize, 44)
+    dockHeight: normalizeDockHeight(dockModalState.draft.dockHeight, 44)
   };
 
   closeDockSettingsModal(false);
@@ -3274,9 +3277,6 @@ async function sampleImageBaseLuminanceFromUrl(url) {
   return clamp(luminanceSum / alphaWeight, 0, 1);
 }
 
-function requestWallpaperLuminanceSample(url) {
-  const source = normalizeText(url);
-  if (!source || sampledWallpaperSource === source) {
 function sampleImageBaseLuminanceFromElement(image) {
   if (!image || !image.complete || image.naturalWidth <= 0 || image.naturalHeight <= 0) {
     throw new Error("backdrop-luminance:image-not-ready");
@@ -3312,6 +3312,9 @@ function sampleImageBaseLuminanceFromElement(image) {
   return clamp(luminanceSum / alphaWeight, 0, 1);
 }
 
+function requestWallpaperLuminanceSample(url) {
+  const source = normalizeText(url);
+  if (!source || sampledWallpaperSource === source) {
     return;
   }
 
@@ -3658,9 +3661,6 @@ async function fetchLoopVideoResponse(url) {
   return response;
 }
 
-async function ensureCachedLoopVideoResponse(cfg, signature, { force = false } = {}) {
-  const remoteUrl = await resolveVideoRemoteUrl(cfg);
-  const cacheKey = buildVideoCacheKey(signature);
 function isLoopVideoCacheRequest(request) {
   if (!request) {
     return false;
@@ -3682,6 +3682,9 @@ async function pruneLoopVideoCache(cache, keepCount = VIDEO_CACHE_MAX_ENTRIES) {
   await Promise.all(staleEntries.map((request) => cache.delete(request)));
 }
 
+async function ensureCachedLoopVideoResponse(cfg, signature, { force = false } = {}) {
+  const remoteUrl = await resolveVideoRemoteUrl(cfg);
+  const cacheKey = buildVideoCacheKey(signature);
   if (!cacheKey || typeof caches === "undefined") {
     return fetchLoopVideoResponse(remoteUrl);
   }
@@ -3694,25 +3697,25 @@ async function pruneLoopVideoCache(cache, keepCount = VIDEO_CACHE_MAX_ENTRIES) {
   if (!force) {
     const cached = await cache.match(cacheKey);
     if (cached) {
-      return cached.clone();
-    }
-  }
       await cache.put(cacheKey, cached.clone());
       try {
         await pruneLoopVideoCache(cache);
       } catch {
       }
+      return cached.clone();
+    }
+  }
 
   const response = await fetchLoopVideoResponse(remoteUrl);
   const clone = response.clone();
   await cache.put(cacheKey, clone);
-  return response;
-}
-
   try {
     await pruneLoopVideoCache(cache);
   } catch {
   }
+  return response;
+}
+
 async function loadVideoLoop({ force = false } = {}) {
   const cfg = state.ui.background;
   if (cfg.mode !== "video") {
@@ -4302,11 +4305,6 @@ function createDragPreviewSession(instance, options = {}) {
     return null;
   }
 
-  const pointerId = Number.isFinite(pointerEvent?.pointerId) ? pointerEvent.pointerId : null;
-  if (pointerId !== null && sourceCard instanceof HTMLElement) {
-    sourceCard.setPointerCapture?.(pointerId);
-  }
-
   const preview = createWidgetDragPreview(instance, {
     sourceCard,
     pointerEvent,
@@ -4326,10 +4324,163 @@ function createDragPreviewSession(instance, options = {}) {
         return;
       }
       disposed = true;
-      if (pointerId !== null && sourceCard instanceof HTMLElement) {
-        sourceCard.releasePointerCapture?.(pointerId);
-      }
       preview.remove();
+    }
+  };
+}
+
+function createPointerMoveRaf(onFrame) {
+  let rafId = 0;
+  let queuedPayload = null;
+
+  const runQueuedFrame = () => {
+    if (!queuedPayload) {
+      return;
+    }
+    const payload = queuedPayload;
+    queuedPayload = null;
+    onFrame?.(payload);
+  };
+
+  return {
+    push(payload) {
+      queuedPayload = payload;
+      if (rafId) {
+        return;
+      }
+      rafId = requestAnimationFrame(() => {
+        rafId = 0;
+        runQueuedFrame();
+      });
+    },
+    flush() {
+      if (rafId) {
+        cancelAnimationFrame(rafId);
+        rafId = 0;
+      }
+      runQueuedFrame();
+    },
+    cancel() {
+      queuedPayload = null;
+      if (rafId) {
+        cancelAnimationFrame(rafId);
+        rafId = 0;
+      }
+    }
+  };
+}
+
+function createHistoryTransaction(label = "Update") {
+  let recorded = false;
+  return {
+    get recorded() {
+      return recorded;
+    },
+    ensure() {
+      if (recorded) {
+        return false;
+      }
+      recordHistorySnapshot(label);
+      recorded = true;
+      return true;
+    }
+  };
+}
+
+function startPointerDragSession({
+  sourceEvent = null,
+  captureTarget = null,
+  onMove = null,
+  onEnd = null
+} = {}) {
+  const pointerId = Number.isFinite(sourceEvent?.pointerId) ? sourceEvent.pointerId : null;
+  const trackingSpecificPointer = pointerId !== null;
+  const captureHost = captureTarget instanceof HTMLElement ? captureTarget : null;
+  let active = true;
+
+  const pointerMatches = (event) => {
+    if (!trackingSpecificPointer) {
+      return true;
+    }
+    return Number.isFinite(event?.pointerId) && event.pointerId === pointerId;
+  };
+
+  const releaseCapture = () => {
+    if (!trackingSpecificPointer || !captureHost) {
+      return;
+    }
+    try {
+      if (captureHost.hasPointerCapture?.(pointerId)) {
+        captureHost.releasePointerCapture(pointerId);
+      } else {
+        captureHost.releasePointerCapture?.(pointerId);
+      }
+    } catch {
+      // Ignore pointer-capture release errors.
+    }
+  };
+
+  const removeListeners = () => {
+    window.removeEventListener("pointermove", handleMove);
+    window.removeEventListener("pointerup", handlePointerUp);
+    window.removeEventListener("pointercancel", handlePointerCancel);
+    captureHost?.removeEventListener("lostpointercapture", handleLostPointerCapture);
+  };
+
+  const finish = (event = null, { cancelled = false } = {}) => {
+    if (!active) {
+      return;
+    }
+    if (trackingSpecificPointer && event && Number.isFinite(event.pointerId) && event.pointerId !== pointerId) {
+      return;
+    }
+
+    active = false;
+    removeListeners();
+    releaseCapture();
+    onEnd?.(event || sourceEvent, {
+      cancelled,
+      pointerId
+    });
+  };
+
+  function handleMove(event) {
+    if (!active || !pointerMatches(event)) {
+      return;
+    }
+    onMove?.(event, { pointerId });
+  }
+
+  function handlePointerUp(event) {
+    finish(event, { cancelled: false });
+  }
+
+  function handlePointerCancel(event) {
+    finish(event, { cancelled: true });
+  }
+
+  function handleLostPointerCapture(event) {
+    finish(event, { cancelled: true });
+  }
+
+  window.addEventListener("pointermove", handleMove);
+  window.addEventListener("pointerup", handlePointerUp);
+  window.addEventListener("pointercancel", handlePointerCancel);
+
+  if (trackingSpecificPointer && captureHost) {
+    captureHost.addEventListener("lostpointercapture", handleLostPointerCapture);
+    try {
+      captureHost.setPointerCapture?.(pointerId);
+    } catch {
+      // Ignore pointer-capture failures.
+    }
+  }
+
+  return {
+    pointerId,
+    finish,
+    cancel(event = null) {
+      finish(event, { cancelled: true });
     }
   };
 }
@@ -4643,7 +4794,8 @@ function syncDockContentPadding(config) {
 
   const measured = Math.ceil((dockBody ?? dock).getBoundingClientRect().height || 0);
   const dockHeight = Math.max(config.heightPx, measured);
-  const contentPadding = dockHeight + 12;
+  const shouldReserveBoardSpace = normalizeDockVisibility(config.visibility, "always") === "always";
+  const contentPadding = shouldReserveBoardSpace ? dockHeight + 12 : 0;
 
   root.style.setProperty("--persistent-dock-height", `${dockHeight}px`);
   root.style.setProperty("--persistent-dock-content-padding", `${contentPadding}px`);
@@ -4728,6 +4880,7 @@ function renderDockWidgets() {
         createDragPreviewSession: (widget, options = {}) => createDragPreviewSession(widget, options),
         createWidgetDragPreview: (widget, options = {}) => createWidgetDragPreview(widget, options),
         positionWidgetDragPreview,
+        startPointerDragSession,
         isEditMode: () => state.mode === "edit",
         openSettings: () => {
           if (state.mode !== "edit") {
@@ -4789,43 +4942,57 @@ function renderDockWidgets() {
 
       card.classList.add("dock-widget-item-dragging");
 
+      let lastPointerX = event.clientX;
+      let lastPointerY = event.clientY;
+
       const updateGhost = (clientX, clientY) => {
         previewSession.update(clientX, clientY);
         const inside = pointInsideRect(clientX, clientY, dockRect);
         elements.persistentDock?.classList.toggle("is-drag-out-active", !inside);
       };
 
-      updateGhost(event.clientX, event.clientY);
+      const moveRaf = createPointerMoveRaf(({ clientX, clientY }) => {
+        lastPointerX = clientX;
+        lastPointerY = clientY;
+        updateGhost(clientX, clientY);
+      });
 
-      const finish = (upEvent) => {
-        window.removeEventListener("pointermove", move);
-        window.removeEventListener("pointerup", finish);
-        window.removeEventListener("pointercancel", finish);
+      updateGhost(lastPointerX, lastPointerY);
 
-        const dropX = Number.isFinite(upEvent?.clientX) ? upEvent.clientX : event.clientX;
-        const dropY = Number.isFinite(upEvent?.clientY) ? upEvent.clientY : event.clientY;
-        const inside = pointInsideRect(dropX, dropY, dockRect);
-
-        elements.persistentDock?.classList.remove("is-drag-out-active");
-        card.classList.remove("dock-widget-item-dragging");
-        previewSession.dispose();
-
-        if (!inside) {
-          card.dataset.suppressClick = "true";
-          releaseWidgetFromDockByDrop(item.id, {
-            clientX: dropX,
-            clientY: dropY
+      startPointerDragSession({
+        sourceEvent: event,
+        captureTarget: card,
+        onMove: (moveEvent) => {
+          moveRaf.push({
+            clientX: moveEvent.clientX,
+            clientY: moveEvent.clientY
           });
+        },
+        onEnd: (endEvent, { cancelled }) => {
+          moveRaf.flush();
+
+          const dropX = Number.isFinite(endEvent?.clientX) ? endEvent.clientX : lastPointerX;
+          const dropY = Number.isFinite(endEvent?.clientY) ? endEvent.clientY : lastPointerY;
+          const inside = pointInsideRect(dropX, dropY, dockRect);
+
+          elements.persistentDock?.classList.remove("is-drag-out-active");
+          card.classList.remove("dock-widget-item-dragging");
+          previewSession.dispose();
+
+          if (cancelled) {
+            return;
+          }
+
+          if (!inside) {
+            card.dataset.suppressClick = "true";
+            lastDragEndAt = Date.now();
+            releaseWidgetFromDockByDrop(item.id, {
+              clientX: dropX,
+              clientY: dropY
+            });
+          }
         }
-      };
-
-      const move = (moveEvent) => {
-        updateGhost(moveEvent.clientX, moveEvent.clientY);
-      };
-
-      window.addEventListener("pointermove", move);
-      window.addEventListener("pointerup", finish);
-      window.addEventListener("pointercancel", finish);
+      });
     }, true);
 
     card.addEventListener("click", () => {
@@ -4870,10 +5037,10 @@ function syncPersistentDock() {
   dock.classList.remove("is-disabled");
   dock.setAttribute("aria-hidden", "false");
   dock.dataset.shape = config.shape;
-  dock.dataset.visibility = state.mode === "edit" ? config.visibility : "always";
+  dock.dataset.visibility = config.visibility;
   dock.dataset.position = config.position;
   dock.style.setProperty("--dock-length-units", String(config.lengthUnits));
-  dock.style.setProperty("--dock-unit-size", `${config.heightPx}px`);
+  dock.style.setProperty("--dock-icon-size", `${config.heightPx}px`);
 
   if (elements.dockSettingsBtn) {
     const canEditDock = state.mode === "edit";
@@ -5533,6 +5700,101 @@ function patchWidgetLayout(instanceId, layoutPatch, options = {}) {
   queueSave();
 }
 
+function commitWidgetDragPlacement(instance, { page = null, layout = null, gridLayout = null, save = true } = {}) {
+  if (!instance) {
+    return;
+  }
+
+  if (Number.isFinite(page)) {
+    instance.page = normalizeWidgetPage(page, currentLauncherPageCount(), currentLauncherActivePage());
+    if (state?.ui?.home) {
+      state.ui.home.activePage = instance.page;
+    }
+  }
+
+  if (layout && typeof layout === "object") {
+    instance.layout = {
+      ...instance.layout,
+      x: Number.isFinite(layout.x) ? layout.x : instance.layout.x,
+      y: Number.isFinite(layout.y) ? layout.y : instance.layout.y,
+      w: Number.isFinite(layout.w) ? layout.w : instance.layout.w,
+      h: Number.isFinite(layout.h) ? layout.h : instance.layout.h
+    };
+  }
+
+  if (gridLayout && typeof gridLayout === "object") {
+    instance.gridLayout = {
+      ...instance.gridLayout,
+      ...gridLayout
+    };
+  }
+
+  const rt = runtime.get(instance.id);
+  if (rt?.card) {
+    applyLayout(rt.card, instance.layout, instance.page);
+    if (instance.type === "container") {
+      rt.controller?.refresh?.();
+    }
+  }
+
+  updateBoardBounds();
+  renderSettings();
+  if (save) {
+    queueSave();
+  }
+}
+
+function finalizeWidgetBoardDragCommit(
+  instance,
+  {
+    transaction = null,
+    page = null,
+    layout = null,
+    gridLayout = null,
+    startPage = null,
+    startLayout = null,
+    startGridLayout = null
+  } = {}
+) {
+  if (!instance || !layout) {
+    return false;
+  }
+
+  const pageChanged = Number.isFinite(startPage) && Number.isFinite(page) ? page !== startPage : false;
+  const layoutChanged =
+    !startLayout ||
+    layout.x !== startLayout.x ||
+    layout.y !== startLayout.y ||
+    layout.w !== startLayout.w ||
+    layout.h !== startLayout.h;
+
+  let gridChanged = false;
+  if (gridLayout) {
+    if (!startGridLayout) {
+      gridChanged = true;
+    } else {
+      gridChanged =
+        gridLayout.col !== startGridLayout.col ||
+        gridLayout.row !== startGridLayout.row ||
+        gridLayout.colSpan !== startGridLayout.colSpan ||
+        gridLayout.rowSpan !== startGridLayout.rowSpan;
+    }
+  }
+
+  if (!pageChanged && !layoutChanged && !gridChanged) {
+    return false;
+  }
+
+  transaction?.ensure?.();
+  commitWidgetDragPlacement(instance, {
+    page,
+    layout,
+    gridLayout,
+    save: true
+  });
+  return true;
+}
+
 function removeWidget(instanceId) {
   const index = state.instances.findIndex((item) => item.id === instanceId);
   if (index < 0) {
@@ -5656,6 +5918,7 @@ function createWidgetCard(instance) {
     createDragPreviewSession: (widget, options = {}) => createDragPreviewSession(widget, options),
     createWidgetDragPreview: (widget, options = {}) => createWidgetDragPreview(widget, options),
     positionWidgetDragPreview,
+    startPointerDragSession,
     isEditMode: () => state.mode === "edit",
     openSettings: () => {
       if (state.mode !== "edit") {
@@ -5874,6 +6137,89 @@ function createWidgetCard(instance) {
     }
   }
 
+  if (instance.type === "gmail" || instance.type === "calendar") {
+    const refreshTitle = instance.type === "gmail" ? "Refresh unread mail" : "Refresh events";
+    const openTitle = instance.type === "gmail" ? "Open Gmail" : "Open Google Calendar";
+
+    const makeActionButton = (className, titleText, iconId, action) => {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = className;
+      btn.title = titleText;
+      btn.innerHTML = `<svg class="icon"><use href="#${iconId}"></use></svg>`;
+      btn.addEventListener("click", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        Promise.resolve(action?.());
+      });
+      return btn;
+    };
+
+    const placeHeadAction = (btn) => {
+      if (selectBtn?.parentElement === headActions) {
+        headActions.insertBefore(btn, selectBtn);
+      } else {
+        headActions?.prepend(btn);
+      }
+    };
+
+    const runRefresh = () => {
+      if (typeof controller?.manualRefresh === "function") {
+        return controller.manualRefresh();
+      }
+      if (typeof controller?.refresh === "function") {
+        return controller.refresh();
+      }
+      return null;
+    };
+
+    const runOpen = () => {
+      if (typeof controller?.openGmail === "function") {
+        return controller.openGmail();
+      }
+      if (typeof controller?.openCalendar === "function") {
+        return controller.openCalendar();
+      }
+      return null;
+    };
+
+    if (typeof controller?.manualRefresh === "function" || typeof controller?.refresh === "function") {
+      const headRefresh = makeActionButton(
+        "icon-btn widget-refresh-btn",
+        refreshTitle,
+        "i-reset",
+        runRefresh
+      );
+      placeHeadAction(headRefresh);
+
+      const floatRefresh = makeActionButton(
+        "icon-btn widget-float-refresh",
+        refreshTitle,
+        "i-reset",
+        runRefresh
+      );
+      placeFloatBottomAction(floatRefresh);
+    }
+
+    if (typeof controller?.openGmail === "function" || typeof controller?.openCalendar === "function") {
+      const headOpen = makeActionButton(
+        "icon-btn widget-open-btn",
+        openTitle,
+        "i-open",
+        runOpen
+      );
+      placeHeadAction(headOpen);
+
+      const floatOpen = makeActionButton(
+        "icon-btn widget-float-open",
+        openTitle,
+        "i-open",
+        runOpen
+      );
+      placeFloatTopAction(floatOpen);
+    }
+  }
+
   if (instance.type === "githubPrList") {
     const makeActionButton = (className, titleText, iconId, action) => {
       const btn = document.createElement("button");
@@ -6046,6 +6392,7 @@ function createWidgetCard(instance) {
 
     bringWidgetToFront(instance.id);
     card.classList.add("widget-drag-active");
+    card.classList.add("widget-drag-origin-hidden");
     const previewSession = createDragPreviewSession(instance, {
       sourceCard: card,
       pointerEvent: event,
@@ -6054,16 +6401,28 @@ function createWidgetCard(instance) {
     });
     if (!previewSession) {
       card.classList.remove("widget-drag-active");
+      card.classList.remove("widget-drag-origin-hidden");
       return false;
     }
 
     const dropSilhouette = createWidgetDropSilhouette(card);
     previewSession.update(dragStartX, dragStartY);
 
+    const initialLayout = cloneLayout(instance.layout);
+    const initialPage = normalizeWidgetPage(instance.page, currentLauncherPageCount(), currentLauncherActivePage());
+    const initialGridLayout = instance.gridLayout ? { ...instance.gridLayout } : null;
+    const initialActivePage = currentLauncherActivePage();
+    const draft = {
+      page: initialPage,
+      layout: cloneLayout(initialLayout),
+      gridLayout: initialGridLayout ? { ...initialGridLayout } : null
+    };
+
+    const dragTransaction = createHistoryTransaction("Move widget");
+
     const pageSwitchThreshold = 42;
     const pageSwitchCooldownMs = 190;
     let lastPageSwitchAt = 0;
-    let pageChangedDuringDrag = false;
 
     const edgeDirectionFromPointer = (clientX) => {
       const rect = elements.board.getBoundingClientRect();
@@ -6090,15 +6449,14 @@ function createWidgetCard(instance) {
       }
 
       const pageCount = currentLauncherPageCount();
-      const currentPage = normalizeWidgetPage(instance.page, pageCount, 0);
+      const currentPage = normalizeWidgetPage(draft.page, pageCount, 0);
       const nextPage = currentPage + direction;
       if (nextPage < 0 || nextPage >= pageCount) {
         return false;
       }
 
-      instance.page = nextPage;
+      draft.page = nextPage;
       state.ui.home.activePage = nextPage;
-      pageChangedDuringDrag = true;
       lastPageSwitchAt = now;
 
       if (typeof onSwitched === "function") {
@@ -6109,8 +6467,38 @@ function createWidgetCard(instance) {
       return true;
     };
 
+    const updateDraftVisual = () => {
+      applyLayout(card, draft.layout, draft.page);
+      if (instance.type === "container") {
+        runtime.get(instance.id)?.controller?.refresh?.();
+      }
+    };
+
+    const endDragVisuals = () => {
+      setDockDropTargetActive(false);
+      setContainerDropTargetActive("");
+      card.classList.remove("longpress-drag-armed");
+      card.classList.remove("widget-drag-active");
+      card.classList.remove("widget-drag-origin-hidden");
+      dropSilhouette?.remove();
+      previewSession.dispose();
+      lastDragEndAt = Date.now();
+    };
+
+    const restoreDragVisuals = () => {
+      state.ui.home.activePage = initialActivePage;
+      renderBoardViewport({ animate: false, dragging: false, dragOffsetX: 0 });
+      applyLayout(card, instance.layout, instance.page);
+      if (instance.type === "container") {
+        runtime.get(instance.id)?.controller?.refresh?.();
+      }
+    };
+
+    const boardRect = elements.board.getBoundingClientRect();
+    let lastPointerX = dragStartX;
+    let lastPointerY = dragStartY;
+
     if (isGridLayoutMode()) {
-      recordHistorySnapshot("Move widget");
       const metrics = gridMetrics();
       const defForGrid = widgetRegistry[instance.type];
       const gridFallback = {
@@ -6120,16 +6508,14 @@ function createWidgetCard(instance) {
       };
       const stepX = Math.max(1, metrics.cellW + metrics.gapX);
       const stepY = Math.max(1, metrics.cellH + metrics.gapY);
-      const boardRect = elements.board.getBoundingClientRect();
-      let lastPointerX = dragStartX;
-      let lastPointerY = dragStartY;
+      draft.gridLayout = normalizeGridLayout(draft.gridLayout, gridFallback);
 
       const projectedGridDropLayout = () => {
-        const currentGrid = normalizeGridLayout(instance.gridLayout, gridFallback);
+        const currentGrid = normalizeGridLayout(draft.gridLayout, gridFallback);
         const maxCol = Math.max(0, metrics.cols - currentGrid.colSpan);
         const maxRow = Math.max(0, metrics.rows - currentGrid.rowSpan);
-        const snappedCol = clamp(Math.round((instance.layout.x - metrics.marginX) / stepX), 0, maxCol);
-        const snappedRow = clamp(Math.round((instance.layout.y - metrics.marginY) / stepY), 0, maxRow);
+        const snappedCol = clamp(Math.round((draft.layout.x - metrics.marginX) / stepX), 0, maxCol);
+        const snappedRow = clamp(Math.round((draft.layout.y - metrics.marginY) / stepY), 0, maxRow);
 
         return {
           grid: {
@@ -6146,15 +6532,6 @@ function createWidgetCard(instance) {
         };
       };
 
-      const snapLayoutToGrid = () => {
-        const projected = projectedGridDropLayout();
-        instance.gridLayout = projected.grid;
-        instance.layout.x = projected.layout.x;
-        instance.layout.y = projected.layout.y;
-        instance.layout.w = projected.layout.w;
-        instance.layout.h = projected.layout.h;
-      };
-
       const move = (moveEvent) => {
         previewSession.update(moveEvent.clientX, moveEvent.clientY);
         const dx = moveEvent.clientX - lastPointerX;
@@ -6166,86 +6543,115 @@ function createWidgetCard(instance) {
         setContainerDropTargetActive(containerDropTargetId);
         setDockDropTargetActive(dockDropActive);
 
-        const maxX = Math.max(0, boardRect.width - instance.layout.w);
-        const maxY = Math.max(0, boardRect.height - instance.layout.h);
+        const maxX = Math.max(0, boardRect.width - draft.layout.w);
+        const maxY = Math.max(0, boardRect.height - draft.layout.h);
 
-        instance.layout.x = clamp(instance.layout.x + dx, 0, maxX);
-        instance.layout.y = clamp(instance.layout.y + dy, 0, maxY);
+        draft.layout.x = clamp(draft.layout.x + dx, 0, maxX);
+        draft.layout.y = clamp(draft.layout.y + dy, 0, maxY);
 
         const direction = edgeDirectionFromPointer(moveEvent.clientX);
         trySwitchPage(direction, moveEvent, (switchDirection) => {
-          const edgeInset = clamp(Math.round(instance.layout.w * 0.18), 16, 64);
-          const maxLocalX = Math.max(0, boardRect.width - instance.layout.w);
+          const edgeInset = clamp(Math.round(draft.layout.w * 0.18), 16, 64);
+          const maxLocalX = Math.max(0, boardRect.width - draft.layout.w);
           const nextLocalX = switchDirection > 0 ? edgeInset : maxLocalX - edgeInset;
-          instance.layout.x = clamp(nextLocalX, 0, maxLocalX);
+          draft.layout.x = clamp(nextLocalX, 0, maxLocalX);
           lastPointerX = moveEvent.clientX;
           lastPointerY = moveEvent.clientY;
         });
 
-        const rt = runtime.get(instance.id);
-        if (rt?.card) {
-          applyLayout(rt.card, instance.layout, instance.page);
-          if (instance.type === "container") {
-            rt.controller?.refresh?.();
-          }
-        }
+        updateDraftVisual();
 
         const shouldShowDropSilhouette = !containerDropTargetId && !dockDropActive;
         if (shouldShowDropSilhouette) {
           const projected = projectedGridDropLayout();
-          positionWidgetDropSilhouette(dropSilhouette, projected.layout, instance.page);
+          positionWidgetDropSilhouette(dropSilhouette, projected.layout, draft.page);
         }
         setWidgetDropSilhouetteVisible(dropSilhouette, shouldShowDropSilhouette);
       };
 
-      const up = (upEvent) => {
-        window.removeEventListener("pointermove", move);
-        window.removeEventListener("pointerup", up);
-        window.removeEventListener("pointercancel", up);
-        setDockDropTargetActive(false);
-        setContainerDropTargetActive("");
-        card.classList.remove("longpress-drag-armed");
-        card.classList.remove("widget-drag-active");
-        dropSilhouette?.remove();
-        previewSession.dispose();
-        lastDragEndAt = Date.now();
+      const moveRaf = createPointerMoveRaf(({ clientX, clientY }) => {
+        lastPointerX = clientX;
+        lastPointerY = clientY;
+        move({ clientX, clientY });
+      });
 
-        if (tryContainerWidgetByDrop(instance, upEvent, { record: false })) {
-          return;
+      startPointerDragSession({
+        sourceEvent: event,
+        captureTarget: card,
+        onMove: (moveEvent) => {
+          moveRaf.push({
+            clientX: moveEvent.clientX,
+            clientY: moveEvent.clientY
+          });
+        },
+        onEnd: (endEvent, { cancelled }) => {
+          if (cancelled) {
+            moveRaf.cancel();
+          } else {
+            moveRaf.flush();
+          }
+          endDragVisuals();
+
+          if (cancelled) {
+            restoreDragVisuals();
+            return;
+          }
+
+          const dropX = Number.isFinite(endEvent?.clientX) ? endEvent.clientX : lastPointerX;
+          const dropY = Number.isFinite(endEvent?.clientY) ? endEvent.clientY : lastPointerY;
+          const dropEvent = {
+            clientX: dropX,
+            clientY: dropY
+          };
+
+          if (containerDropTargetAtPoint(dropX, dropY, instance)) {
+            dragTransaction.ensure();
+          }
+          if (tryContainerWidgetByDrop(instance, dropEvent, { record: false })) {
+            return;
+          }
+
+          if (
+            isDockDropPoint(dropX, dropY) &&
+            isDockEligibleWidget(instance) &&
+            !isWidgetDocked(instance) &&
+            !isWidgetInContainer(instance)
+          ) {
+            dragTransaction.ensure();
+          }
+          if (tryDockWidgetByDrop(instance, dropEvent, { record: false })) {
+            renderBoard();
+            queueSave();
+            return;
+          }
+
+          const projected = projectedGridDropLayout();
+          finalizeWidgetBoardDragCommit(instance, {
+            transaction: dragTransaction,
+            page: draft.page,
+            layout: projected.layout,
+            gridLayout: projected.grid,
+            startPage: initialPage,
+            startLayout: initialLayout,
+            startGridLayout: initialGridLayout
+          });
         }
+      });
 
-        if (tryDockWidgetByDrop(instance, upEvent, { record: false })) {
-          renderBoard();
-          queueSave();
-          return;
-        }
-
-        snapLayoutToGrid();
-        applyGridLayout({ commitFreeLayout: false, shouldSave: false });
-        queueSave();
-      };
-
-      window.addEventListener("pointermove", move);
-      window.addEventListener("pointerup", up);
-      window.addEventListener("pointercancel", up);
       const projected = projectedGridDropLayout();
-      positionWidgetDropSilhouette(dropSilhouette, projected.layout, instance.page);
+      positionWidgetDropSilhouette(dropSilhouette, projected.layout, draft.page);
       setWidgetDropSilhouetteVisible(dropSilhouette, true);
       return true;
     }
 
-    const boardRect = elements.board.getBoundingClientRect();
-    let lastPointerX = dragStartX;
-    let lastPointerY = dragStartY;
-
     const projectedFreeDropLayout = () => {
-      const maxX = Math.max(0, boardRect.width - instance.layout.w);
-      const maxY = Math.max(0, boardRect.height - instance.layout.h);
+      const maxX = Math.max(0, boardRect.width - draft.layout.w);
+      const maxY = Math.max(0, boardRect.height - draft.layout.h);
       return {
-        x: clamp(Math.round(instance.layout.x / SNAP) * SNAP, 0, maxX),
-        y: clamp(Math.round(instance.layout.y / SNAP) * SNAP, 0, maxY),
-        w: instance.layout.w,
-        h: instance.layout.h
+        x: clamp(Math.round(draft.layout.x / SNAP) * SNAP, 0, maxX),
+        y: clamp(Math.round(draft.layout.y / SNAP) * SNAP, 0, maxY),
+        w: draft.layout.w,
+        h: draft.layout.h
       };
     };
 
@@ -6259,86 +6665,111 @@ function createWidgetCard(instance) {
       const dockDropActive = !containerDropTargetId && isDockDropPoint(moveEvent.clientX, moveEvent.clientY);
       setContainerDropTargetActive(containerDropTargetId);
       setDockDropTargetActive(dockDropActive);
-      const maxX = Math.max(0, boardRect.width - instance.layout.w);
-      const maxY = Math.max(0, boardRect.height - instance.layout.h);
+      const maxX = Math.max(0, boardRect.width - draft.layout.w);
+      const maxY = Math.max(0, boardRect.height - draft.layout.h);
 
-      const nextX = Math.max(0, Math.min(maxX, instance.layout.x + dx));
-      const nextY = Math.max(0, Math.min(maxY, instance.layout.y + dy));
+      const nextX = Math.max(0, Math.min(maxX, draft.layout.x + dx));
+      const nextY = Math.max(0, Math.min(maxY, draft.layout.y + dy));
 
-      patchWidgetLayout(instance.id, {
-        x: nextX,
-        y: nextY
-      }, { record: false });
+      draft.layout.x = nextX;
+      draft.layout.y = nextY;
 
       const direction = edgeDirectionFromPointer(moveEvent.clientX);
       trySwitchPage(direction, moveEvent, (switchDirection) => {
-        const edgeInset = clamp(Math.round(instance.layout.w * 0.18), 16, 64);
-        const maxLocalX = Math.max(0, boardRect.width - instance.layout.w);
+        const edgeInset = clamp(Math.round(draft.layout.w * 0.18), 16, 64);
+        const maxLocalX = Math.max(0, boardRect.width - draft.layout.w);
         const nextLocalX = switchDirection > 0 ? edgeInset : maxLocalX - edgeInset;
-        patchWidgetLayout(instance.id, {
-          x: clamp(nextLocalX, 0, maxLocalX)
-        }, { record: false });
-        const rt = runtime.get(instance.id);
-        if (rt?.card) {
-          applyLayout(rt.card, instance.layout, instance.page);
-        }
+        draft.layout.x = clamp(nextLocalX, 0, maxLocalX);
         lastPointerX = moveEvent.clientX;
         lastPointerY = moveEvent.clientY;
       });
 
+      updateDraftVisual();
+
       const shouldShowDropSilhouette = !containerDropTargetId && !dockDropActive;
       if (shouldShowDropSilhouette) {
-        positionWidgetDropSilhouette(dropSilhouette, projectedFreeDropLayout(), instance.page);
+        positionWidgetDropSilhouette(dropSilhouette, projectedFreeDropLayout(), draft.page);
       }
       setWidgetDropSilhouetteVisible(dropSilhouette, shouldShowDropSilhouette);
     };
 
-    const up = (upEvent) => {
-      window.removeEventListener("pointermove", move);
-      window.removeEventListener("pointerup", up);
-      window.removeEventListener("pointercancel", up);
-      setDockDropTargetActive(false);
-      setContainerDropTargetActive("");
-      card.classList.remove("longpress-drag-armed");
-      card.classList.remove("widget-drag-active");
-      dropSilhouette?.remove();
-      previewSession.dispose();
-      lastDragEndAt = Date.now();
+    const moveRaf = createPointerMoveRaf(({ clientX, clientY }) => {
+      lastPointerX = clientX;
+      lastPointerY = clientY;
+      move({ clientX, clientY });
+    });
 
-      if (tryContainerWidgetByDrop(instance, upEvent, { record: true })) {
-        return;
+    startPointerDragSession({
+      sourceEvent: event,
+      captureTarget: card,
+      onMove: (moveEvent) => {
+        moveRaf.push({
+          clientX: moveEvent.clientX,
+          clientY: moveEvent.clientY
+        });
+      },
+      onEnd: (endEvent, { cancelled }) => {
+        if (cancelled) {
+          moveRaf.cancel();
+        } else {
+          moveRaf.flush();
+        }
+        endDragVisuals();
+
+        if (cancelled) {
+          restoreDragVisuals();
+          return;
+        }
+
+        const dropX = Number.isFinite(endEvent?.clientX) ? endEvent.clientX : lastPointerX;
+        const dropY = Number.isFinite(endEvent?.clientY) ? endEvent.clientY : lastPointerY;
+        const dropEvent = {
+          clientX: dropX,
+          clientY: dropY
+        };
+
+        if (containerDropTargetAtPoint(dropX, dropY, instance)) {
+          dragTransaction.ensure();
+        }
+        if (tryContainerWidgetByDrop(instance, dropEvent, { record: false })) {
+          return;
+        }
+
+        if (
+          isDockDropPoint(dropX, dropY) &&
+          isDockEligibleWidget(instance) &&
+          !isWidgetDocked(instance) &&
+          !isWidgetInContainer(instance)
+        ) {
+          dragTransaction.ensure();
+        }
+        if (tryDockWidgetByDrop(instance, dropEvent, { record: false })) {
+          renderBoard();
+          queueSave();
+          return;
+        }
+
+        const finalLayout = projectedFreeDropLayout();
+        const committed = finalizeWidgetBoardDragCommit(instance, {
+          transaction: dragTransaction,
+          page: draft.page,
+          layout: finalLayout,
+          startPage: initialPage,
+          startLayout: initialLayout
+        });
+
+        if (committed) {
+          return;
+        }
+
+        if (state.ui.home.activePage !== initialActivePage) {
+          state.ui.home.activePage = initialActivePage;
+          renderBoardViewport({ animate: false, dragging: false, dragOffsetX: 0 });
+        }
       }
+    });
 
-      if (tryDockWidgetByDrop(instance, upEvent, { record: true })) {
-        renderBoard();
-        queueSave();
-        return;
-      }
-
-      const snappedX = Math.round(instance.layout.x / SNAP) * SNAP;
-      const snappedY = Math.round(instance.layout.y / SNAP) * SNAP;
-      const changedBySnap = snappedX !== instance.layout.x || snappedY !== instance.layout.y;
-
-      if (changedBySnap) {
-        patchWidgetLayout(instance.id, {
-          x: snappedX,
-          y: snappedY
-        }, { label: "Move widget" });
-        return;
-      }
-
-      if (pageChangedDuringDrag) {
-        recordHistorySnapshot("Move widget");
-        updateBoardBounds();
-        renderSettings();
-        queueSave();
-      }
-    };
-
-    window.addEventListener("pointermove", move);
-    window.addEventListener("pointerup", up);
-    window.addEventListener("pointercancel", up);
-    positionWidgetDropSilhouette(dropSilhouette, projectedFreeDropLayout(), instance.page);
+    positionWidgetDropSilhouette(dropSilhouette, projectedFreeDropLayout(), draft.page);
     setWidgetDropSilhouetteVisible(dropSilhouette, true);
     return true;
   };
@@ -6402,11 +6833,42 @@ function createWidgetCard(instance) {
     clearLongPressDrag();
   };
 
+  const isBlockedLongPressDragTarget = (target) => {
+    if (!(target instanceof Element)) {
+      return false;
+    }
+    if (target.closest(".shortcut-tile")) {
+      return false;
+    }
+    const blockedSelector = [
+      "a[href]",
+      "button",
+      "input",
+      "textarea",
+      "select",
+      "option",
+      "label",
+      "summary",
+      "details",
+      "form",
+      "[contenteditable]",
+      "[role='button']",
+      "[role='link']",
+      "[role='textbox']",
+      "[data-no-page-drag]"
+    ].join(",");
+    return Boolean(target.closest(blockedSelector));
+  };
+
   const scheduleLongPressDrag = (event, target) => {
     if (state.mode === "edit") {
       return false;
     }
     if (event && Number.isFinite(event.button) && event.button !== 0 && event.button !== -1) {
+      return false;
+    }
+
+    if (isBlockedLongPressDragTarget(target)) {
       return false;
     }
 
@@ -6547,20 +7009,170 @@ function createWidgetCard(instance) {
       }
     };
 
-    const up = () => {
-      window.removeEventListener("pointermove", move);
-      window.removeEventListener("pointerup", up);
-      if (!changed) {
+    startPointerDragSession({
+      sourceEvent: event,
+      captureTarget: card,
+      onMove: (moveEvent) => {
+        move(moveEvent);
+      },
+      onEnd: (_endEvent, { cancelled }) => {
+        if (!changed) {
+          return;
+        }
+        lastDragEndAt = Date.now();
+        renderSettings();
+        queueSave();
+      }
+    });
+  };
+
+  const commitResizeDraftVisual = (width, height) => {
+    applyLayout(
+      card,
+      {
+        ...instance.layout,
+        w: width,
+        h: height
+      },
+      instance.page
+    );
+  };
+
+  const finishResizeDraftVisual = () => {
+    applyLayout(card, instance.layout, instance.page);
+  };
+
+  if (resizeHandle) {
+    resizeHandle.addEventListener("pointerdown", (event) => {
+      if (state.mode !== "edit") {
         return;
       }
-      lastDragEndAt = Date.now();
-      renderSettings();
-      queueSave();
-    };
+      if (event.button !== 0) {
+        return;
+      }
+      if (instance.type === "container") {
+        return;
+      }
 
-    window.addEventListener("pointermove", move);
-    window.addEventListener("pointerup", up);
-  };
+      event.stopPropagation();
+      event.preventDefault();
+      setSelected(instance.id);
+
+      const startX = event.clientX;
+      const startY = event.clientY;
+      const startW = instance.layout.w;
+      const startH = instance.layout.h;
+
+      if (isGridLayoutMode()) {
+        recordHistorySnapshot("Resize widget");
+        const metrics = gridMetrics();
+        const startGrid = normalizeGridLayout(instance.gridLayout, {
+          col: 0,
+          row: 0,
+          ...widgetDefaultGridSize(instance.type, widgetRegistry[instance.type])
+        });
+        const stepX = Math.max(1, metrics.cellW + metrics.gapX);
+        const stepY = Math.max(1, metrics.cellH + metrics.gapY);
+        let changed = false;
+
+        startPointerDragSession({
+          sourceEvent: event,
+          captureTarget: card,
+          onMove: (moveEvent) => {
+            const dCol = Math.round((moveEvent.clientX - startX) / stepX);
+            const dRow = Math.round((moveEvent.clientY - startY) / stepY);
+
+            const nextGrid = {
+              ...startGrid,
+              colSpan: clamp(startGrid.colSpan + dCol, 1, Math.max(1, metrics.cols - startGrid.col)),
+              rowSpan: clamp(startGrid.rowSpan + dRow, 1, Math.max(1, metrics.rows - startGrid.row))
+            };
+
+            if (
+              nextGrid.colSpan === instance.gridLayout?.colSpan &&
+              nextGrid.rowSpan === instance.gridLayout?.rowSpan
+            ) {
+              return;
+            }
+
+            changed = true;
+            instance.gridLayout = nextGrid;
+            applyGridLayout({ commitFreeLayout: false, shouldSave: false });
+          },
+          onEnd: (_endEvent, { cancelled }) => {
+            if (cancelled) {
+              if (changed) {
+                instance.gridLayout = { ...startGrid };
+                applyGridLayout({ commitFreeLayout: false, shouldSave: false });
+              }
+              return;
+            }
+            lastDragEndAt = Date.now();
+            applyGridLayout({ commitFreeLayout: false, shouldSave: false });
+            if (changed) {
+              queueSave();
+            }
+          }
+        });
+        return;
+      }
+
+      let liveWidth = startW;
+      let liveHeight = startH;
+      let changed = false;
+
+      startPointerDragSession({
+        sourceEvent: event,
+        captureTarget: card,
+        onMove: (moveEvent) => {
+          const dx = moveEvent.clientX - startX;
+          const dy = moveEvent.clientY - startY;
+          const boardRect = elements.board.getBoundingClientRect();
+          const maxW = Math.max(1, Math.floor(boardRect.width - instance.layout.x));
+          const maxH = Math.max(1, Math.floor(boardRect.height - instance.layout.y));
+          const minW = Math.min(80, maxW);
+          const minH = Math.min(80, maxH);
+          const nextWidth = clamp(startW + dx, minW, maxW);
+          const nextHeight = clamp(startH + dy, minH, maxH);
+
+          if (nextWidth === liveWidth && nextHeight === liveHeight) {
+            return;
+          }
+
+          liveWidth = nextWidth;
+          liveHeight = nextHeight;
+          changed = true;
+          commitResizeDraftVisual(liveWidth, liveHeight);
+        },
+        onEnd: (_endEvent, { cancelled }) => {
+          if (cancelled) {
+            finishResizeDraftVisual();
+            return;
+          }
+
+          lastDragEndAt = Date.now();
+          if (!changed) {
+            return;
+          }
+
+          const boardRect = elements.board.getBoundingClientRect();
+          const maxW = Math.max(1, Math.floor(boardRect.width - instance.layout.x));
+          const maxH = Math.max(1, Math.floor(boardRect.height - instance.layout.y));
+          const minW = Math.min(80, maxW);
+          const minH = Math.min(80, maxH);
+
+          patchWidgetLayout(
+            instance.id,
+            {
+              w: clamp(Math.round(liveWidth / SNAP) * SNAP, minW, maxW),
+              h: clamp(Math.round(liveHeight / SNAP) * SNAP, minH, maxH)
+            },
+            { label: "Resize widget" }
+          );
+        }
+      });
+    });
+  }
 
   head.addEventListener("pointerdown", (event) => {
     if (instance.type === "container") {
@@ -6646,94 +7258,6 @@ function createWidgetCard(instance) {
   paddingHandleBottomLeft?.addEventListener("pointerdown", (event) => {
     startPaddingDrag(event, "bottomLeft");
   });
-
-  if (resizeHandle) {
-    resizeHandle.addEventListener("pointerdown", (event) => {
-      if (state.mode !== "edit") {
-        return;
-      }
-      if (event.button !== 0) {
-        return;
-      }
-      if (instance.type === "container") {
-        return;
-      }
-
-      event.stopPropagation();
-      event.preventDefault();
-      setSelected(instance.id);
-
-      const startX = event.clientX;
-      const startY = event.clientY;
-      const startW = instance.layout.w;
-      const startH = instance.layout.h;
-
-      if (isGridLayoutMode()) {
-        recordHistorySnapshot("Resize widget");
-        const metrics = gridMetrics();
-        const startGrid = normalizeGridLayout(instance.gridLayout, {
-          col: 0,
-          row: 0,
-          ...widgetDefaultGridSize(instance.type, widgetRegistry[instance.type])
-        });
-        const stepX = Math.max(1, metrics.cellW + metrics.gapX);
-        const stepY = Math.max(1, metrics.cellH + metrics.gapY);
-
-        const moveGrid = (moveEvent) => {
-          const dCol = Math.round((moveEvent.clientX - startX) / stepX);
-          const dRow = Math.round((moveEvent.clientY - startY) / stepY);
-
-          instance.gridLayout = {
-            ...startGrid,
-            colSpan: clamp(startGrid.colSpan + dCol, 1, Math.max(1, metrics.cols - startGrid.col)),
-            rowSpan: clamp(startGrid.rowSpan + dRow, 1, Math.max(1, metrics.rows - startGrid.row))
-          };
-
-          applyGridLayout({ commitFreeLayout: false, shouldSave: false });
-        };
-
-        const upGrid = () => {
-          window.removeEventListener("pointermove", moveGrid);
-          window.removeEventListener("pointerup", upGrid);
-          lastDragEndAt = Date.now();
-          applyGridLayout({ commitFreeLayout: false, shouldSave: false });
-          queueSave();
-        };
-
-        window.addEventListener("pointermove", moveGrid);
-        window.addEventListener("pointerup", upGrid);
-        return;
-      }
-
-      const move = (moveEvent) => {
-        const dx = moveEvent.clientX - startX;
-        const dy = moveEvent.clientY - startY;
-        const boardRect = elements.board.getBoundingClientRect();
-        const maxW = Math.max(1, Math.floor(boardRect.width - instance.layout.x));
-        const maxH = Math.max(1, Math.floor(boardRect.height - instance.layout.y));
-        const minW = Math.min(80, maxW);
-        const minH = Math.min(80, maxH);
-
-        patchWidgetLayout(instance.id, {
-          w: clamp(startW + dx, minW, maxW),
-          h: clamp(startH + dy, minH, maxH)
-        }, { record: false });
-      };
-
-      const up = () => {
-        window.removeEventListener("pointermove", move);
-        window.removeEventListener("pointerup", up);
-        lastDragEndAt = Date.now();
-        patchWidgetLayout(instance.id, {
-          w: Math.round(instance.layout.w / SNAP) * SNAP,
-          h: Math.round(instance.layout.h / SNAP) * SNAP
-        }, { label: "Resize widget" });
-      };
-
-      window.addEventListener("pointermove", move);
-      window.addEventListener("pointerup", up);
-    });
-  }
 
   elements.board.append(card);
   runtime.set(instance.id, { card, controller });
