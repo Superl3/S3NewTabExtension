@@ -6,10 +6,14 @@
 
 .monday-meeting-empty,
 .monday-meeting-link,
-.monday-meeting-link:hover {
+.monday-meeting-link:hover,
+.monday-meeting-link:visited,
+.monday-meeting-link:active {
   border: none;
   border-radius: 0;
   background: transparent;
+  color: inherit;
+  text-decoration: none;
 }
 
 .monday-meeting-empty,
