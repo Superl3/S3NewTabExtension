@@ -4632,6 +4632,143 @@ function isDockDropPoint(x, y) {
   return pointInsideRect(x, y, dockRect);
 }
 
+function cssPixelValue(value, fallback = 0) {
+  const parsed = Number.parseFloat(String(value ?? ""));
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function resolveDockInsertIndexFromPointer(clientX, draggedWidgetId = "") {
+  const docked = dockedInstances(state.instances);
+  const normalizedDraggedId = normalizeText(draggedWidgetId);
+  const ordered = normalizedDraggedId
+    ? docked.filter((item) => String(item.id) !== normalizedDraggedId)
+    : docked;
+
+  if (!ordered.length) {
+    return 0;
+  }
+
+  const strip = elements.dockWidgetStrip;
+  if (!(strip instanceof HTMLElement)) {
+    return ordered.length;
+  }
+
+  const buttonById = new Map(
+    Array.from(strip.querySelectorAll(".dock-widget-item")).map((button) => [normalizeText(button.dataset.widgetId), button])
+  );
+
+  if (!Number.isFinite(clientX)) {
+    return ordered.length;
+  }
+
+  for (let index = 0; index < ordered.length; index += 1) {
+    const id = String(ordered[index].id);
+    const button = buttonById.get(id);
+    if (!(button instanceof HTMLElement)) {
+      continue;
+    }
+    const rect = button.getBoundingClientRect();
+    const midpoint = rect.left + rect.width / 2;
+    if (clientX < midpoint) {
+      return index;
+    }
+  }
+
+  return ordered.length;
+}
+
+function setDockWidgetOrderByIndex(widgetId, insertIndex, { record = true } = {}) {
+  const id = normalizeText(widgetId);
+  const instance = instanceById(id);
+  if (!id || !instance || !isWidgetDocked(instance)) {
+    return false;
+  }
+
+  const docked = dockedInstances(state.instances);
+  const currentIndex = docked.findIndex((item) => String(item.id) === id);
+  if (currentIndex < 0) {
+    return false;
+  }
+
+  const without = docked.filter((item) => String(item.id) !== id);
+  const targetIndex = clamp(Math.round(Number(insertIndex) || 0), 0, without.length);
+  if (currentIndex === targetIndex) {
+    return false;
+  }
+
+  if (record) {
+    recordHistorySnapshot("Reorder dock widget");
+  } else {
+    touchUserMutationClock();
+  }
+
+  without.splice(targetIndex, 0, instance);
+  for (let i = 0; i < without.length; i += 1) {
+    without[i].dockOrder = i;
+  }
+  return true;
+}
+
+function resolveContainerInsertIndexFromPointer(
+  containerId,
+  clientX,
+  clientY,
+  { excludeWidgetId = "", panelElement = null, cardSelector = ".widget-folder-item-card[data-widget-id]" } = {}
+) {
+  const targetId = normalizeContainerId(containerId);
+  if (!targetId) {
+    return 0;
+  }
+
+  const resolvedPanelElement = (() => {
+    if (panelElement instanceof HTMLElement) {
+      return panelElement;
+    }
+    const entry = containerDropUiState.targets.get(targetId);
+    const host = entry?.element;
+    if (!(host instanceof HTMLElement)) {
+      return null;
+    }
+    if (host.classList.contains("widget-folder-panel")) {
+      const body = host.querySelector(".widget-folder-panel-body");
+      return body instanceof HTMLElement ? body : host;
+    }
+    return host;
+  })();
+
+  const cards =
+    resolvedPanelElement instanceof HTMLElement
+      ? Array.from(resolvedPanelElement.querySelectorAll(cardSelector))
+      : [];
+  const filteredCards = cards.filter((card) => {
+    const cardWidgetId = normalizeText(card?.dataset?.widgetId);
+    return cardWidgetId && cardWidgetId !== normalizeText(excludeWidgetId);
+  });
+
+  if (filteredCards.length && Number.isFinite(clientX) && Number.isFinite(clientY)) {
+    for (let index = 0; index < filteredCards.length; index += 1) {
+      const rect = filteredCards[index].getBoundingClientRect();
+      const centerY = rect.top + rect.height / 2;
+      const centerX = rect.left + rect.width / 2;
+      if (clientY < centerY || (Math.abs(clientY - centerY) <= Math.max(6, rect.height * 0.25) && clientX < centerX)) {
+        return index;
+      }
+    }
+    return filteredCards.length;
+  }
+
+  const siblings = (state.instances || []).filter((entry) => {
+    if (!entry || entry.type === "container") {
+      return false;
+    }
+    if (normalizeContainerId(entry.containerId) !== targetId) {
+      return false;
+    }
+    return normalizeText(entry.id) !== normalizeText(excludeWidgetId);
+  });
+  return siblings.length;
+}
+
 function tryContainerWidgetByDrop(instance, pointerEvent, { record = true } = {}) {
   if (!instance || !pointerEvent) {
     return false;
@@ -4642,7 +4779,38 @@ function tryContainerWidgetByDrop(instance, pointerEvent, { record = true } = {}
     return false;
   }
 
-  return setWidgetContainer(instance.id, targetContainerId, { record });
+  const insertIndex = resolveContainerInsertIndexFromPointer(targetContainerId, pointerEvent.clientX, pointerEvent.clientY, {
+    excludeWidgetId: instance.id,
+    panelElement: pointerEvent?.panelElement
+  });
+
+  if (normalizeContainerId(instance.containerId) === targetContainerId) {
+    return reorderWidgetInContainerByIndex(instance.id, targetContainerId, insertIndex, {
+      record,
+      rerender: true,
+      save: true
+    });
+  }
+
+  const moved = setWidgetContainer(instance.id, targetContainerId, {
+    record,
+    rerender: false,
+    save: false
+  });
+  if (!moved) {
+    return false;
+  }
+
+  reorderWidgetInContainerByIndex(instance.id, targetContainerId, insertIndex, {
+    record: false,
+    rerender: false,
+    save: false
+  });
+
+  renderBoard();
+  renderSettings();
+  queueSave();
+  return true;
 }
 
 function setDockDropTargetActive(active) {
@@ -4656,15 +4824,28 @@ function tryDockWidgetByDrop(instance, pointerEvent, { record = true } = {}) {
   if (!isDockEligibleWidget(instance)) {
     return false;
   }
-  if (isWidgetDocked(instance) || isWidgetInContainer(instance)) {
-    return false;
-  }
+
+  const wasDocked = isWidgetDocked(instance);
+  const wasInContainer = isWidgetInContainer(instance);
+  const insertIndex = resolveDockInsertIndexFromPointer(pointerEvent.clientX, instance.id);
 
   if (record) {
-    recordHistorySnapshot("Dock widget");
+    if (wasDocked) {
+      recordHistorySnapshot("Reorder dock widget");
+    } else if (wasInContainer) {
+      recordHistorySnapshot("Move widget from folder to dock");
+    } else {
+      recordHistorySnapshot("Dock widget");
+    }
+  } else {
+    touchUserMutationClock();
   }
 
-  instance.dockOrder = nextDockOrder();
+  instance.containerId = "";
+  if (!wasDocked) {
+    instance.dockOrder = nextDockOrder();
+  }
+  setDockWidgetOrderByIndex(instance.id, insertIndex, { record: false });
   normalizeDockedWidgetOrders(state.instances);
   setDockActiveId(instance.id, { rerender: false });
 
@@ -4893,6 +5074,20 @@ function renderDockWidgets() {
         patchWidgetConfigById: (widgetId, patch, options = {}) => patchWidgetConfig(widgetId, patch, options),
         setWidgetContainer: (widgetId, containerId) => setWidgetContainer(widgetId, containerId),
         releaseWidgetFromContainerByDrop: (widgetId, payload) => releaseWidgetFromContainerByDrop(widgetId, payload),
+        reorderWidgetInContainerByIndex: (widgetId, containerId, index, options = {}) =>
+          reorderWidgetInContainerByIndex(widgetId, containerId, index, options),
+        resolveContainerInsertIndexFromPointer: (containerId, clientX, clientY, options = {}) =>
+          resolveContainerInsertIndexFromPointer(containerId, clientX, clientY, options),
+        tryContainerWidgetByDrop: (widget, pointerEvent, options = {}) => tryContainerWidgetByDrop(widget, pointerEvent, options),
+        tryDockWidgetByDrop: (widget, pointerEvent, options = {}) => tryDockWidgetByDrop(widget, pointerEvent, options),
+        projectWidgetBoardDropLayout: (widget, payload = {}, options = {}) =>
+          projectWidgetBoardDropLayout(widget, payload, options),
+        updateCrossSurfaceDropIndicators: (widget, clientX, clientY, options = {}) =>
+          updateCrossSurfaceDropIndicators(widget, clientX, clientY, options),
+        renderBoardViewport,
+        setActiveLauncherPage,
+        currentLauncherActivePage,
+        currentLauncherPageCount,
         registerContainerDropTarget: (containerId, element, options = {}) =>
           registerContainerDropTarget(containerId, element, options),
         unregisterContainerDropTarget: (containerId) => unregisterContainerDropTarget(containerId),
@@ -4960,14 +5155,72 @@ function renderDockWidgets() {
       }
 
       card.classList.add("dock-widget-item-dragging");
+      card.style.animation = "widget-drag-jiggle 340ms cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite";
+      card.style.transformOrigin = "50% 0%";
+      const sourceCard = runtime.get(item.id)?.card;
+      sourceCard?.classList.add("widget-drag-active");
+
+      const dropSilhouette = createWidgetDropSilhouette(sourceCard || card);
 
       let lastPointerX = event.clientX;
       let lastPointerY = event.clientY;
+      const boardRect = elements.board?.getBoundingClientRect();
+      const pageSwitchThreshold = 42;
+      const pageSwitchCooldownMs = 190;
+      let lastPageSwitchAt = 0;
+      let dragReleasePage = currentLauncherActivePage();
+
+      const edgeDirectionFromPointer = (clientX) => {
+        if (!boardRect || !Number.isFinite(clientX) || boardRect.width < pageSwitchThreshold * 2) {
+          return 0;
+        }
+        if (clientX <= boardRect.left + pageSwitchThreshold) {
+          return -1;
+        }
+        if (clientX >= boardRect.right - pageSwitchThreshold) {
+          return 1;
+        }
+        return 0;
+      };
+
+      const trySwitchPage = (direction) => {
+        if (!direction) {
+          return false;
+        }
+        const now = performance.now();
+        if (now - lastPageSwitchAt < pageSwitchCooldownMs) {
+          return false;
+        }
+        const pageCount = currentLauncherPageCount();
+        const nextPage = dragReleasePage + direction;
+        if (nextPage < 0 || nextPage >= pageCount) {
+          return false;
+        }
+        dragReleasePage = nextPage;
+        state.ui.home.activePage = nextPage;
+        lastPageSwitchAt = now;
+        renderBoardViewport({ animate: false, dragging: false, dragOffsetX: 0 });
+        return true;
+      };
 
       const updateGhost = (clientX, clientY) => {
         previewSession.update(clientX, clientY);
         const inside = pointInsideRect(clientX, clientY, dockRect);
         elements.persistentDock?.classList.toggle("is-drag-out-active", !inside);
+
+        if (!inside) {
+          trySwitchPage(edgeDirectionFromPointer(clientX));
+        }
+
+        const projection = projectWidgetBoardDropLayout(item, {
+          clientX,
+          clientY,
+          page: dragReleasePage
+        });
+        updateCrossSurfaceDropIndicators(item, clientX, clientY, {
+          silhouette: dropSilhouette,
+          boardProjection: projection
+        });
       };
 
       const moveRaf = createPointerMoveRaf(({ clientX, clientY }) => {
@@ -4995,21 +5248,50 @@ function renderDockWidgets() {
           const inside = pointInsideRect(dropX, dropY, dockRect);
 
           elements.persistentDock?.classList.remove("is-drag-out-active");
+          setDockDropTargetActive(false);
+          setContainerDropTargetActive("");
+          setWidgetDropSilhouetteVisible(dropSilhouette, false);
+          dropSilhouette?.remove();
           card.classList.remove("dock-widget-item-dragging");
+          card.style.removeProperty("animation");
+          card.style.removeProperty("transform-origin");
+          sourceCard?.classList.remove("widget-drag-active");
           previewSession.dispose();
 
           if (cancelled) {
             return;
           }
 
-          if (!inside) {
+          const dropEvent = {
+            clientX: dropX,
+            clientY: dropY
+          };
+
+          if (inside) {
             card.dataset.suppressClick = "true";
             lastDragEndAt = Date.now();
-            releaseWidgetFromDockByDrop(item.id, {
-              clientX: dropX,
-              clientY: dropY
-            });
+            if (tryDockWidgetByDrop(item, dropEvent, { record: true })) {
+              renderBoard();
+              queueSave();
+            }
+            return;
           }
+
+          if (tryContainerWidgetByDrop(item, dropEvent, { record: true })) {
+            card.dataset.suppressClick = "true";
+            lastDragEndAt = Date.now();
+            renderBoard();
+            queueSave();
+            return;
+          }
+
+          card.dataset.suppressClick = "true";
+          lastDragEndAt = Date.now();
+          releaseWidgetFromDockByDrop(item.id, {
+            clientX: dropX,
+            clientY: dropY,
+            page: dragReleasePage
+          });
         }
       });
     }, true);
@@ -5483,6 +5765,317 @@ function patchWidgetConfig(instanceId, patch, { record = true } = {}) {
   queueSave();
 }
 
+function moveInstanceToStateIndex(instanceId, destinationIndex) {
+  const list = state.instances;
+  if (!Array.isArray(list) || !list.length) {
+    return false;
+  }
+
+  const fromIndex = list.findIndex((item) => String(item?.id) === String(instanceId));
+  if (fromIndex < 0) {
+    return false;
+  }
+
+  const boundedIndex = clamp(Math.round(Number(destinationIndex) || 0), 0, list.length);
+  const targetIndex = fromIndex < boundedIndex ? boundedIndex - 1 : boundedIndex;
+  if (fromIndex === targetIndex) {
+    return false;
+  }
+
+  const [moved] = list.splice(fromIndex, 1);
+  list.splice(clamp(targetIndex, 0, list.length), 0, moved);
+  return true;
+}
+
+function appendWidgetToContainerOrder(instanceId, containerId) {
+  const targetContainerId = normalizeContainerId(containerId);
+  if (!targetContainerId) {
+    return false;
+  }
+
+  const siblings = (state.instances || []).filter((entry) => {
+    return (
+      entry &&
+      String(entry.id) !== String(instanceId) &&
+      entry.type !== "container" &&
+      normalizeContainerId(entry.containerId) === targetContainerId
+    );
+  });
+
+  if (siblings.length) {
+    const lastSiblingId = String(siblings[siblings.length - 1].id);
+    const lastSiblingIndex = state.instances.findIndex((entry) => String(entry?.id) === lastSiblingId);
+    if (lastSiblingIndex >= 0) {
+      return moveInstanceToStateIndex(instanceId, lastSiblingIndex + 1);
+    }
+  }
+
+  const containerIndex = state.instances.findIndex((entry) => String(entry?.id) === targetContainerId);
+  if (containerIndex >= 0) {
+    return moveInstanceToStateIndex(instanceId, containerIndex + 1);
+  }
+  return false;
+}
+
+function reorderWidgetInContainerByIndex(
+  widgetId,
+  containerId,
+  insertIndex,
+  { record = true, rerender = true, save = true } = {}
+) {
+  const targetContainerId = normalizeContainerId(containerId);
+  const instance = instanceById(widgetId);
+  if (!instance || instance.type === "container" || !targetContainerId) {
+    return false;
+  }
+  if (normalizeContainerId(instance.containerId) !== targetContainerId) {
+    return false;
+  }
+
+  const siblings = (state.instances || []).filter((entry) => {
+    return (
+      entry &&
+      entry.type !== "container" &&
+      normalizeContainerId(entry.containerId) === targetContainerId &&
+      String(entry.id) !== String(widgetId)
+    );
+  });
+  const clampedInsertIndex = clamp(Math.round(Number(insertIndex) || 0), 0, siblings.length);
+
+  let changed = false;
+  if (clampedInsertIndex < siblings.length) {
+    const beforeId = String(siblings[clampedInsertIndex].id);
+    const destinationIndex = state.instances.findIndex((entry) => String(entry?.id) === beforeId);
+    if (destinationIndex >= 0) {
+      changed = moveInstanceToStateIndex(widgetId, destinationIndex);
+    }
+  } else if (siblings.length) {
+    const lastSiblingId = String(siblings[siblings.length - 1].id);
+    const destinationIndex = state.instances.findIndex((entry) => String(entry?.id) === lastSiblingId);
+    if (destinationIndex >= 0) {
+      changed = moveInstanceToStateIndex(widgetId, destinationIndex + 1);
+    }
+  }
+
+  if (!changed) {
+    return false;
+  }
+
+  if (record) {
+    recordHistorySnapshot("Reorder folder widget");
+  } else {
+    touchUserMutationClock();
+  }
+
+  if (rerender) {
+    renderBoard();
+    renderSettings();
+  } else {
+    refreshWidgetsByType("container");
+  }
+
+  if (save) {
+    queueSave();
+  }
+  return true;
+}
+
+function projectWidgetBoardDropLayout(instance, payload = {}, { pageFallback = null } = {}) {
+  const boardRect = elements.board?.getBoundingClientRect();
+  if (!instance || !boardRect) {
+    return null;
+  }
+
+  const pageCount = currentLauncherPageCount();
+  const activePage = currentLauncherActivePage();
+  const defaultPage = Number.isFinite(pageFallback) ? pageFallback : activePage;
+  const page = normalizeWidgetPage(payload?.page, pageCount, defaultPage);
+  const pointerX = Number.isFinite(payload?.clientX) ? payload.clientX : boardRect.left + boardRect.width / 2;
+  const pointerY = Number.isFinite(payload?.clientY) ? payload.clientY : boardRect.top + boardRect.height / 2;
+
+  if (isGridLayoutMode()) {
+    const metrics = gridMetrics();
+    const def = widgetRegistry[instance.type];
+    const fallback = widgetDefaultGridSize(instance.type, def);
+    const grid = normalizeGridLayout(instance.gridLayout, {
+      col: 0,
+      row: 0,
+      colSpan: fallback.colSpan,
+      rowSpan: fallback.rowSpan
+    });
+    const spanWidth = metrics.cellW * grid.colSpan + metrics.gapX * (grid.colSpan - 1);
+    const spanHeight = metrics.cellH * grid.rowSpan + metrics.gapY * (grid.rowSpan - 1);
+    const stepX = Math.max(1, metrics.cellW + metrics.gapX);
+    const stepY = Math.max(1, metrics.cellH + metrics.gapY);
+    const localX = clamp(pointerX - boardRect.left - spanWidth / 2, 0, Math.max(0, boardRect.width - spanWidth));
+    const localY = clamp(pointerY - boardRect.top - spanHeight / 2, 0, Math.max(0, boardRect.height - spanHeight));
+
+    grid.col = clamp(Math.round((localX - metrics.marginX) / stepX), 0, Math.max(0, metrics.cols - grid.colSpan));
+    grid.row = clamp(Math.round((localY - metrics.marginY) / stepY), 0, Math.max(0, metrics.rows - grid.rowSpan));
+
+    return {
+      page,
+      gridLayout: grid,
+      layout: {
+        x: metrics.marginX + grid.col * stepX,
+        y: metrics.marginY + grid.row * stepY,
+        w: spanWidth,
+        h: spanHeight
+      }
+    };
+  }
+
+  const maxW = Math.max(80, Math.floor(boardRect.width));
+  const maxH = Math.max(80, Math.floor(boardRect.height));
+  const width = clamp(Number(instance.layout.w) || 320, 80, maxW);
+  const height = clamp(Number(instance.layout.h) || 220, 80, maxH);
+  const maxX = Math.max(0, boardRect.width - width);
+  const maxY = Math.max(0, boardRect.height - height);
+  const nextX = clamp(pointerX - boardRect.left - width / 2, 0, maxX);
+  const nextY = clamp(pointerY - boardRect.top - height / 2, 0, maxY);
+
+  return {
+    page,
+    gridLayout: null,
+    layout: {
+      x: Math.round(nextX / SNAP) * SNAP,
+      y: Math.round(nextY / SNAP) * SNAP,
+      w: width,
+      h: height
+    }
+  };
+}
+
+function viewportRectToBoardLayout(rect) {
+  const boardRect = elements.board?.getBoundingClientRect();
+  if (!boardRect || !rect) {
+    return null;
+  }
+
+  return {
+    x: Math.round(rect.left - boardRect.left),
+    y: Math.round(rect.top - boardRect.top),
+    w: Math.max(1, Math.round(rect.width)),
+    h: Math.max(1, Math.round(rect.height))
+  };
+}
+
+function projectDockSilhouetteLayoutFromPointer(clientX, clientY, draggedWidgetId = "") {
+  if (!isDockDropPoint(clientX, clientY)) {
+    return null;
+  }
+
+  const strip = elements.dockWidgetStrip;
+  if (!(strip instanceof HTMLElement)) {
+    return null;
+  }
+
+  const cards = Array.from(strip.querySelectorAll(".dock-widget-item")).filter((card) => {
+    const cardId = normalizeText(card?.dataset?.widgetId);
+    return cardId && cardId !== normalizeText(draggedWidgetId);
+  });
+
+  const insertIndex = resolveDockInsertIndexFromPointer(clientX, draggedWidgetId);
+  if (insertIndex === null) {
+    return null;
+  }
+
+  if (cards.length && insertIndex < cards.length) {
+    return viewportRectToBoardLayout(cards[insertIndex].getBoundingClientRect());
+  }
+
+  if (cards.length) {
+    const lastRect = cards[cards.length - 1].getBoundingClientRect();
+    const stripStyle = window.getComputedStyle(strip);
+    const gap = cssPixelValue(stripStyle.columnGap, cssPixelValue(stripStyle.gap, 6));
+    return viewportRectToBoardLayout({
+      left: lastRect.right + gap,
+      top: lastRect.top,
+      width: lastRect.width,
+      height: lastRect.height
+    });
+  }
+
+  const stripRect = strip.getBoundingClientRect();
+  const config = buildDockConfig(state?.ui?.home);
+  const unit = Math.max(1, Number(config.heightPx) || 44);
+  return viewportRectToBoardLayout({
+    left: stripRect.left,
+    top: stripRect.top,
+    width: unit,
+    height: unit
+  });
+}
+
+function projectContainerSilhouetteLayoutFromPointer(containerId, clientX, clientY, draggedWidgetId = "") {
+  const targetId = normalizeContainerId(containerId);
+  if (!targetId) {
+    return null;
+  }
+
+  const entry = containerDropUiState.targets.get(targetId);
+  const targetElement = entry?.element;
+  if (!(targetElement instanceof HTMLElement)) {
+    return null;
+  }
+
+  if (!targetElement.classList.contains("widget-folder-panel")) {
+    return viewportRectToBoardLayout(targetElement.getBoundingClientRect());
+  }
+
+  const panelBody = targetElement.querySelector(".widget-folder-panel-body");
+  if (!(panelBody instanceof HTMLElement)) {
+    return viewportRectToBoardLayout(targetElement.getBoundingClientRect());
+  }
+
+  const cards = Array.from(panelBody.querySelectorAll(".widget-folder-item-card[data-widget-id]"))
+    .filter((card) => normalizeText(card?.dataset?.widgetId) !== normalizeText(draggedWidgetId));
+
+  if (!cards.length) {
+    return viewportRectToBoardLayout(panelBody.getBoundingClientRect());
+  }
+
+  const insertIndex = resolveContainerInsertIndexFromPointer(targetId, clientX, clientY, {
+    excludeWidgetId: draggedWidgetId,
+    panelElement: panelBody
+  });
+  const anchor = cards[Math.min(cards.length - 1, Math.max(0, insertIndex))] || cards[0];
+  return viewportRectToBoardLayout(anchor.getBoundingClientRect());
+}
+
+function updateCrossSurfaceDropIndicators(instance, clientX, clientY, { silhouette = null, boardProjection = null } = {}) {
+  const containerDropTargetId = containerDropTargetAtPoint(clientX, clientY, instance);
+  const dockDropActive = !containerDropTargetId && isDockDropPoint(clientX, clientY);
+  setContainerDropTargetActive(containerDropTargetId);
+  setDockDropTargetActive(dockDropActive);
+
+  let projectedLayout = null;
+  let projectedPage = 0;
+
+  if (containerDropTargetId) {
+    projectedLayout = projectContainerSilhouetteLayoutFromPointer(containerDropTargetId, clientX, clientY, instance?.id);
+    projectedPage = 0;
+  } else if (dockDropActive) {
+    projectedLayout = projectDockSilhouetteLayoutFromPointer(clientX, clientY, instance?.id);
+    projectedPage = 0;
+  } else if (boardProjection && boardProjection.layout) {
+    projectedLayout = boardProjection.layout;
+    projectedPage = normalizeWidgetPage(boardProjection.page, currentLauncherPageCount(), currentLauncherActivePage());
+  }
+
+  const visible = Boolean(projectedLayout);
+  if (visible) {
+    positionWidgetDropSilhouette(silhouette, projectedLayout, projectedPage);
+  }
+  setWidgetDropSilhouetteVisible(silhouette, visible);
+
+  return {
+    containerDropTargetId,
+    dockDropActive,
+    showBoardSilhouette: visible && !containerDropTargetId && !dockDropActive
+  };
+}
+
 function setWidgetContainer(instanceId, containerId, { record = true, rerender = true, save = true } = {}) {
   const instance = instanceById(instanceId);
   if (!instance || instance.type === "container") {
@@ -5517,6 +6110,7 @@ function setWidgetContainer(instanceId, containerId, { record = true, rerender =
   instance.containerId = nextContainerId;
   if (nextContainerId) {
     instance.dockOrder = null;
+    appendWidgetToContainerOrder(instance.id, nextContainerId);
     if (state.selectedWidgetId === instance.id) {
       state.selectedWidgetId = "";
     }
@@ -5556,50 +6150,29 @@ function releaseWidgetFromContainerByDrop(widgetId, payload = {}) {
   recordHistorySnapshot("Move widget out of folder");
 
   const sourceContainer = instanceById(currentContainerId);
-  const releasePage = normalizeWidgetPage(sourceContainer?.page, currentLauncherPageCount(), currentLauncherActivePage());
+  const releasePage = normalizeWidgetPage(
+    payload?.page,
+    currentLauncherPageCount(),
+    normalizeWidgetPage(sourceContainer?.page, currentLauncherPageCount(), currentLauncherActivePage())
+  );
 
   setWidgetContainer(widgetId, "", { record: false, rerender: false, save: false });
 
   instance.page = releasePage;
   state.ui.home.activePage = releasePage;
 
-  const pointerX = Number.isFinite(payload?.clientX) ? payload.clientX : boardRect.left + boardRect.width / 2;
-  const pointerY = Number.isFinite(payload?.clientY) ? payload.clientY : boardRect.top + boardRect.height / 2;
+  const projection = projectWidgetBoardDropLayout(instance, payload, { pageFallback: releasePage });
+  if (!projection) {
+    return false;
+  }
 
-  if (isGridLayoutMode()) {
-    const metrics = gridMetrics();
-    const def = widgetRegistry[instance.type];
-    const grid = normalizeGridLayout(instance.gridLayout, {
-      col: 0,
-      row: 0,
-      ...widgetDefaultGridSize(instance.type, def)
-    });
-    const spanWidth = metrics.cellW * grid.colSpan + metrics.gapX * (grid.colSpan - 1);
-    const spanHeight = metrics.cellH * grid.rowSpan + metrics.gapY * (grid.rowSpan - 1);
-    const stepX = Math.max(1, metrics.cellW + metrics.gapX);
-    const stepY = Math.max(1, metrics.cellH + metrics.gapY);
-    const localX = clamp(pointerX - boardRect.left - spanWidth / 2, 0, Math.max(0, boardRect.width - spanWidth));
-    const localY = clamp(pointerY - boardRect.top - spanHeight / 2, 0, Math.max(0, boardRect.height - spanHeight));
-
-    grid.col = clamp(Math.round((localX - metrics.marginX) / stepX), 0, Math.max(0, metrics.cols - grid.colSpan));
-    grid.row = clamp(Math.round((localY - metrics.marginY) / stepY), 0, Math.max(0, metrics.rows - grid.rowSpan));
-
-    instance.gridLayout = grid;
-    instance.layout.x = metrics.marginX + grid.col * stepX;
-    instance.layout.y = metrics.marginY + grid.row * stepY;
-    instance.layout.w = spanWidth;
-    instance.layout.h = spanHeight;
-  } else {
-    const maxW = Math.max(80, Math.floor(boardRect.width));
-    const maxH = Math.max(80, Math.floor(boardRect.height));
-    instance.layout.w = clamp(Number(instance.layout.w) || 320, 80, maxW);
-    instance.layout.h = clamp(Number(instance.layout.h) || 220, 80, maxH);
-    const maxX = Math.max(0, boardRect.width - instance.layout.w);
-    const maxY = Math.max(0, boardRect.height - instance.layout.h);
-    const nextX = clamp(pointerX - boardRect.left - instance.layout.w / 2, 0, maxX);
-    const nextY = clamp(pointerY - boardRect.top - instance.layout.h / 2, 0, maxY);
-    instance.layout.x = Math.round(nextX / SNAP) * SNAP;
-    instance.layout.y = Math.round(nextY / SNAP) * SNAP;
+  instance.page = projection.page;
+  instance.layout = {
+    ...instance.layout,
+    ...projection.layout
+  };
+  if (projection.gridLayout) {
+    instance.gridLayout = projection.gridLayout;
   }
 
   state.selectedWidgetId = instance.id;
@@ -5625,49 +6198,22 @@ function releaseWidgetFromDockByDrop(widgetId, payload = {}) {
   instance.containerId = "";
   normalizeDockedWidgetOrders(state.instances);
 
-  const releasePage = currentLauncherActivePage();
+  const releasePage = normalizeWidgetPage(payload?.page, currentLauncherPageCount(), currentLauncherActivePage());
   instance.page = releasePage;
   state.ui.home.activePage = releasePage;
 
-  const pointerX = Number.isFinite(payload?.clientX) ? payload.clientX : boardRect.left + boardRect.width / 2;
-  const pointerY = Number.isFinite(payload?.clientY) ? payload.clientY : boardRect.top + boardRect.height / 2;
+  const projection = projectWidgetBoardDropLayout(instance, payload, { pageFallback: releasePage });
+  if (!projection) {
+    return false;
+  }
 
-  if (isGridLayoutMode()) {
-    const metrics = gridMetrics();
-    const def = widgetRegistry[instance.type];
-    const fallback = widgetDefaultGridSize(instance.type, def);
-    const grid = normalizeGridLayout(instance.gridLayout, {
-      col: 0,
-      row: 0,
-      colSpan: fallback.colSpan,
-      rowSpan: fallback.rowSpan
-    });
-    const spanWidth = metrics.cellW * grid.colSpan + metrics.gapX * (grid.colSpan - 1);
-    const spanHeight = metrics.cellH * grid.rowSpan + metrics.gapY * (grid.rowSpan - 1);
-    const stepX = Math.max(1, metrics.cellW + metrics.gapX);
-    const stepY = Math.max(1, metrics.cellH + metrics.gapY);
-    const localX = clamp(pointerX - boardRect.left - spanWidth / 2, 0, Math.max(0, boardRect.width - spanWidth));
-    const localY = clamp(pointerY - boardRect.top - spanHeight / 2, 0, Math.max(0, boardRect.height - spanHeight));
-
-    grid.col = clamp(Math.round((localX - metrics.marginX) / stepX), 0, Math.max(0, metrics.cols - grid.colSpan));
-    grid.row = clamp(Math.round((localY - metrics.marginY) / stepY), 0, Math.max(0, metrics.rows - grid.rowSpan));
-
-    instance.gridLayout = grid;
-    instance.layout.x = metrics.marginX + grid.col * stepX;
-    instance.layout.y = metrics.marginY + grid.row * stepY;
-    instance.layout.w = spanWidth;
-    instance.layout.h = spanHeight;
-  } else {
-    const maxW = Math.max(80, Math.floor(boardRect.width));
-    const maxH = Math.max(80, Math.floor(boardRect.height));
-    instance.layout.w = clamp(Number(instance.layout.w) || 320, 80, maxW);
-    instance.layout.h = clamp(Number(instance.layout.h) || 220, 80, maxH);
-    const maxX = Math.max(0, boardRect.width - instance.layout.w);
-    const maxY = Math.max(0, boardRect.height - instance.layout.h);
-    const nextX = clamp(pointerX - boardRect.left - instance.layout.w / 2, 0, maxX);
-    const nextY = clamp(pointerY - boardRect.top - instance.layout.h / 2, 0, maxY);
-    instance.layout.x = Math.round(nextX / SNAP) * SNAP;
-    instance.layout.y = Math.round(nextY / SNAP) * SNAP;
+  instance.page = projection.page;
+  instance.layout = {
+    ...instance.layout,
+    ...projection.layout
+  };
+  if (projection.gridLayout) {
+    instance.gridLayout = projection.gridLayout;
   }
 
   state.selectedWidgetId = instance.id;
@@ -5931,6 +6477,20 @@ function createWidgetCard(instance) {
     patchWidgetConfigById: (widgetId, patch, options = {}) => patchWidgetConfig(widgetId, patch, options),
     setWidgetContainer: (widgetId, containerId) => setWidgetContainer(widgetId, containerId),
     releaseWidgetFromContainerByDrop: (widgetId, payload) => releaseWidgetFromContainerByDrop(widgetId, payload),
+    reorderWidgetInContainerByIndex: (widgetId, containerId, index, options = {}) =>
+      reorderWidgetInContainerByIndex(widgetId, containerId, index, options),
+    resolveContainerInsertIndexFromPointer: (containerId, clientX, clientY, options = {}) =>
+      resolveContainerInsertIndexFromPointer(containerId, clientX, clientY, options),
+    tryContainerWidgetByDrop: (widget, pointerEvent, options = {}) => tryContainerWidgetByDrop(widget, pointerEvent, options),
+    tryDockWidgetByDrop: (widget, pointerEvent, options = {}) => tryDockWidgetByDrop(widget, pointerEvent, options),
+    projectWidgetBoardDropLayout: (widget, payload = {}, options = {}) =>
+      projectWidgetBoardDropLayout(widget, payload, options),
+    updateCrossSurfaceDropIndicators: (widget, clientX, clientY, options = {}) =>
+      updateCrossSurfaceDropIndicators(widget, clientX, clientY, options),
+    renderBoardViewport,
+    setActiveLauncherPage,
+    currentLauncherActivePage,
+    currentLauncherPageCount,
     registerContainerDropTarget: (containerId, element, options = {}) =>
       registerContainerDropTarget(containerId, element, options),
     unregisterContainerDropTarget: (containerId) => unregisterContainerDropTarget(containerId),
@@ -6557,10 +7117,6 @@ function createWidgetCard(instance) {
         const dy = moveEvent.clientY - lastPointerY;
         lastPointerX = moveEvent.clientX;
         lastPointerY = moveEvent.clientY;
-        const containerDropTargetId = containerDropTargetAtPoint(moveEvent.clientX, moveEvent.clientY, instance);
-        const dockDropActive = !containerDropTargetId && isDockDropPoint(moveEvent.clientX, moveEvent.clientY);
-        setContainerDropTargetActive(containerDropTargetId);
-        setDockDropTargetActive(dockDropActive);
 
         const maxX = Math.max(0, boardRect.width - draft.layout.w);
         const maxY = Math.max(0, boardRect.height - draft.layout.h);
@@ -6580,12 +7136,14 @@ function createWidgetCard(instance) {
 
         updateDraftVisual();
 
-        const shouldShowDropSilhouette = !containerDropTargetId && !dockDropActive;
-        if (shouldShowDropSilhouette) {
-          const projected = projectedGridDropLayout();
-          positionWidgetDropSilhouette(dropSilhouette, projected.layout, draft.page);
-        }
-        setWidgetDropSilhouetteVisible(dropSilhouette, shouldShowDropSilhouette);
+        const projected = projectedGridDropLayout();
+        updateCrossSurfaceDropIndicators(instance, moveEvent.clientX, moveEvent.clientY, {
+          silhouette: dropSilhouette,
+          boardProjection: {
+            page: draft.page,
+            layout: projected.layout
+          }
+        });
       };
 
       const moveRaf = createPointerMoveRaf(({ clientX, clientY }) => {
@@ -6680,10 +7238,6 @@ function createWidgetCard(instance) {
       const dy = moveEvent.clientY - lastPointerY;
       lastPointerX = moveEvent.clientX;
       lastPointerY = moveEvent.clientY;
-      const containerDropTargetId = containerDropTargetAtPoint(moveEvent.clientX, moveEvent.clientY, instance);
-      const dockDropActive = !containerDropTargetId && isDockDropPoint(moveEvent.clientX, moveEvent.clientY);
-      setContainerDropTargetActive(containerDropTargetId);
-      setDockDropTargetActive(dockDropActive);
       const maxX = Math.max(0, boardRect.width - draft.layout.w);
       const maxY = Math.max(0, boardRect.height - draft.layout.h);
 
@@ -6705,11 +7259,13 @@ function createWidgetCard(instance) {
 
       updateDraftVisual();
 
-      const shouldShowDropSilhouette = !containerDropTargetId && !dockDropActive;
-      if (shouldShowDropSilhouette) {
-        positionWidgetDropSilhouette(dropSilhouette, projectedFreeDropLayout(), draft.page);
-      }
-      setWidgetDropSilhouetteVisible(dropSilhouette, shouldShowDropSilhouette);
+      updateCrossSurfaceDropIndicators(instance, moveEvent.clientX, moveEvent.clientY, {
+        silhouette: dropSilhouette,
+        boardProjection: {
+          page: draft.page,
+          layout: projectedFreeDropLayout()
+        }
+      });
     };
 
     const moveRaf = createPointerMoveRaf(({ clientX, clientY }) => {

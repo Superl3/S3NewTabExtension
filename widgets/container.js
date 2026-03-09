@@ -176,6 +176,16 @@ export const containerWidget = {
     registerContainerDropTarget,
     unregisterContainerDropTarget,
     releaseWidgetFromContainerByDrop,
+    reorderWidgetInContainerByIndex,
+    resolveContainerInsertIndexFromPointer,
+    tryContainerWidgetByDrop,
+    tryDockWidgetByDrop,
+    projectWidgetBoardDropLayout,
+    updateCrossSurfaceDropIndicators,
+    renderBoardViewport,
+    setActiveLauncherPage,
+    currentLauncherActivePage,
+    currentLauncherPageCount,
     createDragPreviewSession,
     createWidgetDragPreview,
     positionWidgetDragPreview,
@@ -364,7 +374,10 @@ export const containerWidget = {
     }
 
     function bindDragOut(card, child) {
-      if (typeof releaseWidgetFromContainerByDrop !== "function") {
+      if (
+        typeof releaseWidgetFromContainerByDrop !== "function" ||
+        typeof reorderWidgetInContainerByIndex !== "function"
+      ) {
         return () => {};
       }
 
@@ -409,6 +422,82 @@ export const containerWidget = {
         }
 
         card.classList.add("widget-folder-item-dragging");
+        card.classList.add("widget-drag-active");
+        const sourceCard =
+          typeof getWidgetRuntimeCard === "function"
+            ? getWidgetRuntimeCard(child.id)
+            : document.querySelector(`.widget-card[data-widget-id="${child.id}"]`);
+        sourceCard?.classList.add("widget-drag-active");
+
+        const createDropSilhouette =
+          typeof document !== "undefined" && typeof window !== "undefined"
+            ? () => {
+              const board = document.querySelector(".board");
+              if (!(board instanceof HTMLElement)) {
+                return null;
+              }
+              const silhouette = document.createElement("div");
+              silhouette.className = "widget-drop-silhouette";
+              const source = sourceCard instanceof HTMLElement ? sourceCard : card;
+              const borderRadius = normalizeText(window.getComputedStyle(source).borderRadius);
+              if (borderRadius) {
+                silhouette.style.borderRadius = borderRadius;
+              }
+              board.append(silhouette);
+              return silhouette;
+            }
+            : () => null;
+        const dropSilhouette = createDropSilhouette();
+        let dragReleasePage =
+          typeof currentLauncherActivePage === "function" ? currentLauncherActivePage() : Number(child.page) || 0;
+        const pageSwitchThreshold = 42;
+        const pageSwitchCooldownMs = 190;
+        let lastPageSwitchAt = 0;
+
+        const boardElement = document.querySelector(".board");
+        const edgeDirectionFromPointer = (clientX) => {
+          if (!(boardElement instanceof HTMLElement) || !Number.isFinite(clientX)) {
+            return 0;
+          }
+          const rect = boardElement.getBoundingClientRect();
+          if (rect.width < pageSwitchThreshold * 2) {
+            return 0;
+          }
+          if (clientX <= rect.left + pageSwitchThreshold) {
+            return -1;
+          }
+          if (clientX >= rect.right - pageSwitchThreshold) {
+            return 1;
+          }
+          return 0;
+        };
+
+        const trySwitchPage = (clientX) => {
+          const direction = edgeDirectionFromPointer(clientX);
+          if (!direction) {
+            return false;
+          }
+          const now = performance.now();
+          if (now - lastPageSwitchAt < pageSwitchCooldownMs) {
+            return false;
+          }
+          if (typeof currentLauncherPageCount !== "function") {
+            return false;
+          }
+          const pageCount = currentLauncherPageCount();
+          const nextPage = dragReleasePage + direction;
+          if (nextPage < 0 || nextPage >= pageCount) {
+            return false;
+          }
+          dragReleasePage = nextPage;
+          lastPageSwitchAt = now;
+          if (typeof setActiveLauncherPage === "function") {
+            setActiveLauncherPage(nextPage, { shouldSave: false, animate: false });
+          } else if (typeof renderBoardViewport === "function") {
+            renderBoardViewport({ animate: false, dragging: false, dragOffsetX: 0 });
+          }
+          return true;
+        };
 
         const updateGhost = (clientX, clientY) => {
           if (previewSession) {
@@ -421,6 +510,26 @@ export const containerWidget = {
           }
           const inside = pointInsideRect(clientX, clientY, panel.getBoundingClientRect());
           panel.classList.toggle("is-drag-out-active", !inside);
+
+          if (!inside) {
+            trySwitchPage(clientX);
+          }
+
+          const projection =
+            typeof projectWidgetBoardDropLayout === "function"
+              ? projectWidgetBoardDropLayout(child, {
+                clientX,
+                clientY,
+                page: dragReleasePage
+              })
+              : null;
+
+          if (typeof updateCrossSurfaceDropIndicators === "function") {
+            updateCrossSurfaceDropIndicators(child, clientX, clientY, {
+              silhouette: dropSilhouette,
+              boardProjection: projection
+            });
+          }
         };
 
         let queuedMove = null;
@@ -460,19 +569,54 @@ export const containerWidget = {
 
           panel.classList.remove("is-drag-out-active");
           card.classList.remove("widget-folder-item-dragging");
+          card.classList.remove("widget-drag-active");
+          sourceCard?.classList.remove("widget-drag-active");
+          dropSilhouette?.classList.remove("is-visible");
+          dropSilhouette?.remove();
           if (previewSession) {
             previewSession.dispose();
           } else {
             ghost.remove();
           }
 
-          if (!cancelled && !inside) {
-            releaseWidgetFromContainerByDrop(child.id, {
-              sourceContainerId: folder.id,
-              clientX: dropX,
-              clientY: dropY
+          if (typeof updateCrossSurfaceDropIndicators === "function") {
+            updateCrossSurfaceDropIndicators(child, Number.NaN, Number.NaN, {
+              silhouette: null,
+              boardProjection: null
             });
           }
+
+          if (cancelled) {
+            return;
+          }
+
+          if (inside) {
+            const insertIndex =
+              typeof resolveContainerInsertIndexFromPointer === "function"
+                ? resolveContainerInsertIndexFromPointer(folder.id, dropX, dropY, {
+                  excludeWidgetId: child.id,
+                  panelElement: panelBody
+                })
+                : 0;
+            reorderWidgetInContainerByIndex(child.id, folder.id, insertIndex);
+            return;
+          }
+
+          const dropEvent = {
+            clientX: dropX,
+            clientY: dropY
+          };
+
+          if (typeof tryContainerWidgetByDrop === "function" && tryContainerWidgetByDrop(child, dropEvent, { record: true })) {
+            return;
+          }
+
+          releaseWidgetFromContainerByDrop(child.id, {
+            sourceContainerId: folder.id,
+            clientX: dropX,
+            clientY: dropY,
+            page: dragReleasePage
+          });
         };
 
         if (typeof startPointerDragSession === "function") {
@@ -571,6 +715,16 @@ export const containerWidget = {
         registerContainerDropTarget,
         unregisterContainerDropTarget,
         releaseWidgetFromContainerByDrop,
+        reorderWidgetInContainerByIndex,
+        resolveContainerInsertIndexFromPointer,
+        tryContainerWidgetByDrop,
+        tryDockWidgetByDrop,
+        projectWidgetBoardDropLayout,
+        updateCrossSurfaceDropIndicators,
+        renderBoardViewport,
+        setActiveLauncherPage,
+        currentLauncherActivePage,
+        currentLauncherPageCount,
         startPointerDragSession,
         isEditMode,
         openSettings: () => {
