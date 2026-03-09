@@ -350,6 +350,102 @@ body.mode-edit .add-widget-fab:hover {
   stroke-width: 2.2;
 }
 
+.drag-delete-zone {
+  position: fixed;
+  left: 50%;
+  top: 12px;
+  width: 62px;
+  height: 62px;
+  border: 1px solid color-mix(in srgb, var(--warn), var(--tone-dark) 28%);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--warn), var(--tone-dark) 8%);
+  color: color-mix(in srgb, var(--tone-light), var(--warn) 10%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 14px 30px color-mix(in srgb, var(--warn), transparent 66%);
+  transform: translate3d(-50%, -14px, 0) scale(0.9);
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    opacity 0.16s ease,
+    transform 0.18s cubic-bezier(0.2, 0.72, 0, 1),
+    box-shadow 0.18s ease,
+    background 0.18s ease,
+    border-color 0.18s ease;
+  z-index: 8980;
+}
+
+.drag-delete-zone.is-active {
+  opacity: 0.94;
+  transform: translate3d(-50%, 0, 0) scale(1);
+}
+
+.drag-delete-zone.is-hover {
+  background: color-mix(in srgb, var(--warn), var(--tone-dark) 2%);
+  border-color: color-mix(in srgb, var(--warn), var(--tone-dark) 12%);
+  box-shadow: 0 18px 34px color-mix(in srgb, var(--warn), transparent 54%);
+  transform: translate3d(-50%, 0, 0) scale(1.08);
+}
+
+.drag-delete-zone .icon {
+  width: 28px;
+  height: 28px;
+  stroke-width: 2.7;
+}
+
+.board-context-menu {
+  position: fixed;
+  min-width: 176px;
+  padding: 6px;
+  border: 1px solid color-mix(in srgb, var(--line), transparent 10%);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--surface), transparent 2%);
+  box-shadow: 0 16px 34px var(--shadow-strong);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transform: translate3d(0, 6px, 0) scale(0.98);
+  transition: opacity 0.14s ease, transform 0.14s ease, visibility 0.14s ease;
+  z-index: 1800;
+}
+
+.board-context-menu.open {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transform: translate3d(0, 0, 0) scale(1);
+}
+
+.board-context-menu-item {
+  width: 100%;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+}
+
+.board-context-menu-item .icon {
+  width: 16px;
+  height: 16px;
+  stroke-width: 2.2;
+}
+
+.board-context-menu-item:hover,
+.board-context-menu-item:focus-visible {
+  background: color-mix(in srgb, var(--accent), transparent 86%);
+  outline: none;
+}
+
 .dock-edit-controls {
   display: none;
   align-items: center;
