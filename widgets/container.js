@@ -423,9 +423,37 @@ export const containerWidget = {
           panel.classList.toggle("is-drag-out-active", !inside);
         };
 
+        let queuedMove = null;
+        let moveRafId = 0;
+
+        const flushQueuedMove = () => {
+          if (!queuedMove) {
+            return;
+          }
+          const payload = queuedMove;
+          queuedMove = null;
+          updateGhost(payload.clientX, payload.clientY);
+        };
+
+        const scheduleGhostMove = (clientX, clientY) => {
+          queuedMove = { clientX, clientY };
+          if (moveRafId) {
+            return;
+          }
+          moveRafId = requestAnimationFrame(() => {
+            moveRafId = 0;
+            flushQueuedMove();
+          });
+        };
+
         updateGhost(event.clientX, event.clientY);
 
         const finish = (endEvent, { cancelled = false } = {}) => {
+          if (moveRafId) {
+            cancelAnimationFrame(moveRafId);
+            moveRafId = 0;
+          }
+          flushQueuedMove();
           const dropX = Number.isFinite(endEvent?.clientX) ? endEvent.clientX : event.clientX;
           const dropY = Number.isFinite(endEvent?.clientY) ? endEvent.clientY : event.clientY;
           const inside = pointInsideRect(dropX, dropY, panel.getBoundingClientRect());
@@ -452,7 +480,7 @@ export const containerWidget = {
             sourceEvent: event,
             captureTarget: card,
             onMove: (moveEvent) => {
-              updateGhost(moveEvent.clientX, moveEvent.clientY);
+              scheduleGhostMove(moveEvent.clientX, moveEvent.clientY);
             },
             onEnd: (endEvent, details = {}) => {
               finish(endEvent, details);
