@@ -6416,17 +6416,21 @@ function reorderWidgetInContainerByIndex(
 }
 
 function projectWidgetBoardDropLayout(instance, payload = {}, { pageFallback = null } = {}) {
-  const boardRect = elements.board?.getBoundingClientRect();
-  if (!instance || !boardRect) {
+  const viewportRect = getLauncherViewportRect();
+  const board = elements.board;
+  if (!instance || !viewportRect || !(board instanceof HTMLElement)) {
     return null;
   }
+
+  const boardWidth = Math.max(1, Math.floor(board.clientWidth || viewportRect.width));
+  const boardHeight = Math.max(1, Math.floor(board.clientHeight || viewportRect.height));
 
   const pageCount = currentLauncherPageCount();
   const activePage = currentLauncherActivePage();
   const defaultPage = Number.isFinite(pageFallback) ? pageFallback : activePage;
   const page = normalizeWidgetPage(payload?.page, pageCount, defaultPage);
-  const pointerX = Number.isFinite(payload?.clientX) ? payload.clientX : boardRect.left + boardRect.width / 2;
-  const pointerY = Number.isFinite(payload?.clientY) ? payload.clientY : boardRect.top + boardRect.height / 2;
+  const pointerX = Number.isFinite(payload?.clientX) ? payload.clientX : viewportRect.left + boardWidth / 2;
+  const pointerY = Number.isFinite(payload?.clientY) ? payload.clientY : viewportRect.top + boardHeight / 2;
 
   if (isGridLayoutMode()) {
     const metrics = gridMetrics();
@@ -6442,8 +6446,8 @@ function projectWidgetBoardDropLayout(instance, payload = {}, { pageFallback = n
     const spanHeight = metrics.cellH * grid.rowSpan + metrics.gapY * (grid.rowSpan - 1);
     const stepX = Math.max(1, metrics.cellW + metrics.gapX);
     const stepY = Math.max(1, metrics.cellH + metrics.gapY);
-    const localX = clamp(pointerX - boardRect.left - spanWidth / 2, 0, Math.max(0, boardRect.width - spanWidth));
-    const localY = clamp(pointerY - boardRect.top - spanHeight / 2, 0, Math.max(0, boardRect.height - spanHeight));
+    const localX = clamp(pointerX - viewportRect.left - spanWidth / 2, 0, Math.max(0, boardWidth - spanWidth));
+    const localY = clamp(pointerY - viewportRect.top - spanHeight / 2, 0, Math.max(0, boardHeight - spanHeight));
 
     grid.col = clamp(Math.round((localX - metrics.marginX) / stepX), 0, Math.max(0, metrics.cols - grid.colSpan));
     grid.row = clamp(Math.round((localY - metrics.marginY) / stepY), 0, Math.max(0, metrics.rows - grid.rowSpan));
@@ -6460,14 +6464,14 @@ function projectWidgetBoardDropLayout(instance, payload = {}, { pageFallback = n
     };
   }
 
-  const maxW = Math.max(80, Math.floor(boardRect.width));
-  const maxH = Math.max(80, Math.floor(boardRect.height));
+  const maxW = Math.max(80, boardWidth);
+  const maxH = Math.max(80, boardHeight);
   const width = clamp(Number(instance.layout.w) || 320, 80, maxW);
   const height = clamp(Number(instance.layout.h) || 220, 80, maxH);
-  const maxX = Math.max(0, boardRect.width - width);
-  const maxY = Math.max(0, boardRect.height - height);
-  const nextX = clamp(pointerX - boardRect.left - width / 2, 0, maxX);
-  const nextY = clamp(pointerY - boardRect.top - height / 2, 0, maxY);
+  const maxX = Math.max(0, boardWidth - width);
+  const maxY = Math.max(0, boardHeight - height);
+  const nextX = clamp(pointerX - viewportRect.left - width / 2, 0, maxX);
+  const nextY = clamp(pointerY - viewportRect.top - height / 2, 0, maxY);
 
   return {
     page,
@@ -7464,6 +7468,32 @@ function createWidgetCard(instance) {
     const boardRect = elements.board.getBoundingClientRect();
     let lastPointerX = dragStartX;
     let lastPointerY = dragStartY;
+
+    const placeDraftAtPointerInCurrentViewport = (clientX, clientY, { commit = false } = {}) => {
+      const viewportRect = getLauncherViewportRect();
+      if (!viewportRect || !Number.isFinite(clientX) || !Number.isFinite(clientY)) {
+        return;
+      }
+      const maxLocalX = Math.max(0, boardRect.width - instance.layout.w);
+      const maxLocalY = Math.max(0, boardRect.height - instance.layout.h);
+      const nextX = clamp(clientX - viewportRect.left - instance.layout.w / 2, 0, maxLocalX);
+      const nextY = clamp(clientY - viewportRect.top - instance.layout.h / 2, 0, maxLocalY);
+      if (commit) {
+        patchWidgetLayout(instance.id, {
+          x: nextX,
+          y: nextY
+        }, { record: false });
+        const rt = runtime.get(instance.id);
+        if (rt?.card) {
+          applyLayout(rt.card, instance.layout, instance.page);
+        }
+      } else {
+        instance.layout.x = nextX;
+        instance.layout.y = nextY;
+      }
+      lastPointerX = clientX;
+      lastPointerY = clientY;
+    };
     if (isGridLayoutMode()) {
       recordHistorySnapshot("Move widget");
       const metrics = gridMetrics();
@@ -7520,13 +7550,8 @@ function createWidgetCard(instance) {
         instance.layout.y = clamp(instance.layout.y + dy, 0, maxY);
 
         const direction = edgeDirectionFromPointer(moveEvent.clientX);
-        schedulePageSwitch(direction, moveEvent, (switchDirection) => {
-          const edgeInset = clamp(Math.round(instance.layout.w * 0.18), 16, 64);
-          const maxLocalX = Math.max(0, boardRect.width - instance.layout.w);
-          const nextLocalX = switchDirection > 0 ? edgeInset : maxLocalX - edgeInset;
-          instance.layout.x = clamp(nextLocalX, 0, maxLocalX);
-          lastPointerX = moveEvent.clientX;
-          lastPointerY = moveEvent.clientY;
+        schedulePageSwitch(direction, moveEvent, () => {
+          placeDraftAtPointerInCurrentViewport(moveEvent.clientX, moveEvent.clientY);
         });
 
         const projected = projectedGridDropLayout();
@@ -7601,19 +7626,8 @@ function createWidgetCard(instance) {
       }, { record: false });
 
       const direction = edgeDirectionFromPointer(moveEvent.clientX);
-      schedulePageSwitch(direction, moveEvent, (switchDirection) => {
-        const edgeInset = clamp(Math.round(instance.layout.w * 0.18), 16, 64);
-        const maxLocalX = Math.max(0, boardRect.width - instance.layout.w);
-        const nextLocalX = switchDirection > 0 ? edgeInset : maxLocalX - edgeInset;
-        patchWidgetLayout(instance.id, {
-          x: clamp(nextLocalX, 0, maxLocalX)
-        }, { record: false });
-        const rt = runtime.get(instance.id);
-        if (rt?.card) {
-          applyLayout(rt.card, instance.layout, instance.page);
-        }
-        lastPointerX = moveEvent.clientX;
-        lastPointerY = moveEvent.clientY;
+      schedulePageSwitch(direction, moveEvent, () => {
+        placeDraftAtPointerInCurrentViewport(moveEvent.clientX, moveEvent.clientY, { commit: true });
       });
 
       updateWidgetDragGuideAtPointer(instance, moveEvent.clientX, moveEvent.clientY, {
