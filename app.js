@@ -5583,10 +5583,12 @@ function renderDockWidgets() {
       }
 
       card.classList.add("dock-widget-item-dragging");
+      card.classList.add("widget-drag-origin-hidden");
       card.style.animation = "widget-drag-jiggle 340ms cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite";
       card.style.transformOrigin = "50% 0%";
       const sourceCard = runtime.get(item.id)?.card;
       sourceCard?.classList.add("widget-drag-active");
+      sourceCard?.classList.add("widget-drag-origin-hidden");
 
       const dropSilhouette = createWidgetDropSilhouette(sourceCard || card);
 
@@ -5698,9 +5700,11 @@ function renderDockWidgets() {
         dropSilhouette?.remove();
         card.classList.remove("dock-widget-item-dragging");
         card.classList.remove("widget-drag-active");
+        card.classList.remove("widget-drag-origin-hidden");
         card.style.removeProperty("animation");
         card.style.removeProperty("transform-origin");
         sourceCard?.classList.remove("widget-drag-active");
+        sourceCard?.classList.remove("widget-drag-origin-hidden");
         previewSession.dispose();
 
         if (insideDock) {
