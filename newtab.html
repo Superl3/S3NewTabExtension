@@ -138,6 +138,9 @@
 
       <main class="workspace">
         <section id="board" class="board" aria-label="Widget board"></section>
+        <div id="dragDeleteZone" class="drag-delete-zone" aria-hidden="true">
+          <svg class="icon"><use href="#i-close"></use></svg>
+        </div>
         <section id="persistentDock" class="persistent-dock" aria-label="Persistent dock" data-no-page-swipe>
           <div class="persistent-dock-body">
             <div id="dockWidgetStrip" class="dock-widget-strip" role="toolbar" aria-label="Dock widgets"></div>
@@ -173,6 +176,13 @@
         <button id="addWidgetBtn" class="add-widget-fab" type="button" title="Add widget" aria-label="Add widget">
           <svg class="icon"><use href="#i-plus"></use></svg>
         </button>
+
+        <div id="boardContextMenu" class="board-context-menu" role="menu" aria-label="Board menu" aria-hidden="true">
+          <button id="boardContextAddWidgetBtn" class="board-context-menu-item" type="button" role="menuitem">
+            <svg class="icon"><use href="#i-plus"></use></svg>
+            <span>Add widget</span>
+          </button>
+        </div>
 
         <div class="corner-controls-bottom" aria-label="Wallpaper refresh control">
           <button

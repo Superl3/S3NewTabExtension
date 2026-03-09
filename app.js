@@ -127,6 +127,9 @@ const elements = {
   dockSettingsModalCancelBtn: document.getElementById("dockSettingsModalCancelBtn"),
   dockSettingsModalOkBtn: document.getElementById("dockSettingsModalOkBtn"),
   dockSettingsModalDefaultBtn: document.getElementById("dockSettingsModalDefaultBtn"),
+  dragDeleteZone: document.getElementById("dragDeleteZone"),
+  boardContextMenu: document.getElementById("boardContextMenu"),
+  boardContextAddWidgetBtn: document.getElementById("boardContextAddWidgetBtn"),
   workspace: document.querySelector(".workspace"),
   editDock: document.querySelector(".edit-dock"),
   editDockGrip: document.getElementById("editDockGrip")
@@ -205,6 +208,15 @@ const dockEmbeddedUiState = {
 const containerDropUiState = {
   targets: new Map(),
   activeId: ""
+};
+const dragDeleteUiState = {
+  active: false,
+  hovering: false
+};
+const boardContextMenuState = {
+  open: false,
+  anchorX: 0,
+  anchorY: 0
 };
 const shortcutIconEditorState = {
   open: false,
@@ -2434,6 +2446,8 @@ function setBodyMode() {
   document.body.classList.toggle("mode-edit", isEdit);
   document.body.classList.toggle("layout-grid", state.ui.home.mode === "grid");
   document.body.classList.toggle("layout-free", state.ui.home.mode === "free");
+  closeBoardContextMenu();
+  setDragDeleteZoneActive(false);
 
   const label = elements.modeToggleBtn.querySelector(".btn-label");
   if (label) {
@@ -2548,6 +2562,96 @@ function isInsideDockSettingsModalOverlay(target) {
 
 function isInsideWidgetTitleRenameOverlay(target) {
   return target instanceof Element && Boolean(target.closest("#widgetTitleRenameOverlay"));
+}
+
+function isInsideBoardContextMenu(target) {
+  return target instanceof Element && Boolean(target.closest("#boardContextMenu"));
+}
+
+function closeBoardContextMenu() {
+  if (!boardContextMenuState.open) {
+    return;
+  }
+  boardContextMenuState.open = false;
+  elements.boardContextMenu?.classList.remove("open");
+  elements.boardContextMenu?.setAttribute("aria-hidden", "true");
+}
+
+function positionBoardContextMenu(clientX, clientY) {
+  const menu = elements.boardContextMenu;
+  if (!(menu instanceof HTMLElement)) {
+    return;
+  }
+
+  const margin = 8;
+  const width = Math.max(1, Math.round(menu.offsetWidth || 0));
+  const height = Math.max(1, Math.round(menu.offsetHeight || 0));
+  const maxLeft = Math.max(margin, window.innerWidth - width - margin);
+  const maxTop = Math.max(margin, window.innerHeight - height - margin);
+  const left = clamp(Math.round(clientX), margin, maxLeft);
+  const top = clamp(Math.round(clientY), margin, maxTop);
+
+  menu.style.left = `${left}px`;
+  menu.style.top = `${top}px`;
+}
+
+function canOpenBoardContextMenuFromTarget(target) {
+  if (!(target instanceof Element)) {
+    return false;
+  }
+  if (!target.closest(".workspace")) {
+    return false;
+  }
+
+  const blockedSelector = [
+    ".widget-card",
+    ".widget-folder-panel",
+    ".widget-folder-item-card",
+    ".widget-modal-overlay",
+    ".settings-panel",
+    ".settings-panel-backdrop",
+    ".persistent-dock",
+    ".corner-controls",
+    ".corner-controls-bottom",
+    ".add-widget-fab",
+    ".edit-dock",
+    ".drag-delete-zone",
+    ".board-context-menu"
+  ].join(",");
+
+  return !target.closest(blockedSelector);
+}
+
+function openBoardContextMenu(clientX, clientY) {
+  if (
+    modalState.open ||
+    addWidgetModalOpen ||
+    shortcutIconEditorState.open ||
+    dockSettingsModalOpen ||
+    widgetTitleRenameState.open ||
+    dragDeleteUiState.active
+  ) {
+    return false;
+  }
+
+  const menu = elements.boardContextMenu;
+  if (!(menu instanceof HTMLElement)) {
+    return false;
+  }
+
+  boardContextMenuState.open = true;
+  boardContextMenuState.anchorX = Math.round(clientX);
+  boardContextMenuState.anchorY = Math.round(clientY);
+  menu.classList.add("open");
+  menu.setAttribute("aria-hidden", "false");
+  positionBoardContextMenu(boardContextMenuState.anchorX, boardContextMenuState.anchorY);
+  requestAnimationFrame(() => {
+    if (!boardContextMenuState.open) {
+      return;
+    }
+    positionBoardContextMenu(boardContextMenuState.anchorX, boardContextMenuState.anchorY);
+  });
+  return true;
 }
 
 function dockSettingsFields() {
@@ -4016,6 +4120,7 @@ function syncAddWidgetSizeInputs() {
 }
 
 function openAddWidgetModal() {
+  closeBoardContextMenu();
   if (state.mode !== "edit") {
     return;
   }
@@ -4228,6 +4333,39 @@ function pointInsideRect(x, y, rect) {
     return false;
   }
   return x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom;
+}
+
+function setDragDeleteZoneHover(hovering) {
+  const next = Boolean(hovering);
+  dragDeleteUiState.hovering = next;
+  elements.dragDeleteZone?.classList.toggle("is-hover", next);
+}
+
+function setDragDeleteZoneActive(active) {
+  const next = Boolean(active);
+  dragDeleteUiState.active = next;
+  elements.dragDeleteZone?.classList.toggle("is-active", next);
+  elements.dragDeleteZone?.setAttribute("aria-hidden", String(!next));
+  if (!next) {
+    setDragDeleteZoneHover(false);
+  }
+}
+
+function isPointOverDragDeleteZone(clientX, clientY) {
+  if (!dragDeleteUiState.active || !Number.isFinite(clientX) || !Number.isFinite(clientY)) {
+    return false;
+  }
+  const zone = elements.dragDeleteZone;
+  if (!(zone instanceof HTMLElement)) {
+    return false;
+  }
+  return pointInsideRect(clientX, clientY, zone.getBoundingClientRect());
+}
+
+function updateDragDeleteZoneHover(clientX, clientY) {
+  const hovering = isPointOverDragDeleteZone(clientX, clientY);
+  setDragDeleteZoneHover(hovering);
+  return hovering;
 }
 
 function getPersistentDockHitRect() {
@@ -5162,6 +5300,7 @@ function renderDockWidgets() {
 
       event.preventDefault();
       event.stopPropagation();
+      closeBoardContextMenu();
 
       const dockRect = getPersistentDockHitRect();
       if (!dockRect) {
@@ -5187,9 +5326,11 @@ function renderDockWidgets() {
       sourceCard?.classList.add("widget-drag-origin-hidden");
 
       const dropSilhouette = createWidgetDropSilhouette(sourceCard || card);
+      setDragDeleteZoneActive(true);
 
       let lastPointerX = event.clientX;
       let lastPointerY = event.clientY;
+      updateDragDeleteZoneHover(lastPointerX, lastPointerY);
       const pageSwitchThreshold = 42;
       const pageSwitchHoldMs = 280;
       const pageSwitchCooldownMs = 190;
@@ -5291,9 +5432,11 @@ function renderDockWidgets() {
           clientY,
           page: dragReleasePage
         });
+        const deleteHovering = updateDragDeleteZoneHover(clientX, clientY);
         updateCrossSurfaceDropIndicators(item, clientX, clientY, {
           silhouette: dropSilhouette,
-          boardProjection: projection
+          boardProjection: projection,
+          suppressSurfaceTargets: deleteHovering
         });
       };
 
@@ -5321,12 +5464,14 @@ function renderDockWidgets() {
           const dropX = Number.isFinite(endEvent?.clientX) ? endEvent.clientX : lastPointerX;
           const dropY = Number.isFinite(endEvent?.clientY) ? endEvent.clientY : lastPointerY;
           const inside = pointInsideRect(dropX, dropY, dockRect);
+          const droppedOnDeleteZone = isPointOverDragDeleteZone(dropX, dropY);
 
           elements.persistentDock?.classList.remove("is-drag-out-active");
           setDockDropTargetActive(false);
           setContainerDropTargetActive("");
           setWidgetDropSilhouetteVisible(dropSilhouette, false);
           dropSilhouette?.remove();
+          setDragDeleteZoneActive(false);
           card.classList.remove("dock-widget-item-dragging");
           card.classList.remove("widget-drag-origin-hidden");
           card.style.removeProperty("animation");
@@ -5336,6 +5481,12 @@ function renderDockWidgets() {
           previewSession.dispose();
 
           if (cancelled) {
+            return;
+          }
+
+          if (droppedOnDeleteZone) {
+            lastDragEndAt = Date.now();
+            removeWidget(item.id);
             return;
           }
 
@@ -6124,7 +6275,27 @@ function projectContainerSilhouetteLayoutFromPointer(containerId, clientX, clien
   return viewportRectToBoardLayout(anchor.getBoundingClientRect());
 }
 
-function updateCrossSurfaceDropIndicators(instance, clientX, clientY, { silhouette = null, boardProjection = null } = {}) {
+function updateCrossSurfaceDropIndicators(
+  instance,
+  clientX,
+  clientY,
+  {
+    silhouette = null,
+    boardProjection = null,
+    suppressSurfaceTargets = false
+  } = {}
+) {
+  if (suppressSurfaceTargets) {
+    setContainerDropTargetActive("");
+    setDockDropTargetActive(false);
+    setWidgetDropSilhouetteVisible(silhouette, false);
+    return {
+      containerDropTargetId: "",
+      dockDropActive: false,
+      showBoardSilhouette: false
+    };
+  }
+
   const containerDropTargetId = containerDropTargetAtPoint(clientX, clientY, instance);
   const dockDropActive = !containerDropTargetId && isDockDropPoint(clientX, clientY);
   setContainerDropTargetActive(containerDropTargetId);
@@ -7035,6 +7206,7 @@ function createWidgetCard(instance) {
 
     event?.stopPropagation();
     event?.preventDefault();
+    closeBoardContextMenu();
 
     if (state.mode === "edit") {
       setSelected(instance.id);
@@ -7066,6 +7238,8 @@ function createWidgetCard(instance) {
     }
 
     const dropSilhouette = createWidgetDropSilhouette(card);
+    setDragDeleteZoneActive(true);
+    updateDragDeleteZoneHover(dragStartX, dragStartY);
     previewSession.update(dragStartX, dragStartY);
 
     const initialLayout = cloneLayout(instance.layout);
@@ -7188,6 +7362,7 @@ function createWidgetCard(instance) {
       resetPendingPageSwitch();
       setDockDropTargetActive(false);
       setContainerDropTargetActive("");
+      setDragDeleteZoneActive(false);
       card.classList.remove("longpress-drag-armed");
       card.classList.remove("widget-drag-active");
       card.classList.remove("widget-drag-origin-hidden");
@@ -7275,12 +7450,14 @@ function createWidgetCard(instance) {
         });
 
         const projected = projectedGridDropLayout();
+        const deleteHovering = updateDragDeleteZoneHover(moveEvent.clientX, moveEvent.clientY);
         updateCrossSurfaceDropIndicators(instance, moveEvent.clientX, moveEvent.clientY, {
           silhouette: dropSilhouette,
           boardProjection: {
             page: draft.page,
             layout: projected.layout
-          }
+          },
+          suppressSurfaceTargets: deleteHovering
         });
       };
 
@@ -7303,6 +7480,10 @@ function createWidgetCard(instance) {
           } else {
             moveRaf.flush();
           }
+
+          const dropX = Number.isFinite(endEvent?.clientX) ? endEvent.clientX : lastPointerX;
+          const dropY = Number.isFinite(endEvent?.clientY) ? endEvent.clientY : lastPointerY;
+          const droppedOnDeleteZone = isPointOverDragDeleteZone(dropX, dropY);
           endDragVisuals();
 
           if (cancelled) {
@@ -7310,8 +7491,11 @@ function createWidgetCard(instance) {
             return;
           }
 
-          const dropX = Number.isFinite(endEvent?.clientX) ? endEvent.clientX : lastPointerX;
-          const dropY = Number.isFinite(endEvent?.clientY) ? endEvent.clientY : lastPointerY;
+          if (droppedOnDeleteZone) {
+            removeWidget(instance.id);
+            return;
+          }
+
           const dropEvent = {
             clientX: dropX,
             clientY: dropY
@@ -7353,7 +7537,7 @@ function createWidgetCard(instance) {
 
       const projected = projectedGridDropLayout();
       positionWidgetDropSilhouette(dropSilhouette, projected.layout, draft.page);
-      setWidgetDropSilhouetteVisible(dropSilhouette, true);
+      setWidgetDropSilhouetteVisible(dropSilhouette, !dragDeleteUiState.hovering);
       return true;
     }
 
@@ -7388,12 +7572,14 @@ function createWidgetCard(instance) {
         placeDraftAtPointerInCurrentViewport(moveEvent.clientX, moveEvent.clientY);
       });
 
+      const deleteHovering = updateDragDeleteZoneHover(moveEvent.clientX, moveEvent.clientY);
       updateCrossSurfaceDropIndicators(instance, moveEvent.clientX, moveEvent.clientY, {
         silhouette: dropSilhouette,
         boardProjection: {
           page: draft.page,
           layout: projectedFreeDropLayout()
-        }
+        },
+        suppressSurfaceTargets: deleteHovering
       });
     };
 
@@ -7416,6 +7602,10 @@ function createWidgetCard(instance) {
         } else {
           moveRaf.flush();
         }
+
+        const dropX = Number.isFinite(endEvent?.clientX) ? endEvent.clientX : lastPointerX;
+        const dropY = Number.isFinite(endEvent?.clientY) ? endEvent.clientY : lastPointerY;
+        const droppedOnDeleteZone = isPointOverDragDeleteZone(dropX, dropY);
         endDragVisuals();
 
         if (cancelled) {
@@ -7423,8 +7613,11 @@ function createWidgetCard(instance) {
           return;
         }
 
-        const dropX = Number.isFinite(endEvent?.clientX) ? endEvent.clientX : lastPointerX;
-        const dropY = Number.isFinite(endEvent?.clientY) ? endEvent.clientY : lastPointerY;
+        if (droppedOnDeleteZone) {
+          removeWidget(instance.id);
+          return;
+        }
+
         const dropEvent = {
           clientX: dropX,
           clientY: dropY
@@ -7472,7 +7665,7 @@ function createWidgetCard(instance) {
     });
 
     positionWidgetDropSilhouette(dropSilhouette, projectedFreeDropLayout(), draft.page);
-    setWidgetDropSilhouetteVisible(dropSilhouette, true);
+    setWidgetDropSilhouetteVisible(dropSilhouette, !dragDeleteUiState.hovering);
     return true;
   };
 
@@ -9547,7 +9740,9 @@ function canStartBoardSwipeFromTarget(target) {
     ".corner-controls",
     ".add-widget-fab",
     ".edit-dock",
-    ".persistent-dock"
+    ".persistent-dock",
+    ".board-context-menu",
+    ".drag-delete-zone"
   ].join(",");
 
   if (target.closest(blockedZones)) {
@@ -9831,6 +10026,22 @@ function wireEvents() {
     openAddWidgetModal();
   });
 
+  elements.boardContextAddWidgetBtn?.addEventListener("click", () => {
+    closeBoardContextMenu();
+    if (state.mode !== "edit") {
+      state.mode = "edit";
+      setBodyMode();
+      setSelected(state.selectedWidgetId);
+      refreshAllWidgets();
+      updateBoardBounds();
+      requestAnimationFrame(() => {
+        updateBoardBounds();
+      });
+      queueSave();
+    }
+    openAddWidgetModal();
+  });
+
   elements.addWidgetModalCloseBtn?.addEventListener("click", () => {
     closeAddWidgetModal();
   });
@@ -9869,6 +10080,7 @@ function wireEvents() {
   });
 
   window.addEventListener("resize", () => {
+    closeBoardContextMenu();
     if (elements.editDock?.classList.contains("is-positioned")) {
       const left = Number.parseFloat(elements.editDock.style.left) || 0;
       const top = Number.parseFloat(elements.editDock.style.top) || 0;
@@ -9876,6 +10088,10 @@ function wireEvents() {
     }
     updateBoardBounds();
     syncPersistentDock();
+  });
+
+  window.addEventListener("blur", () => {
+    closeBoardContextMenu();
   });
 
   elements.widgetModalCloseBtn?.addEventListener("click", () => {
@@ -10029,6 +10245,19 @@ function wireEvents() {
     modalState.dismissStartedOnOverlay = false;
   });
 
+  document.addEventListener(
+    "pointerdown",
+    (event) => {
+      if (!boardContextMenuState.open) {
+        return;
+      }
+      if (isInsideBoardContextMenu(event.target)) {
+        return;
+      }
+      closeBoardContextMenu();
+    },
+    true
+  );
   document.addEventListener("pointerdown", blockOutsideModalEvent, true);
   document.addEventListener("wheel", blockOutsideModalEvent, { capture: true, passive: false });
   document.addEventListener("touchmove", blockOutsideModalEvent, { capture: true, passive: false });
@@ -10045,6 +10274,12 @@ function wireEvents() {
   document.addEventListener(
     "contextmenu",
     (event) => {
+      const opened = canOpenBoardContextMenuFromTarget(event.target)
+        ? openBoardContextMenu(event.clientX, event.clientY)
+        : false;
+      if (!opened) {
+        closeBoardContextMenu();
+      }
       event.preventDefault();
     },
     true
@@ -10083,6 +10318,14 @@ function wireEvents() {
         undoLastChange();
       } else {
         redoLastChange();
+      }
+      return;
+    }
+
+    if (boardContextMenuState.open) {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        closeBoardContextMenu();
       }
       return;
     }
