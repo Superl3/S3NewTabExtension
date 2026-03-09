@@ -440,6 +440,8 @@ export const containerWidget = {
               }
               const silhouette = document.createElement("div");
               silhouette.className = "widget-drop-silhouette";
+              silhouette.style.position = "fixed";
+              silhouette.style.zIndex = "8990";
               const source = sourceCard instanceof HTMLElement ? sourceCard : card;
               const borderRadius = normalizeText(window.getComputedStyle(source).borderRadius);
               if (borderRadius) {
@@ -450,6 +452,8 @@ export const containerWidget = {
             }
             : () => null;
         const dropSilhouette = createDropSilhouette();
+        let lastPointerX = event.clientX;
+        let lastPointerY = event.clientY;
         let dragReleasePage =
           typeof currentLauncherActivePage === "function" ? currentLauncherActivePage() : Number(child.page) || 0;
         const pageSwitchThreshold = 42;
@@ -458,6 +462,7 @@ export const containerWidget = {
         let lastPageSwitchAt = 0;
         let pendingPageSwitchDirection = 0;
         let pendingPageSwitchSince = 0;
+        let pendingPageSwitchTimer = 0;
 
         const boardElement = document.querySelector(".board");
         const edgeDirectionFromPointer = (clientX) => {
@@ -480,41 +485,33 @@ export const containerWidget = {
         const resetPendingPageSwitch = () => {
           pendingPageSwitchDirection = 0;
           pendingPageSwitchSince = 0;
+          if (pendingPageSwitchTimer) {
+            window.clearTimeout(pendingPageSwitchTimer);
+            pendingPageSwitchTimer = 0;
+          }
         };
 
-        const trySwitchPage = (clientX) => {
-          const direction = edgeDirectionFromPointer(clientX);
+        const commitPageSwitch = (direction) => {
           if (!direction) {
-            resetPendingPageSwitch();
             return false;
           }
 
           const now = performance.now();
-          if (direction !== pendingPageSwitchDirection) {
-            pendingPageSwitchDirection = direction;
-            pendingPageSwitchSince = now;
-            return false;
-          }
-
-          if (now - pendingPageSwitchSince < pageSwitchHoldMs) {
-            return false;
-          }
-
           if (now - lastPageSwitchAt < pageSwitchCooldownMs) {
             return false;
           }
           if (typeof currentLauncherPageCount !== "function") {
             return false;
           }
+
           const pageCount = currentLauncherPageCount();
           const nextPage = dragReleasePage + direction;
           if (nextPage < 0 || nextPage >= pageCount) {
-            resetPendingPageSwitch();
             return false;
           }
+
           dragReleasePage = nextPage;
           lastPageSwitchAt = now;
-          pendingPageSwitchSince = now;
           if (typeof setActiveLauncherPage === "function") {
             setActiveLauncherPage(nextPage, { shouldSave: false, animate: true });
           } else if (typeof renderBoardViewport === "function") {
@@ -523,7 +520,43 @@ export const containerWidget = {
           return true;
         };
 
+        const schedulePageSwitch = () => {
+          const direction = edgeDirectionFromPointer(lastPointerX);
+          if (!direction) {
+            resetPendingPageSwitch();
+            return false;
+          }
+
+          if (direction === pendingPageSwitchDirection && pendingPageSwitchTimer) {
+            return false;
+          }
+
+          resetPendingPageSwitch();
+          pendingPageSwitchDirection = direction;
+          pendingPageSwitchSince = performance.now();
+          pendingPageSwitchTimer = window.setTimeout(() => {
+            pendingPageSwitchTimer = 0;
+            const currentDirection = edgeDirectionFromPointer(lastPointerX);
+            if (currentDirection !== direction) {
+              resetPendingPageSwitch();
+              return;
+            }
+
+            const switched = commitPageSwitch(direction);
+            if (switched) {
+              schedulePageSwitch();
+              return;
+            }
+
+            resetPendingPageSwitch();
+          }, pageSwitchHoldMs);
+
+          return false;
+        };
+
         const updateGhost = (clientX, clientY) => {
+          lastPointerX = clientX;
+          lastPointerY = clientY;
           if (previewSession) {
             previewSession.update(clientX, clientY);
           } else if (typeof positionWidgetDragPreview === "function") {
@@ -536,7 +569,7 @@ export const containerWidget = {
           panel.classList.toggle("is-drag-out-active", !inside);
 
           if (!inside) {
-            trySwitchPage(clientX);
+            schedulePageSwitch();
           }
 
           const projection =
@@ -588,8 +621,8 @@ export const containerWidget = {
             moveRafId = 0;
           }
           flushQueuedMove();
-          const dropX = Number.isFinite(endEvent?.clientX) ? endEvent.clientX : event.clientX;
-          const dropY = Number.isFinite(endEvent?.clientY) ? endEvent.clientY : event.clientY;
+          const dropX = Number.isFinite(endEvent?.clientX) ? endEvent.clientX : lastPointerX;
+          const dropY = Number.isFinite(endEvent?.clientY) ? endEvent.clientY : lastPointerY;
           const inside = pointInsideRect(dropX, dropY, panel.getBoundingClientRect());
 
           panel.classList.remove("is-drag-out-active");
