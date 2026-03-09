@@ -451,8 +451,11 @@ export const containerWidget = {
         let dragReleasePage =
           typeof currentLauncherActivePage === "function" ? currentLauncherActivePage() : Number(child.page) || 0;
         const pageSwitchThreshold = 42;
+        const pageSwitchHoldMs = 280;
         const pageSwitchCooldownMs = 190;
         let lastPageSwitchAt = 0;
+        let pendingPageSwitchDirection = 0;
+        let pendingPageSwitchSince = 0;
 
         const boardElement = document.querySelector(".board");
         const edgeDirectionFromPointer = (clientX) => {
@@ -472,12 +475,29 @@ export const containerWidget = {
           return 0;
         };
 
+        const resetPendingPageSwitch = () => {
+          pendingPageSwitchDirection = 0;
+          pendingPageSwitchSince = 0;
+        };
+
         const trySwitchPage = (clientX) => {
           const direction = edgeDirectionFromPointer(clientX);
           if (!direction) {
+            resetPendingPageSwitch();
             return false;
           }
+
           const now = performance.now();
+          if (direction !== pendingPageSwitchDirection) {
+            pendingPageSwitchDirection = direction;
+            pendingPageSwitchSince = now;
+            return false;
+          }
+
+          if (now - pendingPageSwitchSince < pageSwitchHoldMs) {
+            return false;
+          }
+
           if (now - lastPageSwitchAt < pageSwitchCooldownMs) {
             return false;
           }
@@ -487,14 +507,16 @@ export const containerWidget = {
           const pageCount = currentLauncherPageCount();
           const nextPage = dragReleasePage + direction;
           if (nextPage < 0 || nextPage >= pageCount) {
+            resetPendingPageSwitch();
             return false;
           }
           dragReleasePage = nextPage;
           lastPageSwitchAt = now;
+          pendingPageSwitchSince = now;
           if (typeof setActiveLauncherPage === "function") {
-            setActiveLauncherPage(nextPage, { shouldSave: false, animate: false });
+            setActiveLauncherPage(nextPage, { shouldSave: false, animate: true });
           } else if (typeof renderBoardViewport === "function") {
-            renderBoardViewport({ animate: false, dragging: false, dragOffsetX: 0 });
+            renderBoardViewport({ animate: true, dragging: false, dragOffsetX: 0 });
           }
           return true;
         };
@@ -558,6 +580,7 @@ export const containerWidget = {
         updateGhost(event.clientX, event.clientY);
 
         const finish = (endEvent, { cancelled = false } = {}) => {
+          resetPendingPageSwitch();
           if (moveRafId) {
             cancelAnimationFrame(moveRafId);
             moveRafId = 0;
