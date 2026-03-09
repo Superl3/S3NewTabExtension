@@ -5591,8 +5591,11 @@ function renderDockWidgets() {
       const dropSilhouette = createWidgetDropSilhouette(sourceCard || card);
 
       const pageSwitchThreshold = 42;
+      const pageSwitchHoldMs = 280;
       const pageSwitchCooldownMs = 190;
       let lastPageSwitchAt = 0;
+      let pendingPageSwitchDirection = 0;
+      let pendingPageSwitchSince = 0;
       let dragReleasePage = currentLauncherActivePage();
 
       const edgeDirectionFromPointer = (clientX) => {
@@ -5609,23 +5612,43 @@ function renderDockWidgets() {
         return 0;
       };
 
+      const resetPendingPageSwitch = () => {
+        pendingPageSwitchDirection = 0;
+        pendingPageSwitchSince = 0;
+      };
+
       const trySwitchPage = (direction) => {
         if (!direction) {
+          resetPendingPageSwitch();
           return false;
         }
+
         const now = performance.now();
+        if (direction !== pendingPageSwitchDirection) {
+          pendingPageSwitchDirection = direction;
+          pendingPageSwitchSince = now;
+          return false;
+        }
+
+        if (now - pendingPageSwitchSince < pageSwitchHoldMs) {
+          return false;
+        }
+
         if (now - lastPageSwitchAt < pageSwitchCooldownMs) {
           return false;
         }
+
         const pageCount = currentLauncherPageCount();
         const nextPage = dragReleasePage + direction;
         if (nextPage < 0 || nextPage >= pageCount) {
+          resetPendingPageSwitch();
           return false;
         }
+
         dragReleasePage = nextPage;
-        state.ui.home.activePage = nextPage;
         lastPageSwitchAt = now;
-        renderBoardViewport({ animate: false, dragging: false, dragOffsetX: 0 });
+        pendingPageSwitchSince = now;
+        setActiveLauncherPage(nextPage, { shouldSave: false, animate: true });
         return true;
       };
 
@@ -5658,6 +5681,7 @@ function renderDockWidgets() {
         window.removeEventListener("pointerup", finish);
         window.removeEventListener("pointercancel", finish);
 
+        resetPendingPageSwitch();
         const dropX = Number.isFinite(upEvent?.clientX) ? upEvent.clientX : event.clientX;
         const dropY = Number.isFinite(upEvent?.clientY) ? upEvent.clientY : event.clientY;
         const pointerEventLike = {
@@ -7251,9 +7275,12 @@ function createWidgetCard(instance) {
     previewSession.update(dragStartX, dragStartY);
 
     const pageSwitchThreshold = 42;
+    const pageSwitchHoldMs = 280;
     const pageSwitchCooldownMs = 190;
     let lastPageSwitchAt = 0;
     let pageChangedDuringDrag = false;
+    let pendingPageSwitchDirection = 0;
+    let pendingPageSwitchSince = 0;
 
     const edgeDirectionFromPointer = (clientX) => {
       const rect = elements.board.getBoundingClientRect();
@@ -7269,12 +7296,28 @@ function createWidgetCard(instance) {
       return 0;
     };
 
+    const resetPendingPageSwitch = () => {
+      pendingPageSwitchDirection = 0;
+      pendingPageSwitchSince = 0;
+    };
+
     const trySwitchPage = (direction, moveEvent, onSwitched = null) => {
       if (!direction) {
+        resetPendingPageSwitch();
         return false;
       }
 
       const now = performance.now();
+      if (direction !== pendingPageSwitchDirection) {
+        pendingPageSwitchDirection = direction;
+        pendingPageSwitchSince = now;
+        return false;
+      }
+
+      if (now - pendingPageSwitchSince < pageSwitchHoldMs) {
+        return false;
+      }
+
       if (now - lastPageSwitchAt < pageSwitchCooldownMs) {
         return false;
       }
@@ -7283,6 +7326,7 @@ function createWidgetCard(instance) {
       const currentPage = normalizeWidgetPage(instance.page, pageCount, 0);
       const nextPage = currentPage + direction;
       if (nextPage < 0 || nextPage >= pageCount) {
+        resetPendingPageSwitch();
         return false;
       }
 
@@ -7290,12 +7334,13 @@ function createWidgetCard(instance) {
       state.ui.home.activePage = nextPage;
       pageChangedDuringDrag = true;
       lastPageSwitchAt = now;
+      pendingPageSwitchSince = now;
 
       if (typeof onSwitched === "function") {
         onSwitched(direction, nextPage, currentPage, moveEvent);
       }
 
-      renderBoardViewport({ animate: false, dragging: false, dragOffsetX: 0 });
+      renderBoardViewport({ animate: true, dragging: false, dragOffsetX: 0 });
       return true;
     };
 
@@ -7386,6 +7431,7 @@ function createWidgetCard(instance) {
         window.removeEventListener("pointermove", move);
         window.removeEventListener("pointerup", up);
         window.removeEventListener("pointercancel", up);
+        resetPendingPageSwitch();
         clearWidgetDragGuideState();
         card.classList.remove("longpress-drag-armed");
         card.classList.remove("widget-drag-active");
@@ -7475,6 +7521,7 @@ function createWidgetCard(instance) {
       window.removeEventListener("pointermove", move);
       window.removeEventListener("pointerup", up);
       window.removeEventListener("pointercancel", up);
+      resetPendingPageSwitch();
       clearWidgetDragGuideState();
       card.classList.remove("longpress-drag-armed");
       card.classList.remove("widget-drag-active");
