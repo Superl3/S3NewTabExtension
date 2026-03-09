@@ -423,11 +423,13 @@ export const containerWidget = {
 
         card.classList.add("widget-folder-item-dragging");
         card.classList.add("widget-drag-active");
+        card.classList.add("widget-drag-origin-hidden");
         const sourceCard =
           typeof getWidgetRuntimeCard === "function"
             ? getWidgetRuntimeCard(child.id)
             : document.querySelector(`.widget-card[data-widget-id="${child.id}"]`);
         sourceCard?.classList.add("widget-drag-active");
+        sourceCard?.classList.add("widget-drag-origin-hidden");
 
         const createDropSilhouette =
           typeof document !== "undefined" && typeof window !== "undefined"
@@ -593,7 +595,9 @@ export const containerWidget = {
           panel.classList.remove("is-drag-out-active");
           card.classList.remove("widget-folder-item-dragging");
           card.classList.remove("widget-drag-active");
+          card.classList.remove("widget-drag-origin-hidden");
           sourceCard?.classList.remove("widget-drag-active");
+          sourceCard?.classList.remove("widget-drag-origin-hidden");
           dropSilhouette?.classList.remove("is-visible");
           dropSilhouette?.remove();
           if (previewSession) {
