@@ -445,7 +445,7 @@ export const containerWidget = {
               if (borderRadius) {
                 silhouette.style.borderRadius = borderRadius;
               }
-              board.append(silhouette);
+              document.body.append(silhouette);
               return silhouette;
             }
             : () => null;

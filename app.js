@@ -4501,7 +4501,7 @@ function createWidgetDragPreview(instance, options = {}) {
   if (sourceCard instanceof HTMLElement) {
     const rect = sourceCard.getBoundingClientRect();
     const preview = sourceCard.cloneNode(true);
-    preview.classList.remove("is-active", "dock-widget-item-dragging");
+    preview.classList.remove("is-active", "dock-widget-item-dragging", "widget-drag-origin-hidden", "widget-drag-active");
     preview.classList.add("widget-drag-preview-card");
     preview.removeAttribute("aria-current");
     preview.removeAttribute("tabindex");
@@ -4821,6 +4821,45 @@ function containerDropGuideSlotRect(containerId, draggedInstance, host) {
     h: Math.max(1, Math.round(cellH * targetPlacement.rowSpan + gapY * Math.max(0, targetPlacement.rowSpan - 1))),
     borderRadius: 10
   };
+}
+
+function createWidgetDropSilhouette(sourceElement = null) {
+  const silhouette = document.createElement("div");
+  silhouette.className = "widget-drop-silhouette";
+
+  const sourceRect = sourceElement?.getBoundingClientRect?.();
+  if (sourceRect) {
+    silhouette.style.width = `${Math.max(1, Math.round(sourceRect.width))}px`;
+    silhouette.style.height = `${Math.max(1, Math.round(sourceRect.height))}px`;
+  }
+
+  document.body.append(silhouette);
+  return silhouette;
+}
+
+function setWidgetDropSilhouetteVisible(silhouette, visible) {
+  if (!(silhouette instanceof HTMLElement)) {
+    return;
+  }
+  silhouette.classList.toggle("is-visible", Boolean(visible));
+}
+
+function positionWidgetDropSilhouette(silhouette, layout, page = 0) {
+  if (!(silhouette instanceof HTMLElement) || !layout) {
+    return;
+  }
+
+  const boardRect = elements.board?.getBoundingClientRect();
+  if (!boardRect) {
+    return;
+  }
+
+  const boardX = Math.round((Number(layout.x) || 0) + widgetPageOffsetX(page));
+  const boardY = Math.round(Number(layout.y) || 0);
+  silhouette.style.left = `${Math.round(boardRect.left + boardX)}px`;
+  silhouette.style.top = `${Math.round(boardRect.top + boardY)}px`;
+  silhouette.style.width = `${Math.max(1, Math.round(Number(layout.w) || 1))}px`;
+  silhouette.style.height = `${Math.max(1, Math.round(Number(layout.h) || 1))}px`;
 }
 
 function updateWidgetDragGuideAtPointer(
@@ -7416,14 +7455,6 @@ function createWidgetCard(instance) {
           lastPointerX = moveEvent.clientX;
           lastPointerY = moveEvent.clientY;
         });
-
-        const rt = runtime.get(instance.id);
-        if (rt?.card) {
-          applyLayout(rt.card, instance.layout, instance.page);
-          if (instance.type === "container") {
-            rt.controller?.refresh?.();
-          }
-        }
 
         const projected = projectedGridDropLayout();
         updateWidgetDragGuideAtPointer(instance, moveEvent.clientX, moveEvent.clientY, {
