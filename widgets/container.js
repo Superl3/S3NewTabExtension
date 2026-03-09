@@ -465,11 +465,18 @@ export const containerWidget = {
         let pendingPageSwitchTimer = 0;
 
         const boardElement = document.querySelector(".board");
+        const workspaceElement = document.querySelector(".workspace");
         const edgeDirectionFromPointer = (clientX) => {
-          if (!(boardElement instanceof HTMLElement) || !Number.isFinite(clientX)) {
+          if (!Number.isFinite(clientX)) {
             return 0;
           }
-          const rect = boardElement.getBoundingClientRect();
+
+          const viewportHost = workspaceElement instanceof HTMLElement ? workspaceElement : boardElement;
+          if (!(viewportHost instanceof HTMLElement)) {
+            return 0;
+          }
+
+          const rect = viewportHost.getBoundingClientRect();
           if (rect.width < pageSwitchThreshold * 2) {
             return 0;
           }
