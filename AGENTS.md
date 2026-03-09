@@ -30,3 +30,11 @@ These rules are mandatory for this repository across sessions.
 3. Normal mode and Edit mode transitions must not introduce perceived floating alignment or spacing drift in header controls.
 4. Mode switches must preserve header/title layout metrics (font size, line height, vertical rhythm, and spacing) so titles never appear to jump due to button visibility changes.
 5. Header height must remain identical between Normal and Edit modes; button visibility must never cause title/header height expansion or collapse (notably in TODO/Notes and any future widgets).
+
+
+## Drag Overlay Layering Principles
+
+1. During drag, the drag preview must always render above all dock and board UI layers.
+2. Drop silhouette must always render directly below the drag preview and above dock/board content.
+3. Drag preview and silhouette layering order must be preserved across board, dock, and folder drag flows.
+4. Overlay priority target: `drag preview > drop silhouette > dock widgets/content`.

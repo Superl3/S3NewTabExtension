@@ -4496,6 +4496,14 @@ function getPersistentDockHitRect() {
   return target?.getBoundingClientRect() ?? null;
 }
 
+function getLauncherViewportRect() {
+  const workspaceRect = elements.workspace?.getBoundingClientRect();
+  if (workspaceRect) {
+    return workspaceRect;
+  }
+  return elements.board?.getBoundingClientRect() ?? null;
+}
+
 function createWidgetDragPreview(instance, options = {}) {
   const sourceCard = options?.sourceCard;
   if (sourceCard instanceof HTMLElement) {
@@ -5639,6 +5647,8 @@ function renderDockWidgets() {
 
       const dropSilhouette = createWidgetDropSilhouette(sourceCard || card);
 
+      let lastPointerX = event.clientX;
+      let lastPointerY = event.clientY;
       const pageSwitchThreshold = 42;
       const pageSwitchHoldMs = 280;
       const pageSwitchCooldownMs = 190;
@@ -5647,18 +5657,16 @@ function renderDockWidgets() {
       let pendingPageSwitchSince = 0;
       let pendingPageSwitchTimer = 0;
       let dragReleasePage = currentLauncherActivePage();
-      let lastPointerX = event.clientX;
-      let lastPointerY = event.clientY;
 
       const edgeDirectionFromPointer = (clientX) => {
-        const boardRect = elements.board?.getBoundingClientRect();
-        if (!boardRect || !Number.isFinite(clientX) || boardRect.width < pageSwitchThreshold * 2) {
+        const viewportRect = getLauncherViewportRect();
+        if (!viewportRect || !Number.isFinite(clientX) || viewportRect.width < pageSwitchThreshold * 2) {
           return 0;
         }
-        if (clientX <= boardRect.left + pageSwitchThreshold) {
+        if (clientX <= viewportRect.left + pageSwitchThreshold) {
           return -1;
         }
-        if (clientX >= boardRect.right - pageSwitchThreshold) {
+        if (clientX >= viewportRect.right - pageSwitchThreshold) {
           return 1;
         }
         return 0;
@@ -7364,8 +7372,8 @@ function createWidgetCard(instance) {
     let pendingPageSwitchTimer = 0;
 
     const edgeDirectionFromPointer = (clientX) => {
-      const rect = elements.board.getBoundingClientRect();
-      if (!Number.isFinite(clientX) || rect.width < pageSwitchThreshold * 2) {
+      const rect = getLauncherViewportRect();
+      if (!rect || !Number.isFinite(clientX) || rect.width < pageSwitchThreshold * 2) {
         return 0;
       }
       if (clientX <= rect.left + pageSwitchThreshold) {
