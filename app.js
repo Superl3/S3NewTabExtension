@@ -4240,7 +4240,7 @@ function createWidgetDragPreview(instance, options = {}) {
   if (sourceCard instanceof HTMLElement) {
     const rect = sourceCard.getBoundingClientRect();
     const preview = sourceCard.cloneNode(true);
-    preview.classList.remove("is-active", "dock-widget-item-dragging");
+    preview.classList.remove("is-active", "dock-widget-item-dragging", "widget-drag-origin-hidden", "widget-drag-active");
     preview.classList.add("widget-drag-preview-card");
     preview.removeAttribute("aria-current");
     preview.removeAttribute("tabindex");
@@ -4520,7 +4520,7 @@ function createWidgetDropSilhouette(card) {
     }
   }
 
-  board.append(silhouette);
+  document.body.append(silhouette);
   return silhouette;
 }
 
@@ -4528,8 +4528,16 @@ function positionWidgetDropSilhouette(silhouette, layout, page = 0) {
   if (!(silhouette instanceof HTMLElement) || !layout) {
     return;
   }
-  silhouette.style.left = `${Math.round(layout.x + widgetPageOffsetX(page))}px`;
-  silhouette.style.top = `${Math.round(layout.y)}px`;
+
+  const boardRect = elements.board?.getBoundingClientRect();
+  if (!boardRect) {
+    return;
+  }
+
+  const boardX = Math.round(layout.x + widgetPageOffsetX(page));
+  const boardY = Math.round(layout.y);
+  silhouette.style.left = `${Math.round(boardRect.left + boardX)}px`;
+  silhouette.style.top = `${Math.round(boardRect.top + boardY)}px`;
   silhouette.style.width = `${Math.max(1, Math.round(layout.w))}px`;
   silhouette.style.height = `${Math.max(1, Math.round(layout.h))}px`;
 }
@@ -7184,8 +7192,6 @@ function createWidgetCard(instance) {
           lastPointerY = moveEvent.clientY;
         });
 
-        updateDraftVisual();
-
         const projected = projectedGridDropLayout();
         updateCrossSurfaceDropIndicators(instance, moveEvent.clientX, moveEvent.clientY, {
           silhouette: dropSilhouette,
@@ -7304,8 +7310,6 @@ function createWidgetCard(instance) {
         lastPointerX = moveEvent.clientX;
         lastPointerY = moveEvent.clientY;
       });
-
-      updateDraftVisual();
 
       updateCrossSurfaceDropIndicators(instance, moveEvent.clientX, moveEvent.clientY, {
         silhouette: dropSilhouette,

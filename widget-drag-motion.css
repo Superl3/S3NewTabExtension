@@ -35,9 +35,21 @@
 
 
 .widget-drag-origin-hidden {
-  opacity: 0;
-  pointer-events: none;
+  opacity: 0 !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
   transition: opacity 0.12s ease;
+}
+
+
+.widget-drop-silhouette {
+  position: fixed;
+  z-index: 8990;
+}
+
+.widget-drag-preview,
+.widget-drag-preview-card {
+  z-index: 9000;
 }
 
 @media (prefers-reduced-motion: reduce) {
