@@ -6847,7 +6847,7 @@ function createWidgetCard(instance) {
     }
   }
 
-  if (instance.type === "mondayAssigned") {
+  if (instance.type === "mondayAssigned" || instance.type === "mondayMeetingNote") {
     const makeActionButton = (className, titleText, iconId, action, onAfter = null) => {
       const btn = document.createElement("button");
       btn.type = "button";
@@ -6911,7 +6911,7 @@ function createWidgetCard(instance) {
     ) {
       const headRefresh = makeActionButton(
         "icon-btn widget-refresh-btn",
-        "Refresh Monday issues",
+        "Refresh Monday data",
         "i-reset",
         runRefresh,
         syncAuthButtonState
@@ -6920,7 +6920,7 @@ function createWidgetCard(instance) {
 
       const floatRefresh = makeActionButton(
         "icon-btn widget-float-refresh",
-        "Refresh Monday issues",
+        "Refresh Monday data",
         "i-reset",
         runRefresh,
         syncAuthButtonState

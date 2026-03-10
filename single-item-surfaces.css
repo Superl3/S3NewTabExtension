@@ -35,3 +35,91 @@
   border-radius: 0;
   background: transparent;
 }
+
+
+.monday-meeting-panel {
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  overflow: auto;
+}
+
+.monday-meeting-link {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.monday-meeting-board {
+  color: var(--muted);
+  font-size: 0.79em;
+}
+
+.monday-meeting-top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.monday-meeting-title {
+  font-weight: 650;
+  line-height: 1.35;
+}
+
+.monday-meeting-updated {
+  color: var(--muted);
+  font-size: 0.77em;
+}
+
+.monday-meeting-note {
+  margin: 0;
+  color: color-mix(in srgb, var(--text), var(--muted) 34%);
+  font-size: 0.86em;
+  line-height: 1.45;
+}
+
+.monday-issue-list.is-board-cards {
+  gap: 8px;
+}
+
+.monday-board-card {
+  border: 1px solid color-mix(in srgb, var(--line), transparent 24%);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--widget-effective-surface), transparent 12%);
+  padding: 8px 10px;
+}
+
+.monday-board-card-header {
+  font-size: 0.88em;
+  font-weight: 650;
+  color: color-mix(in srgb, var(--widget-effective-accent), var(--text) 24%);
+}
+
+.monday-board-card-list {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 0;
+}
+
+.monday-board-card-empty {
+  margin: 6px 0 0;
+  font-size: 0.82em;
+  color: var(--muted);
+}
+
+.monday-board-card .monday-group-heading {
+  margin: 6px 0 0;
+  padding: 0;
+  font-size: 0.8em;
+}
+
+.monday-board-card .monday-group-item {
+  padding: 0;
+}
+
+.monday-board-card .monday-group-link {
+  padding: 2px 0;
+  font-size: 0.86em;
+}
