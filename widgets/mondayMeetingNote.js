@@ -3,6 +3,7 @@ const MONDAY_WEB_URL = "https://monday.com/";
 const MONDAY_AUTH_STORAGE_KEY = "s3newtab-monday-auth-session-v1";
 const LOCAL_AUTH_CONNECTOR_URL = "http://localhost:8787/api/auth/start";
 const WEEKDAY_AUTO_SLOTS_MINUTES = [9 * 60, 13 * 60];
+const DEFAULT_MEETING_NOTE_COLUMN_SELECTOR = "미팅 노트, monday Doc";
 
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
@@ -21,8 +22,61 @@ function normalizeBoardId(value, fallback = 0) {
   return Math.max(0, Math.floor(num));
 }
 
+function splitCsvText(value) {
+  return normalizeText(value)
+    .split(",")
+    .map((entry) => normalizeText(entry))
+    .filter(Boolean);
+}
+
+function normalizeBoardIds(value, fallback = []) {
+  const source = Array.isArray(value) ? value : splitCsvText(value);
+  const fallbackIds = Array.isArray(fallback) ? fallback : splitCsvText(fallback);
+  const out = [];
+
+  for (const entry of source) {
+    const id = normalizeBoardId(entry, 0);
+    if (id > 0 && !out.includes(id)) {
+      out.push(id);
+    }
+  }
+
+  if (out.length) {
+    return out;
+  }
+
+  for (const entry of fallbackIds) {
+    const id = normalizeBoardId(entry, 0);
+    if (id > 0 && !out.includes(id)) {
+      out.push(id);
+    }
+  }
+
+  return out;
+}
+
 function normalizeColumnSelector(value, fallback = "") {
   return normalizeText(value, fallback).slice(0, 120);
+}
+
+function normalizeColumnSelectorList(value, fallback = DEFAULT_MEETING_NOTE_COLUMN_SELECTOR) {
+  const source = splitCsvText(value);
+  const fallbackValues = splitCsvText(fallback);
+  const normalized = source.length ? source : fallbackValues;
+  const out = [];
+
+  for (const entry of normalized) {
+    const selector = normalizeColumnSelector(entry);
+    if (selector && !out.includes(selector)) {
+      out.push(selector);
+    }
+  }
+
+  return out.join(", ");
+}
+
+function parseSelectorList(value) {
+  return splitCsvText(value).map((entry) => normalizeColumnSelector(entry)).filter(Boolean);
 }
 
 function normalizeConnectorUrl(value, fallback = LOCAL_AUTH_CONNECTOR_URL) {
@@ -360,13 +414,15 @@ function updateDoneSlotsForToday(config, now, indicesToMark) {
 }
 
 function normalizedConfig(config) {
+  const boardIds = normalizeBoardIds(config?.boardIds, [config?.boardId]);
   return {
     connectorUrl: normalizeConnectorUrl(config?.connectorUrl),
     accessToken: normalizeText(config?.accessToken),
-    boardId: normalizeBoardId(config?.boardId, 0),
-    meetingNoteColumnId: normalizeColumnSelector(
+    boardIds,
+    boardId: boardIds[0] || 0,
+    meetingNoteColumnId: normalizeColumnSelectorList(
       config?.meetingNoteColumnId,
-      normalizeColumnSelector(config?.meetingNodeColumnId)
+      normalizeColumnSelectorList(config?.meetingNodeColumnId)
     ),
     openInNewTab: config?.openInNewTab !== false,
     autoRefreshDayKey: normalizeText(config?.autoRefreshDayKey),
@@ -378,7 +434,7 @@ function configSignature(config) {
   return [
     config.connectorUrl,
     config.accessToken,
-    config.boardId,
+    config.boardIds.join(","),
     config.meetingNoteColumnId,
     config.openInNewTab ? 1 : 0
   ].join("|");
@@ -389,7 +445,7 @@ function hasConnectorConfig(config) {
 }
 
 function hasBoardConfig(config) {
-  return config.boardId > 0;
+  return Array.isArray(config.boardIds) && config.boardIds.length > 0;
 }
 
 function hasMeetingNoteColumnConfig(config) {
@@ -417,26 +473,65 @@ function normalizeCachedLatest(entry) {
   };
 }
 
-function readCachedSnapshot(rawConfig, cfg) {
-  const cachedBoardId = normalizeBoardId(rawConfig?.cacheBoardId, 0);
-  if (!cachedBoardId || cachedBoardId !== cfg.boardId) {
+function normalizeCachedBoardSnapshot(entry) {
+  const boardId = normalizeBoardId(entry?.boardId, 0);
+  if (!boardId) {
     return null;
   }
 
+  return {
+    boardId,
+    boardName: normalizeText(entry?.boardName, `Board ${boardId}`),
+    latest: normalizeCachedLatest(entry?.latest)
+  };
+}
+
+function readCachedSnapshot(rawConfig, cfg) {
+  const cacheAt = Math.max(0, Number(rawConfig?.cacheAt) || 0);
   const cachedSelectorKey = normalizeSelectorKey(rawConfig?.cacheMeetingNoteColumnId);
-  if (!cachedSelectorKey || cachedSelectorKey !== normalizeSelectorKey(cfg.meetingNoteColumnId)) {
+  const selectorMatches =
+    !cachedSelectorKey ||
+    cachedSelectorKey === normalizeSelectorKey(cfg.meetingNoteColumnId);
+
+  if (!selectorMatches) {
+    return null;
+  }
+
+  const cacheBoards = Array.isArray(rawConfig?.cacheBoards)
+    ? rawConfig.cacheBoards.map(normalizeCachedBoardSnapshot).filter(Boolean)
+    : [];
+
+  if (cacheBoards.length) {
+    const configBoards = new Set(cfg.boardIds);
+    const matchedBoards = cacheBoards.filter((entry) => configBoards.has(entry.boardId));
+    if (!matchedBoards.length) {
+      return null;
+    }
+
+    return {
+      boards: matchedBoards,
+      cacheAt
+    };
+  }
+
+  const cachedBoardId = normalizeBoardId(rawConfig?.cacheBoardId, 0);
+  if (!cachedBoardId || !cfg.boardIds.includes(cachedBoardId)) {
     return null;
   }
 
   const cachedLatest = normalizeCachedLatest(rawConfig?.cacheLatest);
-  const cacheAt = Math.max(0, Number(rawConfig?.cacheAt) || 0);
   if (!cachedLatest && !cacheAt) {
     return null;
   }
 
   return {
-    boardName: normalizeText(rawConfig?.cacheBoardName, `Board ${cfg.boardId}`),
-    latest: cachedLatest,
+    boards: [
+      {
+        boardId: cachedBoardId,
+        boardName: normalizeText(rawConfig?.cacheBoardName, `Board ${cachedBoardId}`),
+        latest: cachedLatest
+      }
+    ],
     cacheAt
   };
 }
@@ -449,19 +544,20 @@ function formatDateLabel(rawDateTime) {
   return new Date(parsed).toLocaleString();
 }
 
-function resolveBoardUrl(config) {
-  if (hasBoardConfig(config)) {
-    return `${MONDAY_WEB_URL}boards/${config.boardId}`;
+function resolveBoardUrl(boardId) {
+  const normalizedBoardId = normalizeBoardId(boardId, 0);
+  if (normalizedBoardId > 0) {
+    return `${MONDAY_WEB_URL}boards/${normalizedBoardId}`;
   }
   return MONDAY_WEB_URL;
 }
 
-function resolveItemUrl(config, latestItemUrl) {
+function resolveItemUrl(boardId, latestItemUrl) {
   const itemUrl = normalizeText(latestItemUrl);
   if (itemUrl) {
     return itemUrl;
   }
-  return resolveBoardUrl(config);
+  return resolveBoardUrl(boardId);
 }
 
 function normalizeLineBreaks(value) {
@@ -794,34 +890,34 @@ function parseBoardColumns(rawColumns) {
     .filter((column) => column.id || column.title);
 }
 
-function resolveMeetingNoteColumnIds(columns, selector) {
-  const normalizedSelector = normalizeText(selector);
-  if (!normalizedSelector) {
+function resolveMeetingNoteColumnIds(columns, selectorList) {
+  const selectors = Array.isArray(selectorList) ? selectorList : [];
+  if (!selectors.length) {
     return [];
   }
 
   const out = [];
   const normalizedColumns = Array.isArray(columns) ? columns : [];
+  const selectorKeys = selectors.map((entry) => normalizeSelectorKey(entry)).filter(Boolean);
+  const compactSelectorKeys = selectorKeys.map((entry) => entry.replace(/\s+/g, ""));
 
+  for (const selector of selectors) {
+    const normalizedSelector = normalizeText(selector);
+    if (!normalizedSelector) {
+      continue;
+    }
+    for (const column of normalizedColumns) {
+      if (normalizeText(column?.id) === normalizedSelector) {
+        pushUnique(out, column?.id);
+      }
+    }
+  }
   for (const column of normalizedColumns) {
-    if (normalizeText(column?.id) === normalizedSelector) {
+    const titleKey = normalizeSelectorKey(column?.title);
+    if (titleKey && selectorKeys.includes(titleKey)) {
       pushUnique(out, column?.id);
     }
   }
-
-  const selectorKey = normalizeSelectorKey(normalizedSelector);
-  if (!selectorKey) {
-    return out;
-  }
-
-  for (const column of normalizedColumns) {
-    if (normalizeSelectorKey(column?.title) === selectorKey) {
-      pushUnique(out, column?.id);
-    }
-  }
-
-  const compactSelectorKey = selectorKey.replace(/\s+/g, "");
-
   for (const column of normalizedColumns) {
     const titleKey = normalizeSelectorKey(column?.title);
     const compactTitle = titleKey.replace(/\s+/g, "");
@@ -829,24 +925,33 @@ function resolveMeetingNoteColumnIds(columns, selector) {
       continue;
     }
 
-    if (
-      compactTitle === compactSelectorKey ||
-      compactTitle.includes(compactSelectorKey) ||
-      compactSelectorKey.includes(compactTitle) ||
-      titleKey.includes(selectorKey) ||
-      selectorKey.includes(titleKey)
-    ) {
-      pushUnique(out, column?.id);
+    for (let index = 0; index < selectorKeys.length; index += 1) {
+      const selectorKey = selectorKeys[index];
+      const compactSelectorKey = compactSelectorKeys[index];
+      if (!selectorKey || !compactSelectorKey) {
+        continue;
+      }
+
+      if (
+        compactTitle === compactSelectorKey ||
+        compactTitle.includes(compactSelectorKey) ||
+        compactSelectorKey.includes(compactTitle) ||
+        titleKey.includes(selectorKey) ||
+        selectorKey.includes(titleKey)
+      ) {
+        pushUnique(out, column?.id);
+        break;
+      }
     }
   }
 
   return out;
 }
 
-function buildBoardContextQuery(config) {
+function buildBoardContextQuery(boardId) {
   return `
     query {
-      boards(ids: [${config.boardId}]) {
+      boards(ids: [${boardId}]) {
         id
         name
         columns {
@@ -870,8 +975,8 @@ function parseBoardContext(data) {
   };
 }
 
-async function fetchBoardContext(config, accessToken) {
-  const data = await mondayFetchGraphql(accessToken, buildBoardContextQuery(config));
+async function fetchBoardContext(boardId, accessToken) {
+  const data = await mondayFetchGraphql(accessToken, buildBoardContextQuery(boardId));
   const context = parseBoardContext(data);
   if (!context) {
     throw new Error("Board not found or access denied for this account.");
@@ -907,11 +1012,11 @@ function buildColumnValuesSelection(columnIds) {
             }`;
 }
 
-function buildOrderedLatestQuery(config, columnIds = []) {
+function buildOrderedLatestQuery(boardId, columnIds = []) {
   const columnValuesSelection = buildColumnValuesSelection(columnIds);
   return `
     query {
-      boards(ids: [${config.boardId}]) {
+      boards(ids: [${boardId}]) {
         id
         name
         items_page(
@@ -934,11 +1039,11 @@ ${columnValuesSelection}
   `;
 }
 
-function buildFallbackLatestQuery(config, columnIds = []) {
+function buildFallbackLatestQuery(boardId, columnIds = []) {
   const columnValuesSelection = buildColumnValuesSelection(columnIds);
   return `
     query {
-      boards(ids: [${config.boardId}]) {
+      boards(ids: [${boardId}]) {
         id
         name
         items_page(limit: 40) {
@@ -1015,18 +1120,19 @@ async function mondayFetchGraphql(accessToken, query) {
   return payload.data || {};
 }
 
-async function fetchLatestMeetingNote(config, accessToken) {
-  const boardContext = await fetchBoardContext(config, accessToken);
+async function fetchLatestMeetingNote(boardId, selectorText, accessToken) {
+  const boardContext = await fetchBoardContext(boardId, accessToken);
+  const selectorList = parseSelectorList(selectorText);
   const resolvedColumnIds = resolveMeetingNoteColumnIds(
     boardContext.columns,
-    config.meetingNoteColumnId
+    selectorList
   );
 
   let parsed;
   try {
     const orderedData = await mondayFetchGraphql(
       accessToken,
-      buildOrderedLatestQuery(config, resolvedColumnIds)
+      buildOrderedLatestQuery(boardId, resolvedColumnIds)
     );
     parsed = parseQueryData(orderedData);
   } catch (error) {
@@ -1035,7 +1141,7 @@ async function fetchLatestMeetingNote(config, accessToken) {
     }
     const fallbackData = await mondayFetchGraphql(
       accessToken,
-      buildFallbackLatestQuery(config, resolvedColumnIds)
+      buildFallbackLatestQuery(boardId, resolvedColumnIds)
     );
     parsed = parseQueryData(fallbackData);
   }
@@ -1043,7 +1149,8 @@ async function fetchLatestMeetingNote(config, accessToken) {
   const latestItem = pickLatestItem(parsed?.items);
   if (!latestItem) {
     return {
-      boardName: normalizeText(parsed?.boardName, `Board ${config.boardId}`),
+      boardName: normalizeText(parsed?.boardName, `Board ${boardId}`),
+      boardId,
       latest: null
     };
   }
@@ -1051,11 +1158,12 @@ async function fetchLatestMeetingNote(config, accessToken) {
   const extracted = extractMeetingNote(
     latestItem,
     resolvedColumnIds,
-    config.meetingNoteColumnId
+    selectorText
   );
 
   return {
-    boardName: normalizeText(parsed?.boardName, `Board ${config.boardId}`),
+    boardId,
+    boardName: normalizeText(parsed?.boardName, `Board ${boardId}`),
     latest: {
       id: normalizeText(latestItem?.id),
       title: normalizeText(latestItem?.name, "(Untitled item)"),
@@ -1072,8 +1180,8 @@ export const mondayMeetingNoteWidget = {
   defaultConfig: {
     connectorUrl: LOCAL_AUTH_CONNECTOR_URL,
     accessToken: "",
-    boardId: 0,
-    meetingNoteColumnId: "",
+    boardId: "",
+    meetingNoteColumnId: DEFAULT_MEETING_NOTE_COLUMN_SELECTOR,
     openInNewTab: true,
     autoRefreshDayKey: "",
     autoRefreshSlotsDone: "",
@@ -1081,7 +1189,8 @@ export const mondayMeetingNoteWidget = {
     cacheMeetingNoteColumnId: "",
     cacheAt: 0,
     cacheBoardName: "",
-    cacheLatest: null
+    cacheLatest: null,
+    cacheBoards: []
   },
   defaultLayout: {
     x: 1100,
@@ -1110,18 +1219,17 @@ export const mondayMeetingNoteWidget = {
     },
     {
       key: "boardId",
-      label: "Board ID",
-      type: "number",
-      min: 1,
-      step: 1,
-      helpText: "Use the numeric board id from your board URL, for example /boards/123456789."
+      label: "Board ID(s)",
+      type: "text",
+      placeholder: "123456789 or 123456789,987654321",
+      helpText: "Use numeric board IDs from /boards/<id>. Comma-separated IDs are supported."
     },
     {
       key: "meetingNoteColumnId",
-      label: "Meeting note column (ID or name)",
+      label: "Meeting note column selector(s)",
       type: "text",
-      placeholder: "Example: 미팅 노트 or long_text_mks2ab",
-      helpText: "You can enter column ID or exact column title (for example, 미팅 노트)."
+      placeholder: "미팅 노트, monday Doc",
+      helpText: "Column ID/title selectors for note/doc lookup. Comma-separated selectors are supported."
     },
     { key: "openInNewTab", label: "Open links in new tab", type: "checkbox" }
   ],
@@ -1139,8 +1247,7 @@ export const mondayMeetingNoteWidget = {
 
     let loading = false;
     let errorMessage = "";
-    let boardName = "";
-    let latest = null;
+    let boardEntries = [];
     let hasFetched = false;
     let connected = false;
     let accountLabel = "";
@@ -1217,8 +1324,7 @@ export const mondayMeetingNoteWidget = {
     }
 
     function clearSnapshotState() {
-      boardName = "";
-      latest = null;
+      boardEntries = [];
       hasFetched = false;
     }
 
@@ -1228,42 +1334,68 @@ export const mondayMeetingNoteWidget = {
         return false;
       }
 
-      boardName = cached.boardName;
-      latest = cached.latest;
-      hasFetched = Boolean(cached.latest);
+      boardEntries = Array.isArray(cached.boards)
+        ? cached.boards.map((entry) => ({
+            boardId: normalizeBoardId(entry?.boardId, 0),
+            boardName: normalizeText(entry?.boardName),
+            latest: normalizeCachedLatest(entry?.latest)
+          }))
+        : [];
+      hasFetched = boardEntries.some((entry) => Boolean(entry?.latest));
       return true;
     }
 
     function persistSnapshot(cfg) {
-      const cacheLatest = latest
-        ? {
-            id: normalizeText(latest?.id),
-            title: normalizeText(latest?.title, "(Untitled item)"),
-            itemUrl: normalizeText(latest?.itemUrl),
-            updatedLabel: normalizeText(latest?.updatedLabel),
-            note: normalizeText(latest?.note)
+      const cacheBoards = boardEntries
+        .map((entry) => {
+          const boardId = normalizeBoardId(entry?.boardId, 0);
+          if (!boardId) {
+            return null;
           }
-        : null;
+
+          const cacheLatest = entry?.latest
+            ? {
+                id: normalizeText(entry.latest?.id),
+                title: normalizeText(entry.latest?.title, "(Untitled item)"),
+                itemUrl: normalizeText(entry.latest?.itemUrl),
+                updatedLabel: normalizeText(entry.latest?.updatedLabel),
+                note: normalizeText(entry.latest?.note)
+              }
+            : null;
+
+          return {
+            boardId,
+            boardName: normalizeText(entry?.boardName, `Board ${boardId}`),
+            latest: cacheLatest
+          };
+        })
+        .filter(Boolean);
+
+      const primary = cacheBoards[0] || null;
+      const cacheLatest = primary ? primary.latest : null;
+      const cacheBoardId = primary ? primary.boardId : 0;
+      const cacheBoardName = primary ? primary.boardName : "";
 
       const currentCfg = getConfig();
-      const currentLatest = normalizeCachedLatest(currentCfg?.cacheLatest);
+      const currentCacheBoards = Array.isArray(currentCfg?.cacheBoards)
+        ? currentCfg.cacheBoards.map(normalizeCachedBoardSnapshot).filter(Boolean)
+        : [];
       const unchanged =
-        normalizeBoardId(currentCfg?.cacheBoardId, 0) === cfg.boardId &&
         normalizeSelectorKey(currentCfg?.cacheMeetingNoteColumnId) ===
           normalizeSelectorKey(cfg.meetingNoteColumnId) &&
-        normalizeText(currentCfg?.cacheBoardName) === normalizeText(boardName) &&
-        JSON.stringify(currentLatest) === JSON.stringify(cacheLatest);
+        JSON.stringify(currentCacheBoards) === JSON.stringify(cacheBoards);
 
       if (unchanged) {
         return;
       }
 
       patchConfig({
-        cacheBoardId: cfg.boardId,
+        cacheBoardId,
         cacheMeetingNoteColumnId: normalizeText(cfg.meetingNoteColumnId),
         cacheAt: Date.now(),
-        cacheBoardName: normalizeText(boardName),
-        cacheLatest
+        cacheBoardName,
+        cacheLatest,
+        cacheBoards
       });
     }
 
@@ -1339,7 +1471,10 @@ export const mondayMeetingNoteWidget = {
       panel.replaceChildren();
       const cfg = normalizedConfig(getConfig());
 
-      if (!latest) {
+      const visibleEntries = boardEntries.filter((entry) => normalizeBoardId(entry?.boardId, 0) > 0);
+      const hasLatest = visibleEntries.some((entry) => Boolean(entry?.latest));
+
+      if (!hasLatest) {
         if (loading) {
           panel.append(makeEmptyMessage("Loading latest meeting note..."));
         } else if (!hasConnectorConfig(cfg)) {
@@ -1347,50 +1482,61 @@ export const mondayMeetingNoteWidget = {
         } else if (!hasActiveConnection(cfg)) {
           panel.append(makeEmptyMessage("Connect Monday account to load latest meeting note."));
         } else if (!hasBoardConfig(cfg)) {
-          panel.append(makeEmptyMessage("Set Board ID in widget settings. Use the numeric ID from /boards/<id>."));
+          panel.append(makeEmptyMessage("Set Board ID(s) in widget settings. Use numeric IDs from /boards/<id>."));
         } else if (!hasMeetingNoteColumnConfig(cfg)) {
-          panel.append(makeEmptyMessage("Set Meeting note column (ID or name) in widget settings."));
+          panel.append(makeEmptyMessage("Set Meeting note column selector(s) in widget settings."));
         } else if (errorMessage) {
           panel.append(makeEmptyMessage("Meeting note is not available."));
         } else {
-          panel.append(makeEmptyMessage("No latest item found for this board."));
+          panel.append(makeEmptyMessage("No latest item found for configured boards."));
         }
         return;
       }
 
-      const link = document.createElement("a");
-      link.className = "monday-meeting-link";
-      link.href = resolveItemUrl(cfg, latest.itemUrl);
-      link.target = cfg.openInNewTab ? "_blank" : "_self";
-      link.rel = "noreferrer";
-
-      link.addEventListener("click", (event) => {
-        if (!isEditMode?.()) {
-          return;
+      for (const entry of visibleEntries) {
+        const latest = entry.latest;
+        if (!latest) {
+          continue;
         }
-        event.preventDefault();
-        event.stopPropagation();
-        openSettings?.();
-      });
 
-      const heading = document.createElement("div");
-      heading.className = "monday-meeting-top";
+        const link = document.createElement("a");
+        link.className = "monday-meeting-link";
+        link.href = resolveItemUrl(entry.boardId, latest.itemUrl);
+        link.target = cfg.openInNewTab ? "_blank" : "_self";
+        link.rel = "noreferrer";
 
-      const title = document.createElement("strong");
-      title.className = "monday-meeting-title";
-      title.textContent = latest.title || "(Untitled item)";
+        link.addEventListener("click", (event) => {
+          if (!isEditMode?.()) {
+            return;
+          }
+          event.preventDefault();
+          event.stopPropagation();
+          openSettings?.();
+        });
 
-      const updated = document.createElement("span");
-      updated.className = "monday-meeting-updated";
-      updated.textContent = latest.updatedLabel || "";
+        const boardLine = document.createElement("div");
+        boardLine.className = "monday-meeting-board";
+        boardLine.textContent = entry.boardName || `Board ${entry.boardId}`;
 
-      const note = document.createElement("p");
-      note.className = "monday-meeting-note";
-      note.textContent = latest.note || "(No meeting note found in this column.)";
+        const heading = document.createElement("div");
+        heading.className = "monday-meeting-top";
 
-      heading.append(title, updated);
-      link.append(heading, note);
-      panel.append(link);
+        const title = document.createElement("strong");
+        title.className = "monday-meeting-title";
+        title.textContent = latest.title || "(Untitled item)";
+
+        const updated = document.createElement("span");
+        updated.className = "monday-meeting-updated";
+        updated.textContent = latest.updatedLabel || "";
+
+        const note = document.createElement("p");
+        note.className = "monday-meeting-note";
+        note.textContent = latest.note || "(No meeting note found in this column.)";
+
+        heading.append(title, updated);
+        link.append(boardLine, heading, note);
+        panel.append(link);
+      }
     }
 
     function render() {
@@ -1521,10 +1667,10 @@ export const mondayMeetingNoteWidget = {
           throw new Error("Set auth connector URL first.");
         }
         if (!hasBoardConfig(cfg)) {
-          throw new Error("Set Board ID first. Use the numeric ID from /boards/<id>.");
+          throw new Error("Set Board ID(s) first. Use numeric IDs from /boards/<id>.");
         }
         if (!hasMeetingNoteColumnConfig(cfg)) {
-          throw new Error("Set Meeting note column (ID or name) first.");
+          throw new Error("Set Meeting note column selector(s) first.");
         }
 
         if (reason === "auto") {
@@ -1543,14 +1689,15 @@ export const mondayMeetingNoteWidget = {
           throw new Error("Connect Monday account first.");
         }
 
-        const result = await fetchLatestMeetingNote(cfg, accessToken);
+        const results = await Promise.all(
+          cfg.boardIds.map((boardId) => fetchLatestMeetingNote(boardId, cfg.meetingNoteColumnId, accessToken))
+        );
         if (requestId !== requestSerial) {
           return;
         }
 
-        boardName = result.boardName;
-        latest = result.latest;
-        hasFetched = true;
+        boardEntries = results;
+        hasFetched = results.some((entry) => Boolean(entry?.latest));
         lastSignature = configSignature(cfg);
 
         const now = new Date();
@@ -1570,7 +1717,7 @@ export const mondayMeetingNoteWidget = {
         } else {
           errorMessage = normalizeErrorMessage(error);
         }
-        if (!latest) {
+        if (!boardEntries.some((entry) => Boolean(entry?.latest))) {
           hasFetched = false;
         }
       } finally {
@@ -1630,7 +1777,8 @@ export const mondayMeetingNoteWidget = {
 
     function openMondayPage() {
       const cfg = normalizedConfig(getConfig());
-      const href = resolveItemUrl(cfg, latest?.itemUrl);
+      const firstEntry = boardEntries.find((entry) => normalizeBoardId(entry?.boardId, 0) > 0);
+      const href = resolveItemUrl(firstEntry?.boardId || cfg.boardId, firstEntry?.latest?.itemUrl);
       const target = cfg.openInNewTab ? "_blank" : "_self";
       if (target === "_blank") {
         window.open(href, "_blank", "noopener,noreferrer");
