@@ -19,5 +19,6 @@
 - [ ] blur/shadow가 있어도 포커스 링/indicator 가독성이 유지된다.
 
 ## 컨텐츠 가림 방지
-- [ ] Dock 높이만큼 하단 padding이 적용되어 컨텐츠가 Dock에 가려지지 않는다.
-- [ ] 화면 크기 변경 시 Dock 높이 토큰이 다시 계산되어 padding이 갱신된다.
+- [ ] `Always visible` 모드에서는 Dock 높이만큼 하단 padding이 적용되어 컨텐츠가 Dock에 가려지지 않는다.
+- [ ] `Hover` 모드에서는 하단 padding이 0으로 유지되어 보드 사이즈 변화가 없다.
+- [ ] 화면 크기 변경 시 Dock 높이 토큰이 다시 계산되어 필요한 padding이 갱신된다.

@@ -19,13 +19,15 @@
 - `shape: "raised" | "flat"` - Dock 형태
 - `visibility: "always" | "hover"` - 표시 모드
 - `lengthUnits: number` - Dock 길이 유닛
-- `heightPx: number` - Dock 터치 타겟 높이(최소 44px)
+- `heightPx: number` - Dock 높이(최소 44px)
 - `position: "bottom"` - 위치는 하단 고정
 
 ## 레이아웃/시각 규칙
 - Dock은 항상 하단 중앙 고정이다.
 - Dock은 `position: fixed`로 렌더링하고 콘텐츠와 z-index 레이어를 분리한다.
-- Dock 높이 토큰(`--persistent-dock-height`)을 계산해 콘텐츠 하단 패딩(`--persistent-dock-content-padding`)에 반영한다.
+- Dock 높이 토큰(`--persistent-dock-height`)과 아이콘 크기 토큰(`--dock-icon-size`)을 함께 사용한다.
+- `visibility`가 `always`일 때만 Dock 높이를 콘텐츠 하단 패딩(`--persistent-dock-content-padding`)에 반영해 보드 공간을 차지한다.
+- `visibility`가 `hover`일 때는 콘텐츠 하단 패딩을 `0`으로 유지해 보드 사이즈에 영향을 주지 않는다.
 - 터치 타겟 최소 크기는 44x44px이다.
 
 ## 구현 스텝 완료조건
