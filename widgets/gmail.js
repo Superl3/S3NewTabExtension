@@ -229,7 +229,7 @@ export const gmailWidget = {
     { key: "showSnippet", label: "Show snippet", type: "checkbox" },
     { key: "openInNewTab", label: "Open mail in new tab", type: "checkbox" }
   ],
-  create({ container, getConfig, isEditMode, openSettings }) {
+  create({ container, getConfig, patchConfig, isEditMode, openSettings }) {
     container.classList.add("gmail-widget");
 
     const shell = document.createElement("div");
@@ -276,6 +276,20 @@ export const gmailWidget = {
       } else {
         window.location.href = href;
       }
+    }
+
+    function canSwitchAccount() {
+      return typeof patchConfig === "function";
+    }
+
+    function switchAccount() {
+      const cfg = normalizedConfig(getConfig());
+      const nextAccountIndex = (cfg.accountIndex + 1) % 10;
+      if (typeof patchConfig === "function") {
+        patchConfig({ accountIndex: nextAccountIndex });
+      }
+      void loadMessages();
+      return nextAccountIndex;
     }
 
     function renderList() {
@@ -431,6 +445,12 @@ export const gmailWidget = {
       },
       openGmail() {
         openGmailPage();
+      },
+      switchAccount() {
+        return switchAccount();
+      },
+      canSwitchAccount() {
+        return canSwitchAccount();
       },
       destroy() {
         requestSerial += 1;

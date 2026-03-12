@@ -7354,6 +7354,132 @@ function createWidgetCard(instance) {
     }
   }
 
+  if (instance.type === "gmail" || instance.type === "calendar") {
+    const refreshTitle = instance.type === "gmail" ? "Refresh unread mail" : "Refresh events";
+    const openTitle = instance.type === "gmail" ? "Open Gmail" : "Open Google Calendar";
+    const switchTitle = instance.type === "gmail" ? "Switch Gmail account" : "Switch Calendar account";
+
+    const makeActionButton = (className, titleText, iconId, action) => {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = className;
+      btn.title = titleText;
+      btn.innerHTML = `<svg class="icon"><use href="#${iconId}"></use></svg>`;
+      btn.addEventListener("click", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        Promise.resolve(action?.());
+      });
+      return btn;
+    };
+
+    const placeHeadAction = (btn) => {
+      if (selectBtn?.parentElement === headActions) {
+        headActions.insertBefore(btn, selectBtn);
+      } else {
+        headActions?.prepend(btn);
+      }
+    };
+
+    const runRefresh = () => {
+      if (typeof controller?.manualRefresh === "function") {
+        return controller.manualRefresh();
+      }
+      if (typeof controller?.refresh === "function") {
+        return controller.refresh();
+      }
+      return null;
+    };
+
+    const runOpen = () => {
+      if (typeof controller?.openGmail === "function") {
+        return controller.openGmail();
+      }
+      if (typeof controller?.openCalendar === "function") {
+        return controller.openCalendar();
+      }
+      return null;
+    };
+
+    const runSwitchAccount = () => {
+      if (typeof controller?.switchAccount === "function") {
+        return controller.switchAccount();
+      }
+      return null;
+    };
+
+    const canSwitchAccount = () => {
+      if (typeof controller?.canSwitchAccount === "function") {
+        return Boolean(controller.canSwitchAccount());
+      }
+      return true;
+    };
+
+    if (typeof controller?.manualRefresh === "function" || typeof controller?.refresh === "function") {
+      const headRefresh = makeActionButton(
+        "icon-btn widget-refresh-btn",
+        refreshTitle,
+        "i-reset",
+        runRefresh
+      );
+      placeHeadAction(headRefresh);
+
+      const floatRefresh = makeActionButton(
+        "icon-btn widget-float-refresh",
+        refreshTitle,
+        "i-reset",
+        runRefresh
+      );
+      placeFloatBottomAction(floatRefresh);
+    }
+
+    if (typeof controller?.openGmail === "function" || typeof controller?.openCalendar === "function") {
+      const headOpen = makeActionButton(
+        "icon-btn widget-open-btn",
+        openTitle,
+        "i-open",
+        runOpen
+      );
+      placeHeadAction(headOpen);
+
+      const floatOpen = makeActionButton(
+        "icon-btn widget-float-open",
+        openTitle,
+        "i-open",
+        runOpen
+      );
+      placeFloatTopAction(floatOpen);
+    }
+
+    if (typeof controller?.switchAccount === "function") {
+      const headSwitch = makeActionButton(
+        "icon-btn widget-switch-account-btn",
+        switchTitle,
+        "i-redo",
+        runSwitchAccount
+      );
+      placeHeadAction(headSwitch);
+
+      const floatSwitch = makeActionButton(
+        "icon-btn widget-float-switch-account",
+        switchTitle,
+        "i-redo",
+        runSwitchAccount
+      );
+      placeFloatTopAction(floatSwitch);
+
+      const syncSwitchState = () => {
+        const enabled = canSwitchAccount();
+        headSwitch.disabled = !enabled;
+        floatSwitch.disabled = !enabled;
+        headSwitch.hidden = !enabled;
+        floatSwitch.hidden = !enabled;
+      };
+
+      syncSwitchState();
+    }
+  }
+
   if (instance.type === "githubPrList") {
     const makeActionButton = (className, titleText, iconId, action) => {
       const btn = document.createElement("button");
