@@ -7282,6 +7282,10 @@ function createWidgetCard(instance) {
         typeof controller?.isConnected === "function" ? Boolean(controller.isConnected()) : false;
       const iconId = connected ? "i-unplug" : "i-plug";
       for (const btn of authButtons) {
+        const iconUse = btn.querySelector("use");
+        if (iconUse) {
+          iconUse.setAttribute("href", connected ? "#i-disconnect" : "#i-connect");
+        }
         btn.classList.toggle("is-disconnect", connected);
         btn.title = connected ? "Disconnect Monday" : "Connect Monday";
         const iconUse = btn.querySelector("use");
@@ -7336,14 +7340,14 @@ function createWidgetCard(instance) {
       const headAuth = makeActionButton(
         "icon-btn widget-auth-toggle-btn",
         "Connect Monday",
-        "i-plug",
+        "i-connect",
         runToggleAuth,
         syncAuthButtonState
       );
       const floatAuth = makeActionButton(
         "icon-btn widget-float-auth-toggle",
         "Connect Monday",
-        "i-plug",
+        "i-connect",
         runToggleAuth,
         syncAuthButtonState
       );
@@ -8262,9 +8266,6 @@ function createWidgetCard(instance) {
     if (state.mode !== "edit") {
       return;
     }
-    if (event.target instanceof Element && event.target.closest(".widget-title")) {
-      return;
-    }
     startDrag({ event, target: event.target, fromHandleButton: false });
   });
 
@@ -8279,9 +8280,6 @@ function createWidgetCard(instance) {
       return;
     }
     if (state.mode !== "edit") {
-      return;
-    }
-    if (event.target instanceof Element && event.target.closest(".widget-title")) {
       return;
     }
     startDrag({ event, target: event.target, fromHandleButton: false });
