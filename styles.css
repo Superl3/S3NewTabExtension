@@ -1135,6 +1135,18 @@ body.mode-edit .drag-handle {
   font-size: calc(15px * var(--content-font-scale) * var(--widget-content-font-scale, 1));
 }
 
+.widget-card .widget-body,
+.widget-card .widget-body * {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.widget-card .widget-body::-webkit-scrollbar,
+.widget-card .widget-body *::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+
 .widget-content-host {
   position: relative;
   min-height: 100%;
@@ -1250,16 +1262,19 @@ body:not(.mode-edit) .widget-inline-actions .widget-float-auth-toggle {
 
 body.mode-edit .widget-inline-actions .widget-drag-btn,
 body.mode-edit .widget-inline-actions .widget-float-select,
-body.mode-edit .widget-inline-actions .widget-float-remove {
+body.mode-edit .widget-inline-actions .widget-float-remove,
+body.mode-edit .widget-inline-actions .widget-float-auth-toggle {
   display: none;
 }
 
-body.mode-edit .widget-card:hover .widget-inline-actions .widget-drag-btn,
+body.mode-edit .widget-card.headless:hover .widget-inline-actions .widget-drag-btn,
+body.mode-edit .widget-card.headless:focus-within .widget-inline-actions .widget-drag-btn,
 body.mode-edit .widget-card:hover .widget-inline-actions .widget-float-select,
 body.mode-edit .widget-card:hover .widget-inline-actions .widget-float-remove,
-body.mode-edit .widget-card:focus-within .widget-inline-actions .widget-drag-btn,
+body.mode-edit .widget-card:hover .widget-inline-actions .widget-float-auth-toggle,
 body.mode-edit .widget-card:focus-within .widget-inline-actions .widget-float-select,
-body.mode-edit .widget-card:focus-within .widget-inline-actions .widget-float-remove {
+body.mode-edit .widget-card:focus-within .widget-inline-actions .widget-float-remove,
+body.mode-edit .widget-card:focus-within .widget-inline-actions .widget-float-auth-toggle {
   display: inline-flex;
 }
 
