@@ -616,6 +616,26 @@ export const calendarWidget = {
       }
     }
 
+    function canSwitchAccount() {
+      return typeof patchConfig === "function";
+    }
+
+    function switchAccount() {
+      const cfg = normalizeFetchConfig(getConfig());
+      const nextAccountIndex = (cfg.accountIndex + 1) % 10;
+      const patch = {
+        accountIndex: nextAccountIndex,
+        icsUrl: ""
+      };
+      autoSetupAttempted = false;
+      errorMessage = "";
+      if (typeof patchConfig === "function") {
+        patchConfig(patch);
+      }
+      void loadEvents();
+      return nextAccountIndex;
+    }
+
     function decodeCalendarPageText(rawText) {
       return String(rawText || "")
         .replace(/\\u003d/gi, "=")
@@ -1002,6 +1022,12 @@ export const calendarWidget = {
       },
       openCalendar() {
         openCalendarPage();
+      },
+      switchAccount() {
+        return switchAccount();
+      },
+      canSwitchAccount() {
+        return canSwitchAccount();
       },
       destroy() {
         requestSerial += 1;

@@ -6971,6 +6971,7 @@ function createWidgetCard(instance) {
   if (instance.type === "gmail" || instance.type === "calendar") {
     const refreshTitle = instance.type === "gmail" ? "Refresh unread mail" : "Refresh events";
     const openTitle = instance.type === "gmail" ? "Open Gmail" : "Open Google Calendar";
+    const switchTitle = instance.type === "gmail" ? "Switch Gmail account" : "Switch Calendar account";
 
     const makeActionButton = (className, titleText, iconId, action) => {
       const btn = document.createElement("button");
@@ -7014,6 +7015,20 @@ function createWidgetCard(instance) {
       return null;
     };
 
+    const runSwitchAccount = () => {
+      if (typeof controller?.switchAccount === "function") {
+        return controller.switchAccount();
+      }
+      return null;
+    };
+
+    const canSwitchAccount = () => {
+      if (typeof controller?.canSwitchAccount === "function") {
+        return Boolean(controller.canSwitchAccount());
+      }
+      return true;
+    };
+
     if (typeof controller?.manualRefresh === "function" || typeof controller?.refresh === "function") {
       const headRefresh = makeActionButton(
         "icon-btn widget-refresh-btn",
@@ -7048,6 +7063,34 @@ function createWidgetCard(instance) {
         runOpen
       );
       placeFloatTopAction(floatOpen);
+    }
+
+    if (typeof controller?.switchAccount === "function") {
+      const headSwitch = makeActionButton(
+        "icon-btn widget-switch-account-btn",
+        switchTitle,
+        "i-redo",
+        runSwitchAccount
+      );
+      placeHeadAction(headSwitch);
+
+      const floatSwitch = makeActionButton(
+        "icon-btn widget-float-switch-account",
+        switchTitle,
+        "i-redo",
+        runSwitchAccount
+      );
+      placeFloatTopAction(floatSwitch);
+
+      const syncSwitchState = () => {
+        const enabled = canSwitchAccount();
+        headSwitch.disabled = !enabled;
+        floatSwitch.disabled = !enabled;
+        headSwitch.hidden = !enabled;
+        floatSwitch.hidden = !enabled;
+      };
+
+      syncSwitchState();
     }
   }
 
