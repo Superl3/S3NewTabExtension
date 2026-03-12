@@ -13,10 +13,16 @@ function normalizeText(value, fallback = "") {
 }
 
 const DONE_GROUP_TITLES = new Set(["done", "completed", "완료"]);
+const DONE_STATUS_LABELS = new Set(["done", "completed", "완료"]);
 
 function isDoneGroupTitle(value) {
   const normalized = normalizeText(value).toLowerCase();
   return normalized ? DONE_GROUP_TITLES.has(normalized) : false;
+}
+
+function isDoneStatusLabel(value) {
+  const normalized = normalizeText(value).toLowerCase();
+  return normalized ? DONE_STATUS_LABELS.has(normalized) : false;
 }
 
 function normalizeBoardId(value, fallback = 0) {
@@ -34,9 +40,20 @@ function splitCsvText(value) {
     .filter(Boolean);
 }
 
+function csvEntries(value) {
+  if (Array.isArray(value)) {
+    const out = [];
+    for (const entry of value) {
+      out.push(...splitCsvText(entry));
+    }
+    return out;
+  }
+  return splitCsvText(value);
+}
+
 function normalizeBoardIds(value, fallback = []) {
-  const source = Array.isArray(value) ? value : splitCsvText(value);
-  const fallbackIds = Array.isArray(fallback) ? fallback : splitCsvText(fallback);
+  const source = csvEntries(value);
+  const fallbackIds = csvEntries(fallback);
   const out = [];
 
   for (const entry of source) {
@@ -78,6 +95,41 @@ function normalizeHour(value, fallback, min, max) {
 
 function normalizeColumnId(value, fallback = "") {
   return normalizeText(value, fallback).slice(0, 80);
+}
+
+function normalizePeopleColumnSelector(value, fallback = "") {
+  const text = normalizeText(value, fallback);
+  if (text === "*") {
+    return "*";
+  }
+  return normalizeColumnId(text);
+}
+
+function normalizePeopleColumnSelectorList(value, fallback = "") {
+  const source = csvEntries(value);
+  const fallbackEntries = csvEntries(fallback);
+  const normalized = source.length ? source : fallbackEntries;
+  return normalized
+    .map((entry) => normalizePeopleColumnSelector(entry))
+    .filter(Boolean)
+    .join(", ");
+}
+
+function parsePeopleColumnSelectorList(value) {
+  return csvEntries(value)
+    .map((entry) => normalizePeopleColumnSelector(entry))
+    .filter(Boolean);
+}
+
+function resolveBoardPeopleColumnSelector(config, boardIndex) {
+  const selectors = parsePeopleColumnSelectorList(config?.peopleColumnId);
+  if (!selectors.length) {
+    return "";
+  }
+  if (selectors.length === 1) {
+    return selectors[0];
+  }
+  return selectors[boardIndex] || "";
 }
 
 function normalizeConnectorUrl(value, fallback = LOCAL_AUTH_CONNECTOR_URL) {
@@ -338,7 +390,7 @@ function normalizedConfig(config) {
     accessToken: normalizeText(config?.accessToken),
     boardIds,
     boardId: boardIds[0] || 0,
-    peopleColumnId: normalizeColumnId(config?.peopleColumnId),
+    peopleColumnId: normalizePeopleColumnSelectorList(config?.peopleColumnId),
     maxItems: normalizeMaxItems(config?.maxItems, 15),
     workStartHour,
     workEndHour,
@@ -567,6 +619,20 @@ async function fetchContext(config, accessToken) {
       title.includes("assigned")
     );
   });
+  const statusColumnIds = allColumns
+    .filter((column) => {
+      const type = normalizeText(column?.type).toLowerCase();
+      const title = normalizeText(column?.title).toLowerCase();
+      return (
+        type === "status" ||
+        type === "color" ||
+        title === "status" ||
+        title.includes("status") ||
+        title.includes("상태")
+      );
+    })
+    .map((column) => normalizeText(column?.id))
+    .filter(Boolean);
   const boardGroups = Array.isArray(board?.groups)
     ? board.groups
         .map((group) => ({
@@ -581,34 +647,57 @@ async function fetchContext(config, accessToken) {
     meName: normalizeText(data?.me?.name),
     boardName: normalizeText(board?.name, `Board ${config.boardId}`),
     peopleColumns,
+    statusColumnIds,
     boardGroups
   };
 }
 
-function resolvePeopleColumnIds(config, peopleColumns) {
-  const configured = normalizeColumnId(config.peopleColumnId);
-  if (configured) {
-    return [configured];
-  }
+function resolvePeopleColumnIds(peopleColumns, configuredSelector = "") {
+  const configured = normalizePeopleColumnSelector(configuredSelector);
 
   const normalizedColumns = Array.isArray(peopleColumns)
     ? peopleColumns
         .map((column) => ({
           id: normalizeText(column?.id),
-          title: normalizeText(column?.title).toLowerCase()
+          idKey: normalizeText(column?.id).toLowerCase(),
+          title: normalizeText(column?.title),
+          titleKey: normalizeText(column?.title).toLowerCase()
         }))
         .filter((column) => column.id)
     : [];
 
   if (!normalizedColumns.length) {
-    throw new Error("No People column detected. Set People column ID in widget settings.");
+    throw new Error(
+      "No People column detected for this board. Set People column ID(s) in widget settings or use * for all tasks."
+    );
+  }
+
+  if (configured && configured !== "*") {
+    const selectorKey = configured.toLowerCase();
+
+    const exactId = normalizedColumns.find((column) => column.id === configured || column.idKey === selectorKey);
+    if (exactId) {
+      return [exactId.id];
+    }
+
+    const exactTitleMatches = normalizedColumns.filter((column) => column.titleKey === selectorKey);
+    if (exactTitleMatches.length) {
+      return Array.from(new Set(exactTitleMatches.map((column) => column.id)));
+    }
+
+    const partialTitleMatches = normalizedColumns.filter((column) => column.titleKey.includes(selectorKey));
+    if (partialTitleMatches.length) {
+      return Array.from(new Set(partialTitleMatches.map((column) => column.id)));
+    }
+
+    throw new Error(`People column selector "${configured}" not found in this board.`);
   }
 
   const preferred = normalizedColumns.filter((column) => {
     return (
-      column.title.includes("owner") ||
-      column.title.includes("assignee") ||
-      column.title.includes("assigned")
+      column.titleKey.includes("owner") ||
+      column.titleKey.includes("assignee") ||
+      column.titleKey.includes("assigned")
     );
   });
 
@@ -625,7 +714,66 @@ function resolvePeopleColumnIds(config, peopleColumns) {
   return unique;
 }
 
-function mapAssignedIssues(rawItems, maxItems) {
+function resolveBoardPeopleScope(config, boardIndex, peopleColumns) {
+  const selector = resolveBoardPeopleColumnSelector(config, boardIndex);
+  if (selector === "*") {
+    return {
+      mode: "all",
+      columnIds: []
+    };
+  }
+
+  return {
+    mode: "assigned",
+    columnIds: resolvePeopleColumnIds(peopleColumns, selector)
+  };
+}
+
+function normalizeStatusColumnIds(statusColumnIds) {
+  return Array.isArray(statusColumnIds)
+    ? statusColumnIds.map((value) => normalizeColumnId(value)).filter(Boolean)
+    : [];
+}
+
+function buildStatusColumnValuesSelection(statusColumnIds) {
+  const ids = normalizeStatusColumnIds(statusColumnIds);
+  if (!ids.length) {
+    return "";
+  }
+  const idsLiteral = ids.map((id) => JSON.stringify(id)).join(", ");
+  return `
+            column_values(ids: [${idsLiteral}]) {
+              id
+              text
+            }
+  `;
+}
+
+function hasDoneStatusOnItem(item, statusColumnIds = []) {
+  const values = Array.isArray(item?.column_values) ? item.column_values : [];
+  if (!values.length) {
+    return false;
+  }
+
+  const targetIds = new Set(normalizeStatusColumnIds(statusColumnIds));
+  if (!targetIds.size) {
+    return false;
+  }
+
+  for (const value of values) {
+    const id = normalizeText(value?.id);
+    if (!id || !targetIds.has(id)) {
+      continue;
+    }
+    if (isDoneStatusLabel(value?.text)) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+function mapAssignedIssues(rawItems, maxItems, statusColumnIds = []) {
   const seen = new Set();
   const mapped = [];
 
@@ -636,6 +784,10 @@ function mapAssignedIssues(rawItems, maxItems) {
     }
     seen.add(id);
 
+    if (hasDoneStatusOnItem(entry, statusColumnIds)) {
+      continue;
+    }
+
     const updatedAt = normalizeText(entry?.updated_at);
     const updatedTs = Date.parse(updatedAt);
     mapped.push({
@@ -644,14 +796,16 @@ function mapAssignedIssues(rawItems, maxItems) {
       url: normalizeText(entry?.url, MONDAY_WEB_URL),
       groupId: normalizeText(entry?.group?.id),
       groupTitle: normalizeText(entry?.group?.title),
-      isSubitem: entry?.isSubitem === true,
       updatedLabel: formatDateLabel(updatedAt),
       updatedTs: Number.isFinite(updatedTs) ? updatedTs : 0
     });
   }
 
   mapped.sort((a, b) => b.updatedTs - a.updatedTs);
-  return mapped.slice(0, maxItems);
+  if (Number.isFinite(maxItems) && maxItems > 0) {
+    return mapped.slice(0, maxItems);
+  }
+  return mapped;
 }
 
 function normalizeCachedIssue(entry) {
@@ -666,7 +820,6 @@ function normalizeCachedIssue(entry) {
     url: normalizeText(entry?.url, MONDAY_WEB_URL),
     groupId: normalizeText(entry?.groupId),
     groupTitle: normalizeText(entry?.groupTitle),
-    isSubitem: entry?.isSubitem === true,
     updatedLabel: normalizeText(entry?.updatedLabel),
     updatedTs: Number.isFinite(updatedTs) ? updatedTs : 0
   };
@@ -696,6 +849,7 @@ function normalizeCachedBoardSnapshot(entry) {
     boardId,
     boardName: normalizeText(entry?.boardName, `Board ${boardId}`),
     assigneeName: normalizeText(entry?.assigneeName, "me"),
+    scopeMode: normalizeText(entry?.scopeMode) === "all" ? "all" : "assigned",
     groups,
     issues
   };
@@ -715,11 +869,14 @@ function readCachedSnapshot(rawConfig, cfg) {
         boardId: entry.boardId,
         boardName: entry.boardName,
         assigneeName: entry.assigneeName,
+        scopeMode: entry.scopeMode === "all" ? "all" : "assigned",
         groups: entry.groups,
-        issues: entry.issues
-          .slice()
-          .sort((a, b) => b.updatedTs - a.updatedTs)
-          .slice(0, cfg.maxItems)
+        issues: (() => {
+          const sorted = entry.issues
+            .slice()
+            .sort((a, b) => b.updatedTs - a.updatedTs);
+          return entry.scopeMode === "all" ? sorted : sorted.slice(0, cfg.maxItems);
+        })()
       }));
 
     if (!boards.length) {
@@ -751,6 +908,7 @@ function readCachedSnapshot(rawConfig, cfg) {
         boardId: cachedBoardId,
         boardName: normalizeText(rawConfig?.cacheBoardName, `Board ${cachedBoardId}`),
         assigneeName: normalizeText(rawConfig?.cacheAssigneeName, "me"),
+        scopeMode: "assigned",
         issues: cachedIssues
           .slice()
           .sort((a, b) => b.updatedTs - a.updatedTs)
@@ -820,8 +978,90 @@ function mapAssignedSubitems(parentItems, meId) {
   return out;
 }
 
-async function fetchAssignedFromColumn(config, meId, peopleColumnId, accessToken) {
+function mapAllSubitems(parentItems) {
+  const out = [];
+  const parents = Array.isArray(parentItems) ? parentItems : [];
+  for (const parent of parents) {
+    const parentTitle = normalizeText(parent?.name, "(Untitled issue)");
+    const parentGroup = parent?.group;
+    const subitems = Array.isArray(parent?.subitems) ? parent.subitems : [];
+    for (const subitem of subitems) {
+      out.push({
+        id: normalizeText(subitem?.id),
+        name: `${parentTitle} / ${normalizeText(subitem?.name, "(Untitled issue)")}`,
+        url: normalizeText(subitem?.url, parent?.url || MONDAY_WEB_URL),
+        updated_at: normalizeText(subitem?.updated_at, parent?.updated_at),
+        group: subitem?.group || parentGroup,
+        isSubitem: true
+      });
+    }
+  }
+  return out;
+}
+
+async function fetchBoardIssues(config, accessToken, statusColumnIds = []) {
+  const scanLimit = 300;
+  const statusColumnValuesSelection = buildStatusColumnValuesSelection(statusColumnIds);
+  const query = `
+    query {
+      boards(ids: [${config.boardId}]) {
+        items_page(limit: ${scanLimit}) {
+          items {
+            id
+            name
+            url
+            updated_at
+            group {
+              id
+              title
+            }
+            ${statusColumnValuesSelection}
+          }
+        }
+      }
+    }
+  `;
+
+  try {
+    const data = await mondayFetchGraphql(accessToken, query);
+    const board = Array.isArray(data?.boards) ? data.boards[0] : null;
+    const parentItems = Array.isArray(board?.items_page?.items) ? board.items_page.items : [];
+    return mapAssignedIssues(parentItems, 0, statusColumnIds);
+  } catch (error) {
+    const message = normalizeErrorMessage(error);
+    const noItemsPage = message.includes("Cannot query field \"items_page\"");
+    if (!noItemsPage) {
+      throw error;
+    }
+
+    const legacyQuery = `
+      query {
+        boards(ids: [${config.boardId}]) {
+          items(limit: ${scanLimit}) {
+            id
+            name
+            url
+            updated_at
+            group {
+              id
+              title
+            }
+            ${statusColumnValuesSelection}
+          }
+        }
+      }
+    `;
+
+    const legacyData = await mondayFetchGraphql(accessToken, legacyQuery);
+    const legacyBoard = Array.isArray(legacyData?.boards) ? legacyData.boards[0] : null;
+    const parentItems = Array.isArray(legacyBoard?.items) ? legacyBoard.items : [];
+    return mapAssignedIssues(parentItems, 0, statusColumnIds);
+  }
+}
+
+async function fetchAssignedFromColumn(config, meId, peopleColumnId, accessToken, statusColumnIds = []) {
   const fetchLimit = clamp(Math.max(config.maxItems * 4, 80), 1, 300);
+  const statusColumnValuesSelection = buildStatusColumnValuesSelection(statusColumnIds);
 
   const query = `
     query {
@@ -848,21 +1088,7 @@ async function fetchAssignedFromColumn(config, meId, peopleColumnId, accessToken
               id
               title
             }
-            subitems {
-              id
-              name
-              url
-              updated_at
-              group {
-                id
-                title
-              }
-              column_values(ids: [${JSON.stringify(peopleColumnId)}]) {
-                id
-                value
-                text
-              }
-            }
+            ${statusColumnValuesSelection}
           }
         }
       }
@@ -873,8 +1099,7 @@ async function fetchAssignedFromColumn(config, meId, peopleColumnId, accessToken
     const data = await mondayFetchGraphql(accessToken, query);
     const board = Array.isArray(data?.boards) ? data.boards[0] : null;
     const parentItems = Array.isArray(board?.items_page?.items) ? board.items_page.items : [];
-    const assignedSubitems = mapAssignedSubitems(parentItems, meId);
-    return [...parentItems, ...assignedSubitems];
+    return parentItems;
   } catch (error) {
     const message = normalizeErrorMessage(error);
     const noItemsPage =
@@ -902,6 +1127,7 @@ async function fetchAssignedFromColumn(config, meId, peopleColumnId, accessToken
             id
             title
           }
+          ${statusColumnValuesSelection}
         }
       }
     `;
@@ -965,7 +1191,7 @@ async function fetchAssignedSubitemsAcrossBoard(config, meId, peopleColumnIds, a
   return mapAssignedSubitems(parentItems, meId);
 }
 
-async function fetchAssignedIssues(config, meId, peopleColumnIds, accessToken) {
+async function fetchAssignedIssues(config, meId, peopleColumnIds, accessToken, statusColumnIds = []) {
   const columnIds = Array.isArray(peopleColumnIds)
     ? peopleColumnIds.map((value) => normalizeColumnId(value)).filter(Boolean)
     : [];
@@ -978,7 +1204,13 @@ async function fetchAssignedIssues(config, meId, peopleColumnIds, accessToken) {
   let firstColumnError = null;
   for (const columnId of columnIds) {
     try {
-      const fromColumn = await fetchAssignedFromColumn(config, meId, columnId, accessToken);
+      const fromColumn = await fetchAssignedFromColumn(
+        config,
+        meId,
+        columnId,
+        accessToken,
+        statusColumnIds
+      );
       if (Array.isArray(fromColumn) && fromColumn.length) {
         allItems.push(...fromColumn);
       }
@@ -989,19 +1221,11 @@ async function fetchAssignedIssues(config, meId, peopleColumnIds, accessToken) {
     }
   }
 
-  try {
-    const subitems = await fetchAssignedSubitemsAcrossBoard(config, meId, columnIds, accessToken);
-    if (Array.isArray(subitems) && subitems.length) {
-      allItems.push(...subitems);
-    }
-  } catch {
-  }
-
   if (!allItems.length && firstColumnError) {
     throw firstColumnError;
   }
 
-  return mapAssignedIssues(allItems, config.maxItems);
+  return mapAssignedIssues(allItems, config.maxItems, statusColumnIds);
 }
 
 function groupIssuesByGroup(items, boardGroups) {
@@ -1098,13 +1322,6 @@ export const mondayAssignedWidget = {
       helpText: "Backend OAuth start endpoint. It must return to this extension with access_token."
     },
     {
-      key: "accessToken",
-      label: "Access token (optional)",
-      type: "password",
-      placeholder: "Monday access token",
-      helpText: "If set, Connect uses this token directly and skips connector popup/relay."
-    },
-    {
       key: "boardId",
       label: "Board ID(s)",
       type: "text",
@@ -1113,10 +1330,10 @@ export const mondayAssignedWidget = {
     },
     {
       key: "peopleColumnId",
-      label: "People column ID",
+      label: "People column ID(s)",
       type: "text",
-      placeholder: "Optional, ex: person",
-      helpText: "Optional. If empty, the first People column in the board is used."
+      placeholder: "person or person,owner,*",
+      helpText: "Comma-separated selectors follow board index order. Each selector can be column ID/title, and * shows all tasks in that board."
     },
     {
       key: "maxItems",
@@ -1145,7 +1362,7 @@ export const mondayAssignedWidget = {
     },
     { key: "openInNewTab", label: "Open issue in new tab", type: "checkbox" }
   ],
-  create({ container, getConfig, patchConfig, isEditMode, openSettings }) {
+  create({ container, getConfig, getUi, patchConfig, isEditMode, openSettings }) {
     container.classList.add("monday-widget");
 
     const shell = document.createElement("div");
@@ -1174,6 +1391,7 @@ export const mondayAssignedWidget = {
     let timer = null;
     let sessionSyncSerial = 0;
     let storageListener = null;
+    const collapsedGroupKeys = new Set();
 
     function clearRefreshTimer() {
       if (timer) {
@@ -1182,8 +1400,20 @@ export const mondayAssignedWidget = {
       }
     }
 
-    function openMondayPage() {
+    function resolveConfig() {
       const cfg = normalizedConfig(getConfig());
+      const globalAccessToken = normalizeText(getUi?.()?.monday?.accessToken);
+      if (!globalAccessToken) {
+        return cfg;
+      }
+      return {
+        ...cfg,
+        accessToken: globalAccessToken
+      };
+    }
+
+    function openMondayPage() {
+      const cfg = resolveConfig();
       const href = resolveMondayUrl(cfg);
       const target = cfg.openInNewTab ? "_blank" : "_self";
       if (target === "_blank") {
@@ -1204,6 +1434,7 @@ export const mondayAssignedWidget = {
             boardId: normalizeBoardId(entry?.boardId, 0),
             boardName: normalizeText(entry?.boardName),
             assigneeName: normalizeText(entry?.assigneeName, "me"),
+            scopeMode: normalizeText(entry?.scopeMode) === "all" ? "all" : "assigned",
             boardGroups: Array.isArray(entry?.groups) ? entry.groups : [],
             issues: Array.isArray(entry?.issues) ? entry.issues : []
           }))
@@ -1226,7 +1457,6 @@ export const mondayAssignedWidget = {
                 url: normalizeText(issue?.url),
                 groupId: normalizeText(issue?.groupId),
                 groupTitle: normalizeText(issue?.groupTitle),
-                isSubitem: issue?.isSubitem === true,
                 updatedLabel: normalizeText(issue?.updatedLabel),
                 updatedTs: Number(issue?.updatedTs) || 0
               }))
@@ -1243,6 +1473,7 @@ export const mondayAssignedWidget = {
             boardId,
             boardName: normalizeText(snapshot?.boardName, `Board ${boardId}`),
             assigneeName: normalizeText(snapshot?.assigneeName, "me"),
+            scopeMode: normalizeText(snapshot?.scopeMode) === "all" ? "all" : "assigned",
             groups,
             issues
           };
@@ -1349,7 +1580,7 @@ export const mondayAssignedWidget = {
           return;
         }
 
-        const cfg = normalizedConfig(getConfig());
+        const cfg = resolveConfig();
         if (!hasConnectorConfig(cfg)) {
           return;
         }
@@ -1376,7 +1607,7 @@ export const mondayAssignedWidget = {
     }
 
     async function connectAccount() {
-      const cfg = normalizedConfig(getConfig());
+      const cfg = resolveConfig();
       if (!hasConnectorConfig(cfg)) {
         errorMessage = "Set auth connector URL in widget settings first.";
         render();
@@ -1462,15 +1693,15 @@ export const mondayAssignedWidget = {
         scheduleRefresh();
       }
 
-      if (connected && hasBoardConfig(normalizedConfig(getConfig()))) {
+      if (connected && hasBoardConfig(resolveConfig())) {
         void loadIssues({ reason: "manual" });
       }
     }
 
     async function disconnectAccount() {
-      const cfg = normalizedConfig(getConfig());
+      const cfg = resolveConfig();
       if (normalizeText(cfg.accessToken)) {
-        errorMessage = "Remove Access token in settings to disconnect.";
+        errorMessage = "Remove Monday access token in Global settings to disconnect.";
         render();
         return;
       }
@@ -1487,16 +1718,33 @@ export const mondayAssignedWidget = {
       scheduleRefresh();
     }
 
-    function renderGroupedIssues(targetList, grouped, cfg) {
+    function renderGroupedIssues(targetList, grouped, cfg, scopeKey = "") {
       for (const bucket of grouped) {
         if (isDoneGroupTitle(bucket.title)) {
           continue;
         }
 
-        const heading = document.createElement("li");
+        const section = document.createElement("li");
+        section.className = "monday-group-section";
+
+        const details = document.createElement("details");
+        details.className = "monday-group-details";
+        const groupKey = `${scopeKey}:${bucket.key || bucket.title || "group"}`;
+        details.open = !collapsedGroupKeys.has(groupKey);
+        details.addEventListener("toggle", () => {
+          if (details.open) {
+            collapsedGroupKeys.delete(groupKey);
+          } else {
+            collapsedGroupKeys.add(groupKey);
+          }
+        });
+
+        const heading = document.createElement("summary");
         heading.className = "monday-group-heading";
-        heading.textContent = bucket.title || "Ungrouped";
-        targetList.append(heading);
+        heading.textContent = `${bucket.title || "Ungrouped"} (${bucket.items.length})`;
+
+        const itemsList = document.createElement("ul");
+        itemsList.className = "monday-group-items";
 
         for (const issue of bucket.items) {
           const row = document.createElement("li");
@@ -1517,11 +1765,14 @@ export const mondayAssignedWidget = {
             openSettings?.();
           });
 
-          const prefix = issue.isSubitem ? "- [Sub] " : "- ";
-          link.textContent = `${prefix}${issue.title}`;
+          link.textContent = `- ${issue.title}`;
           row.append(link);
-          targetList.append(row);
+          itemsList.append(row);
         }
+
+        details.append(heading, itemsList);
+        section.append(details);
+        targetList.append(section);
       }
     }
 
@@ -1542,13 +1793,14 @@ export const mondayAssignedWidget = {
 
     function renderList() {
       list.replaceChildren();
-      const cfg = normalizedConfig(getConfig());
+      const cfg = resolveConfig();
       list.classList.remove("is-board-cards");
       const visibleSnapshots = getVisibleSnapshots(cfg);
       const multiBoard = cfg.boardIds.length > 1;
       const hasAnyIssues = visibleSnapshots.some(
         (entry) => Array.isArray(entry?.issues) && entry.issues.length > 0
       );
+      const hasAllScope = visibleSnapshots.some((entry) => entry?.scopeMode === "all");
 
       if (!hasAnyIssues) {
         if (multiBoard && hasFetched && hasBoardConfig(cfg) && hasActiveConnection(cfg)) {
@@ -1563,7 +1815,8 @@ export const mondayAssignedWidget = {
 
             const emptyText = document.createElement("p");
             emptyText.className = "monday-board-card-empty";
-            emptyText.textContent = "No assigned issues in this board.";
+            emptyText.textContent =
+              snapshot?.scopeMode === "all" ? "No issues in this board." : "No assigned issues in this board.";
 
             card.append(cardHeader, emptyText);
             list.append(card);
@@ -1574,20 +1827,24 @@ export const mondayAssignedWidget = {
         const empty = document.createElement("li");
         empty.className = "monday-issue-empty";
         if (loading) {
-          empty.textContent = "Loading assigned issues...";
+          empty.textContent = hasAllScope ? "Loading board issues..." : "Loading assigned issues...";
         } else if (!hasConnectorConfig(cfg)) {
           empty.textContent =
             "Set auth connector URL in widget settings to enable Monday connection.";
         } else if (!hasActiveConnection(cfg)) {
-          empty.textContent = "Connect Monday account to load assigned issues.";
+          empty.textContent = hasAllScope
+            ? "Connect Monday account to load board issues."
+            : "Connect Monday account to load assigned issues.";
         } else if (!hasBoardConfig(cfg)) {
           empty.textContent = "Set Board ID(s) in widget settings. Use numeric IDs from /boards/<id>.";
         } else if (errorMessage) {
-          empty.textContent = "Assigned issue list is not available.";
+          empty.textContent = hasAllScope ? "Board issue list is not available." : "Assigned issue list is not available.";
         } else if (!hasFetched) {
           empty.textContent = "Waiting for the next auto refresh or manual refresh.";
         } else {
-          empty.textContent = "No issues assigned to you in Owner/People columns.";
+          empty.textContent = hasAllScope
+            ? "No issues found in configured boards."
+            : "No issues assigned to you in Owner/People columns.";
         }
         list.append(empty);
         return;
@@ -1598,27 +1855,36 @@ export const mondayAssignedWidget = {
       if (!multiBoard) {
         const first = visibleSnapshots[0];
         const grouped = groupIssuesByGroup(first?.issues || [], first?.boardGroups || []);
-        renderGroupedIssues(list, grouped, cfg);
+        renderGroupedIssues(list, grouped, cfg, `board-${first?.boardId || cfg.boardId}`);
         return;
       }
 
       for (const snapshot of visibleSnapshots) {
         const boardIssues = Array.isArray(snapshot?.issues) ? snapshot.issues : [];
-        if (!boardIssues.length) {
-          continue;
-        }
+        const isAllScope = snapshot?.scopeMode === "all";
 
-        const grouped = groupIssuesByGroup(boardIssues, snapshot?.boardGroups || []);
         const card = document.createElement("li");
         card.className = "monday-board-card";
 
         const cardHeader = document.createElement("div");
         cardHeader.className = "monday-board-card-header";
-        cardHeader.textContent = `${snapshot.boardName || `Board ${snapshot.boardId}`} (${boardIssues.length})`;
+        cardHeader.textContent = `${snapshot.boardName || `Board ${snapshot.boardId}`} (${boardIssues.length} ${isAllScope ? "items" : "assigned"})`;
 
+        if (!boardIssues.length) {
+          const emptyText = document.createElement("p");
+          emptyText.className = "monday-board-card-empty";
+          emptyText.textContent = isAllScope
+            ? "No issues in this board."
+            : "No assigned issues in this board.";
+          card.append(cardHeader, emptyText);
+          list.append(card);
+          continue;
+        }
+
+        const grouped = groupIssuesByGroup(boardIssues, snapshot?.boardGroups || []);
         const boardList = document.createElement("ul");
         boardList.className = "monday-board-card-list";
-        renderGroupedIssues(boardList, grouped, cfg);
+        renderGroupedIssues(boardList, grouped, cfg, `board-${snapshot.boardId}`);
 
         card.append(cardHeader, boardList);
         list.append(card);
@@ -1626,7 +1892,7 @@ export const mondayAssignedWidget = {
     }
 
     function renderStatus() {
-      const cfg = normalizedConfig(getConfig());
+      const cfg = resolveConfig();
       status.classList.toggle("is-error", Boolean(errorMessage));
 
       let text = "";
@@ -1645,13 +1911,20 @@ export const mondayAssignedWidget = {
           const boardIssues = Array.isArray(entry?.issues) ? entry.issues.length : 0;
           return count + boardIssues;
         }, 0);
-        text = `${cfg.boardIds.length} boards · ${total} assigned`;
+        const hasAllScope = boardSnapshots.some((entry) => entry?.scopeMode === "all");
+        text = `${cfg.boardIds.length} boards · ${total} ${hasAllScope ? "items" : "assigned"}`;
       } else if (boardSnapshots[0]?.issues?.length) {
         const first = boardSnapshots[0];
-        text = `${first.boardName || `Board ${cfg.boardId}`} · ${first.assigneeName || "me"} · ${first.issues.length} assigned`;
+        const isAllScope = first?.scopeMode === "all";
+        text = isAllScope
+          ? `${first.boardName || `Board ${cfg.boardId}`} · all tasks · ${first.issues.length} items`
+          : `${first.boardName || `Board ${cfg.boardId}`} · ${first.assigneeName || "me"} · ${first.issues.length} assigned`;
       } else if (hasFetched) {
         const first = boardSnapshots[0];
-        text = `${first?.boardName || `Board ${cfg.boardId}`} · ${first?.assigneeName || "me"} · 0 assigned`;
+        const isAllScope = first?.scopeMode === "all";
+        text = isAllScope
+          ? `${first?.boardName || `Board ${cfg.boardId}`} · all tasks · 0 items`
+          : `${first?.boardName || `Board ${cfg.boardId}`} · ${first?.assigneeName || "me"} · 0 assigned`;
       } else {
         text = `${boardSnapshots[0]?.boardName || `Board ${cfg.boardId}`} connected · press Refresh`;
       }
@@ -1671,7 +1944,7 @@ export const mondayAssignedWidget = {
 
     function scheduleRefresh() {
       clearRefreshTimer();
-      const cfg = normalizedConfig(getConfig());
+      const cfg = resolveConfig();
       if (!hasBoardConfig(cfg) || !hasActiveConnection(cfg)) {
         nextAutoRunAt = null;
         renderStatus();
@@ -1711,7 +1984,7 @@ export const mondayAssignedWidget = {
     }
 
     function shouldRunAutoNow() {
-      const cfg = normalizedConfig(getConfig());
+      const cfg = resolveConfig();
       if (!hasBoardConfig(cfg) || !hasActiveConnection(cfg) || loading) {
         return false;
       }
@@ -1725,7 +1998,7 @@ export const mondayAssignedWidget = {
       render();
 
       try {
-        const cfg = normalizedConfig(getConfig());
+        const cfg = resolveConfig();
         if (!hasConnectorConfig(cfg)) {
           throw new Error("Set auth connector URL first.");
         }
@@ -1746,18 +2019,53 @@ export const mondayAssignedWidget = {
         }
 
         const snapshots = [];
-        for (const boardId of cfg.boardIds) {
+        const boardWarnings = [];
+        for (let boardIndex = 0; boardIndex < cfg.boardIds.length; boardIndex += 1) {
+          const boardId = cfg.boardIds[boardIndex];
           const boardCfg = { ...cfg, boardId };
-          const context = await fetchContext(boardCfg, accessToken);
-          const peopleColumnIds = resolvePeopleColumnIds(boardCfg, context.peopleColumns);
-          const assigned = await fetchAssignedIssues(boardCfg, context.meId, peopleColumnIds, accessToken);
-          snapshots.push({
-            boardId,
-            boardName: context.boardName,
-            assigneeName: normalizeText(context.meName, "me"),
-            boardGroups: Array.isArray(context.boardGroups) ? context.boardGroups : [],
-            issues: assigned
-          });
+          const selector = resolveBoardPeopleColumnSelector(cfg, boardIndex);
+          const fallbackScopeMode = selector === "*" ? "all" : "assigned";
+
+          try {
+            const context = await fetchContext(boardCfg, accessToken);
+            const scope = resolveBoardPeopleScope(cfg, boardIndex, context.peopleColumns);
+            const statusColumnIds = Array.isArray(context.statusColumnIds)
+              ? context.statusColumnIds
+              : [];
+            const issues =
+              scope.mode === "all"
+                ? await fetchBoardIssues(boardCfg, accessToken, statusColumnIds)
+                : await fetchAssignedIssues(
+                    boardCfg,
+                    context.meId,
+                    scope.columnIds,
+                    accessToken,
+                    statusColumnIds
+                  );
+
+            snapshots.push({
+              boardId,
+              boardName: context.boardName,
+              assigneeName: scope.mode === "all" ? "all tasks" : normalizeText(context.meName, "me"),
+              scopeMode: scope.mode,
+              boardGroups: Array.isArray(context.boardGroups) ? context.boardGroups : [],
+              issues
+            });
+          } catch (boardError) {
+            if (boardError?.code === "auth") {
+              throw boardError;
+            }
+
+            boardWarnings.push(`${boardId}: ${normalizeErrorMessage(boardError)}`);
+            snapshots.push({
+              boardId,
+              boardName: `Board ${boardId}`,
+              assigneeName: fallbackScopeMode === "all" ? "all tasks" : "me",
+              scopeMode: fallbackScopeMode,
+              boardGroups: [],
+              issues: []
+            });
+          }
         }
 
         if (requestId !== requestSerial) {
@@ -1768,6 +2076,13 @@ export const mondayAssignedWidget = {
         hasFetched = true;
         lastSignature = configSignature(cfg);
         persistSnapshot(cfg);
+
+        if (boardWarnings.length) {
+          errorMessage =
+            boardWarnings.length >= cfg.boardIds.length
+              ? boardWarnings[0]
+              : `Some boards failed to sync (${boardWarnings.length}/${cfg.boardIds.length}).`;
+        }
       } catch (error) {
         if (requestId !== requestSerial) {
           return;
@@ -1795,7 +2110,7 @@ export const mondayAssignedWidget = {
     }
 
     async function toggleConnection() {
-      const cfg = normalizedConfig(getConfig());
+      const cfg = resolveConfig();
       if (hasActiveConnection(cfg)) {
         await disconnectAccount();
         return;
@@ -1804,7 +2119,7 @@ export const mondayAssignedWidget = {
     }
 
     const initialRawCfg = getConfig();
-    const initialCfg = normalizedConfig(initialRawCfg);
+    const initialCfg = resolveConfig();
     applyCachedSnapshotIfPresent(initialRawCfg, initialCfg);
     lastSignature = configSignature(initialCfg);
     render();
@@ -1820,7 +2135,7 @@ export const mondayAssignedWidget = {
 
     return {
       refresh() {
-        const cfg = normalizedConfig(getConfig());
+        const cfg = resolveConfig();
         const nextSignature = configSignature(cfg);
         render();
 
@@ -1865,7 +2180,7 @@ export const mondayAssignedWidget = {
         return toggleConnection();
       },
       isConnected() {
-        return hasActiveConnection(normalizedConfig(getConfig()));
+        return hasActiveConnection(resolveConfig());
       },
       destroy() {
         requestSerial += 1;

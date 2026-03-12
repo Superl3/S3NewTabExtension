@@ -523,7 +523,7 @@ body.mode-edit .dock-edit-controls {
   justify-content: center;
   pointer-events: auto;
   --dock-length-units: 6;
-  --dock-unit-size: 44px;
+  --dock-icon-size: 44px;
   --dock-padding: 8px;
   --dock-hide-x: 0px;
   --dock-hide-y: 0px;
@@ -578,20 +578,20 @@ body.mode-edit .dock-edit-controls {
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   inline-size: max-content;
-  block-size: calc(var(--dock-unit-size) + var(--dock-padding) * 2);
+  block-size: calc(var(--dock-icon-size) + var(--dock-padding) * 2);
   box-shadow: 0 10px 24px var(--shadow-edge);
   transition: opacity 0.22s ease, transform 0.22s ease, box-shadow 0.22s ease;
 }
 
 .persistent-dock[data-position="top"] .persistent-dock-body,
 .persistent-dock[data-position="bottom"] .persistent-dock-body {
-  inline-size: calc(var(--dock-unit-size) * var(--dock-length-units) + var(--dock-padding) * 2);
+  inline-size: calc(var(--dock-icon-size) * var(--dock-length-units) + var(--dock-padding) * 2);
 }
 
 .persistent-dock[data-position="left"] .persistent-dock-body,
 .persistent-dock[data-position="right"] .persistent-dock-body {
-  inline-size: calc(var(--dock-unit-size) + var(--dock-padding) * 2);
-  block-size: calc(var(--dock-unit-size) * var(--dock-length-units) + var(--dock-padding) * 2);
+  inline-size: calc(var(--dock-icon-size) + var(--dock-padding) * 2);
+  block-size: calc(var(--dock-icon-size) * var(--dock-length-units) + var(--dock-padding) * 2);
 }
 
 .persistent-dock[data-position="left"] .persistent-dock-body,
@@ -670,21 +670,21 @@ body.mode-edit .dock-edit-controls {
 
 .dock-widget-item {
   position: relative;
-  width: var(--dock-unit-size);
-  height: var(--dock-unit-size);
-  min-width: var(--dock-unit-size);
-  min-height: var(--dock-unit-size);
+  width: var(--dock-icon-size);
+  height: var(--dock-icon-size);
+  min-width: var(--dock-icon-size);
+  min-height: var(--dock-icon-size);
   padding: 0;
   flex: 0 0 auto;
-  border-radius: calc(var(--dock-unit-size) * 0.28);
+  border-radius: calc(var(--dock-icon-size) * 0.28);
   overflow: hidden;
   cursor: pointer;
   transition: transform 0.16s ease, box-shadow 0.16s ease;
 }
 
 .dock-widget-item.widget-folder-item-card {
-  width: var(--dock-unit-size);
-  height: var(--dock-unit-size);
+  width: var(--dock-icon-size);
+  height: var(--dock-icon-size);
 }
 
 body.mode-edit .dock-widget-item:hover {
@@ -1028,6 +1028,12 @@ body.mode-edit.settings-open .settings-rail-toggle {
     0 17px 33px var(--shadow-strong);
 }
 
+.widget-card.widget-drag-origin-hidden {
+  opacity: 0.3;
+  filter: saturate(0.85);
+  transition: opacity 0.14s ease;
+}
+
 .widget-card.longpress-drag-armed .widget-head,
 .widget-card.longpress-drag-armed .widget-title,
 .widget-card.longpress-drag-armed .widget-body {
@@ -1043,6 +1049,10 @@ body.mode-edit.settings-open .settings-rail-toggle {
 @media (prefers-reduced-motion: reduce) {
   .widget-card.widget-drag-active {
     animation: none;
+  }
+
+  .widget-card.widget-drag-origin-hidden {
+    transition: none;
   }
 }
 
@@ -2089,23 +2099,17 @@ body.mode-edit .widget-float-remove:hover {
   min-height: 100%;
   display: flex;
   flex-direction: column;
-  gap: 8px;
-}
-
-.gmail-widget-toolbar {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
+  gap: 6px;
 }
 
 .gmail-widget-status {
   margin: 0;
-  flex: 1 1 220px;
-  min-width: 0;
+  width: 100%;
   color: var(--muted);
   font-size: 0.84em;
+  text-align: right;
+  flex: 0 0 auto;
+  padding-top: 2px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -2113,19 +2117,6 @@ body.mode-edit .widget-float-remove:hover {
 
 .gmail-widget-status.is-error {
   color: color-mix(in srgb, var(--warn), var(--text) 18%);
-}
-
-.gmail-widget-actions {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: 6px;
-}
-
-.gmail-widget-actions .btn {
-  padding: 5px 8px;
-  font-size: 0.84em;
-  text-decoration: none;
 }
 
 .gmail-mail-list {
@@ -2215,6 +2206,35 @@ body.mode-edit .widget-float-remove:hover {
   min-height: 100%;
 }
 
+.monday-meeting-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.monday-meeting-link,
+.monday-meeting-link:hover,
+.monday-meeting-link:visited,
+.monday-meeting-link:active {
+  display: block;
+  border: 1px solid color-mix(in srgb, var(--line), transparent 24%);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--widget-effective-surface), transparent 10%);
+  text-decoration: none;
+  color: inherit;
+  padding: 8px 10px;
+}
+
+.monday-meeting-link:hover {
+  background: color-mix(in srgb, var(--widget-effective-surface), transparent 4%);
+}
+
+.monday-meeting-board {
+  margin: 0 0 4px;
+  font-size: 0.78em;
+  color: color-mix(in srgb, var(--widget-effective-accent), var(--muted) 38%);
+}
+
 .monday-widget-shell {
   min-height: 100%;
   display: flex;
@@ -2249,6 +2269,40 @@ body.mode-edit .widget-float-remove:hover {
   flex-direction: column;
   gap: 4px;
   overflow: auto;
+}
+
+.monday-issue-list.is-board-cards {
+  gap: 8px;
+}
+
+.monday-board-card {
+  list-style: none;
+  border: 1px solid color-mix(in srgb, var(--line), transparent 22%);
+  border-radius: 10px;
+  padding: 8px;
+  background: color-mix(in srgb, var(--widget-effective-surface), transparent 8%);
+}
+
+.monday-board-card-header {
+  margin: 0 0 6px;
+  font-size: 0.88em;
+  font-weight: 700;
+  color: color-mix(in srgb, var(--widget-effective-accent), var(--text) 30%);
+}
+
+.monday-board-card-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.monday-board-card-empty {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.84em;
 }
 
 .monday-issue-empty {
@@ -2344,20 +2398,14 @@ body.mode-edit .widget-float-remove:hover {
   gap: 8px;
 }
 
-.calendar-widget-toolbar {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-}
-
 .calendar-widget-status {
   margin: 0;
-  flex: 1 1 220px;
-  min-width: 0;
+  width: 100%;
   color: var(--muted);
   font-size: 0.84em;
+  text-align: right;
+  flex: 0 0 auto;
+  padding-top: 2px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -2365,19 +2413,6 @@ body.mode-edit .widget-float-remove:hover {
 
 .calendar-widget-status.is-error {
   color: color-mix(in srgb, var(--warn), var(--text) 18%);
-}
-
-.calendar-widget-actions {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: 6px;
-}
-
-.calendar-widget-actions .btn {
-  padding: 5px 8px;
-  font-size: 0.84em;
-  text-decoration: none;
 }
 
 .calendar-month-panel {
@@ -3057,13 +3092,93 @@ body.mode-edit .widget-float-remove:hover {
 }
 
 .todo-item {
+  --todo-swipe-x: 0px;
+  --todo-swipe-progress: 0;
+  --todo-swipe-color-progress: 0;
+  position: relative;
+  isolation: isolate;
   display: flex;
   flex-direction: column;
   gap: 6px;
   border: 1px solid color-mix(in srgb, var(--line), transparent 24%);
   border-radius: 10px;
   background: color-mix(in srgb, var(--widget-effective-surface), transparent 12%);
+  overflow: hidden;
+  touch-action: pan-y;
+}
+
+.todo-swipe-content {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
   padding: 9px 10px;
+  border-radius: inherit;
+  background: color-mix(in srgb, var(--widget-effective-surface), transparent 12%);
+  box-shadow: inset 0 0 0 1px transparent;
+  transform: translateX(var(--todo-swipe-x));
+  filter: none;
+  transition: transform 0.18s cubic-bezier(0.2, 0.72, 0, 1), background-color 0.18s ease, box-shadow 0.18s ease, filter 0.18s ease;
+  will-change: transform;
+}
+
+.todo-item.is-swiping .todo-swipe-content {
+  transition: none;
+  background: color-mix(in srgb, #6a0d12 calc(var(--todo-swipe-color-progress) * 74%), var(--widget-effective-surface));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, #b2141f calc(var(--todo-swipe-color-progress) * 70%), transparent);
+  filter: brightness(calc(1 - (var(--todo-swipe-color-progress) * 0.08)))
+    saturate(calc(1 + (var(--todo-swipe-color-progress) * 0.86)));
+}
+
+.todo-item.is-swipe-deleting .todo-swipe-content,
+.todo-item.is-swipe-returning .todo-swipe-content {
+  transition: transform 0.2s cubic-bezier(0.22, 0.7, 0, 1), background-color 0.2s ease, box-shadow 0.2s ease, filter 0.2s ease;
+}
+
+.todo-item.is-swipe-deleting .todo-swipe-content {
+  background: color-mix(in srgb, #5f0b10 92%, var(--widget-effective-surface));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, #d21924 72%, transparent);
+  filter: brightness(0.8) saturate(1.9);
+}
+
+.todo-item.is-swiping,
+.todo-item.is-swipe-deleting,
+.todo-item.is-swipe-returning {
+  border-color: transparent;
+  background: transparent;
+}
+
+.todo-item.is-completing {
+  pointer-events: none;
+}
+
+.todo-item.is-completing:not(.is-swiping):not(.is-swipe-deleting):not(.is-swipe-returning) {
+  background: color-mix(in srgb, #1f7a3a 56%, var(--widget-effective-surface));
+  border-color: color-mix(in srgb, #31b05a 52%, transparent);
+  transition: background-color 0.14s ease, border-color 0.14s ease;
+}
+
+.todo-item.is-completing .todo-swipe-content {
+  background: color-mix(in srgb, #1f7a3a 56%, var(--widget-effective-surface));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, #31b05a 52%, transparent);
+  filter: brightness(0.8) saturate(1.9);
+  animation: todo-item-complete 0.52s cubic-bezier(0.2, 0.72, 0, 1) forwards;
+}
+
+@keyframes todo-item-complete {
+  0% {
+    transform: translateX(0) scale(1);
+    opacity: 1;
+  }
+  40% {
+    transform: translateX(0) scale(0.992);
+    opacity: 1;
+  }
+  100% {
+    transform: translateX(0) scale(0.97);
+    opacity: 0;
+  }
 }
 
 .chat-item {
@@ -3074,15 +3189,17 @@ body.mode-edit .widget-float-remove:hover {
 }
 
 .todo-item-top {
+  position: relative;
   display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
+  align-items: center;
+  justify-content: flex-start;
   gap: 8px;
+  padding-right: 46px;
 }
 
 .todo-item-title {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: 8px;
   flex: 1;
   min-width: 0;
@@ -3090,8 +3207,9 @@ body.mode-edit .widget-float-remove:hover {
 }
 
 .todo-item-title input[type="checkbox"] {
-  margin: 2px 0 0;
+  margin: 0;
   flex: 0 0 auto;
+  align-self: center;
 }
 
 .todo-text {
@@ -3104,42 +3222,65 @@ body.mode-edit .widget-float-remove:hover {
 }
 
 .todo-item-actions {
-  display: flex;
+  position: absolute;
+  top: 8px;
+  right: 8px;
+}
+
+.todo-alarm-btn {
+  width: 44px;
+  height: 44px;
+  display: inline-flex;
   align-items: center;
-}
-
-.todo-delete-btn {
-  border: 1px solid color-mix(in srgb, var(--line), transparent 18%);
+  justify-content: center;
+  border: 1px solid color-mix(in srgb, var(--line), transparent 48%);
   border-radius: 999px;
-  padding: 2px 8px;
-  font: inherit;
-  font-size: 0.75em;
-  line-height: 1.3;
-  color: color-mix(in srgb, var(--text), var(--muted) 40%);
-  background: color-mix(in srgb, var(--widget-effective-surface), transparent 8%);
+  padding: 10px;
+  background: color-mix(in srgb, var(--widget-effective-surface), transparent 98%);
+  color: color-mix(in srgb, var(--widget-effective-accent), var(--text) 24%);
   cursor: pointer;
-  transition: border-color 0.16s ease, color 0.16s ease, background 0.16s ease;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-1px) scale(0.92);
+  transition: border-color 0.16s ease, background 0.16s ease, transform 0.16s ease, opacity 0.16s ease;
 }
 
-.todo-delete-btn:hover {
-  color: color-mix(in srgb, var(--warn), var(--text) 24%);
-  border-color: color-mix(in srgb, var(--warn), var(--line) 40%);
-  background: color-mix(in srgb, var(--warn), transparent 92%);
+.todo-item:hover .todo-alarm-btn,
+.todo-alarm-btn:focus-visible {
+  border-color: color-mix(in srgb, var(--line), transparent 40%);
+  background: color-mix(in srgb, var(--widget-effective-surface), transparent 96%);
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(0) scale(1);
 }
 
-.todo-item-meta {
-  margin: 0;
-  color: var(--muted);
-  font-size: 0.83em;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.todo-item.is-swiping .todo-alarm-btn,
+.todo-item.is-swipe-deleting .todo-alarm-btn,
+.todo-item.is-swipe-returning .todo-alarm-btn {
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-1px) scale(0.92);
+}
+
+.todo-alarm-btn:hover,
+.todo-alarm-btn:focus-visible {
+  border-color: color-mix(in srgb, var(--widget-effective-accent), var(--line) 36%);
+  background: color-mix(in srgb, var(--widget-effective-accent), transparent 88%);
+  transform: translateY(-1px);
+}
+
+.todo-alarm-btn .todo-alarm-icon {
+  width: 24px;
+  height: 24px;
+  stroke-width: 2;
+  transform: translateY(-1px);
 }
 
 .todo-item-badges {
   display: flex;
   flex-wrap: wrap;
   gap: 5px;
+  min-height: calc(0.75em * 1.3 + 6px);
 }
 
 .todo-item-badge {
@@ -3163,10 +3304,10 @@ body.mode-edit .widget-float-remove:hover {
   color: color-mix(in srgb, var(--widget-effective-accent), var(--text) 28%);
 }
 
-.todo-item.done .todo-text {
-  text-decoration: line-through;
-  color: var(--muted);
-  font-weight: 500;
+.todo-item-badge.is-alarm {
+  border-color: color-mix(in srgb, var(--widget-effective-accent), var(--line) 30%);
+  color: color-mix(in srgb, var(--widget-effective-accent), var(--text) 32%);
+  background: color-mix(in srgb, var(--widget-effective-accent), transparent 92%);
 }
 
 .bookmark-folder ul {
@@ -3474,37 +3615,10 @@ body.mode-edit .widget-float-remove:hover {
   width: 100%;
 }
 
-.add-widget-title-row {
-  grid-template-columns: minmax(0, 1fr);
-  gap: 6px;
-  align-items: stretch;
-}
-
-.add-widget-title-row > span:first-child:not(.form-row-label) {
-  margin-bottom: 2px;
-}
-
-.app-toast {
-  position: fixed;
-  left: 50%;
-  bottom: 20px;
-  z-index: 1700;
-  transform: translate(-50%, 10px);
-  opacity: 0;
-  pointer-events: none;
-  max-width: min(92vw, 520px);
-  padding: 10px 14px;
-  border-radius: 10px;
-  border: 1px solid color-mix(in srgb, var(--line), transparent 10%);
-  background: color-mix(in srgb, var(--surface), var(--tone-dark) 18%);
-  color: var(--tone-light);
-  box-shadow: var(--shadow);
-  transition: opacity 180ms ease, transform 180ms ease;
-}
-
-.app-toast.show {
-  opacity: 1;
-  transform: translate(-50%, 0);
+.add-widget-size-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
 }
 
 .widget-modal-head {
@@ -3542,6 +3656,28 @@ body.mode-edit .widget-float-remove:hover {
 
 #widgetModalDefaultBtn {
   margin-right: auto;
+}
+
+.todo-alarm-modal {
+  width: min(430px, 92vw);
+}
+
+.todo-alarm-form {
+  display: flex;
+  flex-direction: column;
+}
+
+.todo-alarm-form .form-row {
+  margin-bottom: 10px;
+}
+
+.todo-alarm-form .form-row:last-child {
+  margin-bottom: 0;
+}
+
+.todo-alarm-form input,
+.todo-alarm-form select {
+  width: 100%;
 }
 
 .notes-area {
@@ -3753,6 +3889,12 @@ body.mode-edit .widget-float-remove:hover {
   .persistent-dock[data-visibility="hover"] .persistent-dock-handle {
     display: none;
   }
+
+  .todo-alarm-btn {
+    opacity: 1;
+    pointer-events: auto;
+    transform: translateY(0) scale(1);
+  }
 }
 
 @media (max-width: 1040px) {
@@ -3789,6 +3931,10 @@ body.mode-edit .widget-float-remove:hover {
     display: none;
   }
 
+  .add-widget-size-grid {
+    grid-template-columns: 1fr;
+  }
+
   .corner-controls {
     top: 8px;
     right: 8px;
@@ -3822,6 +3968,21 @@ body.mode-edit .widget-float-remove:hover {
     height: 20px;
   }
 
+  .drag-delete-zone {
+    top: 8px;
+    width: 56px;
+    height: 56px;
+  }
+
+  .drag-delete-zone .icon {
+    width: 25px;
+    height: 25px;
+  }
+
+  .board-context-menu {
+    min-width: 164px;
+  }
+
   .persistent-dock[data-position="top"] {
     top: 8px;
   }
@@ -3839,7 +4000,7 @@ body.mode-edit .widget-float-remove:hover {
   }
 
   .persistent-dock-body {
-    --dock-unit-size: 44px;
+    --dock-icon-size: 44px;
     --dock-padding: 7px;
     gap: 6px;
   }
@@ -3855,33 +4016,13 @@ body.mode-edit .widget-float-remove:hover {
   }
 
   .dock-widget-item {
-    width: var(--dock-unit-size);
-    height: var(--dock-unit-size);
-    border-radius: calc(var(--dock-unit-size) * 0.28);
+    width: var(--dock-icon-size);
+    height: var(--dock-icon-size);
+    border-radius: calc(var(--dock-icon-size) * 0.28);
   }
 
   .dock-widget-empty {
     font-size: 0.7em;
-  }
-
-  .gmail-widget-actions {
-    width: 100%;
-    justify-content: stretch;
-  }
-
-  .gmail-widget-actions .btn {
-    flex: 1 1 48%;
-    justify-content: center;
-  }
-
-  .calendar-widget-actions {
-    width: 100%;
-    justify-content: stretch;
-  }
-
-  .calendar-widget-actions .btn {
-    flex: 1 1 48%;
-    justify-content: center;
   }
 
   .rss-widget-actions {
@@ -3911,6 +4052,11 @@ body.mode-edit .widget-float-remove:hover {
 
   .weather-condition {
     font-size: 0.88em;
+  }
+
+  .todo-alarm-form .form-row {
+    grid-template-columns: 1fr;
+    gap: 6px;
   }
 
 }

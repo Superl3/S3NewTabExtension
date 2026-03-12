@@ -29,9 +29,20 @@ function splitCsvText(value) {
     .filter(Boolean);
 }
 
+function csvEntries(value) {
+  if (Array.isArray(value)) {
+    const out = [];
+    for (const entry of value) {
+      out.push(...splitCsvText(entry));
+    }
+    return out;
+  }
+  return splitCsvText(value);
+}
+
 function normalizeBoardIds(value, fallback = []) {
-  const source = Array.isArray(value) ? value : splitCsvText(value);
-  const fallbackIds = Array.isArray(fallback) ? fallback : splitCsvText(fallback);
+  const source = csvEntries(value);
+  const fallbackIds = csvEntries(fallback);
   const out = [];
 
   for (const entry of source) {
@@ -1211,13 +1222,6 @@ export const mondayMeetingNoteWidget = {
       helpText: "Backend OAuth start endpoint. It must return to this extension with access_token."
     },
     {
-      key: "accessToken",
-      label: "Access token (optional)",
-      type: "password",
-      placeholder: "Monday access token",
-      helpText: "If set, Connect uses this token directly and skips connector popup/relay."
-    },
-    {
       key: "boardId",
       label: "Board ID(s)",
       type: "text",
@@ -1233,7 +1237,7 @@ export const mondayMeetingNoteWidget = {
     },
     { key: "openInNewTab", label: "Open links in new tab", type: "checkbox" }
   ],
-  create({ container, getConfig, patchConfig, isEditMode, openSettings }) {
+  create({ container, getConfig, getUi, patchConfig, isEditMode, openSettings }) {
     container.classList.add("monday-meeting-widget");
 
     const shell = document.createElement("div");
@@ -1264,6 +1268,18 @@ export const mondayMeetingNoteWidget = {
         clearTimeout(timer);
         timer = null;
       }
+    }
+
+    function resolveConfig() {
+      const cfg = normalizedConfig(getConfig());
+      const globalAccessToken = normalizeText(getUi?.()?.monday?.accessToken);
+      if (!globalAccessToken) {
+        return cfg;
+      }
+      return {
+        ...cfg,
+        accessToken: globalAccessToken
+      };
     }
 
     function hasActiveConnection(config) {
@@ -1419,7 +1435,7 @@ export const mondayMeetingNoteWidget = {
     }
 
     function shouldRunAutoNow() {
-      const cfg = normalizedConfig(getConfig());
+      const cfg = resolveConfig();
       if (
         loading ||
         !hasBoardConfig(cfg) ||
@@ -1433,7 +1449,7 @@ export const mondayMeetingNoteWidget = {
 
     function scheduleRefresh() {
       clearRefreshTimer();
-      const cfg = normalizedConfig(getConfig());
+      const cfg = resolveConfig();
       if (
         !hasBoardConfig(cfg) ||
         !hasMeetingNoteColumnConfig(cfg) ||
@@ -1469,7 +1485,7 @@ export const mondayMeetingNoteWidget = {
 
     function renderPanel() {
       panel.replaceChildren();
-      const cfg = normalizedConfig(getConfig());
+      const cfg = resolveConfig();
 
       const visibleEntries = boardEntries.filter((entry) => normalizeBoardId(entry?.boardId, 0) > 0);
       const hasLatest = visibleEntries.some((entry) => Boolean(entry?.latest));
@@ -1545,7 +1561,7 @@ export const mondayMeetingNoteWidget = {
     }
 
     async function connectAccount() {
-      const cfg = normalizedConfig(getConfig());
+      const cfg = resolveConfig();
       if (!hasConnectorConfig(cfg)) {
         errorMessage = "Set auth connector URL in widget settings first.";
         render();
@@ -1638,9 +1654,9 @@ export const mondayMeetingNoteWidget = {
     }
 
     async function disconnectAccount() {
-      const cfg = normalizedConfig(getConfig());
+      const cfg = resolveConfig();
       if (normalizeText(cfg.accessToken)) {
-        errorMessage = "Remove Access token in settings to disconnect.";
+        errorMessage = "Remove Monday access token in Global settings to disconnect.";
         render();
         return;
       }
@@ -1662,7 +1678,7 @@ export const mondayMeetingNoteWidget = {
       render();
 
       try {
-        const cfg = normalizedConfig(getConfig());
+        const cfg = resolveConfig();
         if (!hasConnectorConfig(cfg)) {
           throw new Error("Set auth connector URL first.");
         }
@@ -1731,7 +1747,7 @@ export const mondayMeetingNoteWidget = {
     }
 
     async function toggleConnection() {
-      const cfg = normalizedConfig(getConfig());
+      const cfg = resolveConfig();
       if (hasActiveConnection(cfg)) {
         await disconnectAccount();
         return;
@@ -1749,7 +1765,7 @@ export const mondayMeetingNoteWidget = {
           return;
         }
 
-        const cfg = normalizedConfig(getConfig());
+        const cfg = resolveConfig();
         if (!hasConnectorConfig(cfg)) {
           return;
         }
@@ -1776,7 +1792,7 @@ export const mondayMeetingNoteWidget = {
     }
 
     function openMondayPage() {
-      const cfg = normalizedConfig(getConfig());
+      const cfg = resolveConfig();
       const firstEntry = boardEntries.find((entry) => normalizeBoardId(entry?.boardId, 0) > 0);
       const href = resolveItemUrl(firstEntry?.boardId || cfg.boardId, firstEntry?.latest?.itemUrl);
       const target = cfg.openInNewTab ? "_blank" : "_self";
@@ -1788,7 +1804,7 @@ export const mondayMeetingNoteWidget = {
     }
 
     const initialRawCfg = getConfig();
-    const initialCfg = normalizedConfig(initialRawCfg);
+    const initialCfg = resolveConfig();
     if (!applyCachedSnapshotIfPresent(initialRawCfg, initialCfg)) {
       clearSnapshotState();
     }
@@ -1806,7 +1822,7 @@ export const mondayMeetingNoteWidget = {
 
     return {
       refresh() {
-        const cfg = normalizedConfig(getConfig());
+        const cfg = resolveConfig();
         const nextSignature = configSignature(cfg);
         render();
 
@@ -1859,7 +1875,7 @@ export const mondayMeetingNoteWidget = {
         return toggleConnection();
       },
       isConnected() {
-        return hasActiveConnection(normalizedConfig(getConfig()));
+        return hasActiveConnection(resolveConfig());
       },
       destroy() {
         requestSerial += 1;

@@ -553,8 +553,18 @@ function defaultUi() {
     shortcuts: {
       iconSizePercent: 100
     },
+    monday: {
+      accessToken: ""
+    },
     defaultProfileSnapshot: null,
     defaultProfileUpdatedAt: 0
+  };
+}
+
+function normalizeMondayGlobalSettings(value) {
+  const raw = value && typeof value === "object" ? value : {};
+  return {
+    accessToken: normalizeText(raw.accessToken)
   };
 }
 
@@ -1784,7 +1794,8 @@ function clonePresetSnapshot(snapshot) {
       background: { ...(snapshot?.ui?.background || {}) },
       home: { ...(snapshot?.ui?.home || {}) },
       widgetCommonMaster: { ...(snapshot?.ui?.widgetCommonMaster || {}) },
-      shortcuts: { ...(snapshot?.ui?.shortcuts || {}) }
+      shortcuts: { ...(snapshot?.ui?.shortcuts || {}) },
+      monday: { ...(snapshot?.ui?.monday || {}) }
     },
     instances: Array.isArray(snapshot?.instances)
       ? snapshot.instances.map((instance) => ({ ...instance, config: { ...(instance.config || {}) } }))
@@ -1802,7 +1813,8 @@ function createStateSnapshot() {
       background: structuredClone(state.ui.background),
       home: structuredClone(state.ui.home),
       widgetCommonMaster: structuredClone(state.ui.widgetCommonMaster),
-      shortcuts: structuredClone(state.ui.shortcuts)
+      shortcuts: structuredClone(state.ui.shortcuts),
+      monday: structuredClone(state.ui.monday)
     },
     instances: state.instances.map((instance) => ({
       ...structuredClone(instance),
@@ -1887,6 +1899,10 @@ function applyProfileSnapshot(snapshotInput, scope = "all") {
         ...state.ui.shortcuts,
         ...(applyGlobal ? snapshot.ui?.shortcuts || {} : {})
       },
+      monday: {
+        ...state.ui.monday,
+        ...(applyGlobal ? snapshot.ui?.monday || {} : {})
+      },
       defaultProfileSnapshot: state.ui.defaultProfileSnapshot,
       defaultProfileUpdatedAt: state.ui.defaultProfileUpdatedAt
     },
@@ -1904,6 +1920,7 @@ function applyProfileSnapshot(snapshotInput, scope = "all") {
   state.ui.shortcuts = {
     iconSizePercent: clamp(Number(hydrated.ui.shortcuts?.iconSizePercent) || 100, 40, 220)
   };
+  state.ui.monday = normalizeMondayGlobalSettings(hydrated.ui.monday);
 
   if (applyWidgets) {
     state.instances = hydrated.instances;
@@ -2177,6 +2194,7 @@ function hydrate(raw) {
   const shortcuts = {
     iconSizePercent: clamp(Number(rawUi.shortcuts?.iconSizePercent) || 100, 40, 220)
   };
+  const monday = normalizeMondayGlobalSettings(rawUi.monday);
   const defaultProfileSnapshot =
     rawUi.defaultProfileSnapshot && typeof rawUi.defaultProfileSnapshot === "object" && !Array.isArray(rawUi.defaultProfileSnapshot)
       ? clonePresetSnapshot(rawUi.defaultProfileSnapshot)
@@ -2256,6 +2274,7 @@ function hydrate(raw) {
       home,
       widgetCommonMaster,
       shortcuts,
+      monday,
       defaultProfileSnapshot,
       defaultProfileUpdatedAt
     },
@@ -2401,6 +2420,7 @@ function buildHistorySnapshot() {
       home: buildHistoryHomeSnapshot(state.ui.home),
       widgetCommonMaster: state.ui.widgetCommonMaster,
       shortcuts: state.ui.shortcuts,
+      monday: state.ui.monday,
       defaultProfileSnapshot: state.ui.defaultProfileSnapshot,
       defaultProfileUpdatedAt: state.ui.defaultProfileUpdatedAt
     },
@@ -2449,6 +2469,10 @@ function materializeHistorySnapshot(historySnapshotInput) {
 
   if (isStateObject(historyUi.shortcuts)) {
     merged.ui.shortcuts = structuredClone(historyUi.shortcuts);
+  }
+
+  if (isStateObject(historyUi.monday)) {
+    merged.ui.monday = normalizeMondayGlobalSettings(historyUi.monday);
   }
 
   if (Object.prototype.hasOwnProperty.call(historyUi, "defaultProfileSnapshot")) {
@@ -6373,6 +6397,18 @@ function patchShortcutsUi(patch) {
   queueSave();
 }
 
+function patchMondayGlobalSettings(patch) {
+  recordHistorySnapshot("Update Monday global settings");
+  state.ui.monday = normalizeMondayGlobalSettings({
+    ...state.ui.monday,
+    ...patch
+  });
+  refreshWidgetsByType("mondayAssigned");
+  refreshWidgetsByType("mondayMeetingNote");
+  renderSettings();
+  queueSave();
+}
+
 function patchWidgetCommonMaster(patch) {
   recordHistorySnapshot("Update widget common master settings");
   state.ui.widgetCommonMaster = normalizeWidgetCommonMaster({
@@ -7280,7 +7316,6 @@ function createWidgetCard(instance) {
     const syncAuthButtonState = () => {
       const connected =
         typeof controller?.isConnected === "function" ? Boolean(controller.isConnected()) : false;
-      const iconId = connected ? "i-unplug" : "i-plug";
       for (const btn of authButtons) {
         const iconUse = btn.querySelector("use");
         if (iconUse) {
@@ -7288,10 +7323,6 @@ function createWidgetCard(instance) {
         }
         btn.classList.toggle("is-disconnect", connected);
         btn.title = connected ? "Disconnect Monday" : "Connect Monday";
-        const iconUse = btn.querySelector("use");
-        if (iconUse) {
-          iconUse.setAttribute("href", `#${iconId}`);
-        }
       }
     };
 
@@ -8813,6 +8844,21 @@ function renderGlobalSettings() {
   });
   shortcutRow.append(shortcutInput);
   elements.settingsContent.append(shortcutRow);
+
+  const mondayTokenRow = createFormRow("Monday Access Token (Global)");
+  const mondayTokenInput = createInputBySchema(
+    {
+      key: "accessToken",
+      type: "password",
+      placeholder: "Monday access token"
+    },
+    state.ui.monday?.accessToken || ""
+  );
+  mondayTokenInput.addEventListener("change", () => {
+    patchMondayGlobalSettings({ accessToken: readFieldValue(mondayTokenInput, { type: "text" }) });
+  });
+  mondayTokenRow.append(mondayTokenInput);
+  elements.settingsContent.append(mondayTokenRow);
 
   appendDivider();
   elements.settingsContent.append(createSectionChip("Widget Common Master"));
