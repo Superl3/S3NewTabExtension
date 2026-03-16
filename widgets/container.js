@@ -181,7 +181,10 @@ export const containerWidget = {
     tryContainerWidgetByDrop,
     tryDockWidgetByDrop,
     projectWidgetBoardDropLayout,
+    createWidgetDropSilhouette,
     updateCrossSurfaceDropIndicators,
+    updateWidgetDragGuideAtPointer,
+    clearWidgetDragGuideState,
     renderBoardViewport,
     setActiveLauncherPage,
     currentLauncherActivePage,
@@ -431,27 +434,31 @@ export const containerWidget = {
         sourceCard?.classList.add("widget-drag-active");
         sourceCard?.classList.add("widget-drag-origin-hidden");
 
-        const createDropSilhouette =
-          typeof document !== "undefined" && typeof window !== "undefined"
-            ? () => {
-              const board = document.querySelector(".board");
-              if (!(board instanceof HTMLElement)) {
-                return null;
+        const sourceForSilhouette = sourceCard instanceof HTMLElement ? sourceCard : card;
+        const dropSilhouette =
+          typeof createWidgetDropSilhouette === "function"
+            ? createWidgetDropSilhouette(sourceForSilhouette)
+            : (() => {
+              if (typeof document !== "undefined" && typeof window !== "undefined") {
+                const board = document.querySelector(".board");
+                if (!(board instanceof HTMLElement)) {
+                  return null;
+                }
+                const silhouette = document.createElement("div");
+                silhouette.className = "widget-drop-silhouette";
+                silhouette.style.position = "fixed";
+                silhouette.style.zIndex = "8990";
+                const source = sourceForSilhouette;
+                const borderRadius = normalizeText(window.getComputedStyle(source).borderRadius);
+                if (borderRadius) {
+                  silhouette.style.borderRadius = borderRadius;
+                }
+                document.body.append(silhouette);
+                return silhouette;
               }
-              const silhouette = document.createElement("div");
-              silhouette.className = "widget-drop-silhouette";
-              silhouette.style.position = "fixed";
-              silhouette.style.zIndex = "8990";
-              const source = sourceCard instanceof HTMLElement ? sourceCard : card;
-              const borderRadius = normalizeText(window.getComputedStyle(source).borderRadius);
-              if (borderRadius) {
-                silhouette.style.borderRadius = borderRadius;
-              }
-              document.body.append(silhouette);
-              return silhouette;
-            }
-            : () => null;
-        const dropSilhouette = createDropSilhouette();
+
+              return null;
+            })();
         let lastPointerX = event.clientX;
         let lastPointerY = event.clientY;
         let dragReleasePage =
@@ -463,6 +470,7 @@ export const containerWidget = {
         let pendingPageSwitchDirection = 0;
         let pendingPageSwitchSince = 0;
         let pendingPageSwitchTimer = 0;
+        let dragSessionActive = true;
 
         const boardElement = document.querySelector(".board");
         const workspaceElement = document.querySelector(".workspace");
@@ -562,6 +570,9 @@ export const containerWidget = {
         };
 
         const updateGhost = (clientX, clientY) => {
+          if (!dragSessionActive) {
+            return;
+          }
           lastPointerX = clientX;
           lastPointerY = clientY;
           if (previewSession) {
@@ -600,6 +611,10 @@ export const containerWidget = {
         let moveRafId = 0;
 
         const flushQueuedMove = () => {
+          if (!dragSessionActive) {
+            queuedMove = null;
+            return;
+          }
           if (!queuedMove) {
             return;
           }
@@ -609,6 +624,9 @@ export const containerWidget = {
         };
 
         const scheduleGhostMove = (clientX, clientY) => {
+          if (!dragSessionActive) {
+            return;
+          }
           queuedMove = { clientX, clientY };
           if (moveRafId) {
             return;
@@ -619,15 +637,27 @@ export const containerWidget = {
           });
         };
 
+        if (typeof clearWidgetDragGuideState === "function") {
+          clearWidgetDragGuideState();
+        }
         updateGhost(event.clientX, event.clientY);
 
         const finish = (endEvent, { cancelled = false } = {}) => {
+          if (!dragSessionActive) {
+            return;
+          }
+          dragSessionActive = false;
           resetPendingPageSwitch();
           if (moveRafId) {
             cancelAnimationFrame(moveRafId);
             moveRafId = 0;
           }
-          flushQueuedMove();
+          const queued = queuedMove;
+          queuedMove = null;
+          if (Number.isFinite(queued?.clientX) && Number.isFinite(queued?.clientY)) {
+            lastPointerX = queued.clientX;
+            lastPointerY = queued.clientY;
+          }
           const dropX = Number.isFinite(endEvent?.clientX) ? endEvent.clientX : lastPointerX;
           const dropY = Number.isFinite(endEvent?.clientY) ? endEvent.clientY : lastPointerY;
           const inside = pointInsideRect(dropX, dropY, panel.getBoundingClientRect());
@@ -638,19 +668,25 @@ export const containerWidget = {
           card.classList.remove("widget-drag-origin-hidden");
           sourceCard?.classList.remove("widget-drag-active");
           sourceCard?.classList.remove("widget-drag-origin-hidden");
+
+          if (typeof updateCrossSurfaceDropIndicators === "function") {
+            updateCrossSurfaceDropIndicators(child, Number.NaN, Number.NaN, {
+              silhouette: dropSilhouette,
+              boardProjection: null,
+              suppressSurfaceTargets: true
+            });
+          }
+
+          if (typeof clearWidgetDragGuideState === "function") {
+            clearWidgetDragGuideState();
+          }
+
           dropSilhouette?.classList.remove("is-visible");
           dropSilhouette?.remove();
           if (previewSession) {
             previewSession.dispose();
           } else {
             ghost.remove();
-          }
-
-          if (typeof updateCrossSurfaceDropIndicators === "function") {
-            updateCrossSurfaceDropIndicators(child, Number.NaN, Number.NaN, {
-              silhouette: null,
-              boardProjection: null
-            });
           }
 
           if (cancelled) {

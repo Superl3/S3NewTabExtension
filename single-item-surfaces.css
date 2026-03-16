@@ -14,6 +14,11 @@
   background: transparent;
   color: inherit;
   text-decoration: none;
+  font-family: inherit;
+  font-size: inherit;
+  font-weight: inherit;
+  font-style: inherit;
+  line-height: inherit;
 }
 
 .monday-meeting-empty,
@@ -81,8 +86,8 @@
 }
 
 .monday-issue-list {
-  --monday-card-pad: 10px;
-  --monday-card-gap: 8px;
+  --monday-card-pad: 8px;
+  --monday-card-gap: 6px;
 }
 
 .monday-issue-list.is-board-cards {
@@ -107,7 +112,7 @@
 
 .monday-board-card-header {
   margin: 0;
-  font-size: 0.88em;
+  font-size: 0.96em;
   font-weight: 650;
   color: color-mix(in srgb, var(--widget-effective-accent), var(--text) 24%);
 }
@@ -129,7 +134,8 @@
 }
 
 .monday-board-card .monday-group-heading {
-  font-size: 0.8em;
+  font-size: 1em;
+  padding-left: 2px;
 }
 
 .monday-board-card .monday-group-item {
@@ -137,8 +143,9 @@
 }
 
 .monday-board-card .monday-group-link {
-  padding: 2px 0;
-  font-size: 0.86em;
+  padding: 2px 0 2px 8px;
+  font-size: 1em;
+  line-height: 1.35;
 }
 
 
@@ -152,21 +159,22 @@
   width: 100%;
   margin: 0;
   padding: 0;
-  border: 1px solid color-mix(in srgb, var(--line), transparent 30%);
-  border-radius: 8px;
-  background: color-mix(in srgb, var(--widget-effective-surface), transparent 6%);
-  overflow: hidden;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  overflow: visible;
 }
 
 .monday-group-heading {
   width: 100%;
-  margin: 0;
-  padding: var(--monday-card-pad);
+  margin: 0 0 4px;
+  padding: 0 var(--monday-card-pad);
   list-style: none;
   cursor: pointer;
   display: flex;
   align-items: center;
   gap: 6px;
+  font-size: 1em;
 }
 
 .monday-group-heading::marker,
@@ -190,7 +198,7 @@
 .monday-group-items {
   list-style: none;
   margin: 0;
-  padding: var(--monday-card-pad);
+  padding: 0 var(--monday-card-pad) 0;
   display: flex;
   flex-direction: column;
   gap: var(--monday-card-gap);

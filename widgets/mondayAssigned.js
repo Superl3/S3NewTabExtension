@@ -1765,7 +1765,7 @@ export const mondayAssignedWidget = {
             openSettings?.();
           });
 
-          link.textContent = `- ${issue.title}`;
+          link.textContent = issue.title;
           row.append(link);
           itemsList.append(row);
         }

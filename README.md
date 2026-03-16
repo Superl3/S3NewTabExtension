@@ -40,6 +40,7 @@
 - RSS Feed
 - Monday Assigned Issues
 - Monday Meeting Note
+- Flex Worktime
 - Weather
 - Widget Folder (Container)
 
@@ -58,6 +59,21 @@
 
 - Open-Meteo API를 사용해 현재 날씨와 온도를 표시합니다.
 - `Use current location`이 켜져 있으면 브라우저 위치를 우선 사용하고, 실패하면 설정된 좌표를 사용합니다.
+
+## Flex Worktime 위젯
+
+- 데이터 소스 모드는 `flexHomeScrape`(기본값) / `api` 두 가지를 지원합니다.
+- 기본 `flexHomeScrape` 모드는 `https://flex.team/home` 페이지의 실제 화면 텍스트(예: `근무중 1시간 23분`)를 읽어 1개 요약 행으로 표시합니다.
+- 스크랩 모드 전제 조건: 브라우저에 Flex 로그인 세션이 있어야 하며, 해당 페이지에서 근무 상태/시간 텍스트가 렌더링되어야 합니다.
+- 스크랩 모드 동작: 현재 창 활성 탭 우선, 같은 창의 다른 탭, 전체 창 순서로 Flex Home 탭을 찾고, 없으면 `Open Flex tab if missing`이 켜진 경우 백그라운드 탭을 열어 로딩 후 추출하고 자동으로 닫습니다.
+- 자동으로 연 임시 Flex 탭에서 로그인 흐름이 감지되면(`/auth/login`, Google/OAuth 리다이렉트 포함) 탭을 닫지 않고 유지하며 전경으로 전환하고, 로그인 완료 전까지 같은 탭을 재사용합니다.
+- 로그인 완료 후 새 탭 페이지로 돌아와 Flex Worktime 위젯을 새로고침하세요.
+- `Open Flex tab if missing`이 꺼져 있으면 기존 Flex Home 탭이 없을 때 명확한 오류를 표시합니다.
+- 스크랩 로직은 단일 CSS 셀렉터에 의존하지 않고 한국어 상태 키워드 + 시간 정규식(`\d+시간\s*\d+분|\d+시간|\d+분`) 조합으로 휴리스틱 추출합니다. Flex UI/문구 변경 시 실패할 수 있습니다.
+- `api` 모드는 기존 방식 그대로 유지됩니다. `API URL template`에 `{date}`를 포함해야 하며, `Auth header name`, `Auth token prefix`, `Access token`, `Date mode`, `Custom date` 설정이 적용됩니다.
+- 마이그레이션 참고: 기존 API 연동 사용자는 업데이트 후 위젯 설정에서 `Source mode`가 `API`로 잡혀 있는지 한 번 확인하세요(구형 설정에서 `sourceMode`가 없으면 API 관련 필드 존재 시 런타임에서 자동으로 `API`로 해석).
+- 기본 동작은 `refreshMinutes` 간격 자동 갱신 + 우측 상단 수동 새로고침입니다. 캐시는 날짜/설정/소스 모드 조합 기준으로 `localStorage`에 저장됩니다.
+- `detail URL template`이 설정되면 항목 클릭 시 상세 페이지로 이동합니다. 비어 있으면 클릭이 비활성화됩니다.
 
 ## Widget Folder (Container) 위젯
 
@@ -184,6 +200,8 @@ If Edge reports `chrome.identity.launchWebAuthFlow is not available` for Monday 
   - `storage`: 사용자 설정/레이아웃 저장
   - `bookmarks`: 북마크 트리 조회/갱신 반영
   - `identity`: connector OAuth redirect 처리
+  - `tabs`: Flex Worktime 스크랩 모드에서 flex.team/home 탭 탐색/생성/정리
+  - `scripting`: Flex Worktime 스크랩 모드 DOM 텍스트 추출 스크립트 실행
   - 저장소 로드 실패/손상 데이터 시 기본 상태 안전 복구.
 - Host permissions: `http://*/*`, `https://*/*`
 
@@ -225,6 +243,27 @@ node --check app.js
 node --check widgets/index.js
 node --check widgets/calendar.js
 ```
+
+## Startup State (외부 JSON 초기 상태)
+
+새 탭 URL에 다음 쿼리 파라미터를 전달하면 초기 상태를 외부 JSON으로 초기화할 수 있습니다.
+
+- `startup-state` 또는 `startupState`: URL-인코딩된 JSON 문자열 또는 JSON을 반환하는 URL
+- `startup-state-empty-widgets` (선택): `1`/`true`/`yes`/`on`
+
+예시
+
+```txt
+newtab.html?startup-state=%7B%22ui%22%3A%7B%22home%22%3A%7B%22mode%22%3A%22grid%22%7D%7D%2C%22instances%22%3A%5B%5D%7D&startup-state-empty-widgets=true
+newtab.html?startupState=https%3A%2F%2Fexample.com%2Fstartup-state.json&startup-state-empty-widgets=1
+```
+
+`startup-state-empty-widgets=true`를 지정하고 `instances` 필드가 생략되면 기본 위젯을 추가하지 않고 빈 보드 상태로 시작합니다.
+파싱/요청이 실패하면 저장된 상태를 사용합니다.
+
+쿼리 파라미터가 없는 경우에는 패키지 내 `config/startup-state.json`을 기본 시작 상태 소스로 읽어옵니다.
+저장된 상태가 없는 첫 실행에서는 이 파일이 기본 상태 기준이 됩니다.
+`instances: []`를 설정하면 기본 위젯 없이 시작하도록도 구성할 수 있습니다.
 
 ## 라이선스
 

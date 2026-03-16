@@ -59,6 +59,10 @@ const FONT_OPTIONS = [
 const VIDEO_CACHE_NAME = "s3newtab-loop-video-cache-v1";
 const VIDEO_CACHE_KEY_PREFIX = "https://s3newtab.local/loop-video/";
 const VIDEO_CACHE_MAX_ENTRIES = 6;
+const STARTUP_STATE_QUERY_KEY = "startup-state";
+const STARTUP_STATE_INLINE_QUERY_KEY = "startupState";
+const STARTUP_STATE_EMPTY_WIDGETS_QUERY_KEY = "startup-state-empty-widgets";
+const STARTUP_STATE_JSON_PATH = "config/startup-state.json";
 
 const elements = {
   appRoot: document.getElementById("app"),
@@ -404,6 +408,108 @@ function applyRuntimeOnlyPolicyToSnapshot(snapshot) {
 
   return snapshot;
 }
+
+function isAllowedStartupStateUrl(value) {
+  try {
+    const url = new URL(value, location.origin);
+    return ["http:", "https:", "chrome-extension:"].includes(url.protocol);
+  } catch {
+    return false;
+  }
+}
+
+function normalizeStartupStateBoolean(value) {
+  if (typeof value !== "string") {
+    return false;
+  }
+
+  const normalized = value.trim().toLowerCase();
+  return normalized === "1" || normalized === "true" || normalized === "yes" || normalized === "on";
+}
+
+async function loadStartupStateFromJsonValue(rawValue, options = {}) {
+  const value = rawValue?.trim();
+  if (!value) {
+    return null;
+  }
+
+  if (value.startsWith("{") || value.startsWith("[")) {
+    const parsed = JSON.parse(value);
+    if (!isStateObject(parsed)) {
+      return null;
+    }
+    return parsed;
+  }
+
+  if (!isAllowedStartupStateUrl(value)) {
+    return null;
+  }
+
+  const response = await fetch(new URL(value, location.origin), {
+    cache: options.cache || "no-store"
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to load startup state from ${value}: ${response.status}`);
+  }
+
+  const text = await response.text();
+  const parsed = JSON.parse(text);
+  if (!isStateObject(parsed)) {
+    return null;
+  }
+
+  return parsed;
+}
+
+async function getStartupStateFromLocation() {
+  const searchParams = new URLSearchParams(window.location.search);
+  const startupStateValue = searchParams.get(STARTUP_STATE_QUERY_KEY) || searchParams.get(STARTUP_STATE_INLINE_QUERY_KEY);
+  if (!startupStateValue) {
+    return null;
+  }
+
+  try {
+    const startupState = await loadStartupStateFromJsonValue(startupStateValue);
+    if (!startupState) {
+      console.warn("Invalid startup-state payload, skipping startup state initialization.");
+      return null;
+    }
+
+    const shouldKeepEmptyWidgets = normalizeStartupStateBoolean(
+      searchParams.get(STARTUP_STATE_EMPTY_WIDGETS_QUERY_KEY)
+    );
+    if (shouldKeepEmptyWidgets && !Array.isArray(startupState.instances)) {
+      startupState.instances = [];
+    }
+
+    return startupState;
+  } catch (error) {
+    console.warn("Failed to load startup-state", error);
+    return null;
+  }
+}
+
+async function loadStartupStateFromConfigFile() {
+  try {
+    if (!chrome?.runtime?.getURL) {
+      return null;
+    }
+
+    return await loadStartupStateFromJsonValue(chrome.runtime.getURL(STARTUP_STATE_JSON_PATH));
+  } catch {
+    return null;
+  }
+}
+
+async function resolveStartupStateDefault() {
+  const startupState = await loadStartupStateFromConfigFile();
+  if (!isStateObject(startupState)) {
+    return defaultState();
+  }
+  return mergeStateObjects(defaultState(), startupState);
+}
+
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
 }
@@ -732,6 +838,8 @@ function normalizeTransparentGhostStrength(value, fallback = 100) {
 
 const AUTO_LIGHT_WIDGET_TEXT = "#F3F7FF";
 const AUTO_DARK_WIDGET_TEXT = "#151A23";
+const SHORT_TEXT_WIDGET_TYPES = new Set(["clock", "flexWorktime", "mondayMeetingNote"]);
+const SHORT_TEXT_MIN_CONTENT_FONT_SCALE = 1.25;
 
 function hexToRgb(hex, fallback = "#000000") {
   const value = normalizeHexColor(hex, fallback).slice(1);
@@ -1101,6 +1209,10 @@ function normalizeDockHeight(value, fallback = 44) {
   return clamp(Math.round(num), 36, 72);
 }
 
+function normalizeDockSize(value, fallback = 44) {
+  return normalizeDockHeight(value, fallback);
+}
+
 /**
  * @typedef {Object} DockConfig
  * @property {boolean} enabled
@@ -1120,6 +1232,23 @@ function normalizeDockOrder(value, fallback = null) {
     return fallback;
   }
   return Math.max(0, Math.floor(num));
+}
+
+function nextDockOrder(instances = state?.instances) {
+  const items = Array.isArray(instances) ? instances : [];
+  let maxOrder = -1;
+
+  for (const item of items) {
+    if (!item || item.enabled === false || isWidgetInContainer(item) || !isWidgetDocked(item)) {
+      continue;
+    }
+    const current = normalizeDockOrder(item.dockOrder, -1);
+    if (current >= 0 && current > maxOrder) {
+      maxOrder = current;
+    }
+  }
+
+  return maxOrder + 1;
 }
 
 function isWidgetDocked(instance) {
@@ -2031,7 +2160,8 @@ function normalizeText(value, fallback = "") {
 
 function hydrate(raw) {
   const base = defaultState();
-  const instances = Array.isArray(raw.instances) ? raw.instances : base.instances;
+  const hasExplicitInstances = Array.isArray(raw.instances);
+  const instances = hasExplicitInstances ? raw.instances : base.instances;
   const legacyHeadlessSurfaceMigrated = raw?.ui?.home?.legacyHeadlessSurfaceMigrated === true;
   let didLegacyHeadlessSurfaceMigration = false;
   const normalized = [];
@@ -2279,7 +2409,7 @@ function hydrate(raw) {
       defaultProfileUpdatedAt
     },
     presets,
-    instances: normalized.length ? normalized : base.instances
+    instances: hasExplicitInstances ? normalized : base.instances
   };
 }
 
@@ -2512,6 +2642,29 @@ function snapshotFingerprint(snapshot) {
 
 function isStateObject(value) {
   return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+function mergeStateObjects(base, patch) {
+  const output = isStateObject(base) ? structuredClone(base) : {};
+  if (!isStateObject(patch)) {
+    return output;
+  }
+
+  for (const [key, value] of Object.entries(patch)) {
+    if (Array.isArray(value)) {
+      output[key] = value.slice();
+      continue;
+    }
+
+    if (isStateObject(value) && isStateObject(output[key])) {
+      output[key] = mergeStateObjects(output[key], value);
+      continue;
+    }
+
+    output[key] = value;
+  }
+
+  return output;
 }
 
 function normalizeStoredSnapshot(value) {
@@ -2819,6 +2972,17 @@ function setModalInteractionLock(locked) {
   }
 }
 
+function blurFocusedElementInOverlay(overlay) {
+  if (!(overlay instanceof Element)) {
+    return;
+  }
+
+  const activeElement = document.activeElement;
+  if (activeElement instanceof HTMLElement && overlay.contains(activeElement)) {
+    activeElement.blur();
+  }
+}
+
 function isInsideModalOverlay(target) {
   return target instanceof Element && Boolean(target.closest("#widgetModalOverlay"));
 }
@@ -3036,6 +3200,7 @@ function closeDockSettingsModal(rerender = false) {
 
   dockSettingsModalOpen = false;
   dockModalState.draft = null;
+  blurFocusedElementInOverlay(elements.dockSettingsModalOverlay);
   elements.dockSettingsModalOverlay?.classList.remove("open");
   elements.dockSettingsModalOverlay?.setAttribute("aria-hidden", "true");
   elements.dockSettingsModalBody?.replaceChildren();
@@ -3339,6 +3504,7 @@ function closeShortcutIconEditor() {
   shortcutIconEditorState.previewDataUrl = "";
   shortcutIconEditorState.importedDataUrl = "";
   clearShortcutIconEditorCanvas();
+  blurFocusedElementInOverlay(elements.shortcutIconEditorOverlay);
   elements.shortcutIconEditorOverlay?.classList.remove("open");
   elements.shortcutIconEditorOverlay?.setAttribute("aria-hidden", "true");
 }
@@ -3472,7 +3638,10 @@ function applyCardVisual(card, instance) {
   instance.contentPaddingBottomLeft = normalizeContentPadding((padding.bottom + padding.left) / 2, padding.uniform);
   instance.contentPadding = normalizeContentPadding((padding.top + padding.right + padding.bottom + padding.left) / 4, padding.uniform);
   instance.contentFontScale = normalizeWidgetContentFontScale(instance.contentFontScale, 1);
-  card.style.setProperty("--widget-content-font-scale", String(instance.contentFontScale));
+  const widgetContentFontScale = SHORT_TEXT_WIDGET_TYPES.has(instance.type)
+    ? Math.max(instance.contentFontScale, SHORT_TEXT_MIN_CONTENT_FONT_SCALE)
+    : instance.contentFontScale;
+  card.style.setProperty("--widget-content-font-scale", String(widgetContentFontScale));
   instance.edgeRoundness = edgeRoundness;
   const justify = align === "center" ? "center" : align === "bottom" ? "flex-end" : "flex-start";
   card.style.setProperty("--widget-content-justify", justify);
@@ -4447,6 +4616,7 @@ function closeAddWidgetModal() {
   }
 
   addWidgetModalOpen = false;
+  blurFocusedElementInOverlay(elements.addWidgetModalOverlay);
   elements.addWidgetModalOverlay?.classList.remove("open");
   elements.addWidgetModalOverlay?.setAttribute("aria-hidden", "true");
   if (!modalState.open && !dockSettingsModalOpen && !shortcutIconEditorState.open && !widgetTitleRenameState.open) {
@@ -4487,6 +4657,7 @@ function closeWidgetTitleRenameModal() {
 
   widgetTitleRenameState.open = false;
   widgetTitleRenameState.widgetId = "";
+  blurFocusedElementInOverlay(elements.widgetTitleRenameOverlay);
   elements.widgetTitleRenameOverlay?.classList.remove("open");
   elements.widgetTitleRenameOverlay?.setAttribute("aria-hidden", "true");
 
@@ -4655,8 +4826,25 @@ function updateDragDeleteZoneHover(clientX, clientY) {
 }
 
 function getPersistentDockHitRect() {
-  const target = elements.persistentDockBody ?? elements.persistentDock;
-  return target?.getBoundingClientRect() ?? null;
+  const host = elements.persistentDock;
+  const body = elements.persistentDockBody;
+  if (!(host instanceof HTMLElement)) {
+    return null;
+  }
+
+  const hostRect = host.getBoundingClientRect();
+  const bodyRect = body?.getBoundingClientRect();
+
+  if (!(body instanceof HTMLElement) || !bodyRect) {
+    return hostRect;
+  }
+
+  return {
+    left: Math.min(hostRect.left, bodyRect.left),
+    right: Math.max(hostRect.right, bodyRect.right),
+    top: Math.min(hostRect.top, bodyRect.top),
+    bottom: Math.max(hostRect.bottom, bodyRect.bottom)
+  };
 }
 
 function getLauncherViewportRect() {
@@ -4876,7 +5064,7 @@ function dockDropGuideSlotRect(draggedInstance, clientX, clientY) {
   return dockSlotRectRelativeToHost(slotIndex);
 }
 
-function containerDropGuideSlotRect(containerId, draggedInstance, host) {
+function containerDropGuideSlotRect(containerId, draggedInstance, host, pointer = {}) {
   if (!(host instanceof HTMLElement) || !host.classList.contains("widget-folder-panel") || !draggedInstance) {
     return null;
   }
@@ -4886,8 +5074,18 @@ function containerDropGuideSlotRect(containerId, draggedInstance, host) {
     return null;
   }
 
-  const containerInstance = instanceById(containerId);
+  const targetContainerId = normalizeContainerId(containerId);
+  if (!targetContainerId) {
+    return null;
+  }
+
+  const containerInstance = instanceById(targetContainerId);
   if (!containerInstance || containerInstance.type !== "container") {
+    return null;
+  }
+
+  const draggedId = normalizeText(draggedInstance.id);
+  if (!draggedId) {
     return null;
   }
 
@@ -4895,6 +5093,55 @@ function containerDropGuideSlotRect(containerId, draggedInstance, host) {
   const cols = Math.max(1, Math.floor(containerSpan.cols || 1));
   const rows = Math.max(1, Math.floor(containerSpan.rows || 1));
   const occupancy = Array.from({ length: rows }, () => Array(cols).fill(false));
+
+  const siblingIds = [];
+  const siblingIdSet = new Set();
+  const pushSiblingId = (value) => {
+    const id = normalizeText(value);
+    if (!id || id === draggedId || siblingIdSet.has(id)) {
+      return;
+    }
+    siblingIdSet.add(id);
+    siblingIds.push(id);
+  };
+
+  const panelCards = Array.from(body.querySelectorAll(".widget-folder-item-card[data-widget-id]"));
+  for (const card of panelCards) {
+    pushSiblingId(card?.dataset?.widgetId);
+  }
+
+  if (!siblingIds.length) {
+    for (const item of state.instances || []) {
+      if (!item || item.enabled === false || item.type === "container") {
+        continue;
+      }
+      if (normalizeContainerId(item.containerId) !== targetContainerId) {
+        continue;
+      }
+      pushSiblingId(item.id);
+    }
+  }
+
+  const insertIndex = resolveContainerInsertIndexFromPointer(targetContainerId, pointer?.clientX, pointer?.clientY, {
+    excludeWidgetId: draggedId,
+    panelElement: body
+  });
+  const clampedInsertIndex = clamp(Math.round(Number(insertIndex) || 0), 0, siblingIds.length);
+
+  const orderedIds = siblingIds.slice();
+  orderedIds.splice(clampedInsertIndex, 0, draggedId);
+
+  const orderedWidgets = [];
+  for (const widgetId of orderedIds) {
+    const widget = instanceById(widgetId);
+    if (!widget || widget.enabled === false || widget.type === "container") {
+      continue;
+    }
+    if (normalizeText(widget.id) !== draggedId && normalizeContainerId(widget.containerId) !== targetContainerId) {
+      continue;
+    }
+    orderedWidgets.push(widget);
+  }
 
   const canFit = (row, col, rowSpan, colSpan) => {
     if (row < 0 || col < 0 || row + rowSpan > rows || col + colSpan > cols) {
@@ -4919,21 +5166,9 @@ function containerDropGuideSlotRect(containerId, draggedInstance, host) {
   };
 
   let targetPlacement = null;
-  const draggedId = String(draggedInstance.id);
-  const normalizedContainerId = normalizeContainerId(containerId);
 
-  for (const item of state.instances || []) {
-    if (!item || item.enabled === false || item.type === "container") {
-      continue;
-    }
-
-    const itemId = String(item.id);
-    const inTargetContainer =
-      itemId === draggedId || normalizeContainerId(item.containerId) === normalizedContainerId;
-    if (!inTargetContainer) {
-      continue;
-    }
-
+  for (const item of orderedWidgets) {
+    const itemId = normalizeText(item.id);
     const span = resolveWidgetSpanInContainer(item, containerSpan);
     const colSpan = clamp(Math.round(span.cols || 1), 1, cols);
     const rowSpan = clamp(Math.round(span.rows || 1), 1, rows);
@@ -5000,7 +5235,7 @@ function containerDropGuideSlotRect(containerId, draggedInstance, host) {
   };
 }
 
-function createWidgetDropSilhouette(sourceElement = null) {
+function createWidgetDropSilhouette(sourceElement = null, options = {}) {
   const silhouette = document.createElement("div");
   silhouette.className = "widget-drop-silhouette";
   silhouette.style.position = "fixed";
@@ -5010,6 +5245,27 @@ function createWidgetDropSilhouette(sourceElement = null) {
   if (sourceRect) {
     silhouette.style.width = `${Math.max(1, Math.round(sourceRect.width))}px`;
     silhouette.style.height = `${Math.max(1, Math.round(sourceRect.height))}px`;
+    const radius = (() => {
+      if (Number.isFinite(Number(options?.borderRadius))) {
+        return Math.max(0, Math.round(Number(options.borderRadius)));
+      }
+
+      if (!sourceElement || !Number.isFinite(sourceRect.width) || !Number.isFinite(sourceRect.height)) {
+        return NaN;
+      }
+
+      const sourceStyle = typeof window === "undefined" ? null : window.getComputedStyle?.(sourceElement);
+      const rawRadius = Number.parseFloat(String(sourceStyle?.borderRadius || "0"));
+      if (Number.isFinite(rawRadius)) {
+        return Math.max(0, Math.round(rawRadius));
+      }
+
+      return NaN;
+    })();
+
+    if (Number.isFinite(radius) && radius > 0) {
+      silhouette.style.borderRadius = `${radius}px`;
+    }
   }
 
   document.body.append(silhouette);
@@ -5069,7 +5325,10 @@ function updateWidgetDragGuideAtPointer(
       if (freeMode) {
         applyWidgetDropGuide(host, { mode: "full" });
       } else {
-        const rect = containerDropGuideSlotRect(containerDropTargetId, draggedInstance, host);
+        const rect = containerDropGuideSlotRect(containerDropTargetId, draggedInstance, host, {
+          clientX,
+          clientY
+        });
         if (rect) {
           applyWidgetDropGuide(host, {
             mode: "slot",
@@ -5130,7 +5389,7 @@ function updateWidgetDragGuideAtPointer(
     const rect = boardPageDropGuideRect(resolvedBoardPage);
     if (rect) {
       applyWidgetDropGuide(board, {
-        mode: "slot",
+        mode: "full",
         rect,
         borderRadius: 14
       });
@@ -5465,11 +5724,12 @@ function tryDockWidgetByDrop(instance, pointerEvent, { record = true } = {}) {
 
   instance.containerId = "";
   if (!wasDocked) {
-    instance.dockOrder = nextDockOrder();
+    instance.dockOrder = nextDockOrder(state.instances);
   }
   setDockWidgetOrderByIndex(instance.id, insertIndex, { record: false });
   normalizeDockedWidgetOrders(state.instances);
   setDockActiveId(instance.id, { rerender: false });
+  renderDockWidgets();
 
   if (state.selectedWidgetId === instance.id) {
     state.selectedWidgetId = "";
@@ -5928,6 +6188,14 @@ function renderDockWidgets() {
           boardProjection: projection,
           suppressSurfaceTargets: deleteHovering
         });
+        if (deleteHovering) {
+          clearWidgetDragGuideState();
+        } else {
+          updateWidgetDragGuideAtPointer(item, clientX, clientY, {
+            boardLayout: projection?.layout,
+            boardPage: projection?.page
+          });
+        }
       };
 
       updateGhost(event.clientX, event.clientY);
@@ -6758,6 +7026,26 @@ function projectContainerSilhouetteLayoutFromPointer(containerId, clientX, clien
     return viewportRectToBoardLayout(targetElement.getBoundingClientRect());
   }
 
+  const guideSlotRect = containerDropGuideSlotRect(targetId, { id: draggedWidgetId }, targetElement, {
+    clientX,
+    clientY
+  });
+  if (
+    guideSlotRect &&
+    Number.isFinite(guideSlotRect.x) &&
+    Number.isFinite(guideSlotRect.y) &&
+    Number.isFinite(guideSlotRect.w) &&
+    Number.isFinite(guideSlotRect.h)
+  ) {
+    const panelRect = targetElement.getBoundingClientRect();
+    return viewportRectToBoardLayout({
+      left: panelRect.left + guideSlotRect.x,
+      top: panelRect.top + guideSlotRect.y,
+      width: guideSlotRect.w,
+      height: guideSlotRect.h
+    });
+  }
+
   const cards = Array.from(panelBody.querySelectorAll(".widget-folder-item-card[data-widget-id]"))
     .filter((card) => normalizeText(card?.dataset?.widgetId) !== normalizeText(draggedWidgetId));
 
@@ -7134,6 +7422,7 @@ function createWidgetCard(instance) {
     releaseWidgetFromContainerByDrop: (widgetId, payload) => releaseWidgetFromContainerByDrop(widgetId, payload),
     reorderWidgetInContainerByIndex: (widgetId, containerId, index, options = {}) =>
       reorderWidgetInContainerByIndex(widgetId, containerId, index, options),
+    createWidgetDropSilhouette: (sourceElement, options = {}) => createWidgetDropSilhouette(sourceElement, options),
     resolveContainerInsertIndexFromPointer: (containerId, clientX, clientY, options = {}) =>
       resolveContainerInsertIndexFromPointer(containerId, clientX, clientY, options),
     tryContainerWidgetByDrop: (widget, pointerEvent, options = {}) => tryContainerWidgetByDrop(widget, pointerEvent, options),
@@ -7701,6 +7990,11 @@ function createWidgetCard(instance) {
 
 
     card.classList.add("widget-drag-origin-hidden");
+    const dropSilhouette = createWidgetDropSilhouette(card);
+    const hideAndRemoveDropSilhouette = () => {
+      setWidgetDropSilhouetteVisible(dropSilhouette, false);
+      dropSilhouette?.remove();
+    };
     setDragDeleteZoneActive(true);
     updateDragDeleteZoneHover(dragStartX, dragStartY);
 
@@ -7897,12 +8191,27 @@ function createWidgetCard(instance) {
         });
 
         const projected = projectedGridDropLayout();
+        const boardProjection = projectWidgetBoardDropLayout(
+          instance,
+          {
+            clientX: moveEvent.clientX,
+            clientY: moveEvent.clientY,
+            page: instance.page
+          },
+          { pageFallback: instance.page }
+        );
         const deleteHovering = updateDragDeleteZoneHover(moveEvent.clientX, moveEvent.clientY);
+        updateCrossSurfaceDropIndicators(instance, moveEvent.clientX, moveEvent.clientY, {
+          silhouette: dropSilhouette,
+          boardProjection,
+          suppressSurfaceTargets: deleteHovering
+        });
         if (deleteHovering) {
           clearWidgetDragGuideState();
         } else {
           updateWidgetDragGuideAtPointer(instance, moveEvent.clientX, moveEvent.clientY, {
-            boardLayout: projected.layout
+            boardLayout: projected?.layout || null,
+            boardPage: projected?.page
           });
         }
       };
@@ -7912,6 +8221,7 @@ function createWidgetCard(instance) {
         window.removeEventListener("pointerup", up);
         window.removeEventListener("pointercancel", up);
         resetPendingPageSwitch();
+        hideAndRemoveDropSilhouette();
         clearWidgetDragGuideState();
         setDragDeleteZoneActive(false);
         card.classList.remove("longpress-drag-armed");
@@ -7946,8 +8256,22 @@ function createWidgetCard(instance) {
       window.addEventListener("pointerup", up);
       window.addEventListener("pointercancel", up);
       const projected = projectedGridDropLayout();
+      const initialBoardProjection = projectWidgetBoardDropLayout(
+        instance,
+        {
+          clientX: dragStartX,
+          clientY: dragStartY,
+          page: instance.page
+        },
+        { pageFallback: instance.page }
+      );
 
       const deleteHovering = updateDragDeleteZoneHover(dragStartX, dragStartY);
+      updateCrossSurfaceDropIndicators(instance, dragStartX, dragStartY, {
+        silhouette: dropSilhouette,
+        boardProjection: initialBoardProjection,
+        suppressSurfaceTargets: deleteHovering
+      });
       if (deleteHovering) {
         clearWidgetDragGuideState();
       } else {
@@ -7993,7 +8317,21 @@ function createWidgetCard(instance) {
       });
 
 
+      const boardProjection = projectWidgetBoardDropLayout(
+        instance,
+        {
+          clientX: moveEvent.clientX,
+          clientY: moveEvent.clientY,
+          page: instance.page
+        },
+        { pageFallback: instance.page }
+      );
       const deleteHovering = updateDragDeleteZoneHover(moveEvent.clientX, moveEvent.clientY);
+      updateCrossSurfaceDropIndicators(instance, moveEvent.clientX, moveEvent.clientY, {
+        silhouette: dropSilhouette,
+        boardProjection,
+        suppressSurfaceTargets: deleteHovering
+      });
       if (deleteHovering) {
         clearWidgetDragGuideState();
       } else {
@@ -8008,6 +8346,7 @@ function createWidgetCard(instance) {
       window.removeEventListener("pointerup", up);
       window.removeEventListener("pointercancel", up);
       resetPendingPageSwitch();
+      hideAndRemoveDropSilhouette();
       clearWidgetDragGuideState();
       setDragDeleteZoneActive(false);
       card.classList.remove("longpress-drag-armed");
@@ -8057,6 +8396,20 @@ function createWidgetCard(instance) {
     window.addEventListener("pointerup", up);
     window.addEventListener("pointercancel", up);
     const deleteHovering = updateDragDeleteZoneHover(dragStartX, dragStartY);
+    const initialBoardProjection = projectWidgetBoardDropLayout(
+      instance,
+      {
+        clientX: dragStartX,
+        clientY: dragStartY,
+        page: instance.page
+      },
+      { pageFallback: instance.page }
+    );
+    updateCrossSurfaceDropIndicators(instance, dragStartX, dragStartY, {
+      silhouette: dropSilhouette,
+      boardProjection: initialBoardProjection,
+      suppressSurfaceTargets: deleteHovering
+    });
     if (deleteHovering) {
       clearWidgetDragGuideState();
     } else {
@@ -9576,6 +9929,7 @@ function closeWidgetModal(rerender = true) {
   modalState.activeTab = "widget";
 
   setModalInteractionLock(false);
+  blurFocusedElementInOverlay(elements.widgetModalOverlay);
   elements.widgetModalOverlay?.classList.remove("open");
   elements.widgetModalOverlay?.setAttribute("aria-hidden", "true");
   elements.widgetModalTabs?.replaceChildren();
@@ -10872,7 +11226,10 @@ function wireEvents() {
 async function init() {
   populateTypeSelect();
   syncAddWidgetSizeInputs();
-  const loaded = await loadState(defaultState());
+  const startupState = await getStartupStateFromLocation();
+  const loaded = startupState
+    ? startupState
+    : (await loadState(await resolveStartupStateDefault()));
   const normalizedLoaded = applyRuntimeOnlyPolicyToSnapshot(structuredClone(loaded));
   lastSavedFingerprint = snapshotFingerprint(normalizedLoaded);
   lastSavedUserMutationAt = readUserMutationClock(normalizedLoaded);
