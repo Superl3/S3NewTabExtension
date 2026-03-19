@@ -11171,10 +11171,6 @@ function beginBoardSwipe(event) {
   if (modalState.open || addWidgetModalOpen || shortcutIconEditorState.open || dockSettingsModalOpen) {
     return;
   }
-  if (state.mode === "edit" && runtimeSettingsPanelOpen) {
-    return;
-  }
-
   const captureHost =
     event.currentTarget instanceof Element ? event.currentTarget : elements.workspace || elements.board;
 
