@@ -226,7 +226,8 @@ const boardContextMenuState = {
 };
 const launcherPageUiState = {
   virtualPage: null,
-  pendingPlaceholderDrop: null
+  pendingPlaceholderDrop: null,
+  dragPlaceholderPolicyActive: false
 };
 const shortcutIconEditorState = {
   open: false,
@@ -4635,6 +4636,27 @@ function isPlaceholderLauncherPage(page, pageCount = currentLauncherPageCount())
   return page === -1 || page === pageCount;
 }
 
+function isLauncherPlaceholderPolicyActive() {
+  return state?.mode === "edit" || launcherPageUiState.dragPlaceholderPolicyActive;
+}
+
+function shouldRenderLauncherPlaceholderPage() {
+  return isLauncherPlaceholderPolicyActive() || Boolean(launcherPageUiState.pendingPlaceholderDrop);
+}
+
+function setLauncherDragPlaceholderPolicy(active, { animate = false } = {}) {
+  const next = Boolean(active);
+  if (launcherPageUiState.dragPlaceholderPolicyActive === next) {
+    return;
+  }
+
+  launcherPageUiState.dragPlaceholderPolicyActive = next;
+  if (!next && state.mode !== "edit" && !launcherPageUiState.pendingPlaceholderDrop) {
+    launcherPageUiState.virtualPage = null;
+    renderBoardViewport({ animate, dragging: false, dragOffsetX: 0 });
+  }
+}
+
 function clearPendingPlaceholderDrop({ clearVirtualPage = false } = {}) {
   launcherPageUiState.pendingPlaceholderDrop = null;
   if (clearVirtualPage) {
@@ -4646,7 +4668,7 @@ function currentLauncherViewportPage() {
   const pageCount = currentLauncherPageCount();
   const active = currentLauncherActivePage();
   const virtual = Number(launcherPageUiState.virtualPage);
-  if (state.mode === "edit" && Number.isFinite(virtual)) {
+  if (shouldRenderLauncherPlaceholderPage() && Number.isFinite(virtual)) {
     return clamp(Math.floor(virtual), -1, pageCount);
   }
   return active;
@@ -4655,7 +4677,7 @@ function currentLauncherViewportPage() {
 function setLauncherVirtualPage(page, { animate = true } = {}) {
   const pageCount = currentLauncherPageCount();
   const next = Number(page);
-  if (!Number.isFinite(next) || state.mode !== "edit") {
+  if (!Number.isFinite(next) || !shouldRenderLauncherPlaceholderPage()) {
     launcherPageUiState.virtualPage = null;
     renderBoardViewport({ animate, dragging: false, dragOffsetX: 0 });
     return;
@@ -4770,7 +4792,7 @@ function deleteLauncherPageAt(pageIndex) {
 }
 
 function queuePlaceholderPageDrop(instanceId, payload = {}, placeholderPage = null) {
-  if (state.mode !== "edit") {
+  if (!isLauncherPlaceholderPolicyActive()) {
     return false;
   }
 
@@ -4801,10 +4823,6 @@ function queuePlaceholderPageDrop(instanceId, payload = {}, placeholderPage = nu
 }
 
 function materializePendingPlaceholderPage() {
-  if (state.mode !== "edit") {
-    return false;
-  }
-
   const pending = launcherPageUiState.pendingPlaceholderDrop;
   if (!pending) {
     return false;
@@ -4874,6 +4892,44 @@ function materializePendingPlaceholderPage() {
 
   state.selectedWidgetId = instance.id;
   clearPendingPlaceholderDrop({ clearVirtualPage: true });
+  renderBoard();
+  queueSave();
+  return true;
+}
+
+function materializeLauncherPlaceholderPage(placeholderPage) {
+  if (!isLauncherPlaceholderPolicyActive()) {
+    return false;
+  }
+
+  const home = syncLauncherPagingState({ expandToFitInstances: true });
+  const oldPageCount = home.pageCount;
+  const targetPlaceholder = Number.isFinite(Number(placeholderPage))
+    ? Math.floor(Number(placeholderPage))
+    : oldPageCount;
+
+  if (!isPlaceholderLauncherPage(targetPlaceholder, oldPageCount) || oldPageCount >= MAX_LAUNCHER_PAGES) {
+    return false;
+  }
+
+  const addLeft = targetPlaceholder < 0;
+  recordHistorySnapshot("Create empty launcher page");
+
+  if (addLeft) {
+    for (const entry of state.instances || []) {
+      if (!isBoardWidgetInstance(entry)) {
+        continue;
+      }
+      entry.page = normalizeWidgetPage(entry.page, oldPageCount, 0) + 1;
+    }
+  }
+
+  home.pageCount = normalizePageCount(oldPageCount + 1, oldPageCount + 1);
+  home.activePage = addLeft ? 0 : oldPageCount;
+  state.ui.home = home;
+
+  launcherPageUiState.virtualPage = null;
+  clearPendingPlaceholderDrop();
   renderBoard();
   queueSave();
   return true;
@@ -6092,6 +6148,7 @@ function renderDockWidgets() {
       card.classList.add("widget-drag-origin-hidden");
       card.style.animation = "widget-drag-jiggle 340ms cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite";
       card.style.transformOrigin = "50% 0%";
+      setLauncherDragPlaceholderPolicy(true);
       const sourceCard = runtime.get(item.id)?.card;
       sourceCard?.classList.add("widget-drag-active");
       sourceCard?.classList.add("widget-drag-origin-hidden");
@@ -6146,10 +6203,10 @@ function renderDockWidgets() {
 
         const home = syncLauncherPagingState({ expandToFitInstances: true });
         let pageCount = home.pageCount;
-        const minPage = state.mode === "edit" ? -1 : 0;
+        const minPage = isLauncherPlaceholderPolicyActive() ? -1 : 0;
         let nextPage = dragReleasePage + direction;
 
-        const maxPage = state.mode === "edit" ? pageCount : pageCount - 1;
+        const maxPage = isLauncherPlaceholderPolicyActive() ? pageCount : pageCount - 1;
 
         if (nextPage < minPage || nextPage > maxPage) {
           return false;
@@ -6236,6 +6293,7 @@ function renderDockWidgets() {
         window.removeEventListener("pointercancel", finish);
 
         resetPendingPageSwitch();
+        setLauncherDragPlaceholderPolicy(false);
         const dropX = Number.isFinite(upEvent?.clientX) ? upEvent.clientX : event.clientX;
         const dropY = Number.isFinite(upEvent?.clientY) ? upEvent.clientY : event.clientY;
         const pointerEventLike = {
@@ -6382,8 +6440,9 @@ function renderBoardViewport({ dragOffsetX = 0, animate = true, dragging = false
   const pageCount = currentLauncherPageCount();
   const activePage = currentLauncherViewportPage();
   const boardW = Math.max(1, Math.floor(elements.board.clientWidth));
-  const minPage = state.mode === "edit" ? -1 : 0;
-  const maxPage = state.mode === "edit" ? pageCount : Math.max(0, pageCount - 1);
+  const allowPlaceholderPaging = shouldRenderLauncherPlaceholderPage();
+  const minPage = allowPlaceholderPaging ? -1 : 0;
+  const maxPage = allowPlaceholderPaging ? pageCount : Math.max(0, pageCount - 1);
 
   let offset = Number(dragOffsetX) || 0;
   if ((activePage <= minPage && offset > 0) || (activePage >= maxPage && offset < 0)) {
@@ -7213,7 +7272,7 @@ function releaseWidgetFromContainerByDrop(widgetId, payload = {}) {
   );
 
   const requestedPage = Number.isFinite(Number(payload?.page)) ? Math.floor(Number(payload.page)) : releasePage;
-  if (state.mode === "edit" && isPlaceholderLauncherPage(requestedPage, currentLauncherPageCount())) {
+  if (isLauncherPlaceholderPolicyActive() && isPlaceholderLauncherPage(requestedPage, currentLauncherPageCount())) {
     return queuePlaceholderPageDrop(widgetId, payload, requestedPage);
   }
 
@@ -7259,7 +7318,7 @@ function releaseWidgetFromDockByDrop(widgetId, payload = {}) {
   const requestedPage = Number.isFinite(Number(payload?.page))
     ? Math.floor(Number(payload.page))
     : currentLauncherActivePage();
-  if (state.mode === "edit" && isPlaceholderLauncherPage(requestedPage, currentLauncherPageCount())) {
+  if (isLauncherPlaceholderPolicyActive() && isPlaceholderLauncherPage(requestedPage, currentLauncherPageCount())) {
     return queuePlaceholderPageDrop(widgetId, payload, requestedPage);
   }
 
@@ -8030,6 +8089,7 @@ function createWidgetCard(instance) {
 
     card.classList.add("widget-drag-origin-hidden");
     setDragDeleteZoneActive(true);
+    setLauncherDragPlaceholderPolicy(true);
     updateDragDeleteZoneHover(dragStartX, dragStartY);
 
     previewSession.update(dragStartX, dragStartY);
@@ -8079,11 +8139,11 @@ function createWidgetCard(instance) {
 
       const home = syncLauncherPagingState({ expandToFitInstances: true });
       let pageCount = home.pageCount;
-      const minPage = state.mode === "edit" ? -1 : 0;
+      const minPage = isLauncherPlaceholderPolicyActive() ? -1 : 0;
       const currentPage = dragReleasePage;
       let nextPage = currentPage + direction;
 
-      const maxPage = state.mode === "edit" ? pageCount : pageCount - 1;
+      const maxPage = isLauncherPlaceholderPolicyActive() ? pageCount : pageCount - 1;
 
       if (nextPage < minPage || nextPage > maxPage) {
         return false;
@@ -8272,6 +8332,7 @@ function createWidgetCard(instance) {
         resetPendingPageSwitch();
         clearWidgetDragGuideState();
         setDragDeleteZoneActive(false);
+        setLauncherDragPlaceholderPolicy(false);
         card.classList.remove("longpress-drag-armed");
         card.classList.remove("widget-drag-active");
         card.classList.remove("widget-drag-origin-hidden");
@@ -8298,7 +8359,7 @@ function createWidgetCard(instance) {
           return;
         }
 
-        if (state.mode === "edit" && isPlaceholderLauncherPage(dragReleasePage, currentLauncherPageCount())) {
+        if (isLauncherPlaceholderPolicyActive() && isPlaceholderLauncherPage(dragReleasePage, currentLauncherPageCount())) {
           queuePlaceholderPageDrop(instance.id, { clientX: dropX, clientY: dropY, page: dragReleasePage }, dragReleasePage);
           return;
         }
@@ -8414,6 +8475,7 @@ function createWidgetCard(instance) {
       resetPendingPageSwitch();
       clearWidgetDragGuideState();
       setDragDeleteZoneActive(false);
+      setLauncherDragPlaceholderPolicy(false);
       card.classList.remove("longpress-drag-armed");
       card.classList.remove("widget-drag-active");
       card.classList.remove("widget-drag-origin-hidden");
@@ -8440,7 +8502,7 @@ function createWidgetCard(instance) {
         return;
       }
 
-      if (state.mode === "edit" && isPlaceholderLauncherPage(dragReleasePage, currentLauncherPageCount())) {
+      if (isLauncherPlaceholderPolicyActive() && isPlaceholderLauncherPage(dragReleasePage, currentLauncherPageCount())) {
         queuePlaceholderPageDrop(instance.id, { clientX: dropX, clientY: dropY, page: dragReleasePage }, dragReleasePage);
         return;
       }
@@ -8938,7 +9000,7 @@ function renderLauncherPageAffordances() {
   host.replaceChildren();
 
   const isEdit = state.mode === "edit";
-  if (!isEdit && !launcherPageUiState.pendingPlaceholderDrop) {
+  if (!isEdit && !shouldRenderLauncherPlaceholderPage()) {
     return;
   }
 
@@ -8977,7 +9039,7 @@ function renderLauncherPageAffordances() {
     host.append(layer);
   }
 
-  if (!isEdit) {
+  if (!shouldRenderLauncherPlaceholderPage()) {
     return;
   }
 
@@ -8985,27 +9047,23 @@ function renderLauncherPageAffordances() {
   const placeholderPages = [-1, pageCount];
   for (const page of placeholderPages) {
     const layer = createPageLayer(page, { placeholder: true });
-    const showMaterializeAction = pending && pending.placeholderPage === page;
-
-    if (showMaterializeAction) {
-      const materializeBtn = document.createElement("button");
-      materializeBtn.type = "button";
-      materializeBtn.className = "launcher-page-materialize-btn";
-      materializeBtn.innerHTML = '<span class="launcher-page-materialize-icon">+</span><span class="launcher-page-materialize-label">Create page</span>';
-      materializeBtn.title = "Create page here";
-      materializeBtn.setAttribute("aria-label", "Create page here");
-      materializeBtn.addEventListener("click", (event) => {
-        event.preventDefault();
-        event.stopPropagation();
+    const hasPendingWidget = pending && pending.placeholderPage === page;
+    const materializeBtn = document.createElement("button");
+    materializeBtn.type = "button";
+    materializeBtn.className = "launcher-page-materialize-btn";
+    materializeBtn.innerHTML = '<span class="launcher-page-materialize-icon">+</span><span class="launcher-page-materialize-label">Create page</span>';
+    materializeBtn.title = hasPendingWidget ? "Create page and place widget" : "Create empty page";
+    materializeBtn.setAttribute("aria-label", hasPendingWidget ? "Create page and place widget" : "Create empty page");
+    materializeBtn.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      if (hasPendingWidget) {
         materializePendingPlaceholderPage();
-      });
-      layer.append(materializeBtn);
-    } else {
-      const hint = document.createElement("div");
-      hint.className = "launcher-page-placeholder-hint";
-      hint.textContent = "Drop widget then click +";
-      layer.append(hint);
-    }
+        return;
+      }
+      materializeLauncherPlaceholderPage(page);
+    });
+    layer.append(materializeBtn);
 
     host.append(layer);
   }
