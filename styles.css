@@ -512,6 +512,112 @@ body.mode-edit .dock-edit-controls {
   cursor: grabbing;
 }
 
+.launcher-page-affordances {
+  position: absolute;
+  inset: 0;
+  z-index: 5200;
+  pointer-events: none;
+}
+
+.launcher-page-layer {
+  position: absolute;
+  pointer-events: none;
+}
+
+body.mode-edit .launcher-page-layer {
+  pointer-events: auto;
+}
+
+.launcher-page-remove-btn {
+  position: absolute;
+  left: 14px;
+  top: 14px;
+  width: 30px;
+  height: 30px;
+  border: 1px solid color-mix(in srgb, var(--warn), transparent 18%);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--warn), transparent 12%);
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 8px 20px color-mix(in srgb, var(--warn), transparent 66%);
+  opacity: 0;
+  transform: scale(0.9);
+  transition: opacity 0.15s ease, transform 0.15s ease, background 0.15s ease;
+}
+
+.launcher-page-layer:hover .launcher-page-remove-btn,
+.launcher-page-layer:focus-within .launcher-page-remove-btn,
+.launcher-page-remove-btn:focus-visible {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.launcher-page-remove-btn:hover {
+  background: color-mix(in srgb, var(--warn), transparent 2%);
+}
+
+.launcher-page-layer.is-placeholder::before {
+  content: "";
+  position: absolute;
+  inset: 16px;
+  border: 1px dashed color-mix(in srgb, var(--accent), transparent 28%);
+  border-radius: 24px;
+  background: color-mix(in srgb, var(--accent), transparent 94%);
+}
+
+.launcher-page-materialize-btn {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  min-width: 190px;
+  min-height: 136px;
+  border: 1px dashed color-mix(in srgb, var(--accent), transparent 22%);
+  border-radius: 24px;
+  background: color-mix(in srgb, var(--accent), transparent 90%);
+  color: color-mix(in srgb, var(--text), var(--accent) 36%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  cursor: pointer;
+  box-shadow: 0 20px 38px color-mix(in srgb, var(--shadow-edge), transparent 46%);
+}
+
+.launcher-page-materialize-icon {
+  font-size: 42px;
+  font-weight: 500;
+  line-height: 1;
+}
+
+.launcher-page-materialize-label {
+  font-size: 0.85rem;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+}
+
+.launcher-page-placeholder-hint {
+  position: absolute;
+  left: 50%;
+  bottom: 26px;
+  transform: translateX(-50%);
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--line), transparent 28%);
+  background: color-mix(in srgb, var(--surface), transparent 20%);
+  color: color-mix(in srgb, var(--muted), var(--text) 30%);
+  font-size: 0.72rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
 .persistent-dock {
   position: fixed;
   z-index: 1462;
