@@ -10780,7 +10780,11 @@ function endBoardSwipe(event, { cancelled = false } = {}) {
     return;
   }
 
-  const activePage = currentLauncherActivePage();
+  const home = syncLauncherPagingState({ expandToFitInstances: true });
+  const pageCount = home.pageCount;
+  const activePage = state.mode === "edit" ? currentLauncherViewportPage() : currentLauncherActivePage();
+  const minPage = state.mode === "edit" ? -1 : 0;
+  const maxPage = state.mode === "edit" ? pageCount : Math.max(0, pageCount - 1);
   const threshold = Math.max(34, Math.min(130, Math.round((elements.board?.clientWidth || 1) * 0.14)));
   let nextPage = activePage;
 
@@ -10790,7 +10794,12 @@ function endBoardSwipe(event, { cancelled = false } = {}) {
     nextPage = activePage - 1;
   }
 
-  setActiveLauncherPage(nextPage, { shouldSave: true, animate: true });
+  nextPage = clamp(nextPage, minPage, maxPage);
+  if (state.mode === "edit" && isPlaceholderLauncherPage(nextPage, pageCount)) {
+    setLauncherVirtualPage(nextPage, { animate: true });
+  } else {
+    setActiveLauncherPage(nextPage, { shouldSave: true, animate: true });
+  }
   lastDragEndAt = Date.now();
 }
 
