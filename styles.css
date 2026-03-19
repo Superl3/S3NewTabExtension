@@ -524,10 +524,6 @@ body.mode-edit .dock-edit-controls {
   pointer-events: none;
 }
 
-body.mode-edit .launcher-page-layer {
-  pointer-events: auto;
-}
-
 .launcher-page-remove-btn {
   position: absolute;
   left: 14px;
@@ -549,16 +545,18 @@ body.mode-edit .launcher-page-layer {
   opacity: 0;
   transform: scale(0.9);
   transition: opacity 0.15s ease, transform 0.15s ease, background 0.15s ease;
+  pointer-events: auto;
 }
 
-.launcher-page-layer:hover .launcher-page-remove-btn,
-.launcher-page-layer:focus-within .launcher-page-remove-btn,
+body.mode-edit .launcher-page-remove-btn,
 .launcher-page-remove-btn:focus-visible {
-  opacity: 1;
-  transform: scale(1);
+  opacity: 0.9;
+  transform: scale(0.98);
 }
 
 .launcher-page-remove-btn:hover {
+  opacity: 1;
+  transform: scale(1);
   background: color-mix(in srgb, var(--warn), transparent 2%);
 }
 
@@ -589,6 +587,7 @@ body.mode-edit .launcher-page-layer {
   gap: 8px;
   cursor: pointer;
   box-shadow: 0 20px 38px color-mix(in srgb, var(--shadow-edge), transparent 46%);
+  pointer-events: auto;
 }
 
 .launcher-page-materialize-icon {
