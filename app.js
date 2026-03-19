@@ -224,6 +224,10 @@ const boardContextMenuState = {
   anchorX: 0,
   anchorY: 0
 };
+const launcherPageUiState = {
+  virtualPage: null,
+  pendingPlaceholderDrop: null
+};
 const shortcutIconEditorState = {
   open: false,
   shape: "roundSquared",
@@ -2735,10 +2739,13 @@ function setBodyMode() {
   elements.modeToggleBtn.setAttribute("aria-label", modeTitle);
 
   if (!isEdit) {
+    clearPendingPlaceholderDrop({ clearVirtualPage: true });
     closeWidgetModal(false);
     closeAddWidgetModal();
     closeDockSettingsModal(false);
     runtimeSettingsPanelOpen = false;
+  } else {
+    renderLauncherPageAffordances();
   }
 
   syncSettingsPanelVisibility();
@@ -4608,6 +4615,270 @@ function currentLauncherActivePage() {
   return normalizeActivePage(state?.ui?.home?.activePage, pageCount, 0);
 }
 
+function isBoardWidgetInstance(instance) {
+  return Boolean(instance && !isWidgetDocked(instance) && !isWidgetInContainer(instance));
+}
+
+function launcherPageWidgetCounts(pageCount = currentLauncherPageCount()) {
+  const counts = Array.from({ length: Math.max(1, pageCount) }, () => 0);
+  for (const instance of state.instances || []) {
+    if (!isBoardWidgetInstance(instance)) {
+      continue;
+    }
+    const page = normalizeWidgetPage(instance.page, pageCount, 0);
+    counts[page] += 1;
+  }
+  return counts;
+}
+
+function isPlaceholderLauncherPage(page, pageCount = currentLauncherPageCount()) {
+  return page === -1 || page === pageCount;
+}
+
+function clearPendingPlaceholderDrop({ clearVirtualPage = false } = {}) {
+  launcherPageUiState.pendingPlaceholderDrop = null;
+  if (clearVirtualPage) {
+    launcherPageUiState.virtualPage = null;
+  }
+}
+
+function currentLauncherViewportPage() {
+  const pageCount = currentLauncherPageCount();
+  const active = currentLauncherActivePage();
+  const virtual = Number(launcherPageUiState.virtualPage);
+  if (state.mode === "edit" && Number.isFinite(virtual)) {
+    return clamp(Math.floor(virtual), -1, pageCount);
+  }
+  return active;
+}
+
+function setLauncherVirtualPage(page, { animate = true } = {}) {
+  const pageCount = currentLauncherPageCount();
+  const next = Number(page);
+  if (!Number.isFinite(next) || state.mode !== "edit") {
+    launcherPageUiState.virtualPage = null;
+    renderBoardViewport({ animate, dragging: false, dragOffsetX: 0 });
+    return;
+  }
+  launcherPageUiState.virtualPage = clamp(Math.floor(next), -1, pageCount);
+  renderBoardViewport({ animate, dragging: false, dragOffsetX: 0 });
+}
+
+function compactEmptyLauncherPagesForUseMode() {
+  if (!state?.ui?.home || state.mode !== "use") {
+    return false;
+  }
+
+  const home = syncLauncherPagingState({ expandToFitInstances: true });
+  const pageCount = home.pageCount;
+  if (pageCount <= 1) {
+    return false;
+  }
+
+  const counts = launcherPageWidgetCounts(pageCount);
+  const keptPages = [];
+  for (let page = 0; page < counts.length; page += 1) {
+    if (counts[page] > 0) {
+      keptPages.push(page);
+    }
+  }
+
+  const targetPageCount = Math.max(1, keptPages.length);
+  if (targetPageCount === pageCount) {
+    return false;
+  }
+
+  if (!keptPages.length) {
+    home.pageCount = 1;
+    home.activePage = 0;
+    state.ui.home = home;
+    return true;
+  }
+
+  const remap = new Map();
+  keptPages.forEach((oldPage, nextPage) => {
+    remap.set(oldPage, nextPage);
+  });
+
+  for (const instance of state.instances || []) {
+    if (!isBoardWidgetInstance(instance)) {
+      continue;
+    }
+    const oldPage = normalizeWidgetPage(instance.page, pageCount, 0);
+    const nextPage = remap.get(oldPage);
+    if (Number.isFinite(nextPage)) {
+      instance.page = nextPage;
+    }
+  }
+
+  const activePage = normalizeActivePage(home.activePage, pageCount, 0);
+  let fallbackOldPage = keptPages[keptPages.length - 1];
+  for (const oldPage of keptPages) {
+    if (oldPage >= activePage) {
+      fallbackOldPage = oldPage;
+      break;
+    }
+  }
+
+  home.pageCount = targetPageCount;
+  home.activePage = normalizeActivePage(remap.get(fallbackOldPage), home.pageCount, 0);
+  state.ui.home = home;
+  return true;
+}
+
+function deleteLauncherPageAt(pageIndex) {
+  if (state.mode !== "edit") {
+    return false;
+  }
+
+  const home = syncLauncherPagingState({ expandToFitInstances: true });
+  const pageCount = home.pageCount;
+  if (pageCount <= 1) {
+    return false;
+  }
+
+  const targetPage = normalizeWidgetPage(pageIndex, pageCount, 0);
+  const fallbackPage = Math.max(0, targetPage - 1);
+
+  recordHistorySnapshot("Delete launcher page");
+
+  for (const instance of state.instances || []) {
+    if (!isBoardWidgetInstance(instance)) {
+      continue;
+    }
+    const page = normalizeWidgetPage(instance.page, pageCount, 0);
+    if (page === targetPage) {
+      instance.page = fallbackPage;
+      continue;
+    }
+    if (page > targetPage) {
+      instance.page = page - 1;
+    }
+  }
+
+  home.pageCount = normalizePageCount(pageCount - 1, pageCount - 1);
+  const nextActivePage = home.activePage > targetPage
+    ? home.activePage - 1
+    : (home.activePage === targetPage ? fallbackPage : home.activePage);
+  home.activePage = normalizeActivePage(nextActivePage, home.pageCount, 0);
+  state.ui.home = home;
+
+  clearPendingPlaceholderDrop({ clearVirtualPage: true });
+  renderBoard();
+  queueSave();
+  return true;
+}
+
+function queuePlaceholderPageDrop(instanceId, payload = {}, placeholderPage = null) {
+  if (state.mode !== "edit") {
+    return false;
+  }
+
+  const home = syncLauncherPagingState({ expandToFitInstances: true });
+  const pageCount = home.pageCount;
+  const targetPlaceholder = Number.isFinite(Number(placeholderPage))
+    ? Math.floor(Number(placeholderPage))
+    : Math.floor(Number(payload?.page));
+
+  if (!isPlaceholderLauncherPage(targetPlaceholder, pageCount)) {
+    return false;
+  }
+
+  const instance = instanceById(instanceId);
+  if (!instance) {
+    return false;
+  }
+
+  launcherPageUiState.pendingPlaceholderDrop = {
+    widgetId: instance.id,
+    placeholderPage: targetPlaceholder,
+    clientX: Number.isFinite(payload?.clientX) ? payload.clientX : null,
+    clientY: Number.isFinite(payload?.clientY) ? payload.clientY : null
+  };
+  launcherPageUiState.virtualPage = targetPlaceholder;
+  renderBoardViewport({ animate: true, dragging: false, dragOffsetX: 0 });
+  return true;
+}
+
+function materializePendingPlaceholderPage() {
+  if (state.mode !== "edit") {
+    return false;
+  }
+
+  const pending = launcherPageUiState.pendingPlaceholderDrop;
+  if (!pending) {
+    return false;
+  }
+
+  const instance = instanceById(pending.widgetId);
+  if (!instance) {
+    clearPendingPlaceholderDrop({ clearVirtualPage: true });
+    renderBoardViewport({ animate: true, dragging: false, dragOffsetX: 0 });
+    return false;
+  }
+
+  const home = syncLauncherPagingState({ expandToFitInstances: true });
+  const oldPageCount = home.pageCount;
+  if (oldPageCount >= MAX_LAUNCHER_PAGES) {
+    return false;
+  }
+
+  const addLeft = pending.placeholderPage < 0;
+
+  recordHistorySnapshot("Create launcher page by drop");
+
+  if (addLeft) {
+    for (const entry of state.instances || []) {
+      if (!isBoardWidgetInstance(entry)) {
+        continue;
+      }
+      entry.page = normalizeWidgetPage(entry.page, oldPageCount, 0) + 1;
+    }
+  }
+
+  home.pageCount = normalizePageCount(oldPageCount + 1, oldPageCount + 1);
+  const targetPage = addLeft ? 0 : oldPageCount;
+  home.activePage = targetPage;
+  state.ui.home = home;
+
+  if (isWidgetDocked(instance)) {
+    instance.dockOrder = null;
+  }
+  if (isWidgetInContainer(instance)) {
+    instance.containerId = "";
+  }
+  normalizeDockedWidgetOrders(state.instances);
+  normalizeContainerAssignments(state.instances);
+
+  const projection = projectWidgetBoardDropLayout(
+    instance,
+    {
+      clientX: pending.clientX,
+      clientY: pending.clientY,
+      page: targetPage
+    },
+    { pageFallback: targetPage }
+  );
+  if (projection) {
+    instance.page = projection.page;
+    instance.layout = {
+      ...instance.layout,
+      ...projection.layout
+    };
+    if (projection.gridLayout) {
+      instance.gridLayout = projection.gridLayout;
+    }
+  } else {
+    instance.page = targetPage;
+  }
+
+  state.selectedWidgetId = instance.id;
+  clearPendingPlaceholderDrop({ clearVirtualPage: true });
+  renderBoard();
+  queueSave();
+  return true;
+}
+
 function widgetPageOffsetX(page) {
   const boardW = Math.max(1, Math.floor(elements.board?.clientWidth || 1));
   const pageCount = currentLauncherPageCount();
@@ -5414,6 +5685,10 @@ function tryContainerWidgetByDrop(instance, pointerEvent, { record = true } = {}
     });
   }
 
+  const sourceBoardPage = isBoardWidgetInstance(instance)
+    ? normalizeWidgetPage(instance.page, currentLauncherPageCount(), currentLauncherActivePage())
+    : null;
+
   const moved = setWidgetContainer(instance.id, targetContainerId, {
     record,
     rerender: false,
@@ -5428,6 +5703,10 @@ function tryContainerWidgetByDrop(instance, pointerEvent, { record = true } = {}
     rerender: false,
     save: false
   });
+
+  if (Number.isFinite(sourceBoardPage)) {
+    compactEmptyLauncherPagesForUseMode();
+  }
 
   renderBoard();
   renderSettings();
@@ -5449,6 +5728,9 @@ function tryDockWidgetByDrop(instance, pointerEvent, { record = true } = {}) {
 
   const wasDocked = isWidgetDocked(instance);
   const wasInContainer = isWidgetInContainer(instance);
+  const sourceBoardPage = !wasDocked && !wasInContainer
+    ? normalizeWidgetPage(instance.page, currentLauncherPageCount(), currentLauncherActivePage())
+    : null;
   const insertIndex = resolveDockInsertIndexFromPointer(pointerEvent.clientX, instance.id);
 
   if (record) {
@@ -5476,6 +5758,9 @@ function tryDockWidgetByDrop(instance, pointerEvent, { record = true } = {}) {
   }
   if (modalState.open && modalState.widgetId === instance.id) {
     closeWidgetModal(false);
+  }
+  if (Number.isFinite(sourceBoardPage)) {
+    compactEmptyLauncherPagesForUseMode();
   }
   return true;
 }
@@ -5859,15 +6144,26 @@ function renderDockWidgets() {
           return false;
         }
 
-        const pageCount = currentLauncherPageCount();
-        const nextPage = dragReleasePage + direction;
-        if (nextPage < 0 || nextPage >= pageCount) {
+        const home = syncLauncherPagingState({ expandToFitInstances: true });
+        let pageCount = home.pageCount;
+        const minPage = state.mode === "edit" ? -1 : 0;
+        let nextPage = dragReleasePage + direction;
+
+        const maxPage = state.mode === "edit" ? pageCount : pageCount - 1;
+
+        if (nextPage < minPage || nextPage > maxPage) {
           return false;
         }
 
         dragReleasePage = nextPage;
         lastPageSwitchAt = now;
-        setActiveLauncherPage(nextPage, { shouldSave: false, animate: true });
+
+        if (isPlaceholderLauncherPage(nextPage, currentLauncherPageCount())) {
+          setLauncherVirtualPage(nextPage, { animate: true });
+        } else {
+          launcherPageUiState.virtualPage = null;
+          setActiveLauncherPage(nextPage, { shouldSave: false, animate: true });
+        }
         return true;
       };
 
@@ -5915,13 +6211,15 @@ function renderDockWidgets() {
           schedulePageSwitch(edgeDirectionFromPointer(clientX));
         }
 
-        const projection = projectWidgetBoardDropLayout(item, {
-          clientX,
-          clientY,
-          page: dragReleasePage
-        }, {
-          pageFallback: dragReleasePage
-        });
+        const projection = isPlaceholderLauncherPage(dragReleasePage, currentLauncherPageCount())
+          ? null
+          : projectWidgetBoardDropLayout(item, {
+            clientX,
+            clientY,
+            page: dragReleasePage
+          }, {
+            pageFallback: dragReleasePage
+          });
         const deleteHovering = updateDragDeleteZoneHover(clientX, clientY);
         updateCrossSurfaceDropIndicators(item, clientX, clientY, {
           silhouette: dropSilhouette,
@@ -5964,6 +6262,7 @@ function renderDockWidgets() {
         previewSession.dispose();
 
         if (droppedOnDeleteZone) {
+          clearPendingPlaceholderDrop({ clearVirtualPage: true });
           card.dataset.suppressClick = "true";
           lastDragEndAt = Date.now();
           removeWidget(item.id);
@@ -5971,6 +6270,7 @@ function renderDockWidgets() {
         }
 
         if (insideDock) {
+          clearPendingPlaceholderDrop({ clearVirtualPage: true });
           card.dataset.suppressClick = "true";
           lastDragEndAt = Date.now();
           if (tryDockWidgetByDrop(item, pointerEventLike, { record: true })) {
@@ -5981,6 +6281,7 @@ function renderDockWidgets() {
         }
 
         if (tryContainerWidgetByDrop(item, pointerEventLike, { record: true })) {
+          clearPendingPlaceholderDrop({ clearVirtualPage: true });
           card.dataset.suppressClick = "true";
           lastDragEndAt = Date.now();
           renderBoard();
@@ -6079,11 +6380,13 @@ function renderBoardViewport({ dragOffsetX = 0, animate = true, dragging = false
   }
 
   const pageCount = currentLauncherPageCount();
-  const activePage = currentLauncherActivePage();
+  const activePage = currentLauncherViewportPage();
   const boardW = Math.max(1, Math.floor(elements.board.clientWidth));
+  const minPage = state.mode === "edit" ? -1 : 0;
+  const maxPage = state.mode === "edit" ? pageCount : Math.max(0, pageCount - 1);
 
   let offset = Number(dragOffsetX) || 0;
-  if ((activePage === 0 && offset > 0) || (activePage === pageCount - 1 && offset < 0)) {
+  if ((activePage <= minPage && offset > 0) || (activePage >= maxPage && offset < 0)) {
     offset *= 0.34;
   }
 
@@ -6097,6 +6400,9 @@ function renderBoardViewport({ dragOffsetX = 0, animate = true, dragging = false
   }
 
   refreshWidgetsByType("container");
+  if (!dragging) {
+    renderLauncherPageAffordances();
+  }
 }
 
 function setActiveLauncherPage(page, { animate = true } = {}) {
@@ -6110,6 +6416,8 @@ function setActiveLauncherPage(page, { animate = true } = {}) {
 
   home.activePage = nextPage;
   state.ui.home = home;
+  launcherPageUiState.virtualPage = null;
+  clearPendingPlaceholderDrop();
 
   renderBoardViewport({ animate, dragging: false, dragOffsetX: 0 });
 
@@ -6897,14 +7205,20 @@ function releaseWidgetFromContainerByDrop(widgetId, payload = {}) {
     return false;
   }
 
-  recordHistorySnapshot("Move widget out of folder");
-
   const sourceContainer = instanceById(currentContainerId);
   const releasePage = normalizeWidgetPage(
     payload?.page,
     currentLauncherPageCount(),
     normalizeWidgetPage(sourceContainer?.page, currentLauncherPageCount(), currentLauncherActivePage())
   );
+
+  const requestedPage = Number.isFinite(Number(payload?.page)) ? Math.floor(Number(payload.page)) : releasePage;
+  if (state.mode === "edit" && isPlaceholderLauncherPage(requestedPage, currentLauncherPageCount())) {
+    return queuePlaceholderPageDrop(widgetId, payload, requestedPage);
+  }
+
+  recordHistorySnapshot("Move widget out of folder");
+  clearPendingPlaceholderDrop({ clearVirtualPage: true });
 
   setWidgetContainer(widgetId, "", { record: false, rerender: false, save: false });
 
@@ -6942,7 +7256,15 @@ function releaseWidgetFromDockByDrop(widgetId, payload = {}) {
     return false;
   }
 
+  const requestedPage = Number.isFinite(Number(payload?.page))
+    ? Math.floor(Number(payload.page))
+    : currentLauncherActivePage();
+  if (state.mode === "edit" && isPlaceholderLauncherPage(requestedPage, currentLauncherPageCount())) {
+    return queuePlaceholderPageDrop(widgetId, payload, requestedPage);
+  }
+
   recordHistorySnapshot("Undock widget");
+  clearPendingPlaceholderDrop({ clearVirtualPage: true });
 
   instance.dockOrder = null;
   instance.containerId = "";
@@ -7041,6 +7363,10 @@ function removeWidget(instanceId) {
   normalizeDockedWidgetOrders(state.instances);
   normalizeContainerAssignments(state.instances);
 
+  const removedBoardPage = isBoardWidgetInstance(removed)
+    ? normalizeWidgetPage(removed.page, currentLauncherPageCount(), currentLauncherActivePage())
+    : null;
+
   if (state.selectedWidgetId === instanceId) {
     state.selectedWidgetId = "";
   }
@@ -7049,9 +7375,11 @@ function removeWidget(instanceId) {
     closeWidgetModal(false);
   }
 
+  const compacted = Number.isFinite(removedBoardPage) ? compactEmptyLauncherPagesForUseMode() : false;
+
   renderDockWidgets();
   renderSettings();
-  if (removed?.type === "container" || isWidgetInContainer(removed)) {
+  if (compacted || removed?.type === "container" || isWidgetInContainer(removed)) {
     renderBoard();
   } else {
     updateBoardBounds();
@@ -7714,6 +8042,7 @@ function createWidgetCard(instance) {
     let pendingPageSwitchDirection = 0;
     let pendingPageSwitchSince = 0;
     let pendingPageSwitchTimer = 0;
+    let dragReleasePage = normalizeWidgetPage(instance.page, currentLauncherPageCount(), currentLauncherActivePage());
 
     const edgeDirectionFromPointer = (clientX) => {
       const rect = getLauncherViewportRect();
@@ -7748,15 +8077,26 @@ function createWidgetCard(instance) {
         return false;
       }
 
-      const pageCount = currentLauncherPageCount();
-      const currentPage = normalizeWidgetPage(instance.page, pageCount, 0);
-      const nextPage = currentPage + direction;
-      if (nextPage < 0 || nextPage >= pageCount) {
+      const home = syncLauncherPagingState({ expandToFitInstances: true });
+      let pageCount = home.pageCount;
+      const minPage = state.mode === "edit" ? -1 : 0;
+      const currentPage = dragReleasePage;
+      let nextPage = currentPage + direction;
+
+      const maxPage = state.mode === "edit" ? pageCount : pageCount - 1;
+
+      if (nextPage < minPage || nextPage > maxPage) {
         return false;
       }
 
-      instance.page = nextPage;
-      state.ui.home.activePage = nextPage;
+      dragReleasePage = nextPage;
+      if (isPlaceholderLauncherPage(nextPage, currentLauncherPageCount())) {
+        setLauncherVirtualPage(nextPage, { animate: true });
+      } else {
+        launcherPageUiState.virtualPage = null;
+        instance.page = nextPage;
+        state.ui.home.activePage = nextPage;
+      }
       pageChangedDuringDrag = true;
       lastPageSwitchAt = now;
 
@@ -7897,12 +8237,30 @@ function createWidgetCard(instance) {
         });
 
         const projected = projectedGridDropLayout();
+        const boardProjection = isPlaceholderLauncherPage(dragReleasePage, currentLauncherPageCount())
+          ? null
+          : projectWidgetBoardDropLayout(
+            instance,
+            {
+              clientX: moveEvent.clientX,
+              clientY: moveEvent.clientY,
+              page: dragReleasePage
+            },
+            { pageFallback: dragReleasePage }
+          );
         const deleteHovering = updateDragDeleteZoneHover(moveEvent.clientX, moveEvent.clientY);
-        if (deleteHovering) {
+        updateCrossSurfaceDropIndicators(instance, moveEvent.clientX, moveEvent.clientY, {
+          silhouette: dropSilhouette,
+          boardProjection,
+          suppressSurfaceTargets: deleteHovering
+        });
+        if (deleteHovering || !boardProjection) {
           clearWidgetDragGuideState();
         } else {
           updateWidgetDragGuideAtPointer(instance, moveEvent.clientX, moveEvent.clientY, {
-            boardLayout: projected.layout
+            boardLayout: projected?.layout || null,
+            boardPage: dragReleasePage,
+            showGuide: false
           });
         }
       };
@@ -7923,22 +8281,34 @@ function createWidgetCard(instance) {
         const dropX = Number.isFinite(upEvent?.clientX) ? upEvent.clientX : lastPointerX;
         const dropY = Number.isFinite(upEvent?.clientY) ? upEvent.clientY : lastPointerY;
         if (isPointOverDragDeleteZone(dropX, dropY)) {
+          clearPendingPlaceholderDrop({ clearVirtualPage: true });
           removeWidget(instance.id);
           return;
         }
 
         if (tryContainerWidgetByDrop(instance, upEvent, { record: false })) {
+          clearPendingPlaceholderDrop({ clearVirtualPage: true });
           return;
         }
 
         if (tryDockWidgetByDrop(instance, upEvent, { record: false })) {
+          clearPendingPlaceholderDrop({ clearVirtualPage: true });
           renderBoard();
           queueSave();
           return;
         }
 
+        if (state.mode === "edit" && isPlaceholderLauncherPage(dragReleasePage, currentLauncherPageCount())) {
+          queuePlaceholderPageDrop(instance.id, { clientX: dropX, clientY: dropY, page: dragReleasePage }, dragReleasePage);
+          return;
+        }
+
+        clearPendingPlaceholderDrop({ clearVirtualPage: true });
+
         snapLayoutToGrid();
+        instance.page = normalizeWidgetPage(dragReleasePage, currentLauncherPageCount(), currentLauncherActivePage());
         applyGridLayout({ commitFreeLayout: false, shouldSave: false });
+        compactEmptyLauncherPagesForUseMode();
         queueSave();
       };
 
@@ -7946,13 +8316,31 @@ function createWidgetCard(instance) {
       window.addEventListener("pointerup", up);
       window.addEventListener("pointercancel", up);
       const projected = projectedGridDropLayout();
+      const initialBoardProjection = isPlaceholderLauncherPage(dragReleasePage, currentLauncherPageCount())
+        ? null
+        : projectWidgetBoardDropLayout(
+          instance,
+          {
+            clientX: dragStartX,
+            clientY: dragStartY,
+            page: dragReleasePage
+          },
+          { pageFallback: dragReleasePage }
+        );
 
       const deleteHovering = updateDragDeleteZoneHover(dragStartX, dragStartY);
-      if (deleteHovering) {
+      updateCrossSurfaceDropIndicators(instance, dragStartX, dragStartY, {
+        silhouette: dropSilhouette,
+        boardProjection: initialBoardProjection,
+        suppressSurfaceTargets: deleteHovering
+      });
+      if (deleteHovering || !initialBoardProjection) {
         clearWidgetDragGuideState();
       } else {
         updateWidgetDragGuideAtPointer(instance, dragStartX, dragStartY, {
-          boardLayout: projected.layout
+          boardLayout: projected.layout,
+          boardPage: dragReleasePage,
+          showGuide: false
         });
       }
 
@@ -7993,8 +8381,24 @@ function createWidgetCard(instance) {
       });
 
 
+      const boardProjection = isPlaceholderLauncherPage(dragReleasePage, currentLauncherPageCount())
+        ? null
+        : projectWidgetBoardDropLayout(
+          instance,
+          {
+            clientX: moveEvent.clientX,
+            clientY: moveEvent.clientY,
+            page: dragReleasePage
+          },
+          { pageFallback: dragReleasePage }
+        );
       const deleteHovering = updateDragDeleteZoneHover(moveEvent.clientX, moveEvent.clientY);
-      if (deleteHovering) {
+      updateCrossSurfaceDropIndicators(instance, moveEvent.clientX, moveEvent.clientY, {
+        silhouette: dropSilhouette,
+        boardProjection,
+        suppressSurfaceTargets: deleteHovering
+      });
+      if (deleteHovering || !boardProjection) {
         clearWidgetDragGuideState();
       } else {
         updateWidgetDragGuideAtPointer(instance, moveEvent.clientX, moveEvent.clientY, {
@@ -8019,19 +8423,30 @@ function createWidgetCard(instance) {
       const dropX = Number.isFinite(upEvent?.clientX) ? upEvent.clientX : lastPointerX;
       const dropY = Number.isFinite(upEvent?.clientY) ? upEvent.clientY : lastPointerY;
       if (isPointOverDragDeleteZone(dropX, dropY)) {
+        clearPendingPlaceholderDrop({ clearVirtualPage: true });
         removeWidget(instance.id);
         return;
       }
 
       if (tryContainerWidgetByDrop(instance, upEvent, { record: true })) {
+        clearPendingPlaceholderDrop({ clearVirtualPage: true });
         return;
       }
 
       if (tryDockWidgetByDrop(instance, upEvent, { record: true })) {
+        clearPendingPlaceholderDrop({ clearVirtualPage: true });
         renderBoard();
         queueSave();
         return;
       }
+
+      if (state.mode === "edit" && isPlaceholderLauncherPage(dragReleasePage, currentLauncherPageCount())) {
+        queuePlaceholderPageDrop(instance.id, { clientX: dropX, clientY: dropY, page: dragReleasePage }, dragReleasePage);
+        return;
+      }
+
+      clearPendingPlaceholderDrop({ clearVirtualPage: true });
+      instance.page = normalizeWidgetPage(dragReleasePage, currentLauncherPageCount(), currentLauncherActivePage());
 
       const snappedX = Math.round(instance.layout.x / SNAP) * SNAP;
       const snappedY = Math.round(instance.layout.y / SNAP) * SNAP;
@@ -8047,6 +8462,7 @@ function createWidgetCard(instance) {
 
       if (pageChangedDuringDrag) {
         recordHistorySnapshot("Move widget");
+        compactEmptyLauncherPagesForUseMode();
         updateBoardBounds();
         renderSettings();
         queueSave();
@@ -8057,7 +8473,23 @@ function createWidgetCard(instance) {
     window.addEventListener("pointerup", up);
     window.addEventListener("pointercancel", up);
     const deleteHovering = updateDragDeleteZoneHover(dragStartX, dragStartY);
-    if (deleteHovering) {
+    const initialBoardProjection = isPlaceholderLauncherPage(dragReleasePage, currentLauncherPageCount())
+      ? null
+      : projectWidgetBoardDropLayout(
+        instance,
+        {
+          clientX: dragStartX,
+          clientY: dragStartY,
+          page: dragReleasePage
+        },
+        { pageFallback: dragReleasePage }
+      );
+    updateCrossSurfaceDropIndicators(instance, dragStartX, dragStartY, {
+      silhouette: dropSilhouette,
+      boardProjection: initialBoardProjection,
+      suppressSurfaceTargets: deleteHovering
+    });
+    if (deleteHovering || !initialBoardProjection) {
       clearWidgetDragGuideState();
     } else {
       updateWidgetDragGuideAtPointer(instance, dragStartX, dragStartY, {
@@ -8485,6 +8917,100 @@ function renderBoard() {
   updateBoardBounds();
 }
 
+function renderLauncherPageAffordances() {
+  if (!(elements.board instanceof HTMLElement) || !state?.ui?.home) {
+    return;
+  }
+
+  const board = elements.board;
+  const pageCount = currentLauncherPageCount();
+  const boardW = Math.max(1, Math.floor(board.clientWidth || 1));
+  const boardH = Math.max(1, Math.floor(board.clientHeight || 1));
+  const activePage = currentLauncherViewportPage();
+
+  let host = board.querySelector(".launcher-page-affordances");
+  if (!(host instanceof HTMLElement)) {
+    host = document.createElement("div");
+    host.className = "launcher-page-affordances";
+    board.append(host);
+  }
+
+  host.replaceChildren();
+
+  const isEdit = state.mode === "edit";
+  if (!isEdit && !launcherPageUiState.pendingPlaceholderDrop) {
+    return;
+  }
+
+  const createPageLayer = (pageIndex, { placeholder = false } = {}) => {
+    const layer = document.createElement("div");
+    layer.className = "launcher-page-layer";
+    if (placeholder) {
+      layer.classList.add("is-placeholder");
+    }
+    if (pageIndex === activePage) {
+      layer.classList.add("is-active");
+    }
+    layer.style.left = `${Math.round(pageIndex * boardW)}px`;
+    layer.style.top = "0px";
+    layer.style.width = `${boardW}px`;
+    layer.style.height = `${boardH}px`;
+    return layer;
+  };
+
+  for (let page = 0; page < pageCount; page += 1) {
+    const layer = createPageLayer(page);
+    if (isEdit && pageCount > 1) {
+      const removeBtn = document.createElement("button");
+      removeBtn.type = "button";
+      removeBtn.className = "launcher-page-remove-btn";
+      removeBtn.textContent = "X";
+      removeBtn.title = "Delete page";
+      removeBtn.setAttribute("aria-label", "Delete page");
+      removeBtn.addEventListener("click", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        deleteLauncherPageAt(page);
+      });
+      layer.append(removeBtn);
+    }
+    host.append(layer);
+  }
+
+  if (!isEdit) {
+    return;
+  }
+
+  const pending = launcherPageUiState.pendingPlaceholderDrop;
+  const placeholderPages = [-1, pageCount];
+  for (const page of placeholderPages) {
+    const layer = createPageLayer(page, { placeholder: true });
+    const showMaterializeAction = pending && pending.placeholderPage === page;
+
+    if (showMaterializeAction) {
+      const materializeBtn = document.createElement("button");
+      materializeBtn.type = "button";
+      materializeBtn.className = "launcher-page-materialize-btn";
+      materializeBtn.innerHTML = '<span class="launcher-page-materialize-icon">+</span><span class="launcher-page-materialize-label">Create page</span>';
+      materializeBtn.title = "Create page here";
+      materializeBtn.setAttribute("aria-label", "Create page here");
+      materializeBtn.addEventListener("click", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        materializePendingPlaceholderPage();
+      });
+      layer.append(materializeBtn);
+    } else {
+      const hint = document.createElement("div");
+      hint.className = "launcher-page-placeholder-hint";
+      hint.textContent = "Drop widget then click +";
+      layer.append(hint);
+    }
+
+    host.append(layer);
+  }
+}
+
 function createFormRow(labelText, helpText = "") {
   const row = document.createElement("label");
   row.className = "form-row";
@@ -8793,14 +9319,6 @@ function renderGlobalSettings() {
         { value: "wide", label: "Wide" },
         { value: "none", label: "None" }
       ]
-    },
-    {
-      key: "pageCount",
-      label: "Launcher pages",
-      type: "number",
-      min: 1,
-      max: MAX_LAUNCHER_PAGES,
-      step: 1
     },
     {
       key: "dockEnabled",
@@ -10376,6 +10894,7 @@ function wireEvents() {
     state.mode = state.mode === "edit" ? "use" : "edit";
     if (state.mode === "use") {
       state.selectedWidgetId = "";
+      compactEmptyLauncherPagesForUseMode();
     }
     setBodyMode();
     setSelected(state.selectedWidgetId);
