@@ -63,6 +63,21 @@ const STARTUP_STATE_QUERY_KEY = "startup-state";
 const STARTUP_STATE_INLINE_QUERY_KEY = "startupState";
 const STARTUP_STATE_EMPTY_WIDGETS_QUERY_KEY = "startup-state-empty-widgets";
 const STARTUP_STATE_JSON_PATH = "config/startup-state.json";
+const EXPORT_SNAPSHOT_FILENAME = "startup-state.sanitized.json";
+const SENSITIVE_EXPORT_KEYWORD_PARTS = [
+  "token",
+  "secret",
+  "password",
+  "apikey",
+  "auth",
+  "credential",
+  "session",
+  "bearer",
+  "private",
+  "clientsecret"
+];
+const VOLATILE_BACKGROUND_KEYWORD_PARTS = ["cache", "cached", "signature", "storedat", "fetch", "timestamp", "temp", "runtime"];
+const REDACTED_EXPORT_VALUE = "[REDACTED]";
 
 const elements = {
   appRoot: document.getElementById("app"),
@@ -2156,6 +2171,128 @@ function normalizeHexColor(value, fallback) {
 function normalizeText(value, fallback = "") {
   const text = String(value || "").trim();
   return text || fallback;
+}
+
+function normalizeSensitiveKeyPart(value) {
+  return String(value || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, "");
+}
+
+function isSensitiveExportKey(key) {
+  const normalizedKey = normalizeSensitiveKeyPart(key);
+  if (!normalizedKey) {
+    return false;
+  }
+  return SENSITIVE_EXPORT_KEYWORD_PARTS.some((part) => normalizedKey.includes(part));
+}
+
+function isVolatileBackgroundExportKey(key) {
+  const normalizedKey = normalizeSensitiveKeyPart(key);
+  if (!normalizedKey) {
+    return false;
+  }
+  return VOLATILE_BACKGROUND_KEYWORD_PARTS.some((part) => normalizedKey.includes(part));
+}
+
+function sanitizeCredentialQueryParamsInString(value) {
+  if (typeof value !== "string") {
+    return value;
+  }
+
+  const queryIndex = value.indexOf("?");
+  if (queryIndex < 0) {
+    return value;
+  }
+
+  const hashIndex = value.indexOf("#", queryIndex);
+  const queryStart = queryIndex + 1;
+  const queryEnd = hashIndex >= 0 ? hashIndex : value.length;
+  const queryText = value.slice(queryStart, queryEnd);
+  if (!queryText) {
+    return value;
+  }
+
+  const params = new URLSearchParams(queryText);
+  let changed = false;
+  for (const key of [...params.keys()]) {
+    if (!isSensitiveExportKey(key)) {
+      continue;
+    }
+    params.set(key, REDACTED_EXPORT_VALUE);
+    changed = true;
+  }
+
+  if (!changed) {
+    return value;
+  }
+
+  const prefix = value.slice(0, queryStart);
+  const suffix = hashIndex >= 0 ? value.slice(hashIndex) : "";
+  return `${prefix}${params.toString()}${suffix}`;
+}
+
+function sanitizeStateExportValue(value, pathParts = []) {
+  if (typeof value === "string") {
+    return sanitizeCredentialQueryParamsInString(value);
+  }
+
+  if (Array.isArray(value)) {
+    return value.map((entry) => sanitizeStateExportValue(entry, pathParts));
+  }
+
+  if (!value || typeof value !== "object") {
+    return value;
+  }
+
+  const isBackgroundBranch = pathParts.length >= 2 && pathParts[0] === "ui" && pathParts[1] === "background";
+  const sanitized = {};
+
+  for (const [key, rawValue] of Object.entries(value)) {
+    const nextPath = [...pathParts, key];
+    const isExactMondayAccessTokenPath = nextPath.length === 3 && nextPath[0] === "ui" && nextPath[1] === "monday" && nextPath[2] === "accessToken";
+    if (isExactMondayAccessTokenPath || isSensitiveExportKey(key)) {
+      sanitized[key] = REDACTED_EXPORT_VALUE;
+      continue;
+    }
+    if (isBackgroundBranch && isVolatileBackgroundExportKey(key)) {
+      continue;
+    }
+    sanitized[key] = sanitizeStateExportValue(rawValue, nextPath);
+  }
+
+  return sanitized;
+}
+
+function buildSanitizedStateExportSnapshot() {
+  return sanitizeStateExportValue(buildPersistSnapshot());
+}
+
+function downloadTextFile(filename, text) {
+  const blob = new Blob([text], { type: "application/json;charset=utf-8" });
+  const objectUrl = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = objectUrl;
+  link.download = filename;
+  link.rel = "noopener";
+  document.body.append(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(objectUrl);
+}
+
+function exportCurrentStateToFile() {
+  if (!state) {
+    return;
+  }
+
+  try {
+    const sanitizedSnapshot = buildSanitizedStateExportSnapshot();
+    const json = JSON.stringify(sanitizedSnapshot, null, 2);
+    downloadTextFile(EXPORT_SNAPSHOT_FILENAME, json);
+  } catch (error) {
+    console.warn("Failed to export current state", error);
+  }
 }
 
 function hydrate(raw) {
@@ -5301,7 +5438,7 @@ function updateWidgetDragGuideAtPointer(
   draggedInstance,
   clientX,
   clientY,
-  { boardLayout = null, boardPage = null } = {}
+  { boardLayout = null, boardPage = null, showGuide = true } = {}
 ) {
   if (!draggedInstance || !Number.isFinite(clientX) || !Number.isFinite(clientY)) {
     return {
@@ -5315,6 +5452,14 @@ function updateWidgetDragGuideAtPointer(
 
   setContainerDropTargetActive(containerDropTargetId);
   setDockDropTargetActive(dockDropActive);
+
+  if (!showGuide) {
+    clearWidgetDropGuide();
+    return {
+      containerDropTargetId,
+      dockDropActive
+    };
+  }
 
   const freeMode = !isGridLayoutMode();
 
@@ -6193,7 +6338,8 @@ function renderDockWidgets() {
         } else {
           updateWidgetDragGuideAtPointer(item, clientX, clientY, {
             boardLayout: projection?.layout,
-            boardPage: projection?.page
+            boardPage: projection?.page,
+            showGuide: false
           });
         }
       };
@@ -8211,7 +8357,8 @@ function createWidgetCard(instance) {
         } else {
           updateWidgetDragGuideAtPointer(instance, moveEvent.clientX, moveEvent.clientY, {
             boardLayout: projected?.layout || null,
-            boardPage: projected?.page
+            boardPage: projected?.page,
+            showGuide: false
           });
         }
       };
@@ -8276,7 +8423,8 @@ function createWidgetCard(instance) {
         clearWidgetDragGuideState();
       } else {
         updateWidgetDragGuideAtPointer(instance, dragStartX, dragStartY, {
-          boardLayout: projected.layout
+          boardLayout: projected.layout,
+          showGuide: false
         });
       }
 
@@ -8336,7 +8484,8 @@ function createWidgetCard(instance) {
         clearWidgetDragGuideState();
       } else {
         updateWidgetDragGuideAtPointer(instance, moveEvent.clientX, moveEvent.clientY, {
-          boardLayout: projectedFreeDropLayout()
+          boardLayout: projectedFreeDropLayout(),
+          showGuide: false
         });
       }
     };
@@ -8414,7 +8563,8 @@ function createWidgetCard(instance) {
       clearWidgetDragGuideState();
     } else {
       updateWidgetDragGuideAtPointer(instance, dragStartX, dragStartY, {
-        boardLayout: projectedFreeDropLayout()
+        boardLayout: projectedFreeDropLayout(),
+        showGuide: false
       });
     }
 
@@ -9272,6 +9422,18 @@ function renderProfileSettings() {
 
   actionRow.append(saveBtn);
   elements.settingsContent.append(actionRow);
+
+  const exportRow = document.createElement("div");
+  exportRow.className = "preset-actions";
+  const exportBtn = document.createElement("button");
+  exportBtn.type = "button";
+  exportBtn.className = "btn";
+  exportBtn.textContent = "Export current state";
+  exportBtn.addEventListener("click", () => {
+    exportCurrentStateToFile();
+  });
+  exportRow.append(exportBtn);
+  elements.settingsContent.append(exportRow);
 
   appendDivider();
   elements.settingsContent.append(createSectionChip("Default Profile"));
@@ -10411,7 +10573,7 @@ function addWidget(type, options = {}) {
   return true;
 }
 
-function resetState() {
+async function resetState() {
   recordHistorySnapshot("Reset state");
   const resetMutationClock = readUserMutationClock(state);
   const keptPresets = Array.isArray(state?.presets) ? state.presets : [];
@@ -10420,7 +10582,7 @@ function resetState() {
       ? clonePresetSnapshot(state.ui.defaultProfileSnapshot)
       : null;
   const keptDefaultProfileUpdatedAt = Math.max(0, Number(state?.ui?.defaultProfileUpdatedAt) || 0);
-  state = defaultState();
+  state = await resolveStartupStateDefault();
   state.meta.lastUserMutationAt = resetMutationClock;
   state.presets = keptPresets;
 
@@ -10822,7 +10984,7 @@ function wireEvents() {
     if (!confirmed) {
       return;
     }
-    resetState();
+    void resetState();
   });
 
   elements.undoBtn?.addEventListener("click", () => {
