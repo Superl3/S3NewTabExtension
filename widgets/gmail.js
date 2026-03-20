@@ -119,13 +119,23 @@ function formatDateLabel(rawDate) {
   return new Date(parsed).toLocaleString();
 }
 
-function parseFeedXml(xmlText, accountIndex) {
+function isGmailLoginPage(responseUrl, bodyText) {
+  const lowerUrl = String(responseUrl || "").toLowerCase();
+  const lowerBody = String(bodyText || "").toLowerCase();
+  return (
+    lowerUrl.includes("accounts.google.com") ||
+    lowerUrl.includes("servicelogin") ||
+    lowerBody.includes("servicelogin") ||
+    lowerBody.includes("interactive login")
+  );
+}
+
+function parseFeedXml(xmlText, accountIndex, responseUrl = "") {
   const parser = new DOMParser();
   const doc = parser.parseFromString(String(xmlText || ""), "application/xml");
   const parseError = doc.querySelector("parsererror");
   if (parseError) {
-    const lowerText = String(xmlText || "").toLowerCase();
-    if (lowerText.includes("servicelogin") || lowerText.includes("accounts.google.com")) {
+    if (isGmailLoginPage(responseUrl, xmlText)) {
       throw new Error("Gmail web session not found. Sign in to Gmail in this browser first.");
     }
     throw new Error("Gmail feed parse failed.");
@@ -387,7 +397,8 @@ export const gmailWidget = {
         const cfg = normalizedConfig(getConfig());
         const response = await fetch(buildFeedUrl(cfg.accountIndex), {
           cache: "no-store",
-          credentials: "include"
+          credentials: "include",
+          redirect: "follow"
         });
 
         if (response.status === 401 || response.status === 403) {
@@ -398,7 +409,7 @@ export const gmailWidget = {
         }
 
         const xmlText = await response.text();
-        const parsed = parseFeedXml(xmlText, cfg.accountIndex);
+        const parsed = parseFeedXml(xmlText, cfg.accountIndex, response.url);
 
         if (requestId !== requestSerial) {
           return;
