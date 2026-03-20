@@ -1506,7 +1506,7 @@ export const mondayAssignedWidget = {
         cacheGroups,
         cacheIssues,
         cacheBoards
-      });
+      }, { mutationKind: "system" });
     }
 
     function hasActiveConnection(config) {
@@ -1980,7 +1980,7 @@ export const mondayAssignedWidget = {
       patchConfig({
         autoRefreshDayKey: next.dayKey,
         autoRefreshSlotsDone: next.slotsDone
-      });
+      }, { mutationKind: "system" });
     }
 
     function shouldRunAutoNow() {

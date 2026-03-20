@@ -489,7 +489,7 @@ export const githubPrListWidget = {
         cacheTokenFingerprint: expectedTokenHash,
         cacheAt: Date.now(),
         cachePullItems
-      });
+      }, { mutationKind: "system" });
     }
 
     function scheduleRefresh() {
