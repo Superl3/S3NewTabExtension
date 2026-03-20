@@ -657,6 +657,10 @@ function defaultBackground() {
     videoUrl: "",
     redditVideoSubreddit: "loopingvideos",
     redditVideoTime: "week",
+    localMediaDataUrl: "",
+    localMediaType: "",
+    localMediaName: "",
+    localMediaFit: "stretch",
     videoCacheSignature: "",
     videoCacheStoredAt: 0,
     blurAmount: 0,
@@ -2509,6 +2513,13 @@ function hydrate(raw) {
   background.videoUrl = normalizeText(background.videoUrl);
   background.redditVideoSubreddit = normalizeText(background.redditVideoSubreddit, "loopingvideos");
   background.redditVideoTime = normalizeText(background.redditVideoTime, "week");
+  background.localMediaDataUrl = normalizeText(background.localMediaDataUrl);
+  background.localMediaType = normalizeLocalMediaType(background.localMediaType, "");
+  if (!background.localMediaType && background.localMediaDataUrl) {
+    background.localMediaType = inferLocalMediaTypeFromDataUrl(background.localMediaDataUrl);
+  }
+  background.localMediaName = normalizeText(background.localMediaName);
+  background.localMediaFit = normalizeLocalMediaFit(background.localMediaFit, "stretch");
   background.videoCacheSignature = normalizeText(background.videoCacheSignature);
   background.videoCacheStoredAt = Math.max(0, Number(background.videoCacheStoredAt) || 0);
   background.blurAmount = clamp(Number(background.blurAmount) || 0, 0, 28);
@@ -2652,6 +2663,9 @@ function buildHistoryBackgroundSnapshot(background) {
     videoUrl: source.videoUrl,
     redditVideoSubreddit: source.redditVideoSubreddit,
     redditVideoTime: source.redditVideoTime,
+    localMediaType: source.localMediaType,
+    localMediaName: source.localMediaName,
+    localMediaFit: source.localMediaFit,
     blurAmount: source.blurAmount,
     overlayOpacity: source.overlayOpacity
   };
@@ -3879,6 +3893,107 @@ function hideVideo() {
   releaseVideoObjectUrl();
 }
 
+function resetBackgroundMediaFrame(target) {
+  target.style.inset = "0";
+  target.style.left = "0";
+  target.style.top = "0";
+  target.style.width = "100%";
+  target.style.height = "100%";
+  target.style.maxWidth = "none";
+  target.style.maxHeight = "none";
+  target.style.transform = "none";
+  target.style.objectFit = "cover";
+}
+
+function applyBackgroundLocalFit(target, fitMode) {
+  resetBackgroundMediaFrame(target);
+  const mode = normalizeLocalMediaFit(fitMode, "stretch");
+  if (mode === "stretch") {
+    target.style.objectFit = "fill";
+    return;
+  }
+
+  target.style.objectFit = "contain";
+
+  if (mode === "fit-height") {
+    target.style.inset = "auto";
+    target.style.left = "50%";
+    target.style.top = "0";
+    target.style.width = "auto";
+    target.style.height = "100%";
+    target.style.transform = "translateX(-50%)";
+    return;
+  }
+
+  if (mode === "fit-width") {
+    target.style.inset = "auto";
+    target.style.left = "0";
+    target.style.top = "50%";
+    target.style.width = "100%";
+    target.style.height = "auto";
+    target.style.transform = "translateY(-50%)";
+    return;
+  }
+
+  target.style.inset = "auto";
+  target.style.left = "50%";
+  target.style.top = "50%";
+  target.style.width = "auto";
+  target.style.height = "auto";
+  target.style.objectFit = "none";
+  target.style.transform = "translate(-50%, -50%)";
+}
+
+function applyBackgroundMediaFitStyles(cfg) {
+  if (cfg?.mode === "video" && normalizeText(cfg?.localMediaDataUrl)) {
+    const fitMode = normalizeLocalMediaFit(cfg.localMediaFit, "stretch");
+    applyBackgroundLocalFit(elements.bgImage, fitMode);
+    applyBackgroundLocalFit(elements.bgVideo, fitMode);
+    return;
+  }
+  resetBackgroundMediaFrame(elements.bgImage);
+  resetBackgroundMediaFrame(elements.bgVideo);
+}
+
+function readFileAsDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      resolve(normalizeText(reader.result));
+    };
+    reader.onerror = () => {
+      reject(new Error("local-media-read-failed"));
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+async function importLocalBackgroundFile(file) {
+  if (!file) {
+    return;
+  }
+  const mimeType = normalizeText(file.type).toLowerCase();
+  const mediaType = mimeType.startsWith("image/") ? "image" : mimeType.startsWith("video/") ? "video" : "";
+  if (!mediaType) {
+    return;
+  }
+
+  try {
+    const dataUrl = await readFileAsDataUrl(file);
+    const inferredType = normalizeLocalMediaType(mediaType || inferLocalMediaTypeFromDataUrl(dataUrl), "");
+    if (!dataUrl || !inferredType) {
+      return;
+    }
+    patchBackground({
+      localMediaDataUrl: dataUrl,
+      localMediaType: inferredType,
+      localMediaName: normalizeText(file.name)
+    });
+  } catch (error) {
+    console.warn("Local media import failed", error);
+  }
+}
+
 function clearBlurLayer() {
   blurComputeToken += 1;
   elements.bgBlurImage.classList.remove("visible");
@@ -4104,6 +4219,38 @@ function pickRandom(list) {
 function normalizeVideoSource(value, fallback = "manual") {
   const normalized = normalizeText(value, fallback);
   return normalized === "reddit" ? "reddit" : "manual";
+}
+
+function normalizeLocalMediaType(value, fallback = "") {
+  const normalized = normalizeText(value, fallback);
+  if (normalized === "image" || normalized === "video") {
+    return normalized;
+  }
+  return fallback;
+}
+
+function inferLocalMediaTypeFromDataUrl(dataUrl) {
+  const source = normalizeText(dataUrl);
+  if (source.startsWith("data:image/")) {
+    return "image";
+  }
+  if (source.startsWith("data:video/")) {
+    return "video";
+  }
+  return "";
+}
+
+function normalizeLocalMediaFit(value, fallback = "stretch") {
+  const normalized = normalizeText(value, fallback);
+  if (
+    normalized === "stretch" ||
+    normalized === "fit-height" ||
+    normalized === "fit-width" ||
+    normalized === "original-resolution"
+  ) {
+    return normalized;
+  }
+  return fallback;
 }
 
 function videoConfigSignature(cfg) {
@@ -4551,11 +4698,12 @@ function syncBackgroundRefreshButton() {
   }
   const bgMode = state?.ui?.background?.mode;
   const manualUrl = normalizeText(state?.ui?.background?.videoUrl);
-  const videoReady = bgMode === "video" && (state?.ui?.background?.videoSource === "reddit" || Boolean(manualUrl));
-  const canRefresh = bgMode === "wallpaper" || videoReady;
+  const localMediaUrl = normalizeText(state?.ui?.background?.localMediaDataUrl);
+  const remoteVideoReady = bgMode === "video" && !localMediaUrl && (state?.ui?.background?.videoSource === "reddit" || Boolean(manualUrl));
+  const canRefresh = bgMode === "wallpaper" || remoteVideoReady;
   elements.bgRefreshBtn.disabled = !canRefresh;
   elements.bgRefreshBtn.classList.toggle("is-disabled", !canRefresh);
-  const title = bgMode === "video" ? "Refresh loop video" : "Refresh wallpaper";
+  const title = bgMode === "video" ? "Refresh local file" : "Refresh wallpaper";
   elements.bgRefreshBtn.title = title;
 }
 
@@ -4586,6 +4734,7 @@ function applyBackground() {
   elements.bgOverlay.style.background = `rgba(8, 11, 16, ${overlay})`;
   elements.bgLayer.style.background = theme.background;
   hideVideo();
+  applyBackgroundMediaFitStyles(cfg);
   if (cfg.mode !== "video") {
     videoLoadToken += 1;
   }
@@ -4606,6 +4755,20 @@ function applyBackground() {
     elements.bgImage.classList.remove("visible");
     clearBlurLayer();
     elements.bgLayer.style.background = theme.background;
+    const localMediaUrl = normalizeText(cfg.localMediaDataUrl);
+    const localMediaType = normalizeLocalMediaType(cfg.localMediaType, inferLocalMediaTypeFromDataUrl(localMediaUrl));
+    if (localMediaUrl && localMediaType === "image") {
+      elements.bgImage.src = localMediaUrl;
+      elements.bgImage.classList.add("visible");
+      return;
+    }
+    if (localMediaUrl && localMediaType === "video") {
+      elements.bgVideo.src = localMediaUrl;
+      elements.bgVideo.load();
+      void elements.bgVideo.play().catch(() => {});
+      elements.bgVideo.classList.add("visible");
+      return;
+    }
     void loadVideoLoop({ force: false });
     return;
   }
@@ -6859,9 +7022,24 @@ function patchBackground(patch) {
   state.ui.background.videoUrl = normalizeText(state.ui.background.videoUrl);
   state.ui.background.redditVideoSubreddit = normalizeText(state.ui.background.redditVideoSubreddit, "loopingvideos");
   state.ui.background.redditVideoTime = normalizeText(state.ui.background.redditVideoTime, "week");
+  state.ui.background.localMediaDataUrl = normalizeText(state.ui.background.localMediaDataUrl);
+  state.ui.background.localMediaType = normalizeLocalMediaType(state.ui.background.localMediaType, "");
+  if (!state.ui.background.localMediaType && state.ui.background.localMediaDataUrl) {
+    state.ui.background.localMediaType = inferLocalMediaTypeFromDataUrl(state.ui.background.localMediaDataUrl);
+  }
+  state.ui.background.localMediaName = normalizeText(state.ui.background.localMediaName);
+  state.ui.background.localMediaFit = normalizeLocalMediaFit(state.ui.background.localMediaFit, "stretch");
   const videoFieldsTouched =
     patch && typeof patch === "object"
-      ? ["videoSource", "videoUrl", "redditVideoSubreddit", "redditVideoTime"].some((key) => key in patch)
+      ? [
+          "videoSource",
+          "videoUrl",
+          "redditVideoSubreddit",
+          "redditVideoTime",
+          "localMediaDataUrl",
+          "localMediaType",
+          "localMediaName"
+        ].some((key) => key in patch)
       : false;
   if (videoFieldsTouched) {
     state.ui.background.videoCacheSignature = "";
@@ -9563,7 +9741,7 @@ function renderBackgroundSettings() {
       { value: "gradient", label: "Gradient" },
       { value: "solid", label: "Solid color" },
       { value: "wallpaper", label: "Wallpaper rotation" },
-      { value: "video", label: "Loop video" }
+      { value: "video", label: "Local File" }
     ]
   };
   const bg = state.ui.background;
@@ -9614,46 +9792,56 @@ function renderBackgroundSettings() {
   }
 
   if (bg.mode === "video") {
+    const localFileRow = createFormRow("Local file");
+    const localFileInput = document.createElement("input");
+    localFileInput.type = "file";
+    localFileInput.accept = "image/*,video/*";
+    localFileInput.addEventListener("change", () => {
+      const file = localFileInput.files?.[0] || null;
+      if (!file) {
+        return;
+      }
+      void importLocalBackgroundFile(file);
+      localFileInput.value = "";
+    });
+    localFileRow.append(localFileInput);
+    elements.settingsContent.append(localFileRow);
+
+    const selectedFileRow = createFormRow("Selected file");
+    const selectedFileInput = document.createElement("input");
+    selectedFileInput.type = "text";
+    selectedFileInput.readOnly = true;
+    selectedFileInput.value = normalizeText(bg.localMediaName, "No file selected");
+    selectedFileRow.append(selectedFileInput);
+    elements.settingsContent.append(selectedFileRow);
+
+    const clearFileRow = createFormRow("Clear local file");
+    const clearFileBtn = document.createElement("button");
+    clearFileBtn.type = "button";
+    clearFileBtn.className = "btn";
+    clearFileBtn.textContent = "Clear";
+    clearFileBtn.disabled = !normalizeText(bg.localMediaDataUrl);
+    clearFileBtn.addEventListener("click", () => {
+      patchBackground({
+        localMediaDataUrl: "",
+        localMediaType: "",
+        localMediaName: ""
+      });
+    });
+    clearFileRow.append(clearFileBtn);
+    elements.settingsContent.append(clearFileRow);
+
     bgFields.push({
-      key: "videoSource",
-      label: "Video source",
+      key: "localMediaFit",
+      label: "Fit mode",
       type: "select",
       options: [
-        { value: "manual", label: "Manual URL" },
-        { value: "reddit", label: "Reddit loop videos" }
+        { value: "stretch", label: "Stretch" },
+        { value: "fit-height", label: "Fit height" },
+        { value: "fit-width", label: "Fit width" },
+        { value: "original-resolution", label: "Original resolution" }
       ]
     });
-
-    if (bg.videoSource === "manual") {
-      bgFields.push({
-        key: "videoUrl",
-        label: "Video URL (mp4/webm)",
-        type: "text",
-        placeholder: "https://.../loop.mp4"
-      });
-    } else {
-      bgFields.push(
-        {
-          key: "redditVideoSubreddit",
-          label: "Reddit subreddit",
-          type: "text",
-          placeholder: "loopingvideos"
-        },
-        {
-          key: "redditVideoTime",
-          label: "Reddit time range",
-          type: "select",
-          options: [
-            { value: "hour", label: "hour" },
-            { value: "day", label: "day" },
-            { value: "week", label: "week" },
-            { value: "month", label: "month" },
-            { value: "year", label: "year" },
-            { value: "all", label: "all" }
-          ]
-        }
-      );
-    }
   }
 
   bgFields.push({ key: "overlayOpacity", label: "Overlay opacity", type: "number", min: 0, max: 0.85, step: 0.05 });
