@@ -17,9 +17,9 @@
   - `Background` (배경)
   - `Profile` (프리셋/기본 프로필)
 - 배경 모드
-  - Gradient / Solid color / Wallpaper rotation / Loop video
+  - Gradient / Solid color / Wallpaper rotation / Local File
   - Wallpaper 소스: Picsum, Unsplash Source, Reddit
-  - Loop video는 수동 URL 또는 Reddit loop 영상(무료 서브레딧)을 쓰며, 가져온 클립을 로컬에 캐시한 뒤 재생합니다.
+  - Local File 모드에서 로컬 이미지/영상 파일을 직접 선택해 배경으로 사용할 수 있고, Fit 모드(늘어남/세로 맞춤/가로 맞춤/원본 해상도)를 지원합니다.
 - 북마크 연동
   - 폴더 경로/ID 지정
   - 재귀 렌더링(하위 폴더 포함)
