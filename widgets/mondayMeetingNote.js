@@ -1412,7 +1412,7 @@ export const mondayMeetingNoteWidget = {
         cacheBoardName,
         cacheLatest,
         cacheBoards
-      });
+      }, { mutationKind: "system" });
     }
 
     function persistAutoSlots(config, now, dueIndices) {
@@ -1431,7 +1431,7 @@ export const mondayMeetingNoteWidget = {
       patchConfig({
         autoRefreshDayKey: next.dayKey,
         autoRefreshSlotsDone: next.slotsDone
-      });
+      }, { mutationKind: "system" });
     }
 
     function shouldRunAutoNow() {

@@ -6834,7 +6834,7 @@ function patchBackground(patch) {
   queueSave();
 }
 
-function patchWidgetConfig(instanceId, patch, { record = true } = {}) {
+function patchWidgetConfig(instanceId, patch, { record = true, mutationKind = "user" } = {}) {
   const instance = instanceById(instanceId);
   if (!instance) {
     return;
@@ -6846,7 +6846,7 @@ function patchWidgetConfig(instanceId, patch, { record = true } = {}) {
 
   if (record && shouldPersist) {
     recordHistorySnapshot("Update widget settings");
-  } else if (!record && shouldPersist) {
+  } else if (!record && shouldPersist && mutationKind !== "system") {
     touchUserMutationClock();
   }
 
