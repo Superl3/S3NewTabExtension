@@ -493,6 +493,7 @@ function normalizeCachedBoardSnapshot(entry) {
   return {
     boardId,
     boardName: normalizeText(entry?.boardName, `Board ${boardId}`),
+    boardUrl: normalizeText(entry?.boardUrl),
     latest: normalizeCachedLatest(entry?.latest)
   };
 }
@@ -569,6 +570,75 @@ function resolveItemUrl(boardId, latestItemUrl) {
     return itemUrl;
   }
   return resolveBoardUrl(boardId);
+}
+
+function normalizeHostname(value) {
+  const text = normalizeText(value).toLowerCase().replace(/^\.+|\.+$/g, "");
+  if (!text || text.includes("..") || !text.includes(".")) {
+    return "";
+  }
+  if (!/^[a-z0-9.-]+$/i.test(text)) {
+    return "";
+  }
+  return text;
+}
+
+function extractHostFromUrl(rawUrl) {
+  const parsed = parseUrlSafely(rawUrl);
+  if (!parsed || (parsed.protocol !== "https:" && parsed.protocol !== "http:")) {
+    return "";
+  }
+  return normalizeHostname(parsed.hostname);
+}
+
+function resolveMondayHostFromAccountLabel(rawValue) {
+  const text = normalizeText(rawValue);
+  if (!text) {
+    return "";
+  }
+
+  const directUrlHost = extractHostFromUrl(text);
+  if (directUrlHost) {
+    return directUrlHost;
+  }
+
+  const emailMatch = text.match(/@([a-z0-9.-]+\.[a-z]{2,})$/i);
+  if (emailMatch?.[1]) {
+    return normalizeHostname(emailMatch[1]);
+  }
+
+  const hostCandidate = text.replace(/^https?:\/\//i, "").split(/[/?#]/, 1)[0];
+  return normalizeHostname(hostCandidate);
+}
+
+function mondaySiteRootFromHost(host) {
+  const normalizedHost = normalizeHostname(host);
+  if (!normalizedHost) {
+    return "";
+  }
+  return `https://${normalizedHost}/`;
+}
+
+function resolveMondayUrl(boardEntries, accountValue) {
+  const accountHost = resolveMondayHostFromAccountLabel(accountValue);
+  if (accountHost) {
+    return mondaySiteRootFromHost(accountHost);
+  }
+
+  const entries = Array.isArray(boardEntries) ? boardEntries : [];
+  for (const entry of entries) {
+    const boardHost = extractHostFromUrl(entry?.boardUrl);
+    if (boardHost) {
+      return mondaySiteRootFromHost(boardHost);
+    }
+
+    const itemHost = extractHostFromUrl(entry?.latest?.itemUrl);
+    if (itemHost) {
+      return mondaySiteRootFromHost(itemHost);
+    }
+  }
+
+  return "";
 }
 
 function normalizeLineBreaks(value) {
@@ -959,12 +1029,14 @@ function resolveMeetingNoteColumnIds(columns, selectorList) {
   return out;
 }
 
-function buildBoardContextQuery(boardId) {
+function buildBoardContextQuery(boardId, includeUrl = true) {
+  const boardUrlField = includeUrl ? "\n        url" : "";
   return `
     query {
       boards(ids: [${boardId}]) {
         id
         name
+${boardUrlField}
         columns {
           id
           title
@@ -982,12 +1054,22 @@ function parseBoardContext(data) {
 
   return {
     boardName: normalizeText(board?.name),
+    boardUrl: normalizeText(board?.url),
     columns: parseBoardColumns(board?.columns)
   };
 }
 
 async function fetchBoardContext(boardId, accessToken) {
-  const data = await mondayFetchGraphql(accessToken, buildBoardContextQuery(boardId));
+  let data;
+  try {
+    data = await mondayFetchGraphql(accessToken, buildBoardContextQuery(boardId, true));
+  } catch (error) {
+    const message = normalizeErrorMessage(error);
+    if (!message.includes("Cannot query field \"url\"")) {
+      throw error;
+    }
+    data = await mondayFetchGraphql(accessToken, buildBoardContextQuery(boardId, false));
+  }
   const context = parseBoardContext(data);
   if (!context) {
     throw new Error("Board not found or access denied for this account.");
@@ -1161,6 +1243,7 @@ async function fetchLatestMeetingNote(boardId, selectorText, accessToken) {
   if (!latestItem) {
     return {
       boardName: normalizeText(parsed?.boardName, `Board ${boardId}`),
+      boardUrl: normalizeText(boardContext?.boardUrl),
       boardId,
       latest: null
     };
@@ -1175,6 +1258,7 @@ async function fetchLatestMeetingNote(boardId, selectorText, accessToken) {
   return {
     boardId,
     boardName: normalizeText(parsed?.boardName, `Board ${boardId}`),
+    boardUrl: normalizeText(boardContext?.boardUrl),
     latest: {
       id: normalizeText(latestItem?.id),
       title: normalizeText(latestItem?.name, "(Untitled item)"),
@@ -1354,6 +1438,7 @@ export const mondayMeetingNoteWidget = {
         ? cached.boards.map((entry) => ({
             boardId: normalizeBoardId(entry?.boardId, 0),
             boardName: normalizeText(entry?.boardName),
+            boardUrl: normalizeText(entry?.boardUrl),
             latest: normalizeCachedLatest(entry?.latest)
           }))
         : [];
@@ -1382,6 +1467,7 @@ export const mondayMeetingNoteWidget = {
           return {
             boardId,
             boardName: normalizeText(entry?.boardName, `Board ${boardId}`),
+            boardUrl: normalizeText(entry?.boardUrl),
             latest: cacheLatest
           };
         })
@@ -1793,8 +1879,10 @@ export const mondayMeetingNoteWidget = {
 
     function openMondayPage() {
       const cfg = resolveConfig();
-      const firstEntry = boardEntries.find((entry) => normalizeBoardId(entry?.boardId, 0) > 0);
-      const href = resolveItemUrl(firstEntry?.boardId || cfg.boardId, firstEntry?.latest?.itemUrl);
+      const href = resolveMondayUrl(boardEntries, accountLabel);
+      if (!href) {
+        return;
+      }
       const target = cfg.openInNewTab ? "_blank" : "_self";
       if (target === "_blank") {
         window.open(href, "_blank", "noopener,noreferrer");

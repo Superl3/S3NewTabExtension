@@ -12,6 +12,66 @@ function normalizeText(value, fallback = "") {
   return text || fallback;
 }
 
+function normalizeHostname(value) {
+  const text = normalizeText(value).toLowerCase().replace(/^\.+|\.+$/g, "");
+  if (!text || text.includes("..") || !text.includes(".")) {
+    return "";
+  }
+  if (!/^[a-z0-9.-]+$/i.test(text)) {
+    return "";
+  }
+  return text;
+}
+
+function parseUrlSafely(rawUrl) {
+  const text = normalizeText(rawUrl);
+  if (!text) {
+    return null;
+  }
+
+  try {
+    return new URL(text);
+  } catch {
+    return null;
+  }
+}
+
+function extractHostFromUrl(rawUrl) {
+  const parsed = parseUrlSafely(rawUrl);
+  if (!parsed || (parsed.protocol !== "https:" && parsed.protocol !== "http:")) {
+    return "";
+  }
+  return normalizeHostname(parsed.hostname);
+}
+
+function resolveMondayHostFromAccountLabel(rawValue) {
+  const text = normalizeText(rawValue);
+  if (!text) {
+    return "";
+  }
+
+  const directUrlHost = extractHostFromUrl(text);
+  if (directUrlHost) {
+    return directUrlHost;
+  }
+
+  const emailMatch = text.match(/@([a-z0-9.-]+\.[a-z]{2,})$/i);
+  if (emailMatch?.[1]) {
+    return normalizeHostname(emailMatch[1]);
+  }
+
+  const hostCandidate = text.replace(/^https?:\/\//i, "").split(/[/?#]/, 1)[0];
+  return normalizeHostname(hostCandidate);
+}
+
+function mondaySiteRootFromHost(host) {
+  const normalizedHost = normalizeHostname(host);
+  if (!normalizedHost) {
+    return "";
+  }
+  return `https://${normalizedHost}/`;
+}
+
 const DONE_GROUP_TITLES = new Set(["done", "completed", "완료"]);
 const DONE_STATUS_LABELS = new Set(["done", "completed", "완료"]);
 
@@ -242,12 +302,29 @@ function formatTimeLabel(date) {
   });
 }
 
-function resolveMondayUrl(config) {
-  const boardId = normalizeBoardIds(config?.boardIds, [config?.boardId])[0] || 0;
-  if (boardId > 0) {
-    return `${MONDAY_WEB_URL}boards/${boardId}`;
+function resolveMondayUrl(boardSnapshots, accountValue) {
+  const accountHost = resolveMondayHostFromAccountLabel(accountValue);
+  if (accountHost) {
+    return mondaySiteRootFromHost(accountHost);
   }
-  return MONDAY_WEB_URL;
+
+  const snapshots = Array.isArray(boardSnapshots) ? boardSnapshots : [];
+  for (const snapshot of snapshots) {
+    const boardHost = extractHostFromUrl(snapshot?.boardUrl);
+    if (boardHost) {
+      return mondaySiteRootFromHost(boardHost);
+    }
+
+    const issues = Array.isArray(snapshot?.issues) ? snapshot.issues : [];
+    for (const issue of issues) {
+      const issueHost = extractHostFromUrl(issue?.url);
+      if (issueHost) {
+        return mondaySiteRootFromHost(issueHost);
+      }
+    }
+  }
+
+  return "";
 }
 
 function createAuthState() {
@@ -573,7 +650,30 @@ async function mondayFetchGraphql(accessToken, query) {
 }
 
 async function fetchContext(config, accessToken) {
-  const query = `
+  const queryWithBoardUrl = `
+    query {
+      me {
+        id
+        name
+      }
+      boards(ids: ${config.boardId}) {
+        id
+        name
+        url
+        groups {
+          id
+          title
+        }
+        columns {
+          id
+          title
+          type
+        }
+      }
+    }
+  `;
+
+  const queryWithoutBoardUrl = `
     query {
       me {
         id
@@ -595,7 +695,16 @@ async function fetchContext(config, accessToken) {
     }
   `;
 
-  const data = await mondayFetchGraphql(accessToken, query);
+  let data;
+  try {
+    data = await mondayFetchGraphql(accessToken, queryWithBoardUrl);
+  } catch (error) {
+    const message = normalizeErrorMessage(error);
+    if (!message.includes("Cannot query field \"url\"")) {
+      throw error;
+    }
+    data = await mondayFetchGraphql(accessToken, queryWithoutBoardUrl);
+  }
   const meId = Number(data?.me?.id);
   if (!Number.isFinite(meId) || meId <= 0) {
     throw new Error("Unable to read your Monday profile from the connected account.");
@@ -646,6 +755,7 @@ async function fetchContext(config, accessToken) {
     meId,
     meName: normalizeText(data?.me?.name),
     boardName: normalizeText(board?.name, `Board ${config.boardId}`),
+    boardUrl: normalizeText(board?.url),
     peopleColumns,
     statusColumnIds,
     boardGroups
@@ -848,6 +958,7 @@ function normalizeCachedBoardSnapshot(entry) {
   return {
     boardId,
     boardName: normalizeText(entry?.boardName, `Board ${boardId}`),
+    boardUrl: normalizeText(entry?.boardUrl),
     assigneeName: normalizeText(entry?.assigneeName, "me"),
     scopeMode: normalizeText(entry?.scopeMode) === "all" ? "all" : "assigned",
     groups,
@@ -868,6 +979,7 @@ function readCachedSnapshot(rawConfig, cfg) {
       .map((entry) => ({
         boardId: entry.boardId,
         boardName: entry.boardName,
+        boardUrl: entry.boardUrl,
         assigneeName: entry.assigneeName,
         scopeMode: entry.scopeMode === "all" ? "all" : "assigned",
         groups: entry.groups,
@@ -1414,7 +1526,10 @@ export const mondayAssignedWidget = {
 
     function openMondayPage() {
       const cfg = resolveConfig();
-      const href = resolveMondayUrl(cfg);
+      const href = resolveMondayUrl(boardSnapshots, accountLabel);
+      if (!href) {
+        return;
+      }
       const target = cfg.openInNewTab ? "_blank" : "_self";
       if (target === "_blank") {
         window.open(href, "_blank", "noopener,noreferrer");
@@ -1433,6 +1548,7 @@ export const mondayAssignedWidget = {
         ? cached.boards.map((entry) => ({
             boardId: normalizeBoardId(entry?.boardId, 0),
             boardName: normalizeText(entry?.boardName),
+            boardUrl: normalizeText(entry?.boardUrl),
             assigneeName: normalizeText(entry?.assigneeName, "me"),
             scopeMode: normalizeText(entry?.scopeMode) === "all" ? "all" : "assigned",
             boardGroups: Array.isArray(entry?.groups) ? entry.groups : [],
@@ -1472,6 +1588,7 @@ export const mondayAssignedWidget = {
           return {
             boardId,
             boardName: normalizeText(snapshot?.boardName, `Board ${boardId}`),
+            boardUrl: normalizeText(snapshot?.boardUrl),
             assigneeName: normalizeText(snapshot?.assigneeName, "me"),
             scopeMode: normalizeText(snapshot?.scopeMode) === "all" ? "all" : "assigned",
             groups,
@@ -1811,7 +1928,7 @@ export const mondayAssignedWidget = {
 
             const cardHeader = document.createElement("div");
             cardHeader.className = "monday-board-card-header";
-            cardHeader.textContent = `${snapshot.boardName || `Board ${snapshot.boardId}`} (0)`;
+            cardHeader.textContent = `${snapshot.boardName || `Board ${snapshot.boardId}`} (Empty)`;
 
             const emptyText = document.createElement("p");
             emptyText.className = "monday-board-card-empty";
@@ -1868,7 +1985,9 @@ export const mondayAssignedWidget = {
 
         const cardHeader = document.createElement("div");
         cardHeader.className = "monday-board-card-header";
-        cardHeader.textContent = `${snapshot.boardName || `Board ${snapshot.boardId}`} (${boardIssues.length} ${isAllScope ? "items" : "assigned"})`;
+        cardHeader.textContent = boardIssues.length
+          ? `${snapshot.boardName || `Board ${snapshot.boardId}`} (${boardIssues.length} ${isAllScope ? "items" : "assigned"})`
+          : `${snapshot.boardName || `Board ${snapshot.boardId}`} (Empty)`;
 
         if (!boardIssues.length) {
           const emptyText = document.createElement("p");
@@ -2046,6 +2165,7 @@ export const mondayAssignedWidget = {
             snapshots.push({
               boardId,
               boardName: context.boardName,
+              boardUrl: context.boardUrl,
               assigneeName: scope.mode === "all" ? "all tasks" : normalizeText(context.meName, "me"),
               scopeMode: scope.mode,
               boardGroups: Array.isArray(context.boardGroups) ? context.boardGroups : [],
@@ -2060,6 +2180,7 @@ export const mondayAssignedWidget = {
             snapshots.push({
               boardId,
               boardName: `Board ${boardId}`,
+              boardUrl: "",
               assigneeName: fallbackScopeMode === "all" ? "all tasks" : "me",
               scopeMode: fallbackScopeMode,
               boardGroups: [],
