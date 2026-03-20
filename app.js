@@ -665,6 +665,7 @@ function defaultBackground() {
     localMediaDataUrl: "",
     localMediaType: "",
     localMediaName: "",
+    localMediaBackgroundColor: "#000000",
     localMediaFit: "stretch",
     videoCacheSignature: "",
     videoCacheStoredAt: 0,
@@ -2524,6 +2525,10 @@ function hydrate(raw) {
     background.localMediaType = inferLocalMediaTypeFromDataUrl(background.localMediaDataUrl);
   }
   background.localMediaName = normalizeText(background.localMediaName);
+  background.localMediaBackgroundColor = normalizeHexColor(
+    background.localMediaBackgroundColor,
+    defaultBackground().localMediaBackgroundColor
+  );
   background.localMediaFit = normalizeLocalMediaFit(background.localMediaFit, "stretch");
   background.videoCacheSignature = normalizeText(background.videoCacheSignature);
   background.videoCacheStoredAt = Math.max(0, Number(background.videoCacheStoredAt) || 0);
@@ -2670,6 +2675,7 @@ function buildHistoryBackgroundSnapshot(background) {
     redditVideoTime: source.redditVideoTime,
     localMediaType: source.localMediaType,
     localMediaName: source.localMediaName,
+    localMediaBackgroundColor: source.localMediaBackgroundColor,
     localMediaFit: source.localMediaFit,
     blurAmount: source.blurAmount,
     overlayOpacity: source.overlayOpacity
@@ -4762,8 +4768,10 @@ function applyBackground() {
     wallpaperLoadToken += 1;
     elements.bgImage.classList.remove("visible");
     clearBlurLayer();
-    elements.bgLayer.style.background = theme.background;
     const localMediaUrl = normalizeText(cfg.localMediaDataUrl);
+    elements.bgLayer.style.background = localMediaUrl
+      ? normalizeHexColor(cfg.localMediaBackgroundColor, defaultBackground().localMediaBackgroundColor)
+      : theme.background;
     const localMediaType = normalizeLocalMediaType(cfg.localMediaType, inferLocalMediaTypeFromDataUrl(localMediaUrl));
     if (localMediaUrl && localMediaType === "image") {
       elements.bgImage.src = localMediaUrl;
@@ -7395,6 +7403,10 @@ function patchBackground(patch) {
     state.ui.background.localMediaType = inferLocalMediaTypeFromDataUrl(state.ui.background.localMediaDataUrl);
   }
   state.ui.background.localMediaName = normalizeText(state.ui.background.localMediaName);
+  state.ui.background.localMediaBackgroundColor = normalizeHexColor(
+    state.ui.background.localMediaBackgroundColor,
+    defaultBackground().localMediaBackgroundColor
+  );
   state.ui.background.localMediaFit = normalizeLocalMediaFit(state.ui.background.localMediaFit, "stretch");
   const videoFieldsTouched =
     patch && typeof patch === "object"
@@ -10262,7 +10274,33 @@ function renderBackgroundSettings() {
     ]
   };
   const bg = state.ui.background;
-  const bgFields = [modeSchema];
+  const bgFields = [];
+
+  const appendBackgroundField = (schema) => {
+    const row = createFormRow(schema.label);
+    const value = state.ui.background[schema.key];
+    if (schema.type === "color") {
+      row.append(
+        createColorControl(value, (next) => {
+          patchBackground({ [schema.key]: next });
+        })
+      );
+    } else {
+      const input = createInputBySchema(schema, value);
+      input.addEventListener(settingsEventName(schema), () => {
+        const next = readFieldValue(input, schema);
+        patchBackground({ [schema.key]: next });
+      });
+      row.append(input);
+    }
+    elements.settingsContent.append(row);
+  };
+
+  if (bg.mode === "video") {
+    appendBackgroundField(modeSchema);
+  } else {
+    bgFields.push(modeSchema);
+  }
 
   if (bg.mode === "solid") {
     bgFields.push({ key: "solidColor", label: "Solid color", type: "color" });
@@ -10309,26 +10347,51 @@ function renderBackgroundSettings() {
   }
 
   if (bg.mode === "video") {
+    const selectedFileName = normalizeText(
+      bg.localMediaName,
+      normalizeText(bg.localMediaDataUrl) ? "Local file selected" : "No file selected"
+    );
     const localFileRow = createFormRow("Local file");
+    const localFileStatus = document.createElement("span");
+    localFileStatus.className = "muted";
+    localFileStatus.textContent = selectedFileName;
+
     const localFileInput = document.createElement("input");
     localFileInput.type = "file";
     localFileInput.accept = "image/*,video/*";
+    localFileInput.hidden = true;
+
+    const localFileBtn = document.createElement("button");
+    localFileBtn.type = "button";
+    localFileBtn.className = "btn";
+    localFileBtn.textContent = "Choose file";
+    localFileBtn.addEventListener("click", () => {
+      localFileInput.click();
+    });
+
     localFileInput.addEventListener("change", () => {
       const file = localFileInput.files?.[0] || null;
       if (!file) {
         return;
       }
       void importLocalBackgroundFile(file);
-      localFileInput.value = "";
     });
-    localFileRow.append(localFileInput);
+
+    const localFileControl = document.createElement("div");
+    localFileControl.style.display = "flex";
+    localFileControl.style.alignItems = "center";
+    localFileControl.style.gap = "8px";
+    localFileControl.style.minWidth = "0";
+    localFileControl.append(localFileBtn, localFileStatus, localFileInput);
+
+    localFileRow.append(localFileControl);
     elements.settingsContent.append(localFileRow);
 
     const selectedFileRow = createFormRow("Selected file");
     const selectedFileInput = document.createElement("input");
     selectedFileInput.type = "text";
     selectedFileInput.readOnly = true;
-    selectedFileInput.value = normalizeText(bg.localMediaName, "No file selected");
+    selectedFileInput.value = selectedFileName;
     selectedFileRow.append(selectedFileInput);
     elements.settingsContent.append(selectedFileRow);
 
@@ -10349,6 +10412,12 @@ function renderBackgroundSettings() {
     elements.settingsContent.append(clearFileRow);
 
     bgFields.push({
+      key: "localMediaBackgroundColor",
+      label: "Empty space color",
+      type: "color"
+    });
+
+    bgFields.push({
       key: "localMediaFit",
       label: "Fit mode",
       type: "select",
@@ -10364,23 +10433,7 @@ function renderBackgroundSettings() {
   bgFields.push({ key: "overlayOpacity", label: "Overlay opacity", type: "number", min: 0, max: 0.85, step: 0.05 });
 
   for (const schema of bgFields) {
-    const row = createFormRow(schema.label);
-    const value = state.ui.background[schema.key];
-    if (schema.type === "color") {
-      row.append(
-        createColorControl(value, (next) => {
-          patchBackground({ [schema.key]: next });
-        })
-      );
-    } else {
-      const input = createInputBySchema(schema, value);
-      input.addEventListener(settingsEventName(schema), () => {
-        const next = readFieldValue(input, schema);
-        patchBackground({ [schema.key]: next });
-      });
-      row.append(input);
-    }
-    elements.settingsContent.append(row);
+    appendBackgroundField(schema);
   }
 }
 
