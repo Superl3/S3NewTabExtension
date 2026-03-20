@@ -10371,6 +10371,7 @@ function renderBackgroundSettings() {
 
     localFileInput.addEventListener("change", () => {
       const file = localFileInput.files?.[0] || null;
+      localFileInput.value = "";
       if (!file) {
         return;
       }
