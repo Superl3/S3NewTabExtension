@@ -125,9 +125,39 @@ function isGmailLoginPage(responseUrl, bodyText) {
   return (
     lowerUrl.includes("accounts.google.com") ||
     lowerUrl.includes("servicelogin") ||
+    lowerUrl.includes("accountchooser") ||
+    lowerUrl.includes("/signin/") ||
+    lowerUrl.includes("addsession") ||
+    lowerUrl.includes("/challenge/") ||
     lowerBody.includes("servicelogin") ||
-    lowerBody.includes("interactive login")
+    lowerBody.includes("interactive login") ||
+    lowerBody.includes("accountchooser") ||
+    lowerBody.includes("gaia_loginform") ||
+    lowerBody.includes("identifierid") ||
+    lowerBody.includes("name=\"passw") ||
+    lowerBody.includes("data-profileidentifier")
   );
+}
+
+function classifyFeedResponse(response, bodyText) {
+  if (!response) {
+    return "invalid";
+  }
+
+  if (response.status === 401 || response.status === 403) {
+    return "auth";
+  }
+
+  if (isGmailLoginPage(response.url, bodyText)) {
+    return "auth";
+  }
+
+  const lowerBody = String(bodyText || "").toLowerCase();
+  if (lowerBody.includes("<feed") && lowerBody.includes("<entry")) {
+    return "feed";
+  }
+
+  return "unknown";
 }
 
 function parseFeedXml(xmlText, accountIndex, responseUrl = "") {
@@ -143,6 +173,9 @@ function parseFeedXml(xmlText, accountIndex, responseUrl = "") {
 
   const feed = doc.getElementsByTagName("feed")[0];
   if (!feed) {
+    if (isGmailLoginPage(responseUrl, xmlText)) {
+      throw new Error("Gmail web session not found. Sign in to Gmail in this browser first.");
+    }
     throw new Error("Unsupported Gmail feed format.");
   }
 
@@ -388,6 +421,78 @@ export const gmailWidget = {
     }
 
     async function loadMessages() {
+      async function fetchFeed(accountIndex) {
+        const response = await fetch(buildFeedUrl(accountIndex), {
+          cache: "no-store",
+          credentials: "include",
+          redirect: "follow"
+        });
+        const xmlText = await response.text();
+        const classification = classifyFeedResponse(response, xmlText);
+
+        if (classification === "auth") {
+          return {
+            state: "auth"
+          };
+        }
+
+        if (!response.ok) {
+          return {
+            state: "error",
+            error: new Error(`Gmail feed request failed: HTTP ${response.status}`)
+          };
+        }
+
+        try {
+          return {
+            state: "ok",
+            parsed: parseFeedXml(xmlText, accountIndex, response.url)
+          };
+        } catch (error) {
+          return {
+            state: "error",
+            error
+          };
+        }
+      }
+
+      async function resolveFeedWithFallback(cfg) {
+        const primary = await fetchFeed(cfg.accountIndex);
+        if (primary.state === "ok") {
+          return {
+            parsed: primary.parsed,
+            accountIndex: cfg.accountIndex
+          };
+        }
+        if (primary.state === "error") {
+          throw primary.error;
+        }
+
+        let lastError = null;
+        for (let candidate = 0; candidate <= 9; candidate += 1) {
+          if (candidate === cfg.accountIndex) {
+            continue;
+          }
+
+          const fallback = await fetchFeed(candidate);
+          if (fallback.state === "ok") {
+            return {
+              parsed: fallback.parsed,
+              accountIndex: candidate
+            };
+          }
+          if (fallback.state === "error") {
+            lastError = fallback.error;
+          }
+        }
+
+        if (lastError) {
+          throw lastError;
+        }
+
+        throw new Error("Gmail web session not found. Sign in to Gmail and check account index.");
+      }
+
       const requestId = ++requestSerial;
       loading = true;
       errorMessage = "";
@@ -395,30 +500,24 @@ export const gmailWidget = {
 
       try {
         const cfg = normalizedConfig(getConfig());
-        const response = await fetch(buildFeedUrl(cfg.accountIndex), {
-          cache: "no-store",
-          credentials: "include",
-          redirect: "follow"
-        });
-
-        if (response.status === 401 || response.status === 403) {
-          throw new Error("Gmail web session not found. Sign in to Gmail and check account index.");
-        }
-        if (!response.ok) {
-          throw new Error(`Gmail feed request failed: HTTP ${response.status}`);
-        }
-
-        const xmlText = await response.text();
-        const parsed = parseFeedXml(xmlText, cfg.accountIndex, response.url);
+        const resolved = await resolveFeedWithFallback(cfg);
+        const parsed = resolved.parsed;
 
         if (requestId !== requestSerial) {
           return;
         }
 
+        if (resolved.accountIndex !== cfg.accountIndex && typeof patchConfig === "function") {
+          patchConfig({ accountIndex: resolved.accountIndex });
+        }
+
+        const activeConfig =
+          resolved.accountIndex === cfg.accountIndex ? cfg : { ...cfg, accountIndex: resolved.accountIndex };
+
         feedTitle = parsed.feedTitle;
         unreadTotal = parsed.unreadTotal;
         messageItems = parsed.items.slice(0, cfg.maxResults);
-        lastSignature = configSignature(cfg);
+        lastSignature = configSignature(activeConfig);
       } catch (error) {
         if (requestId !== requestSerial) {
           return;
