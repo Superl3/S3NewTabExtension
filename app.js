@@ -2576,13 +2576,14 @@ function persistLatestSnapshot({ allowNonUserMutation = false } = {}) {
     return;
   }
 
-  const snapshot = buildPersistSnapshot();
-  const userMutationAt = readUserMutationClock(snapshot);
+  const userMutationAt = readUserMutationClock(state);
   if (!allowNonUserMutation && userMutationAt <= lastSavedUserMutationAt) {
     return;
   }
 
-  const fingerprint = snapshotFingerprint(snapshot);
+  const snapshot = buildPersistSnapshot();
+
+  const fingerprint = nextPersistFingerprint(snapshot, userMutationAt, allowNonUserMutation);
   if (!fingerprint) {
     return;
   }
@@ -2800,6 +2801,13 @@ function snapshotFingerprint(snapshot) {
   } catch {
     return `${Date.now()}-${Math.random().toString(16).slice(2, 8)}`;
   }
+}
+
+function nextPersistFingerprint(snapshot, userMutationAt, allowNonUserMutation) {
+  if (!allowNonUserMutation && userMutationAt > 0) {
+    return `u:${userMutationAt}`;
+  }
+  return snapshotFingerprint(snapshot);
 }
 
 function isStateObject(value) {
