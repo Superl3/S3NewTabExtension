@@ -235,6 +235,7 @@ export const bookmarksWidget = {
     let currentFolderId = "";
     let rootNode = null;
     let parentMap = {};
+    let reloadTimer = null;
     const backStateListeners = new Set();
     let canGoBackState = false;
 
@@ -629,7 +630,13 @@ export const bookmarksWidget = {
     }
 
     const reload = () => {
-      void render();
+      if (reloadTimer) {
+        clearTimeout(reloadTimer);
+      }
+      reloadTimer = setTimeout(() => {
+        reloadTimer = null;
+        void render();
+      }, 120);
     };
 
     chrome.bookmarks.onCreated.addListener(reload);
@@ -658,6 +665,10 @@ export const bookmarksWidget = {
       },
       destroy() {
         backStateListeners.clear();
+        if (reloadTimer) {
+          clearTimeout(reloadTimer);
+          reloadTimer = null;
+        }
         chrome.bookmarks.onCreated.removeListener(reload);
         chrome.bookmarks.onChanged.removeListener(reload);
         chrome.bookmarks.onRemoved.removeListener(reload);

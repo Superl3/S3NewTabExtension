@@ -1,5 +1,6 @@
 const FLEX_WORKTIME_CACHE_PREFIX = "s3newtab:flex-worktime-cache:v1";
 const FLEX_WORKTIME_CACHE_MAX_ENTRIES = 24;
+const FLEX_WORKTIME_CACHE_INDEX_KEY = `${FLEX_WORKTIME_CACHE_PREFIX}:__index__`;
 const FLEX_HOME_TAB_LOAD_TIMEOUT_MS = 20000;
 const DEFAULT_FLEX_WORKTIME_REFRESH_MINUTES = 1;
 const DEFAULT_SOURCE_MODE = "flexHomeScrape";
@@ -466,30 +467,15 @@ function pruneCacheEntries(maxEntries = FLEX_WORKTIME_CACHE_MAX_ENTRIES) {
   }
 
   const limit = Math.max(1, Number(maxEntries) || FLEX_WORKTIME_CACHE_MAX_ENTRIES);
-  const entries = [];
-
-  for (let index = 0; index < localStorage.length; index += 1) {
-    const key = localStorage.key(index);
-    if (!key || !key.startsWith(`${FLEX_WORKTIME_CACHE_PREFIX}:`)) {
-      continue;
-    }
-
-    let fetchedAt = 0;
-    try {
-      const parsed = tryParseJson(localStorage.getItem(key) || "");
-      fetchedAt = Number(parsed?.fetchedAt) || 0;
-    } catch {
-      fetchedAt = 0;
-    }
-
-    entries.push({ key, fetchedAt });
-  }
+  const entries = readFlexCacheIndex();
 
   if (entries.length <= limit) {
+    writeFlexCacheIndex(entries);
     return;
   }
 
   entries.sort((left, right) => right.fetchedAt - left.fetchedAt);
+  const kept = entries.slice(0, limit);
   for (const entry of entries.slice(limit)) {
     try {
       localStorage.removeItem(entry.key);
@@ -497,6 +483,70 @@ function pruneCacheEntries(maxEntries = FLEX_WORKTIME_CACHE_MAX_ENTRIES) {
       // noop
     }
   }
+  writeFlexCacheIndex(kept);
+}
+
+function readFlexCacheIndex() {
+  const parsed = tryParseJson(localStorage.getItem(FLEX_WORKTIME_CACHE_INDEX_KEY) || "");
+  if (!Array.isArray(parsed)) {
+    return scanFlexCacheEntries();
+  }
+  return parsed
+    .map((entry) => {
+      if (!entry || typeof entry !== "object") {
+        return null;
+      }
+      const key = normalizeText(entry.key);
+      const fetchedAt = Number(entry.fetchedAt);
+      if (!key || !key.startsWith(`${FLEX_WORKTIME_CACHE_PREFIX}:`) || key === FLEX_WORKTIME_CACHE_INDEX_KEY) {
+        return null;
+      }
+      return {
+        key,
+        fetchedAt: Number.isFinite(fetchedAt) ? Math.max(0, Math.floor(fetchedAt)) : 0
+      };
+    })
+    .filter(Boolean);
+}
+
+function scanFlexCacheEntries() {
+  const entries = [];
+  for (let index = 0; index < localStorage.length; index += 1) {
+    const key = localStorage.key(index);
+    if (!key || !key.startsWith(`${FLEX_WORKTIME_CACHE_PREFIX}:`) || key === FLEX_WORKTIME_CACHE_INDEX_KEY) {
+      continue;
+    }
+    const parsed = tryParseJson(localStorage.getItem(key) || "");
+    const fetchedAt = Number(parsed?.fetchedAt);
+    entries.push({
+      key,
+      fetchedAt: Number.isFinite(fetchedAt) ? Math.max(0, Math.floor(fetchedAt)) : 0
+    });
+  }
+  entries.sort((left, right) => right.fetchedAt - left.fetchedAt);
+  return entries;
+}
+
+function writeFlexCacheIndex(entries) {
+  localStorage.setItem(FLEX_WORKTIME_CACHE_INDEX_KEY, JSON.stringify(entries));
+}
+
+function touchFlexCacheIndex(key, fetchedAt, limit) {
+  const entries = readFlexCacheIndex().filter((entry) => entry.key !== key);
+  entries.push({ key, fetchedAt: Math.max(0, Number(fetchedAt) || 0) });
+  entries.sort((left, right) => right.fetchedAt - left.fetchedAt);
+
+  const maxEntries = Math.max(1, Number(limit) || FLEX_WORKTIME_CACHE_MAX_ENTRIES);
+  const trimmed = entries.slice(0, maxEntries);
+  for (const entry of entries.slice(maxEntries)) {
+    try {
+      localStorage.removeItem(entry.key);
+    } catch {
+      // noop
+    }
+  }
+
+  writeFlexCacheIndex(trimmed);
 }
 
 function writeCachedSnapshot(config, queryDate, rows, fetchedAt = Date.now()) {
@@ -512,7 +562,7 @@ function writeCachedSnapshot(config, queryDate, rows, fetchedAt = Date.now()) {
 
   try {
     localStorage.setItem(key, JSON.stringify(payload));
-    pruneCacheEntries(FLEX_WORKTIME_CACHE_MAX_ENTRIES);
+    touchFlexCacheIndex(key, payload.fetchedAt, FLEX_WORKTIME_CACHE_MAX_ENTRIES);
   } catch {
     // noop
   }
