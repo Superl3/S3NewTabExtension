@@ -1,5 +1,21 @@
 import { STORAGE_KEY, loadState, saveState } from "./storage.js";
 import { widgetRegistry, widgetList } from "./widgets/index.js";
+import {
+  STARTUP_STATE_EMPTY_WIDGETS_QUERY_KEY,
+  STARTUP_STATE_INLINE_QUERY_KEY,
+  STARTUP_STATE_JSON_PATH,
+  STARTUP_STATE_QUERY_KEY,
+  getStartupStateFromLocation as getStartupStateFromLocationWithPolicy,
+  loadStartupStateFromConfigFile as loadStartupStateFromConfigFileWithPolicy,
+  loadStartupStateFromJsonValue as loadStartupStateFromJsonValueWithPolicy,
+  resolveStartupStateDefault as resolveStartupStateDefaultWithPolicy
+} from "./core/startupState.js";
+import {
+  applyRuntimeOnlyPolicyToPresetSnapshot,
+  applyRuntimeOnlyPolicyToSnapshot,
+  applyRuntimeOnlyWidgetConfigDefaults,
+  buildPersistableWidgetConfigPatch
+} from "./core/runtimeSnapshotPolicy.js";
 
 const SNAP = 20;
 const LONG_PRESS_DRAG_DELAY_MS = 340;
@@ -59,10 +75,6 @@ const FONT_OPTIONS = [
 const VIDEO_CACHE_NAME = "s3newtab-loop-video-cache-v1";
 const VIDEO_CACHE_KEY_PREFIX = "https://s3newtab.local/loop-video/";
 const VIDEO_CACHE_MAX_ENTRIES = 6;
-const STARTUP_STATE_QUERY_KEY = "startup-state";
-const STARTUP_STATE_INLINE_QUERY_KEY = "startupState";
-const STARTUP_STATE_EMPTY_WIDGETS_QUERY_KEY = "startup-state-empty-widgets";
-const STARTUP_STATE_JSON_PATH = "config/startup-state.json";
 const EXPORT_SNAPSHOT_FILENAME = "startup-state.sanitized.json";
 const SENSITIVE_EXPORT_KEYWORD_PARTS = [
   "token",
@@ -291,243 +303,53 @@ const SHORTCUT_ICON_PRESETS = [
   { id: "link", label: "Link", viewBox: "0 0 24 24", markup: '<path d="M10 14 8.2 15.8a3.2 3.2 0 0 1-4.6-4.6L6 8.8a3.2 3.2 0 0 1 4.6 0" /><path d="M14 10l1.8-1.8a3.2 3.2 0 0 1 4.6 4.6L18 15.2a3.2 3.2 0 0 1-4.6 0" /><path d="M8.8 15.2 15.2 8.8" />' }
 ];
 
-const RUNTIME_ONLY_WIDGET_CONFIG_DEFAULTS = Object.freeze({
-  container: Object.freeze({
-    expanded: false
-  }),
-  mondayAssigned: Object.freeze({
-    autoRefreshDayKey: "",
-    autoRefreshSlotsDone: ""
-  }),
-  mondayMeetingNote: Object.freeze({
-    autoRefreshDayKey: "",
-    autoRefreshSlotsDone: ""
-  })
-});
-
-function runtimeOnlyWidgetConfigDefaults(widgetType) {
-  return RUNTIME_ONLY_WIDGET_CONFIG_DEFAULTS[widgetType] || null;
-}
-
-function cloneRuntimeDefaultValue(value) {
-  return value && typeof value === "object" ? structuredClone(value) : value;
-}
-
-function applyRuntimeOnlyWidgetConfigDefaults(widgetType, config) {
-  const defaults = runtimeOnlyWidgetConfigDefaults(widgetType);
-  if (!defaults || !config || typeof config !== "object" || Array.isArray(config)) {
-    return config;
-  }
-
-  for (const [key, value] of Object.entries(defaults)) {
-    config[key] = cloneRuntimeDefaultValue(value);
-  }
-
-  return config;
-}
-
-function stripRuntimeOnlyWidgetConfigFields(widgetType, config) {
-  const defaults = runtimeOnlyWidgetConfigDefaults(widgetType);
-  if (!defaults || !config || typeof config !== "object" || Array.isArray(config)) {
-    return config;
-  }
-
-  for (const key of Object.keys(defaults)) {
-    if (Object.prototype.hasOwnProperty.call(config, key)) {
-      delete config[key];
-    }
-  }
-
-  return config;
-}
-
-function buildPersistableWidgetConfigPatch(widgetType, patch) {
-  if (!patch || typeof patch !== "object" || Array.isArray(patch)) {
-    return {};
-  }
-
-  const persistablePatch = { ...patch };
-  stripRuntimeOnlyWidgetConfigFields(widgetType, persistablePatch);
-  return persistablePatch;
-}
-
-function applyRuntimeOnlyPolicyToPresetSnapshot(snapshot) {
-  if (!snapshot || typeof snapshot !== "object" || Array.isArray(snapshot)) {
-    return snapshot;
-  }
-
-  if (snapshot.ui && typeof snapshot.ui === "object" && !Array.isArray(snapshot.ui)) {
-    if (snapshot.ui.home && typeof snapshot.ui.home === "object" && !Array.isArray(snapshot.ui.home)) {
-      snapshot.ui.home.activePage = 0;
-    }
-  }
-
-  if (Array.isArray(snapshot.instances)) {
-    for (const instance of snapshot.instances) {
-      if (!instance || typeof instance !== "object" || Array.isArray(instance)) {
-        continue;
-      }
-      if (!instance.config || typeof instance.config !== "object" || Array.isArray(instance.config)) {
-        continue;
-      }
-      stripRuntimeOnlyWidgetConfigFields(instance.type, instance.config);
-    }
-  }
-
-  return snapshot;
-}
-
-function applyRuntimeOnlyPolicyToSnapshot(snapshot) {
-  if (!snapshot || typeof snapshot !== "object" || Array.isArray(snapshot)) {
-    return snapshot;
-  }
-
-  snapshot.mode = "use";
-  snapshot.selectedWidgetId = "";
-
-  if (snapshot.ui && typeof snapshot.ui === "object" && !Array.isArray(snapshot.ui)) {
-    snapshot.ui.activeTab = "global";
-    if (Object.prototype.hasOwnProperty.call(snapshot.ui, "settingsOpen")) {
-      delete snapshot.ui.settingsOpen;
-    }
-    if (snapshot.ui.home && typeof snapshot.ui.home === "object" && !Array.isArray(snapshot.ui.home)) {
-      snapshot.ui.home.activePage = 0;
-    }
-    if (
-      snapshot.ui.defaultProfileSnapshot &&
-      typeof snapshot.ui.defaultProfileSnapshot === "object" &&
-      !Array.isArray(snapshot.ui.defaultProfileSnapshot)
-    ) {
-      applyRuntimeOnlyPolicyToPresetSnapshot(snapshot.ui.defaultProfileSnapshot);
-    }
-  }
-
-  if (Array.isArray(snapshot.presets)) {
-    for (const preset of snapshot.presets) {
-      if (!preset || typeof preset !== "object" || Array.isArray(preset)) {
-        continue;
-      }
-      if (!preset.snapshot || typeof preset.snapshot !== "object" || Array.isArray(preset.snapshot)) {
-        continue;
-      }
-      applyRuntimeOnlyPolicyToPresetSnapshot(preset.snapshot);
-    }
-  }
-
-  if (Array.isArray(snapshot.instances)) {
-    for (const instance of snapshot.instances) {
-      if (!instance || typeof instance !== "object" || Array.isArray(instance)) {
-        continue;
-      }
-      if (!instance.config || typeof instance.config !== "object" || Array.isArray(instance.config)) {
-        continue;
-      }
-      stripRuntimeOnlyWidgetConfigFields(instance.type, instance.config);
-    }
-  }
-
-  return snapshot;
-}
-
-function isAllowedStartupStateUrl(value) {
-  try {
-    const url = new URL(value, location.origin);
-    return ["http:", "https:", "chrome-extension:"].includes(url.protocol);
-  } catch {
-    return false;
-  }
-}
-
-function normalizeStartupStateBoolean(value) {
-  if (typeof value !== "string") {
-    return false;
-  }
-
-  const normalized = value.trim().toLowerCase();
-  return normalized === "1" || normalized === "true" || normalized === "yes" || normalized === "on";
-}
-
 async function loadStartupStateFromJsonValue(rawValue, options = {}) {
-  const value = rawValue?.trim();
-  if (!value) {
-    return null;
-  }
-
-  if (value.startsWith("{") || value.startsWith("[")) {
-    const parsed = JSON.parse(value);
-    if (!isStateObject(parsed)) {
-      return null;
-    }
-    return parsed;
-  }
-
-  if (!isAllowedStartupStateUrl(value)) {
-    return null;
-  }
-
-  const response = await fetch(new URL(value, location.origin), {
-    cache: options.cache || "no-store"
+  return loadStartupStateFromJsonValueWithPolicy(rawValue, {
+    ...options,
+    isStateObject,
+    mergeStateObjects,
+    baseOrigin: location.origin
   });
-
-  if (!response.ok) {
-    throw new Error(`Failed to load startup state from ${value}: ${response.status}`);
-  }
-
-  const text = await response.text();
-  const parsed = JSON.parse(text);
-  if (!isStateObject(parsed)) {
-    return null;
-  }
-
-  return parsed;
 }
 
 async function getStartupStateFromLocation() {
-  const searchParams = new URLSearchParams(window.location.search);
-  const startupStateValue = searchParams.get(STARTUP_STATE_QUERY_KEY) || searchParams.get(STARTUP_STATE_INLINE_QUERY_KEY);
-  if (!startupStateValue) {
-    return null;
-  }
-
-  try {
-    const startupState = await loadStartupStateFromJsonValue(startupStateValue);
-    if (!startupState) {
-      console.warn("Invalid startup-state payload, skipping startup state initialization.");
-      return null;
-    }
-
-    const shouldKeepEmptyWidgets = normalizeStartupStateBoolean(
-      searchParams.get(STARTUP_STATE_EMPTY_WIDGETS_QUERY_KEY)
-    );
-    if (shouldKeepEmptyWidgets && !Array.isArray(startupState.instances)) {
-      startupState.instances = [];
-    }
-
-    return startupState;
-  } catch (error) {
-    console.warn("Failed to load startup-state", error);
-    return null;
-  }
+  return getStartupStateFromLocationWithPolicy({
+    search: window.location.search,
+    startupStateQueryKey: STARTUP_STATE_QUERY_KEY,
+    startupStateInlineQueryKey: STARTUP_STATE_INLINE_QUERY_KEY,
+    startupStateEmptyWidgetsQueryKey: STARTUP_STATE_EMPTY_WIDGETS_QUERY_KEY,
+    isStateObject,
+    mergeStateObjects,
+    fetchFn: fetch,
+    baseOrigin: location.origin,
+    cache: "no-store",
+    logger: console
+  });
 }
 
 async function loadStartupStateFromConfigFile() {
-  try {
-    if (!chrome?.runtime?.getURL) {
-      return null;
-    }
-
-    return await loadStartupStateFromJsonValue(chrome.runtime.getURL(STARTUP_STATE_JSON_PATH));
-  } catch {
-    return null;
-  }
+  return loadStartupStateFromConfigFileWithPolicy({
+    startupStateJsonPath: STARTUP_STATE_JSON_PATH,
+    runtimeGetUrl: chrome?.runtime?.getURL ? chrome.runtime.getURL.bind(chrome.runtime) : null,
+    isStateObject,
+    mergeStateObjects,
+    fetchFn: fetch,
+    baseOrigin: location.origin,
+    cache: "no-store"
+  });
 }
 
 async function resolveStartupStateDefault() {
-  const startupState = await loadStartupStateFromConfigFile();
-  if (!isStateObject(startupState)) {
-    return defaultState();
-  }
-  return mergeStateObjects(defaultState(), startupState);
+  return resolveStartupStateDefaultWithPolicy({
+    defaultState,
+    isStateObject,
+    mergeStateObjects,
+    startupStateJsonPath: STARTUP_STATE_JSON_PATH,
+    runtimeGetUrl: chrome?.runtime?.getURL ? chrome.runtime.getURL.bind(chrome.runtime) : null,
+    fetchFn: fetch,
+    baseOrigin: location.origin,
+    cache: "no-store"
+  });
 }
 
 function clamp(value, min, max) {
@@ -11437,6 +11259,7 @@ function canStartBoardSwipeFromTarget(target) {
   if (target.closest(blockedZones)) {
     return false;
   }
+
 
   return !isInteractiveSwipeTarget(target);
 }
