@@ -1,0 +1,113 @@
+function normalizeText(value, fallback = "") {
+  const text = String(value || "").trim();
+  return text || fallback;
+}
+
+function parseJsonSafely(value) {
+  if (typeof value !== "string" || !value.trim()) {
+    return null;
+  }
+  try {
+    return JSON.parse(value);
+  } catch {
+    return null;
+  }
+}
+
+function normalizeFetchedAt(value) {
+  const num = Number(value);
+  return Number.isFinite(num) ? Math.max(0, Math.floor(num)) : 0;
+}
+
+function normalizeIndexEntry(entry, options) {
+  if (!entry || typeof entry !== "object") {
+    return null;
+  }
+
+  const key = normalizeText(entry.key);
+  if (!key || !key.startsWith(options.prefix) || key === options.indexKey) {
+    return null;
+  }
+
+  return {
+    key,
+    fetchedAt: normalizeFetchedAt(entry.fetchedAt)
+  };
+}
+
+export function scanCacheEntries(storage, options) {
+  const entries = [];
+  for (let index = 0; index < storage.length; index += 1) {
+    const key = storage.key(index);
+    if (!key || !key.startsWith(options.prefix) || key === options.indexKey) {
+      continue;
+    }
+    const parsed = parseJsonSafely(storage.getItem(key) || "");
+    entries.push({
+      key,
+      fetchedAt: normalizeFetchedAt(parsed?.fetchedAt)
+    });
+  }
+  entries.sort((left, right) => right.fetchedAt - left.fetchedAt);
+  return entries;
+}
+
+export function readCacheIndex(storage, options) {
+  const parsed = parseJsonSafely(storage.getItem(options.indexKey) || "");
+  if (!Array.isArray(parsed)) {
+    return scanCacheEntries(storage, options);
+  }
+  return parsed
+    .map((entry) => normalizeIndexEntry(entry, options))
+    .filter(Boolean)
+    .sort((left, right) => right.fetchedAt - left.fetchedAt);
+}
+
+export function writeCacheIndex(storage, options, entries) {
+  storage.setItem(options.indexKey, JSON.stringify(entries));
+}
+
+export function touchCacheIndex(storage, options) {
+  const maxEntries = Math.max(1, Number(options.maxEntries) || 1);
+  const key = normalizeText(options.key);
+  if (!key) {
+    return;
+  }
+
+  const entries = readCacheIndex(storage, options).filter((entry) => entry.key !== key);
+  entries.push({
+    key,
+    fetchedAt: normalizeFetchedAt(options.fetchedAt)
+  });
+  entries.sort((left, right) => right.fetchedAt - left.fetchedAt);
+
+  const trimmed = entries.slice(0, maxEntries);
+  for (const entry of entries.slice(maxEntries)) {
+    try {
+      storage.removeItem(entry.key);
+    } catch {
+      // noop
+    }
+  }
+
+  writeCacheIndex(storage, options, trimmed);
+}
+
+export function pruneCacheIndex(storage, options) {
+  const maxEntries = Math.max(1, Number(options.maxEntries) || 1);
+  const entries = readCacheIndex(storage, options);
+  if (entries.length <= maxEntries) {
+    writeCacheIndex(storage, options, entries);
+    return;
+  }
+
+  const kept = entries.slice(0, maxEntries);
+  for (const entry of entries.slice(maxEntries)) {
+    try {
+      storage.removeItem(entry.key);
+    } catch {
+      // noop
+    }
+  }
+  writeCacheIndex(storage, options, kept);
+}

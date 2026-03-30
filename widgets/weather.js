@@ -1,9 +1,15 @@
+import { pruneCacheIndex, touchCacheIndex } from "./shared/localStorageCacheIndex.js";
+
 const GEOCODING_API_URL = "https://geocoding-api.open-meteo.com/v1/search";
 const FORECAST_API_URL = "https://api.open-meteo.com/v1/forecast";
 const DEFAULT_LOCATION_QUERY = "Seoul";
 const WEATHER_CACHE_PREFIX = "s3newtab:weather-cache:v1";
 const WEATHER_CACHE_MAX_ENTRIES = 12;
 const WEATHER_CACHE_INDEX_KEY = `${WEATHER_CACHE_PREFIX}:__index__`;
+const WEATHER_CACHE_INDEX_OPTIONS = {
+  prefix: `${WEATHER_CACHE_PREFIX}:`,
+  indexKey: WEATHER_CACHE_INDEX_KEY
+};
 
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
@@ -132,73 +138,15 @@ function writeWeatherCache(config, snapshot, fetchedAt) {
   try {
     const cacheKey = weatherCacheStorageKey(config);
     localStorage.setItem(cacheKey, JSON.stringify(payload));
-    touchWeatherCacheIndex(cacheKey, payload.fetchedAt, WEATHER_CACHE_MAX_ENTRIES);
+    touchCacheIndex(localStorage, {
+      ...WEATHER_CACHE_INDEX_OPTIONS,
+      key: cacheKey,
+      fetchedAt: payload.fetchedAt,
+      maxEntries: WEATHER_CACHE_MAX_ENTRIES
+    });
   } catch {
     // noop
   }
-}
-
-function readWeatherCacheIndex() {
-  const parsed = tryParseJson(localStorage.getItem(WEATHER_CACHE_INDEX_KEY) || "");
-  if (!Array.isArray(parsed)) {
-    return scanWeatherCacheEntries();
-  }
-  return parsed
-    .map((entry) => {
-      if (!entry || typeof entry !== "object") {
-        return null;
-      }
-      const key = normalizeText(entry.key);
-      const fetchedAt = Number(entry.fetchedAt);
-      if (!key || !key.startsWith(`${WEATHER_CACHE_PREFIX}:`) || key === WEATHER_CACHE_INDEX_KEY) {
-        return null;
-      }
-      return {
-        key,
-        fetchedAt: Number.isFinite(fetchedAt) ? Math.max(0, Math.floor(fetchedAt)) : 0
-      };
-    })
-    .filter(Boolean);
-}
-
-function scanWeatherCacheEntries() {
-  const entries = [];
-  for (let index = 0; index < localStorage.length; index += 1) {
-    const key = localStorage.key(index);
-    if (!key || !key.startsWith(`${WEATHER_CACHE_PREFIX}:`) || key === WEATHER_CACHE_INDEX_KEY) {
-      continue;
-    }
-    const parsed = tryParseJson(localStorage.getItem(key) || "");
-    const fetchedAt = Number(parsed?.fetchedAt);
-    entries.push({
-      key,
-      fetchedAt: Number.isFinite(fetchedAt) ? Math.max(0, Math.floor(fetchedAt)) : 0
-    });
-  }
-  entries.sort((left, right) => right.fetchedAt - left.fetchedAt);
-  return entries;
-}
-
-function writeWeatherCacheIndex(entries) {
-  localStorage.setItem(WEATHER_CACHE_INDEX_KEY, JSON.stringify(entries));
-}
-
-function touchWeatherCacheIndex(key, fetchedAt, limit) {
-  const entries = readWeatherCacheIndex().filter((entry) => entry.key !== key);
-  entries.push({ key, fetchedAt: Math.max(0, Number(fetchedAt) || 0) });
-  entries.sort((left, right) => right.fetchedAt - left.fetchedAt);
-
-  const maxEntries = Math.max(1, Number(limit) || WEATHER_CACHE_MAX_ENTRIES);
-  const trimmed = entries.slice(0, maxEntries);
-  for (const entry of entries.slice(maxEntries)) {
-    try {
-      localStorage.removeItem(entry.key);
-    } catch {
-      // noop
-    }
-  }
-
-  writeWeatherCacheIndex(trimmed);
 }
 
 function pruneWeatherCacheEntries(maxEntries = WEATHER_CACHE_MAX_ENTRIES) {
@@ -206,24 +154,10 @@ function pruneWeatherCacheEntries(maxEntries = WEATHER_CACHE_MAX_ENTRIES) {
     return;
   }
 
-  const limit = Math.max(1, Number(maxEntries) || WEATHER_CACHE_MAX_ENTRIES);
-  const entries = readWeatherCacheIndex();
-
-  if (entries.length <= limit) {
-    writeWeatherCacheIndex(entries);
-    return;
-  }
-
-  entries.sort((left, right) => right.fetchedAt - left.fetchedAt);
-  const kept = entries.slice(0, limit);
-  for (const entry of entries.slice(limit)) {
-    try {
-      localStorage.removeItem(entry.key);
-    } catch {
-      // noop
-    }
-  }
-  writeWeatherCacheIndex(kept);
+  pruneCacheIndex(localStorage, {
+    ...WEATHER_CACHE_INDEX_OPTIONS,
+    maxEntries
+  });
 }
 
 function asFiniteNumber(value, fallback = null) {
