@@ -1,3 +1,11 @@
+import {
+  buildAuthConnectorStartUrl,
+  createAuthState,
+  fetchConnectorToken,
+  normalizeConnectorUrl as normalizeSharedConnectorUrl,
+  parseAuthFlowResult
+} from "./shared/authConnector.js";
+
 const MONDAY_API_URL = "https://api.monday.com/v2";
 const MONDAY_WEB_URL = "https://monday.com/";
 const MONDAY_AUTH_STORAGE_KEY = "s3newtab-monday-auth-session-v1";
@@ -91,22 +99,7 @@ function parseSelectorList(value) {
 }
 
 function normalizeConnectorUrl(value, fallback = LOCAL_AUTH_CONNECTOR_URL) {
-  const text = normalizeText(value, fallback);
-  if (!text) {
-    return "";
-  }
-
-  try {
-    const parsed = new URL(text);
-    const isLocalhost = parsed.hostname === "localhost" || parsed.hostname === "127.0.0.1";
-    if (parsed.protocol !== "https:" && !(isLocalhost && parsed.protocol === "http:")) {
-      return "";
-    }
-    parsed.hash = "";
-    return parsed.toString();
-  } catch {
-    return "";
-  }
+  return normalizeSharedConnectorUrl(value, fallback);
 }
 
 function normalizeErrorMessage(error) {
@@ -151,81 +144,6 @@ function isAuthCancelledMessage(message) {
     text.includes("closed") ||
     text.includes("interaction")
   );
-}
-
-function createAuthState() {
-  const bytes = new Uint8Array(16);
-  crypto.getRandomValues(bytes);
-  return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
-}
-
-function buildAuthConnectorStartUrl(connectorUrl, redirectUri, state, provider = "") {
-  const url = new URL(connectorUrl);
-  url.searchParams.set("redirect_uri", redirectUri);
-  url.searchParams.set("state", state);
-  if (provider) {
-    url.searchParams.set("provider", provider);
-  }
-  return url.toString();
-}
-
-function parseAuthFlowResult(callbackUrl) {
-  const parsed = new URL(callbackUrl);
-  const hashText = parsed.hash.startsWith("#") ? parsed.hash.slice(1) : parsed.hash;
-  const hashParams = new URLSearchParams(hashText);
-  const queryParams = parsed.searchParams;
-  const read = (key) => normalizeText(queryParams.get(key) || hashParams.get(key));
-
-  return {
-    state: read("state"),
-    accessToken:
-      read("access_token") ||
-      read("accessToken") ||
-      read("token") ||
-      read("id_token"),
-    accountLabel: read("account") || read("email") || read("user") || read("name"),
-    error: read("error"),
-    errorDescription: read("error_description")
-  };
-}
-
-function tryParseJson(value) {
-  try {
-    return value ? JSON.parse(value) : {};
-  } catch {
-    return {};
-  }
-}
-
-async function fetchConnectorToken(connectorUrl, provider) {
-  const url = new URL(connectorUrl);
-  url.searchParams.set("mode", "token");
-  url.searchParams.set("provider", provider);
-  const response = await fetch(url.toString());
-  const text = normalizeText(await response.text());
-  const payload = tryParseJson(text);
-  if (!response.ok) {
-    const message =
-      normalizeText(payload?.message) ||
-      normalizeText(payload?.error) ||
-      normalizeText(payload?.error_description) ||
-      `Token relay failed (HTTP ${response.status})`;
-    throw new Error(message);
-  }
-  const token =
-    normalizeText(payload?.access_token) ||
-    normalizeText(payload?.accessToken) ||
-    normalizeText(payload?.token) ||
-    normalizeText(payload?.id_token);
-  if (!token) {
-    throw new Error("Token relay response missing access_token.");
-  }
-  const accountLabel =
-    normalizeText(payload?.account) ||
-    normalizeText(payload?.email) ||
-    normalizeText(payload?.user) ||
-    normalizeText(payload?.name);
-  return { accessToken: token, accountLabel };
 }
 
 function normalizeStoredAuthSession(raw) {
