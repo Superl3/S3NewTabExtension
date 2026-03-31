@@ -294,6 +294,10 @@ async function fetchWeatherSnapshot(config) {
     throw new Error("Weather response parse failed.");
   }
 
+  return buildWeatherSnapshot(place, forecastPayload, config);
+}
+
+function buildWeatherSnapshot(place, forecastPayload, config) {
   const current = forecastPayload?.current || {};
   const daily = forecastPayload?.daily || {};
   const isDay = asFiniteNumber(current?.is_day, 1) === 1;
@@ -320,6 +324,11 @@ async function fetchWeatherSnapshot(config) {
     temperatureUnit,
     windUnit
   };
+}
+
+export function buildWeatherSnapshotForContractTest(place, forecastPayload, configInput = {}) {
+  const config = normalizedConfig(configInput);
+  return buildWeatherSnapshot(place, forecastPayload, config);
 }
 
 function createMetaItem(labelText, valueText) {
