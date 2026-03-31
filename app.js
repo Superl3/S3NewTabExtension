@@ -547,6 +547,8 @@ function defaultHomeLayout() {
     itemGap: "narrow",
     pageCount: 1,
     activePage: 0,
+    homePage: 0,
+    manualPages: [],
     dockEnabled: true,
     dockShape: "raised",
     dockVisibility: "always",
@@ -1662,6 +1664,111 @@ function normalizeWidgetPage(value, pageCount = MAX_LAUNCHER_PAGES, fallback = 0
   return clamp(Math.floor(num), 0, maxPage);
 }
 
+function normalizeLauncherPageIndexList(value, pageCount = 1) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  const normalized = new Set();
+  for (const item of value) {
+    const page = normalizeWidgetPage(item, pageCount, 0);
+    normalized.add(page);
+  }
+  return Array.from(normalized).sort((left, right) => left - right);
+}
+
+function remapLauncherPageIndexList(list, remap, pageCount = 1) {
+  if (!(remap instanceof Map)) {
+    return normalizeLauncherPageIndexList(list, pageCount);
+  }
+  const remapped = [];
+  for (const rawPage of Array.isArray(list) ? list : []) {
+    const page = Math.floor(Number(rawPage));
+    if (!Number.isFinite(page)) {
+      continue;
+    }
+    const mapped = remap.get(page);
+    if (Number.isFinite(mapped)) {
+      remapped.push(mapped);
+    }
+  }
+  return normalizeLauncherPageIndexList(remapped, pageCount);
+}
+
+function shiftLauncherPageIndexListOnInsert(list, { addLeft = false, pageCount = 1, insertedPage = 0 } = {}) {
+  const shifted = normalizeLauncherPageIndexList(list, Math.max(1, pageCount - 1)).map((page) =>
+    addLeft ? page + 1 : page
+  );
+  shifted.push(insertedPage);
+  return normalizeLauncherPageIndexList(shifted, pageCount);
+}
+
+function shiftLauncherPageIndexListOnDelete(list, deletedPage, pageCount = 1) {
+  const target = normalizeWidgetPage(deletedPage, pageCount + 1, 0);
+  const shifted = [];
+  for (const page of normalizeLauncherPageIndexList(list, pageCount + 1)) {
+    if (page === target) {
+      continue;
+    }
+    shifted.push(page > target ? page - 1 : page);
+  }
+  return normalizeLauncherPageIndexList(shifted, pageCount);
+}
+
+function resolvePageTowardHomeDirection(keptPages, currentPage, homePage) {
+  if (!Array.isArray(keptPages) || !keptPages.length) {
+    return 0;
+  }
+  const sorted = [...keptPages].sort((left, right) => left - right);
+  if (sorted.includes(currentPage)) {
+    return currentPage;
+  }
+
+  if (currentPage < homePage) {
+    const towardHome = sorted.find((page) => page > currentPage);
+    if (Number.isFinite(towardHome)) {
+      return towardHome;
+    }
+    return sorted[sorted.length - 1];
+  }
+
+  if (currentPage > homePage) {
+    for (let index = sorted.length - 1; index >= 0; index -= 1) {
+      if (sorted[index] < currentPage) {
+        return sorted[index];
+      }
+    }
+    return sorted[0];
+  }
+
+  const atOrAfterHome = sorted.find((page) => page >= homePage);
+  if (Number.isFinite(atOrAfterHome)) {
+    return atOrAfterHome;
+  }
+  return sorted[sorted.length - 1];
+}
+
+function remapPageForDeletion(page, deletedPage, pageCountAfter) {
+  const normalizedDeletedPage = normalizeWidgetPage(deletedPage, pageCountAfter + 1, 0);
+  const normalizedPage = normalizeWidgetPage(page, pageCountAfter + 1, normalizedDeletedPage);
+  if (normalizedPage < normalizedDeletedPage) {
+    return normalizeWidgetPage(normalizedPage, pageCountAfter, 0);
+  }
+  if (normalizedPage > normalizedDeletedPage) {
+    return normalizeWidgetPage(normalizedPage - 1, pageCountAfter, 0);
+  }
+  return normalizeWidgetPage(normalizedDeletedPage, pageCountAfter, normalizedDeletedPage - 1);
+}
+
+function applyLauncherHomeMetadata(home) {
+  if (!home || typeof home !== "object") {
+    return home;
+  }
+  const pageCount = normalizePageCount(home.pageCount, 1);
+  home.homePage = normalizeActivePage(home.homePage, pageCount, 0);
+  home.manualPages = normalizeLauncherPageIndexList(home.manualPages, pageCount);
+  return home;
+}
+
 function marginPresetToPx(value) {
   if (value === "wide") {
     return 40;
@@ -1691,6 +1798,8 @@ function normalizeHomeLayout(layout) {
     ...(layout || {})
   };
   const pageCount = normalizePageCount(base.pageCount, 1);
+  const homePage = normalizeActivePage(base.homePage, pageCount, 0);
+  const manualPages = normalizeLauncherPageIndexList(base.manualPages, pageCount);
 
   return {
     mode: normalizeHomeMode(base.mode, "grid"),
@@ -1701,6 +1810,8 @@ function normalizeHomeLayout(layout) {
     itemGap: normalizeGapPreset(base.itemGap, "narrow"),
     pageCount,
     activePage: normalizeActivePage(base.activePage, pageCount, 0),
+    homePage,
+    manualPages,
     dockEnabled: base.dockEnabled !== false,
     dockShape: normalizeDockShape(base.dockShape, "raised"),
     dockVisibility: normalizeDockVisibility(base.dockVisibility, "always"),
@@ -4927,6 +5038,7 @@ function syncLauncherPagingState({ expandToFitInstances = true } = {}) {
     instance.page = normalizeWidgetPage(instance.page, home.pageCount, 0);
   }
   home.activePage = normalizeActivePage(home.activePage, home.pageCount, 0);
+  applyLauncherHomeMetadata(home);
 
   state.ui.home = home;
   return home;
@@ -5025,23 +5137,23 @@ function compactEmptyLauncherPagesForUseMode() {
   }
 
   const counts = launcherPageWidgetCounts(pageCount);
-  const keptPages = [];
+  const homePage = normalizeActivePage(home.homePage, pageCount, 0);
+  const manualPages = normalizeLauncherPageIndexList(home.manualPages, pageCount);
+  const keptPagesSet = new Set([homePage, ...manualPages]);
   for (let page = 0; page < counts.length; page += 1) {
     if (counts[page] > 0) {
-      keptPages.push(page);
+      keptPagesSet.add(page);
     }
   }
 
+  const keptPages = Array.from(keptPagesSet).sort((left, right) => left - right);
+
   const targetPageCount = Math.max(1, keptPages.length);
   if (targetPageCount === pageCount) {
-    return false;
-  }
-
-  if (!keptPages.length) {
-    home.pageCount = 1;
-    home.activePage = 0;
+    home.homePage = homePage;
+    home.manualPages = manualPages;
     state.ui.home = home;
-    return true;
+    return false;
   }
 
   const remap = new Map();
@@ -5060,17 +5172,14 @@ function compactEmptyLauncherPagesForUseMode() {
     }
   }
 
-  const activePage = normalizeActivePage(home.activePage, pageCount, 0);
-  let fallbackOldPage = keptPages[keptPages.length - 1];
-  for (const oldPage of keptPages) {
-    if (oldPage >= activePage) {
-      fallbackOldPage = oldPage;
-      break;
-    }
-  }
+  const activePage = normalizeActivePage(home.activePage, pageCount, homePage);
+  const nextActiveOldPage = resolvePageTowardHomeDirection(keptPages, activePage, homePage);
+  const nextHomeOldPage = resolvePageTowardHomeDirection(keptPages, homePage, homePage);
 
   home.pageCount = targetPageCount;
-  home.activePage = normalizeActivePage(remap.get(fallbackOldPage), home.pageCount, 0);
+  home.homePage = normalizeActivePage(remap.get(nextHomeOldPage), home.pageCount, 0);
+  home.activePage = normalizeActivePage(remap.get(nextActiveOldPage), home.pageCount, home.homePage);
+  home.manualPages = remapLauncherPageIndexList(manualPages, remap, home.pageCount);
   state.ui.home = home;
   return true;
 }
@@ -5087,7 +5196,16 @@ function deleteLauncherPageAt(pageIndex) {
   }
 
   const targetPage = normalizeWidgetPage(pageIndex, pageCount, 0);
-  const fallbackPage = Math.max(0, targetPage - 1);
+  const homePageBefore = normalizeActivePage(home.homePage, pageCount, 0);
+  const activePageBefore = normalizeActivePage(home.activePage, pageCount, homePageBefore);
+  const keptOldPages = [];
+  for (let page = 0; page < pageCount; page += 1) {
+    if (page !== targetPage) {
+      keptOldPages.push(page);
+    }
+  }
+  const nextActiveOldPage = resolvePageTowardHomeDirection(keptOldPages, activePageBefore, homePageBefore);
+  const nextHomeOldPage = resolvePageTowardHomeDirection(keptOldPages, homePageBefore, homePageBefore);
 
   recordHistorySnapshot("Delete launcher page");
 
@@ -5097,7 +5215,7 @@ function deleteLauncherPageAt(pageIndex) {
     }
     const page = normalizeWidgetPage(instance.page, pageCount, 0);
     if (page === targetPage) {
-      instance.page = fallbackPage;
+      instance.page = remapPageForDeletion(page, targetPage, pageCount - 1);
       continue;
     }
     if (page > targetPage) {
@@ -5106,14 +5224,21 @@ function deleteLauncherPageAt(pageIndex) {
   }
 
   home.pageCount = normalizePageCount(pageCount - 1, pageCount - 1);
-  const nextActivePage = home.activePage > targetPage
-    ? home.activePage - 1
-    : (home.activePage === targetPage ? fallbackPage : home.activePage);
-  home.activePage = normalizeActivePage(nextActivePage, home.pageCount, 0);
+  home.homePage = normalizeActivePage(
+    remapPageForDeletion(nextHomeOldPage, targetPage, home.pageCount),
+    home.pageCount,
+    0
+  );
+  home.activePage = normalizeActivePage(
+    remapPageForDeletion(nextActiveOldPage, targetPage, home.pageCount),
+    home.pageCount,
+    home.homePage
+  );
+  home.manualPages = shiftLauncherPageIndexListOnDelete(home.manualPages, targetPage, home.pageCount);
   state.ui.home = home;
 
   clearPendingPlaceholderDrop({ clearVirtualPage: true });
-  renderBoard();
+  refreshBoardCardsAfterLauncherPageMutation({ animate: true });
   queueSave();
   return true;
 }
@@ -5169,6 +5294,8 @@ function materializePendingPlaceholderPage() {
   }
 
   const addLeft = pending.placeholderPage < 0;
+  const homePageBefore = normalizeActivePage(home.homePage, oldPageCount, 0);
+  const manualPagesBefore = normalizeLauncherPageIndexList(home.manualPages, oldPageCount);
 
   recordHistorySnapshot("Create launcher page by drop");
 
@@ -5184,6 +5311,10 @@ function materializePendingPlaceholderPage() {
   home.pageCount = normalizePageCount(oldPageCount + 1, oldPageCount + 1);
   const targetPage = addLeft ? 0 : oldPageCount;
   home.activePage = targetPage;
+  home.homePage = addLeft ? normalizeWidgetPage(homePageBefore + 1, home.pageCount, 1) : homePageBefore;
+  home.manualPages = addLeft
+    ? normalizeLauncherPageIndexList(manualPagesBefore.map((page) => page + 1), home.pageCount)
+    : normalizeLauncherPageIndexList(manualPagesBefore, home.pageCount);
   state.ui.home = home;
 
   if (isWidgetDocked(instance)) {
@@ -5240,6 +5371,8 @@ function materializeLauncherPlaceholderPage(placeholderPage) {
   }
 
   const addLeft = targetPlaceholder < 0;
+  const homePageBefore = normalizeActivePage(home.homePage, oldPageCount, 0);
+  const manualPagesBefore = normalizeLauncherPageIndexList(home.manualPages, oldPageCount);
   recordHistorySnapshot("Create empty launcher page");
 
   if (addLeft) {
@@ -5252,7 +5385,14 @@ function materializeLauncherPlaceholderPage(placeholderPage) {
   }
 
   home.pageCount = normalizePageCount(oldPageCount + 1, oldPageCount + 1);
-  home.activePage = addLeft ? 0 : oldPageCount;
+  const createdPage = addLeft ? 0 : oldPageCount;
+  home.activePage = createdPage;
+  home.homePage = addLeft ? normalizeWidgetPage(homePageBefore + 1, home.pageCount, 1) : homePageBefore;
+  home.manualPages = shiftLauncherPageIndexListOnInsert(manualPagesBefore, {
+    addLeft,
+    pageCount: home.pageCount,
+    insertedPage: createdPage
+  });
   state.ui.home = home;
 
   launcherPageUiState.virtualPage = null;
@@ -7065,6 +7205,24 @@ function setActiveLauncherPage(page, { animate = true } = {}) {
   return changed;
 }
 
+function refreshBoardCardsAfterLauncherPageMutation({ animate = true } = {}) {
+  for (const instance of state.instances || []) {
+    if (!isBoardWidgetInstance(instance)) {
+      continue;
+    }
+    const rt = runtime.get(instance.id);
+    if (!rt?.card) {
+      continue;
+    }
+    applyLayout(rt.card, instance.layout, instance.page);
+    if (instance.type === "container") {
+      rt.controller?.refresh?.();
+    }
+  }
+  renderBoardViewport({ animate, dragging: false, dragOffsetX: 0 });
+  renderSettings();
+}
+
 function addLauncherPage() {
   if (state.mode !== "edit") {
     return;
@@ -7076,8 +7234,15 @@ function addLauncherPage() {
   }
 
   recordHistorySnapshot("Add launcher page");
+  const manualPages = normalizeLauncherPageIndexList(home.manualPages, home.pageCount);
   home.pageCount = normalizePageCount(home.pageCount + 1, home.pageCount + 1);
-  home.activePage = home.pageCount - 1;
+  const createdPage = home.pageCount - 1;
+  home.activePage = createdPage;
+  home.manualPages = shiftLauncherPageIndexListOnInsert(manualPages, {
+    addLeft: false,
+    pageCount: home.pageCount,
+    insertedPage: createdPage
+  });
   state.ui.home = home;
   clearPendingPlaceholderDrop({ clearVirtualPage: true });
 
@@ -7091,35 +7256,7 @@ function removeLauncherPage() {
     return;
   }
 
-  const home = syncLauncherPagingState({ expandToFitInstances: true });
-  if (home.pageCount <= 1) {
-    return;
-  }
-
-  const targetPage = currentLauncherActivePage();
-  const fallbackPage = Math.max(0, targetPage - 1);
-
-  recordHistorySnapshot("Remove launcher page");
-
-  for (const instance of state.instances) {
-    const currentPage = normalizeWidgetPage(instance.page, home.pageCount, 0);
-    if (currentPage > targetPage) {
-      instance.page = currentPage - 1;
-      continue;
-    }
-    if (currentPage === targetPage) {
-      instance.page = fallbackPage;
-    }
-  }
-
-  home.pageCount = normalizePageCount(home.pageCount - 1, home.pageCount - 1);
-  home.activePage = normalizeActivePage(Math.min(targetPage, home.pageCount - 1), home.pageCount, fallbackPage);
-  state.ui.home = home;
-  clearPendingPlaceholderDrop({ clearVirtualPage: true });
-
-  renderBoard();
-  renderSettings();
-  queueSave();
+  deleteLauncherPageAt(currentLauncherActivePage());
 }
 
 function applyLayout(card, layout, page = 0) {
@@ -12362,6 +12499,10 @@ async function init() {
   lastSavedUserMutationAt = readUserMutationClock(normalizedLoaded);
   saveInFlightFingerprint = "";
   state = hydrate(normalizedLoaded);
+  const home = syncLauncherPagingState({ expandToFitInstances: true });
+  home.activePage = normalizeActivePage(home.homePage, home.pageCount, home.activePage);
+  state.ui.home = home;
+  launcherPageUiState.virtualPage = null;
   runtimeSettingsPanelOpen = false;
   wireStorageSync();
   if (
