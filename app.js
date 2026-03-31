@@ -70,6 +70,11 @@ import {
   normalizeDockedWidgetOrders as normalizeDockedWidgetOrdersCore
 } from "./core/dock-state.js";
 import {
+  isWidgetInContainer,
+  normalizeContainerAssignments,
+  normalizeContainerId
+} from "./core/container-state.js";
+import {
   isHorizontalDockPosition,
   resolveDockSlotIndexAtPoint,
   resolveDockSlotRectRelativeToHost
@@ -1059,44 +1064,6 @@ function normalizeDockedWidgetOrders(instances, home = state?.ui?.home) {
     slotCount,
     isInContainer: isWidgetInContainer
   });
-}
-
-function normalizeContainerId(value) {
-  return normalizeText(value);
-}
-
-function isWidgetInContainer(instance) {
-  return normalizeContainerId(instance?.containerId) !== "";
-}
-
-function normalizeContainerAssignments(instances) {
-  if (!Array.isArray(instances) || !instances.length) {
-    return;
-  }
-
-  const validContainers = new Set(
-    instances
-      .filter((instance) => instance && instance.type === "container")
-      .map((instance) => String(instance.id))
-  );
-
-  for (const instance of instances) {
-    if (!instance || instance.type === "container") {
-      if (instance) {
-        instance.containerId = "";
-      }
-      continue;
-    }
-
-    const containerId = normalizeContainerId(instance.containerId);
-    if (!containerId || !validContainers.has(containerId) || containerId === String(instance.id)) {
-      instance.containerId = "";
-      continue;
-    }
-
-    instance.containerId = containerId;
-    instance.dockOrder = null;
-  }
 }
 
 function resolveContainerSpan(containerInstance) {
