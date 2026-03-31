@@ -6304,6 +6304,65 @@ function applyWidgetDropPlan(instance, plan, payload = {}, { record = true } = {
     if (isWidgetInContainer(instance)) {
       return releaseWidgetFromContainerByDrop(instance.id, boardPayload);
     }
+
+    const targetLayoutPatch =
+      plan.projection?.layout && typeof plan.projection.layout === "object"
+        ? plan.projection.layout
+        : null;
+    const targetGridLayout =
+      plan.projection?.gridLayout && typeof plan.projection.gridLayout === "object"
+        ? plan.projection.gridLayout
+        : null;
+
+    const nextLayout = targetLayoutPatch
+      ? {
+          ...instance.layout,
+          ...targetLayoutPatch
+        }
+      : instance.layout;
+
+    const layoutChanged =
+      nextLayout.x !== instance.layout.x ||
+      nextLayout.y !== instance.layout.y ||
+      nextLayout.w !== instance.layout.w ||
+      nextLayout.h !== instance.layout.h;
+
+    const gridChanged = Boolean(targetGridLayout) && (
+      !instance.gridLayout ||
+      instance.gridLayout.col !== targetGridLayout.col ||
+      instance.gridLayout.row !== targetGridLayout.row ||
+      instance.gridLayout.colSpan !== targetGridLayout.colSpan ||
+      instance.gridLayout.rowSpan !== targetGridLayout.rowSpan
+    );
+
+    const changed = targetPage !== instance.page || layoutChanged || gridChanged;
+    if (!changed) {
+      return false;
+    }
+
+    if (record) {
+      recordHistorySnapshot("Move widget");
+    } else {
+      touchUserMutationClock();
+    }
+
+    instance.page = targetPage;
+    if (targetLayoutPatch) {
+      instance.layout = nextLayout;
+    }
+    if (targetGridLayout) {
+      instance.gridLayout = targetGridLayout;
+    }
+    state.ui.home.activePage = targetPage;
+
+    if (isGridLayoutMode()) {
+      applyGridLayout({ commitFreeLayout: false, shouldSave: false });
+    }
+
+    compactEmptyLauncherPagesForUseMode();
+    renderBoard();
+    queueSave();
+    return true;
   }
 
   return false;
@@ -7719,6 +7778,8 @@ function resolveWidgetDropPlan(
 
   const clientX = Number(payload?.clientX);
   const clientY = Number(payload?.clientY);
+  const pageCount = currentLauncherPageCount();
+  const requestedPage = Number(payload?.page);
 
   if (allowDeleteZone && isPointOverDragDeleteZone(clientX, clientY)) {
     return createDeleteZoneDropPlan();
@@ -7754,6 +7815,17 @@ function resolveWidgetDropPlan(
     });
   }
 
+  const requestedInternalPage = Number.isFinite(requestedPage) ? Math.floor(requestedPage) : null;
+  if (requestedInternalPage !== null && isPlaceholderLauncherPage(requestedInternalPage, pageCount)) {
+    const edge = placeholderEdgeFromInternalPlaceholder(requestedInternalPage, pageCount);
+    return createBoardPlaceholderDropPlan({
+      edge,
+      policyPlaceholderPage: policyPlaceholderPageFromInternalPlaceholder(requestedInternalPage, pageCount),
+      internalPlaceholderPage: requestedInternalPage,
+      projection: null
+    });
+  }
+
   const fallbackProjection = projectWidgetBoardDropLayout(instance, payload, {
     pageFallback: currentLauncherActivePage()
   });
@@ -7762,7 +7834,6 @@ function resolveWidgetDropPlan(
     return createNoneDropPlan();
   }
 
-  const pageCount = currentLauncherPageCount();
   const internalPage = normalizeWidgetPage(projected.page, pageCount, currentLauncherActivePage());
   const projection = buildDropPlanProjection(projected.layout, internalPage, projected.gridLayout || null);
 
@@ -11533,6 +11604,17 @@ function canStartBoardSwipeFromTarget(target) {
     return false;
   }
 
+  const widgetZones = [
+    ".widget-card",
+    ".dock-widget-item",
+    ".widget-folder-panel",
+    ".widget-folder-item-card"
+  ].join(",");
+
+  if (target.closest(widgetZones)) {
+    return false;
+  }
+
   return !isInteractiveSwipeTarget(target);
 }
 
@@ -11557,9 +11639,6 @@ function isTextEditableTarget(target) {
 
 function beginBoardSwipe(event) {
   if (!elements.board || !state?.ui?.home) {
-    return;
-  }
-  if (event.defaultPrevented) {
     return;
   }
   if (widgetLongPressState.pending) {
@@ -11722,9 +11801,13 @@ function wireEvents() {
     elements.editDock?.classList.remove("is-dragging");
   });
 
-  elements.workspace?.addEventListener("pointerdown", (event) => {
-    beginBoardSwipe(event);
-  });
+  elements.workspace?.addEventListener(
+    "pointerdown",
+    (event) => {
+      beginBoardSwipe(event);
+    },
+    true
+  );
 
   window.addEventListener("pointermove", (event) => {
     moveBoardSwipe(event);
