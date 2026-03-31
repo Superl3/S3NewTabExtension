@@ -257,13 +257,27 @@ body.mode-edit .edit-rail {
   z-index: 1390;
 }
 
+.corner-controls-home {
+  position: fixed;
+  left: 10px;
+  bottom: 10px;
+  display: inline-flex;
+  align-items: center;
+  z-index: 1390;
+}
+
 body.mode-edit .corner-controls-bottom {
+  bottom: 72px;
+}
+
+body.mode-edit .corner-controls-home {
   bottom: 72px;
 }
 
 .corner-mode-toggle,
 .corner-bg-refresh,
-.corner-settings-toggle {
+.corner-settings-toggle,
+.corner-home-anchor {
   width: 36px;
   height: 36px;
   display: inline-flex;
@@ -282,14 +296,16 @@ body.mode-edit .corner-controls-bottom {
 
 .corner-mode-toggle .icon,
 .corner-bg-refresh .icon,
-.corner-settings-toggle .icon {
+.corner-settings-toggle .icon,
+.corner-home-anchor .icon {
   width: 19px;
   height: 19px;
 }
 
 .corner-mode-toggle:hover,
 .corner-bg-refresh:hover,
-.corner-settings-toggle:hover {
+.corner-settings-toggle:hover,
+.corner-home-anchor:hover {
   opacity: 1;
   transform: translateY(-1px);
 }
@@ -298,7 +314,17 @@ body:not(.mode-edit) .corner-settings-toggle {
   display: none;
 }
 
+body:not(.mode-edit) .corner-controls-home {
+  display: none;
+}
+
 body.mode-edit .corner-mode-toggle {
+  background: color-mix(in srgb, var(--primary), var(--tone-light) 6%);
+  border-color: color-mix(in srgb, var(--primary), var(--tone-dark) 20%);
+  color: var(--tone-light);
+}
+
+.corner-home-anchor.is-active {
   background: color-mix(in srgb, var(--primary), var(--tone-light) 6%);
   border-color: color-mix(in srgb, var(--primary), var(--tone-dark) 20%);
   color: var(--tone-light);

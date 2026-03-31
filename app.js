@@ -176,6 +176,7 @@ const elements = {
   dragDeleteZone: document.getElementById("dragDeleteZone"),
   boardContextMenu: document.getElementById("boardContextMenu"),
   boardContextAddWidgetBtn: document.getElementById("boardContextAddWidgetBtn"),
+  homePageAnchorBtn: document.getElementById("homePageAnchorBtn"),
   workspace: document.querySelector(".workspace"),
   editDock: document.querySelector(".edit-dock"),
   editDockGrip: document.getElementById("editDockGrip")
@@ -3018,6 +3019,69 @@ function setBodyMode() {
 
   syncSettingsPanelVisibility();
   syncPersistentDock();
+  syncHomePageAnchorButton();
+}
+
+function resolveHomeAnchorTargetPage() {
+  const pageCount = currentLauncherPageCount();
+  const viewportPage = currentLauncherViewportPage();
+  if (isPlaceholderLauncherPage(viewportPage, pageCount)) {
+    return null;
+  }
+  return normalizeWidgetPage(viewportPage, pageCount, currentLauncherActivePage());
+}
+
+function syncHomePageAnchorButton() {
+  const button = elements.homePageAnchorBtn;
+  if (!(button instanceof HTMLButtonElement) || !state?.ui?.home) {
+    return;
+  }
+
+  const isEdit = state.mode === "edit";
+  const targetPage = resolveHomeAnchorTargetPage();
+  const pageCount = currentLauncherPageCount();
+  const homePage = normalizeActivePage(state.ui.home.homePage, pageCount, 0);
+  const isHomeTarget = Number.isFinite(targetPage) && targetPage === homePage;
+  const onPlaceholder = targetPage === null;
+
+  let label = "Set current page as home";
+  if (!isEdit) {
+    label = "Set home page (Edit mode only)";
+  } else if (onPlaceholder) {
+    label = "Placeholder page cannot be home";
+  } else if (isHomeTarget) {
+    label = "Current page is home";
+  }
+
+  button.classList.toggle("is-active", isHomeTarget);
+  button.disabled = !isEdit || onPlaceholder;
+  button.tabIndex = isEdit ? 0 : -1;
+  button.title = label;
+  button.setAttribute("aria-label", label);
+}
+
+function setLauncherHomePage(page = currentLauncherActivePage()) {
+  if (!state?.ui?.home) {
+    return false;
+  }
+
+  const home = syncLauncherPagingState({ expandToFitInstances: true });
+  const targetPage = normalizeWidgetPage(page, home.pageCount, home.activePage);
+  const nextHomePage = normalizeActivePage(targetPage, home.pageCount, home.homePage);
+  if (nextHomePage === home.homePage) {
+    syncHomePageAnchorButton();
+    return false;
+  }
+
+  recordHistorySnapshot("Set home page");
+  home.homePage = nextHomePage;
+  home.manualPages = normalizeLauncherPageIndexList(home.manualPages, home.pageCount);
+  state.ui.home = home;
+
+  renderBoardViewport({ animate: true, dragging: false, dragOffsetX: 0 });
+  renderSettings();
+  queueSave();
+  return true;
 }
 
 function clampEditDockPosition(left, top) {
@@ -7183,6 +7247,7 @@ function renderBoardViewport({ dragOffsetX = 0, animate = true, dragging = false
   refreshWidgetsByType("container");
   if (!dragging) {
     renderLauncherPageAffordances();
+    syncHomePageAnchorButton();
   }
 }
 
@@ -12011,6 +12076,18 @@ function wireEvents() {
     requestAnimationFrame(() => {
       updateBoardBounds();
     });
+  });
+
+  elements.homePageAnchorBtn?.addEventListener("click", () => {
+    if (state.mode !== "edit") {
+      return;
+    }
+    const targetPage = resolveHomeAnchorTargetPage();
+    if (!Number.isFinite(targetPage)) {
+      showAddWidgetToast("실제 페이지에서만 홈 화면으로 지정할 수 있어요.");
+      return;
+    }
+    setLauncherHomePage(targetPage);
   });
 
   elements.dockSettingsBtn?.addEventListener("click", () => {
