@@ -43,6 +43,13 @@
     "http://localhost/*",
     "http://127.0.0.1/*"
   ],
+  "content_scripts": [
+    {
+      "matches": ["https://chatgpt.com/codex/settings/usage*"],
+      "js": ["content-scripts/codexUsageScraper.js"],
+      "run_at": "document_idle"
+    }
+  ],
   "chrome_url_overrides": {
     "newtab": "newtab.html"
   }

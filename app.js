@@ -11260,7 +11260,6 @@ function canStartBoardSwipeFromTarget(target) {
     return false;
   }
 
-
   return !isInteractiveSwipeTarget(target);
 }
 
@@ -11285,6 +11284,9 @@ function isTextEditableTarget(target) {
 
 function beginBoardSwipe(event) {
   if (!elements.board || !state?.ui?.home) {
+    return;
+  }
+  if (event.defaultPrevented) {
     return;
   }
   if (widgetLongPressState.pending) {

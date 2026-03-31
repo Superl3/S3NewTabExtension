@@ -15,6 +15,7 @@ import { githubPrListWidget } from "./githubPrList.js";
 import { flexWorktimeWidget } from "./flexWorktime.js";
 import { weatherWidget } from "./weather.js";
 import { containerWidget } from "./container.js";
+import { codexUsageWidget } from "./codexUsage.js";
 
 export const widgetRegistry = {
   [clockWidget.type]: clockWidget,
@@ -33,7 +34,8 @@ export const widgetRegistry = {
   [githubPrListWidget.type]: githubPrListWidget,
   [flexWorktimeWidget.type]: flexWorktimeWidget,
   [weatherWidget.type]: weatherWidget,
-  [containerWidget.type]: containerWidget
+  [containerWidget.type]: containerWidget,
+  [codexUsageWidget.type]: codexUsageWidget
 };
 
 export const widgetList = Object.values(widgetRegistry);
