@@ -91,6 +91,7 @@ const FONT_OPTIONS = [
 const VIDEO_CACHE_NAME = "s3newtab-loop-video-cache-v1";
 const VIDEO_CACHE_KEY_PREFIX = "https://s3newtab.local/loop-video/";
 const VIDEO_CACHE_MAX_ENTRIES = 6;
+const BOARD_PAGE_TRANSITION_MS = 260;
 const EXPORT_SNAPSHOT_FILENAME = "startup-state.sanitized.json";
 const SENSITIVE_EXPORT_KEYWORD_PARTS = [
   "token",
@@ -12060,7 +12061,19 @@ function wireEvents() {
   });
 
   elements.modeToggleBtn.addEventListener("click", () => {
-    state.mode = state.mode === "edit" ? "use" : "edit";
+    const nextMode = state.mode === "edit" ? "use" : "edit";
+    let deferBoundsSync = false;
+
+    if (state.mode === "edit" && nextMode === "use") {
+      const pageCount = currentLauncherPageCount();
+      const viewportPage = currentLauncherViewportPage();
+      if (isPlaceholderLauncherPage(viewportPage, pageCount)) {
+        setActiveLauncherPage(currentLauncherActivePage(), { animate: true });
+        deferBoundsSync = true;
+      }
+    }
+
+    state.mode = nextMode;
     if (state.mode === "use") {
       state.selectedWidgetId = "";
       compactEmptyLauncherPagesForUseMode();
@@ -12068,10 +12081,19 @@ function wireEvents() {
     setBodyMode();
     setSelected(state.selectedWidgetId);
     refreshAllWidgets();
-    updateBoardBounds();
-    requestAnimationFrame(() => {
+
+    const syncBounds = () => {
       updateBoardBounds();
-    });
+      requestAnimationFrame(() => {
+        updateBoardBounds();
+      });
+    };
+
+    if (deferBoundsSync) {
+      window.setTimeout(syncBounds, BOARD_PAGE_TRANSITION_MS + 20);
+    } else {
+      syncBounds();
+    }
   });
 
   elements.homePageAnchorBtn?.addEventListener("click", () => {
