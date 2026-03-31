@@ -61,6 +61,14 @@ import {
   createWidgetDragPreview as createWidgetDragPreviewCore,
   positionWidgetDragPreview as positionWidgetDragPreviewCore
 } from "./core/drag-preview.js";
+import {
+  dockSlotOccupants as dockSlotOccupantsCore,
+  firstAvailableDockSlot as firstAvailableDockSlotCore,
+  isWidgetDocked,
+  nextDockOrder as nextDockOrderCore,
+  normalizeDockOrder,
+  normalizeDockedWidgetOrders as normalizeDockedWidgetOrdersCore
+} from "./core/dock-state.js";
 
 const SNAP = 20;
 const LONG_PRESS_DRAG_DELAY_MS = 340;
@@ -1034,98 +1042,18 @@ function applyWidgetCommonMaster(instance, master, force = false) {
  * @property {"bottom"} position
  */
 
-function normalizeDockOrder(value, fallback = null) {
-  if (value === null || value === undefined || value === "") {
-    return fallback;
-  }
-  const num = Number(value);
-  if (!Number.isFinite(num)) {
-    return fallback;
-  }
-  return Math.max(0, Math.floor(num));
-}
-
 function nextDockOrder(instances = state?.instances) {
-  const items = Array.isArray(instances) ? instances : [];
-  let maxOrder = -1;
-
-  for (const item of items) {
-    if (!item || item.enabled === false || isWidgetInContainer(item) || !isWidgetDocked(item)) {
-      continue;
-    }
-    const current = normalizeDockOrder(item.dockOrder, -1);
-    if (current >= 0 && current > maxOrder) {
-      maxOrder = current;
-    }
-  }
-
-  return maxOrder + 1;
-}
-
-function isWidgetDocked(instance) {
-  return normalizeDockOrder(instance?.dockOrder, null) !== null;
+  return nextDockOrderCore(instances, {
+    isInContainer: isWidgetInContainer
+  });
 }
 
 function normalizeDockedWidgetOrders(instances, home = state?.ui?.home) {
-  if (!Array.isArray(instances) || !instances.length) {
-    return false;
-  }
-
   const slotCount = Math.max(1, buildDockConfig(home).lengthUnits);
-  const docked = instances
-    .filter((instance) => instance && instance.enabled !== false && isWidgetDocked(instance) && !isWidgetInContainer(instance))
-    .sort((a, b) => {
-      const orderA = normalizeDockOrder(a.dockOrder, Number.MAX_SAFE_INTEGER);
-      const orderB = normalizeDockOrder(b.dockOrder, Number.MAX_SAFE_INTEGER);
-      if (orderA !== orderB) {
-        return orderA - orderB;
-      }
-      return String(a.id).localeCompare(String(b.id));
-    });
-
-  let changed = false;
-  const occupied = new Set();
-  const nextAvailableSlot = () => {
-    for (let slot = 0; slot < slotCount; slot += 1) {
-      if (!occupied.has(slot)) {
-        return slot;
-      }
-    }
-    return null;
-  };
-
-  for (const instance of docked) {
-    const current = normalizeDockOrder(instance.dockOrder, null);
-    if (current !== null && current < slotCount && !occupied.has(current)) {
-      occupied.add(current);
-      continue;
-    }
-
-    const fallback = nextAvailableSlot();
-    if (fallback === null) {
-      if (instance.dockOrder !== null) {
-        instance.dockOrder = null;
-        changed = true;
-      }
-      continue;
-    }
-
-    if (instance.dockOrder !== fallback) {
-      instance.dockOrder = fallback;
-      changed = true;
-    }
-    occupied.add(fallback);
-  }
-
-  for (const instance of instances) {
-    if (!instance || !isWidgetDocked(instance) || !isWidgetInContainer(instance)) {
-      continue;
-    }
-    instance.dockOrder = null;
-    changed = true;
-  }
-
-  return changed;
+  return normalizeDockedWidgetOrdersCore(instances, {
+    slotCount,
+    isInContainer: isWidgetInContainer
+  });
 }
 
 function normalizeContainerId(value) {
@@ -1322,34 +1250,19 @@ function isHorizontalDock(config = buildDockConfig(state?.ui?.home)) {
 }
 
 function dockSlotOccupants({ excludeWidgetId = "" } = {}) {
-  const slotCount = dockSlotCount();
-  const excluded = normalizeText(excludeWidgetId);
-  const occupied = new Map();
-  for (const instance of state?.instances || []) {
-    if (!instance || instance.enabled === false || !isWidgetDocked(instance) || isWidgetInContainer(instance)) {
-      continue;
-    }
-    if (excluded && String(instance.id) === excluded) {
-      continue;
-    }
-    const slot = normalizeDockOrder(instance.dockOrder, null);
-    if (slot === null || slot < 0 || slot >= slotCount || occupied.has(slot)) {
-      continue;
-    }
-    occupied.set(slot, instance);
-  }
-  return occupied;
+  return dockSlotOccupantsCore(state?.instances || [], {
+    slotCount: dockSlotCount(),
+    excludeWidgetId,
+    isInContainer: isWidgetInContainer
+  });
 }
 
 function firstAvailableDockSlot({ excludeWidgetId = "" } = {}) {
-  const slotCount = dockSlotCount();
-  const occupied = dockSlotOccupants({ excludeWidgetId });
-  for (let slot = 0; slot < slotCount; slot += 1) {
-    if (!occupied.has(slot)) {
-      return slot;
-    }
-  }
-  return null;
+  return firstAvailableDockSlotCore(state?.instances || [], {
+    slotCount: dockSlotCount(),
+    excludeWidgetId,
+    isInContainer: isWidgetInContainer
+  });
 }
 
 function dockSlotIndexAtPoint(clientX, clientY, { clampToRange = false } = {}) {
