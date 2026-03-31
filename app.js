@@ -4992,7 +4992,9 @@ function clearPendingPlaceholderDrop({ clearVirtualPage = false } = {}) {
 function currentLauncherViewportPage() {
   const pageCount = currentLauncherPageCount();
   const active = currentLauncherActivePage();
-  const virtual = Number(launcherPageUiState.virtualPage);
+  const virtualRaw = launcherPageUiState.virtualPage;
+  const hasVirtualPage = virtualRaw !== null && virtualRaw !== undefined && virtualRaw !== "";
+  const virtual = hasVirtualPage ? Number(virtualRaw) : NaN;
   if (shouldRenderLauncherPlaceholderPage() && Number.isFinite(virtual)) {
     return clamp(Math.floor(virtual), -1, pageCount);
   }
@@ -6357,10 +6359,19 @@ function applyWidgetDropPlan(instance, plan, payload = {}, { record = true } = {
 
     if (isGridLayoutMode()) {
       applyGridLayout({ commitFreeLayout: false, shouldSave: false });
+    } else {
+      const rt = runtime.get(instance.id);
+      if (rt?.card) {
+        applyLayout(rt.card, instance.layout, instance.page);
+        if (instance.type === "container") {
+          rt.controller?.refresh?.();
+        }
+      }
+      renderBoardViewport({ animate: true, dragging: false, dragOffsetX: 0 });
     }
 
     compactEmptyLauncherPagesForUseMode();
-    renderBoard();
+    renderSettings();
     queueSave();
     return true;
   }
