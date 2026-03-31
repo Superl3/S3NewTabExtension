@@ -11550,6 +11550,15 @@ function addWidget(type, options = {}) {
   }
 
   syncLauncherPagingState({ expandToFitInstances: true });
+  const viewportPage = currentLauncherViewportPage();
+  if (isPlaceholderLauncherPage(viewportPage, currentLauncherPageCount())) {
+    const materialized = materializeLauncherPlaceholderPage(viewportPage);
+    if (!materialized) {
+      return false;
+    }
+    syncLauncherPagingState({ expandToFitInstances: true });
+  }
+
   const targetPage = currentLauncherActivePage();
   const pageLocalIndex = state.instances.filter((instance) => {
     return (
