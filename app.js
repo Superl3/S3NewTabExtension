@@ -1,5 +1,37 @@
 import { STORAGE_KEY, loadState, saveState } from "./storage.js";
 import { widgetRegistry, widgetList } from "./widgets/index.js";
+import {
+  STARTUP_STATE_EMPTY_WIDGETS_QUERY_KEY,
+  STARTUP_STATE_INLINE_QUERY_KEY,
+  STARTUP_STATE_JSON_PATH,
+  STARTUP_STATE_QUERY_KEY,
+  getStartupStateFromLocation as getStartupStateFromLocationWithPolicy,
+  loadStartupStateFromConfigFile as loadStartupStateFromConfigFileWithPolicy,
+  loadStartupStateFromJsonValue as loadStartupStateFromJsonValueWithPolicy,
+  resolveStartupStateDefault as resolveStartupStateDefaultWithPolicy
+} from "./core/startupState.js";
+import {
+  applyRuntimeOnlyPolicyToPresetSnapshot,
+  applyRuntimeOnlyPolicyToSnapshot,
+  applyRuntimeOnlyWidgetConfigDefaults,
+  buildPersistableWidgetConfigPatch
+} from "./core/runtimeSnapshotPolicy.js";
+import {
+  DROP_CONTAINER_KIND,
+  DROP_PLAN_KIND,
+  createBoardPageDropPlan,
+  createBoardPlaceholderDropPlan,
+  createContainerDropPlan,
+  createDeleteZoneDropPlan,
+  createNoneDropPlan,
+  internalPlaceholderFromPlaceholderEdge,
+  isBoardPlaceholderDropPlan,
+  isBoardRealPageDropPlan,
+  isContainerDropPlan,
+  placeholderEdgeFromInternalPlaceholder,
+  policyPlaceholderPageFromInternalPlaceholder,
+  policyRealPageFromInternalPage
+} from "./core/launcherDropPlan.js";
 
 const SNAP = 20;
 const LONG_PRESS_DRAG_DELAY_MS = 340;
@@ -59,10 +91,7 @@ const FONT_OPTIONS = [
 const VIDEO_CACHE_NAME = "s3newtab-loop-video-cache-v1";
 const VIDEO_CACHE_KEY_PREFIX = "https://s3newtab.local/loop-video/";
 const VIDEO_CACHE_MAX_ENTRIES = 6;
-const STARTUP_STATE_QUERY_KEY = "startup-state";
-const STARTUP_STATE_INLINE_QUERY_KEY = "startupState";
-const STARTUP_STATE_EMPTY_WIDGETS_QUERY_KEY = "startup-state-empty-widgets";
-const STARTUP_STATE_JSON_PATH = "config/startup-state.json";
+const BOARD_PAGE_TRANSITION_MS = 260;
 const EXPORT_SNAPSHOT_FILENAME = "startup-state.sanitized.json";
 const SENSITIVE_EXPORT_KEYWORD_PARTS = [
   "token",
@@ -148,6 +177,7 @@ const elements = {
   dragDeleteZone: document.getElementById("dragDeleteZone"),
   boardContextMenu: document.getElementById("boardContextMenu"),
   boardContextAddWidgetBtn: document.getElementById("boardContextAddWidgetBtn"),
+  homePageAnchorBtn: document.getElementById("homePageAnchorBtn"),
   workspace: document.querySelector(".workspace"),
   editDock: document.querySelector(".edit-dock"),
   editDockGrip: document.getElementById("editDockGrip")
@@ -291,243 +321,53 @@ const SHORTCUT_ICON_PRESETS = [
   { id: "link", label: "Link", viewBox: "0 0 24 24", markup: '<path d="M10 14 8.2 15.8a3.2 3.2 0 0 1-4.6-4.6L6 8.8a3.2 3.2 0 0 1 4.6 0" /><path d="M14 10l1.8-1.8a3.2 3.2 0 0 1 4.6 4.6L18 15.2a3.2 3.2 0 0 1-4.6 0" /><path d="M8.8 15.2 15.2 8.8" />' }
 ];
 
-const RUNTIME_ONLY_WIDGET_CONFIG_DEFAULTS = Object.freeze({
-  container: Object.freeze({
-    expanded: false
-  }),
-  mondayAssigned: Object.freeze({
-    autoRefreshDayKey: "",
-    autoRefreshSlotsDone: ""
-  }),
-  mondayMeetingNote: Object.freeze({
-    autoRefreshDayKey: "",
-    autoRefreshSlotsDone: ""
-  })
-});
-
-function runtimeOnlyWidgetConfigDefaults(widgetType) {
-  return RUNTIME_ONLY_WIDGET_CONFIG_DEFAULTS[widgetType] || null;
-}
-
-function cloneRuntimeDefaultValue(value) {
-  return value && typeof value === "object" ? structuredClone(value) : value;
-}
-
-function applyRuntimeOnlyWidgetConfigDefaults(widgetType, config) {
-  const defaults = runtimeOnlyWidgetConfigDefaults(widgetType);
-  if (!defaults || !config || typeof config !== "object" || Array.isArray(config)) {
-    return config;
-  }
-
-  for (const [key, value] of Object.entries(defaults)) {
-    config[key] = cloneRuntimeDefaultValue(value);
-  }
-
-  return config;
-}
-
-function stripRuntimeOnlyWidgetConfigFields(widgetType, config) {
-  const defaults = runtimeOnlyWidgetConfigDefaults(widgetType);
-  if (!defaults || !config || typeof config !== "object" || Array.isArray(config)) {
-    return config;
-  }
-
-  for (const key of Object.keys(defaults)) {
-    if (Object.prototype.hasOwnProperty.call(config, key)) {
-      delete config[key];
-    }
-  }
-
-  return config;
-}
-
-function buildPersistableWidgetConfigPatch(widgetType, patch) {
-  if (!patch || typeof patch !== "object" || Array.isArray(patch)) {
-    return {};
-  }
-
-  const persistablePatch = { ...patch };
-  stripRuntimeOnlyWidgetConfigFields(widgetType, persistablePatch);
-  return persistablePatch;
-}
-
-function applyRuntimeOnlyPolicyToPresetSnapshot(snapshot) {
-  if (!snapshot || typeof snapshot !== "object" || Array.isArray(snapshot)) {
-    return snapshot;
-  }
-
-  if (snapshot.ui && typeof snapshot.ui === "object" && !Array.isArray(snapshot.ui)) {
-    if (snapshot.ui.home && typeof snapshot.ui.home === "object" && !Array.isArray(snapshot.ui.home)) {
-      snapshot.ui.home.activePage = 0;
-    }
-  }
-
-  if (Array.isArray(snapshot.instances)) {
-    for (const instance of snapshot.instances) {
-      if (!instance || typeof instance !== "object" || Array.isArray(instance)) {
-        continue;
-      }
-      if (!instance.config || typeof instance.config !== "object" || Array.isArray(instance.config)) {
-        continue;
-      }
-      stripRuntimeOnlyWidgetConfigFields(instance.type, instance.config);
-    }
-  }
-
-  return snapshot;
-}
-
-function applyRuntimeOnlyPolicyToSnapshot(snapshot) {
-  if (!snapshot || typeof snapshot !== "object" || Array.isArray(snapshot)) {
-    return snapshot;
-  }
-
-  snapshot.mode = "use";
-  snapshot.selectedWidgetId = "";
-
-  if (snapshot.ui && typeof snapshot.ui === "object" && !Array.isArray(snapshot.ui)) {
-    snapshot.ui.activeTab = "global";
-    if (Object.prototype.hasOwnProperty.call(snapshot.ui, "settingsOpen")) {
-      delete snapshot.ui.settingsOpen;
-    }
-    if (snapshot.ui.home && typeof snapshot.ui.home === "object" && !Array.isArray(snapshot.ui.home)) {
-      snapshot.ui.home.activePage = 0;
-    }
-    if (
-      snapshot.ui.defaultProfileSnapshot &&
-      typeof snapshot.ui.defaultProfileSnapshot === "object" &&
-      !Array.isArray(snapshot.ui.defaultProfileSnapshot)
-    ) {
-      applyRuntimeOnlyPolicyToPresetSnapshot(snapshot.ui.defaultProfileSnapshot);
-    }
-  }
-
-  if (Array.isArray(snapshot.presets)) {
-    for (const preset of snapshot.presets) {
-      if (!preset || typeof preset !== "object" || Array.isArray(preset)) {
-        continue;
-      }
-      if (!preset.snapshot || typeof preset.snapshot !== "object" || Array.isArray(preset.snapshot)) {
-        continue;
-      }
-      applyRuntimeOnlyPolicyToPresetSnapshot(preset.snapshot);
-    }
-  }
-
-  if (Array.isArray(snapshot.instances)) {
-    for (const instance of snapshot.instances) {
-      if (!instance || typeof instance !== "object" || Array.isArray(instance)) {
-        continue;
-      }
-      if (!instance.config || typeof instance.config !== "object" || Array.isArray(instance.config)) {
-        continue;
-      }
-      stripRuntimeOnlyWidgetConfigFields(instance.type, instance.config);
-    }
-  }
-
-  return snapshot;
-}
-
-function isAllowedStartupStateUrl(value) {
-  try {
-    const url = new URL(value, location.origin);
-    return ["http:", "https:", "chrome-extension:"].includes(url.protocol);
-  } catch {
-    return false;
-  }
-}
-
-function normalizeStartupStateBoolean(value) {
-  if (typeof value !== "string") {
-    return false;
-  }
-
-  const normalized = value.trim().toLowerCase();
-  return normalized === "1" || normalized === "true" || normalized === "yes" || normalized === "on";
-}
-
 async function loadStartupStateFromJsonValue(rawValue, options = {}) {
-  const value = rawValue?.trim();
-  if (!value) {
-    return null;
-  }
-
-  if (value.startsWith("{") || value.startsWith("[")) {
-    const parsed = JSON.parse(value);
-    if (!isStateObject(parsed)) {
-      return null;
-    }
-    return parsed;
-  }
-
-  if (!isAllowedStartupStateUrl(value)) {
-    return null;
-  }
-
-  const response = await fetch(new URL(value, location.origin), {
-    cache: options.cache || "no-store"
+  return loadStartupStateFromJsonValueWithPolicy(rawValue, {
+    ...options,
+    isStateObject,
+    mergeStateObjects,
+    baseOrigin: location.origin
   });
-
-  if (!response.ok) {
-    throw new Error(`Failed to load startup state from ${value}: ${response.status}`);
-  }
-
-  const text = await response.text();
-  const parsed = JSON.parse(text);
-  if (!isStateObject(parsed)) {
-    return null;
-  }
-
-  return parsed;
 }
 
 async function getStartupStateFromLocation() {
-  const searchParams = new URLSearchParams(window.location.search);
-  const startupStateValue = searchParams.get(STARTUP_STATE_QUERY_KEY) || searchParams.get(STARTUP_STATE_INLINE_QUERY_KEY);
-  if (!startupStateValue) {
-    return null;
-  }
-
-  try {
-    const startupState = await loadStartupStateFromJsonValue(startupStateValue);
-    if (!startupState) {
-      console.warn("Invalid startup-state payload, skipping startup state initialization.");
-      return null;
-    }
-
-    const shouldKeepEmptyWidgets = normalizeStartupStateBoolean(
-      searchParams.get(STARTUP_STATE_EMPTY_WIDGETS_QUERY_KEY)
-    );
-    if (shouldKeepEmptyWidgets && !Array.isArray(startupState.instances)) {
-      startupState.instances = [];
-    }
-
-    return startupState;
-  } catch (error) {
-    console.warn("Failed to load startup-state", error);
-    return null;
-  }
+  return getStartupStateFromLocationWithPolicy({
+    search: window.location.search,
+    startupStateQueryKey: STARTUP_STATE_QUERY_KEY,
+    startupStateInlineQueryKey: STARTUP_STATE_INLINE_QUERY_KEY,
+    startupStateEmptyWidgetsQueryKey: STARTUP_STATE_EMPTY_WIDGETS_QUERY_KEY,
+    isStateObject,
+    mergeStateObjects,
+    fetchFn: fetch,
+    baseOrigin: location.origin,
+    cache: "no-store",
+    logger: console
+  });
 }
 
 async function loadStartupStateFromConfigFile() {
-  try {
-    if (!chrome?.runtime?.getURL) {
-      return null;
-    }
-
-    return await loadStartupStateFromJsonValue(chrome.runtime.getURL(STARTUP_STATE_JSON_PATH));
-  } catch {
-    return null;
-  }
+  return loadStartupStateFromConfigFileWithPolicy({
+    startupStateJsonPath: STARTUP_STATE_JSON_PATH,
+    runtimeGetUrl: chrome?.runtime?.getURL ? chrome.runtime.getURL.bind(chrome.runtime) : null,
+    isStateObject,
+    mergeStateObjects,
+    fetchFn: fetch,
+    baseOrigin: location.origin,
+    cache: "no-store"
+  });
 }
 
 async function resolveStartupStateDefault() {
-  const startupState = await loadStartupStateFromConfigFile();
-  if (!isStateObject(startupState)) {
-    return defaultState();
-  }
-  return mergeStateObjects(defaultState(), startupState);
+  return resolveStartupStateDefaultWithPolicy({
+    defaultState,
+    isStateObject,
+    mergeStateObjects,
+    startupStateJsonPath: STARTUP_STATE_JSON_PATH,
+    runtimeGetUrl: chrome?.runtime?.getURL ? chrome.runtime.getURL.bind(chrome.runtime) : null,
+    fetchFn: fetch,
+    baseOrigin: location.origin,
+    cache: "no-store"
+  });
 }
 
 function clamp(value, min, max) {
@@ -709,9 +549,11 @@ function defaultHomeLayout() {
     itemGap: "narrow",
     pageCount: 1,
     activePage: 0,
+    homePage: 0,
+    manualPages: [],
     dockEnabled: true,
     dockShape: "raised",
-    dockVisibility: "always",
+    dockVisibility: "fixed",
     dockPosition: "bottom",
     dockLength: 6,
     dockHeight: 44,
@@ -1204,11 +1046,20 @@ function normalizeDockShape(value, fallback = "raised") {
   return fallback;
 }
 
-function normalizeDockVisibility(value, fallback = "always") {
-  if (value === "always" || value === "hover") {
-    return value;
+function normalizeDockVisibility(value, fallback = "fixed") {
+  const raw = normalizeText(value, fallback).toLowerCase();
+  if (raw === "fixed" || raw === "always") {
+    return "fixed";
   }
-  return fallback;
+  if (raw === "collapsible" || raw === "hover") {
+    return "collapsible";
+  }
+
+  const normalizedFallback = normalizeText(fallback, "fixed").toLowerCase();
+  if (normalizedFallback === "collapsible" || normalizedFallback === "hover") {
+    return "collapsible";
+  }
+  return "fixed";
 }
 
 function normalizeDockPosition(value, fallback = "bottom") {
@@ -1242,7 +1093,7 @@ function normalizeDockSize(value, fallback = 44) {
  * @typedef {Object} DockConfig
  * @property {boolean} enabled
  * @property {"raised" | "flat"} shape
- * @property {"always" | "hover"} visibility
+ * @property {"fixed" | "collapsible"} visibility
  * @property {number} lengthUnits
  * @property {number} heightPx
  * @property {"bottom"} position
@@ -1791,7 +1642,7 @@ function buildDockConfig(home = state?.ui?.home) {
   return {
     enabled: normalizedHome.dockEnabled !== false,
     shape: normalizeDockShape(normalizedHome.dockShape, "raised"),
-    visibility: normalizeDockVisibility(normalizedHome.dockVisibility, "always"),
+    visibility: normalizeDockVisibility(normalizedHome.dockVisibility, "fixed"),
     lengthUnits: normalizeDockLength(normalizedHome.dockLength, 6),
     heightPx: normalizeDockHeight(normalizedHome.dockHeight, 44),
     position: "bottom"
@@ -1824,6 +1675,111 @@ function normalizeWidgetPage(value, pageCount = MAX_LAUNCHER_PAGES, fallback = 0
   return clamp(Math.floor(num), 0, maxPage);
 }
 
+function normalizeLauncherPageIndexList(value, pageCount = 1) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  const normalized = new Set();
+  for (const item of value) {
+    const page = normalizeWidgetPage(item, pageCount, 0);
+    normalized.add(page);
+  }
+  return Array.from(normalized).sort((left, right) => left - right);
+}
+
+function remapLauncherPageIndexList(list, remap, pageCount = 1) {
+  if (!(remap instanceof Map)) {
+    return normalizeLauncherPageIndexList(list, pageCount);
+  }
+  const remapped = [];
+  for (const rawPage of Array.isArray(list) ? list : []) {
+    const page = Math.floor(Number(rawPage));
+    if (!Number.isFinite(page)) {
+      continue;
+    }
+    const mapped = remap.get(page);
+    if (Number.isFinite(mapped)) {
+      remapped.push(mapped);
+    }
+  }
+  return normalizeLauncherPageIndexList(remapped, pageCount);
+}
+
+function shiftLauncherPageIndexListOnInsert(list, { addLeft = false, pageCount = 1, insertedPage = 0 } = {}) {
+  const shifted = normalizeLauncherPageIndexList(list, Math.max(1, pageCount - 1)).map((page) =>
+    addLeft ? page + 1 : page
+  );
+  shifted.push(insertedPage);
+  return normalizeLauncherPageIndexList(shifted, pageCount);
+}
+
+function shiftLauncherPageIndexListOnDelete(list, deletedPage, pageCount = 1) {
+  const target = normalizeWidgetPage(deletedPage, pageCount + 1, 0);
+  const shifted = [];
+  for (const page of normalizeLauncherPageIndexList(list, pageCount + 1)) {
+    if (page === target) {
+      continue;
+    }
+    shifted.push(page > target ? page - 1 : page);
+  }
+  return normalizeLauncherPageIndexList(shifted, pageCount);
+}
+
+function resolvePageTowardHomeDirection(keptPages, currentPage, homePage) {
+  if (!Array.isArray(keptPages) || !keptPages.length) {
+    return 0;
+  }
+  const sorted = [...keptPages].sort((left, right) => left - right);
+  if (sorted.includes(currentPage)) {
+    return currentPage;
+  }
+
+  if (currentPage < homePage) {
+    const towardHome = sorted.find((page) => page > currentPage);
+    if (Number.isFinite(towardHome)) {
+      return towardHome;
+    }
+    return sorted[sorted.length - 1];
+  }
+
+  if (currentPage > homePage) {
+    for (let index = sorted.length - 1; index >= 0; index -= 1) {
+      if (sorted[index] < currentPage) {
+        return sorted[index];
+      }
+    }
+    return sorted[0];
+  }
+
+  const atOrAfterHome = sorted.find((page) => page >= homePage);
+  if (Number.isFinite(atOrAfterHome)) {
+    return atOrAfterHome;
+  }
+  return sorted[sorted.length - 1];
+}
+
+function remapPageForDeletion(page, deletedPage, pageCountAfter) {
+  const normalizedDeletedPage = normalizeWidgetPage(deletedPage, pageCountAfter + 1, 0);
+  const normalizedPage = normalizeWidgetPage(page, pageCountAfter + 1, normalizedDeletedPage);
+  if (normalizedPage < normalizedDeletedPage) {
+    return normalizeWidgetPage(normalizedPage, pageCountAfter, 0);
+  }
+  if (normalizedPage > normalizedDeletedPage) {
+    return normalizeWidgetPage(normalizedPage - 1, pageCountAfter, 0);
+  }
+  return normalizeWidgetPage(normalizedDeletedPage, pageCountAfter, normalizedDeletedPage - 1);
+}
+
+function applyLauncherHomeMetadata(home) {
+  if (!home || typeof home !== "object") {
+    return home;
+  }
+  const pageCount = normalizePageCount(home.pageCount, 1);
+  home.homePage = normalizeActivePage(home.homePage, pageCount, 0);
+  home.manualPages = normalizeLauncherPageIndexList(home.manualPages, pageCount);
+  return home;
+}
+
 function marginPresetToPx(value) {
   if (value === "wide") {
     return 40;
@@ -1853,6 +1809,8 @@ function normalizeHomeLayout(layout) {
     ...(layout || {})
   };
   const pageCount = normalizePageCount(base.pageCount, 1);
+  const homePage = normalizeActivePage(base.homePage, pageCount, 0);
+  const manualPages = normalizeLauncherPageIndexList(base.manualPages, pageCount);
 
   return {
     mode: normalizeHomeMode(base.mode, "grid"),
@@ -1863,9 +1821,11 @@ function normalizeHomeLayout(layout) {
     itemGap: normalizeGapPreset(base.itemGap, "narrow"),
     pageCount,
     activePage: normalizeActivePage(base.activePage, pageCount, 0),
+    homePage,
+    manualPages,
     dockEnabled: base.dockEnabled !== false,
     dockShape: normalizeDockShape(base.dockShape, "raised"),
-    dockVisibility: normalizeDockVisibility(base.dockVisibility, "always"),
+    dockVisibility: normalizeDockVisibility(base.dockVisibility, "fixed"),
     dockPosition: normalizeDockPosition(base.dockPosition, "bottom"),
     dockLength: normalizeDockLength(base.dockLength, 6),
     dockHeight: normalizeDockHeight(base.dockHeight ?? base.dockSize, 44),
@@ -2576,13 +2536,14 @@ function persistLatestSnapshot({ allowNonUserMutation = false } = {}) {
     return;
   }
 
-  const snapshot = buildPersistSnapshot();
-  const userMutationAt = readUserMutationClock(snapshot);
+  const userMutationAt = readUserMutationClock(state);
   if (!allowNonUserMutation && userMutationAt <= lastSavedUserMutationAt) {
     return;
   }
 
-  const fingerprint = snapshotFingerprint(snapshot);
+  const snapshot = buildPersistSnapshot();
+
+  const fingerprint = nextPersistFingerprint(snapshot, userMutationAt, allowNonUserMutation);
   if (!fingerprint) {
     return;
   }
@@ -2800,6 +2761,13 @@ function snapshotFingerprint(snapshot) {
   } catch {
     return `${Date.now()}-${Math.random().toString(16).slice(2, 8)}`;
   }
+}
+
+function nextPersistFingerprint(snapshot, userMutationAt, allowNonUserMutation) {
+  if (!allowNonUserMutation && userMutationAt > 0) {
+    return `u:${userMutationAt}`;
+  }
+  return snapshotFingerprint(snapshot);
 }
 
 function isStateObject(value) {
@@ -3061,6 +3029,69 @@ function setBodyMode() {
 
   syncSettingsPanelVisibility();
   syncPersistentDock();
+  syncHomePageAnchorButton();
+}
+
+function resolveHomeAnchorTargetPage() {
+  const pageCount = currentLauncherPageCount();
+  const viewportPage = currentLauncherViewportPage();
+  if (isPlaceholderLauncherPage(viewportPage, pageCount)) {
+    return null;
+  }
+  return normalizeWidgetPage(viewportPage, pageCount, currentLauncherActivePage());
+}
+
+function syncHomePageAnchorButton() {
+  const button = elements.homePageAnchorBtn;
+  if (!(button instanceof HTMLButtonElement) || !state?.ui?.home) {
+    return;
+  }
+
+  const isEdit = state.mode === "edit";
+  const targetPage = resolveHomeAnchorTargetPage();
+  const pageCount = currentLauncherPageCount();
+  const homePage = normalizeActivePage(state.ui.home.homePage, pageCount, 0);
+  const isHomeTarget = Number.isFinite(targetPage) && targetPage === homePage;
+  const onPlaceholder = targetPage === null;
+
+  let label = "Set current page as home";
+  if (!isEdit) {
+    label = "Set home page (Edit mode only)";
+  } else if (onPlaceholder) {
+    label = "Placeholder page cannot be home";
+  } else if (isHomeTarget) {
+    label = "Current page is home";
+  }
+
+  button.classList.toggle("is-active", isHomeTarget);
+  button.disabled = !isEdit || onPlaceholder;
+  button.tabIndex = isEdit ? 0 : -1;
+  button.title = label;
+  button.setAttribute("aria-label", label);
+}
+
+function setLauncherHomePage(page = currentLauncherActivePage()) {
+  if (!state?.ui?.home) {
+    return false;
+  }
+
+  const home = syncLauncherPagingState({ expandToFitInstances: true });
+  const targetPage = normalizeWidgetPage(page, home.pageCount, home.activePage);
+  const nextHomePage = normalizeActivePage(targetPage, home.pageCount, home.homePage);
+  if (nextHomePage === home.homePage) {
+    syncHomePageAnchorButton();
+    return false;
+  }
+
+  recordHistorySnapshot("Set home page");
+  home.homePage = nextHomePage;
+  home.manualPages = normalizeLauncherPageIndexList(home.manualPages, home.pageCount);
+  state.ui.home = home;
+
+  renderBoardViewport({ animate: true, dragging: false, dragOffsetX: 0 });
+  renderSettings();
+  queueSave();
+  return true;
 }
 
 function clampEditDockPosition(left, top) {
@@ -3274,8 +3305,8 @@ function dockSettingsFields() {
       label: "Dock visibility",
       type: "select",
       options: [
-        { value: "always", label: "Always visible" },
-        { value: "hover", label: "Reveal on hover" }
+        { value: "fixed", label: "Fixed" },
+        { value: "collapsible", label: "Collapsible (reveal on hover)" }
       ]
     },
     {
@@ -3338,7 +3369,7 @@ function openDockSettingsModal() {
   const home = normalizeHomeLayout(state.ui.home);
   dockModalState.draft = {
     dockShape: normalizeDockShape(home.dockShape, "raised"),
-    dockVisibility: normalizeDockVisibility(home.dockVisibility, "always"),
+    dockVisibility: normalizeDockVisibility(home.dockVisibility, "fixed"),
     dockLength: normalizeDockLength(home.dockLength, 6),
     dockSize: normalizeDockSize(home.dockSize, 44)
   };
@@ -3401,7 +3432,7 @@ function applyDockSettingsModal() {
 
   const patch = {
     dockShape: normalizeDockShape(dockModalState.draft.dockShape, "raised"),
-    dockVisibility: normalizeDockVisibility(dockModalState.draft.dockVisibility, "always"),
+    dockVisibility: normalizeDockVisibility(dockModalState.draft.dockVisibility, "fixed"),
     dockPosition: "bottom",
     dockLength: normalizeDockLength(dockModalState.draft.dockLength, 6),
     dockSize: normalizeDockSize(dockModalState.draft.dockSize, 44)
@@ -5081,6 +5112,7 @@ function syncLauncherPagingState({ expandToFitInstances = true } = {}) {
     instance.page = normalizeWidgetPage(instance.page, home.pageCount, 0);
   }
   home.activePage = normalizeActivePage(home.activePage, home.pageCount, 0);
+  applyLauncherHomeMetadata(home);
 
   state.ui.home = home;
   return home;
@@ -5146,7 +5178,9 @@ function clearPendingPlaceholderDrop({ clearVirtualPage = false } = {}) {
 function currentLauncherViewportPage() {
   const pageCount = currentLauncherPageCount();
   const active = currentLauncherActivePage();
-  const virtual = Number(launcherPageUiState.virtualPage);
+  const virtualRaw = launcherPageUiState.virtualPage;
+  const hasVirtualPage = virtualRaw !== null && virtualRaw !== undefined && virtualRaw !== "";
+  const virtual = hasVirtualPage ? Number(virtualRaw) : NaN;
   if (shouldRenderLauncherPlaceholderPage() && Number.isFinite(virtual)) {
     return clamp(Math.floor(virtual), -1, pageCount);
   }
@@ -5177,23 +5211,23 @@ function compactEmptyLauncherPagesForUseMode() {
   }
 
   const counts = launcherPageWidgetCounts(pageCount);
-  const keptPages = [];
+  const homePage = normalizeActivePage(home.homePage, pageCount, 0);
+  const manualPages = normalizeLauncherPageIndexList(home.manualPages, pageCount);
+  const keptPagesSet = new Set([homePage, ...manualPages]);
   for (let page = 0; page < counts.length; page += 1) {
     if (counts[page] > 0) {
-      keptPages.push(page);
+      keptPagesSet.add(page);
     }
   }
 
+  const keptPages = Array.from(keptPagesSet).sort((left, right) => left - right);
+
   const targetPageCount = Math.max(1, keptPages.length);
   if (targetPageCount === pageCount) {
-    return false;
-  }
-
-  if (!keptPages.length) {
-    home.pageCount = 1;
-    home.activePage = 0;
+    home.homePage = homePage;
+    home.manualPages = manualPages;
     state.ui.home = home;
-    return true;
+    return false;
   }
 
   const remap = new Map();
@@ -5212,17 +5246,14 @@ function compactEmptyLauncherPagesForUseMode() {
     }
   }
 
-  const activePage = normalizeActivePage(home.activePage, pageCount, 0);
-  let fallbackOldPage = keptPages[keptPages.length - 1];
-  for (const oldPage of keptPages) {
-    if (oldPage >= activePage) {
-      fallbackOldPage = oldPage;
-      break;
-    }
-  }
+  const activePage = normalizeActivePage(home.activePage, pageCount, homePage);
+  const nextActiveOldPage = resolvePageTowardHomeDirection(keptPages, activePage, homePage);
+  const nextHomeOldPage = resolvePageTowardHomeDirection(keptPages, homePage, homePage);
 
   home.pageCount = targetPageCount;
-  home.activePage = normalizeActivePage(remap.get(fallbackOldPage), home.pageCount, 0);
+  home.homePage = normalizeActivePage(remap.get(nextHomeOldPage), home.pageCount, 0);
+  home.activePage = normalizeActivePage(remap.get(nextActiveOldPage), home.pageCount, home.homePage);
+  home.manualPages = remapLauncherPageIndexList(manualPages, remap, home.pageCount);
   state.ui.home = home;
   return true;
 }
@@ -5239,7 +5270,16 @@ function deleteLauncherPageAt(pageIndex) {
   }
 
   const targetPage = normalizeWidgetPage(pageIndex, pageCount, 0);
-  const fallbackPage = Math.max(0, targetPage - 1);
+  const homePageBefore = normalizeActivePage(home.homePage, pageCount, 0);
+  const activePageBefore = normalizeActivePage(home.activePage, pageCount, homePageBefore);
+  const keptOldPages = [];
+  for (let page = 0; page < pageCount; page += 1) {
+    if (page !== targetPage) {
+      keptOldPages.push(page);
+    }
+  }
+  const nextActiveOldPage = resolvePageTowardHomeDirection(keptOldPages, activePageBefore, homePageBefore);
+  const nextHomeOldPage = resolvePageTowardHomeDirection(keptOldPages, homePageBefore, homePageBefore);
 
   recordHistorySnapshot("Delete launcher page");
 
@@ -5249,7 +5289,7 @@ function deleteLauncherPageAt(pageIndex) {
     }
     const page = normalizeWidgetPage(instance.page, pageCount, 0);
     if (page === targetPage) {
-      instance.page = fallbackPage;
+      instance.page = remapPageForDeletion(page, targetPage, pageCount - 1);
       continue;
     }
     if (page > targetPage) {
@@ -5258,14 +5298,21 @@ function deleteLauncherPageAt(pageIndex) {
   }
 
   home.pageCount = normalizePageCount(pageCount - 1, pageCount - 1);
-  const nextActivePage = home.activePage > targetPage
-    ? home.activePage - 1
-    : (home.activePage === targetPage ? fallbackPage : home.activePage);
-  home.activePage = normalizeActivePage(nextActivePage, home.pageCount, 0);
+  home.homePage = normalizeActivePage(
+    remapPageForDeletion(nextHomeOldPage, targetPage, home.pageCount),
+    home.pageCount,
+    0
+  );
+  home.activePage = normalizeActivePage(
+    remapPageForDeletion(nextActiveOldPage, targetPage, home.pageCount),
+    home.pageCount,
+    home.homePage
+  );
+  home.manualPages = shiftLauncherPageIndexListOnDelete(home.manualPages, targetPage, home.pageCount);
   state.ui.home = home;
 
   clearPendingPlaceholderDrop({ clearVirtualPage: true });
-  renderBoard();
+  refreshBoardCardsAfterLauncherPageMutation({ animate: true });
   queueSave();
   return true;
 }
@@ -5321,6 +5368,8 @@ function materializePendingPlaceholderPage() {
   }
 
   const addLeft = pending.placeholderPage < 0;
+  const homePageBefore = normalizeActivePage(home.homePage, oldPageCount, 0);
+  const manualPagesBefore = normalizeLauncherPageIndexList(home.manualPages, oldPageCount);
 
   recordHistorySnapshot("Create launcher page by drop");
 
@@ -5336,6 +5385,10 @@ function materializePendingPlaceholderPage() {
   home.pageCount = normalizePageCount(oldPageCount + 1, oldPageCount + 1);
   const targetPage = addLeft ? 0 : oldPageCount;
   home.activePage = targetPage;
+  home.homePage = addLeft ? normalizeWidgetPage(homePageBefore + 1, home.pageCount, 1) : homePageBefore;
+  home.manualPages = addLeft
+    ? normalizeLauncherPageIndexList(manualPagesBefore.map((page) => page + 1), home.pageCount)
+    : normalizeLauncherPageIndexList(manualPagesBefore, home.pageCount);
   state.ui.home = home;
 
   if (isWidgetDocked(instance)) {
@@ -5392,6 +5445,8 @@ function materializeLauncherPlaceholderPage(placeholderPage) {
   }
 
   const addLeft = targetPlaceholder < 0;
+  const homePageBefore = normalizeActivePage(home.homePage, oldPageCount, 0);
+  const manualPagesBefore = normalizeLauncherPageIndexList(home.manualPages, oldPageCount);
   recordHistorySnapshot("Create empty launcher page");
 
   if (addLeft) {
@@ -5404,7 +5459,14 @@ function materializeLauncherPlaceholderPage(placeholderPage) {
   }
 
   home.pageCount = normalizePageCount(oldPageCount + 1, oldPageCount + 1);
-  home.activePage = addLeft ? 0 : oldPageCount;
+  const createdPage = addLeft ? 0 : oldPageCount;
+  home.activePage = createdPage;
+  home.homePage = addLeft ? normalizeWidgetPage(homePageBefore + 1, home.pageCount, 1) : homePageBefore;
+  home.manualPages = shiftLauncherPageIndexListOnInsert(manualPagesBefore, {
+    addLeft,
+    pageCount: home.pageCount,
+    insertedPage: createdPage
+  });
   state.ui.home = home;
 
   launcherPageUiState.virtualPage = null;
@@ -5467,8 +5529,21 @@ function getPersistentDockHitRect() {
     return null;
   }
 
+  const config = buildDockConfig(state?.ui?.home);
+  const visibility = normalizeDockVisibility(host.dataset.visibility || config.visibility, "fixed");
   const hostRect = host.getBoundingClientRect();
   const bodyRect = body?.getBoundingClientRect();
+
+  if (visibility === "collapsible") {
+    const expanded = host.matches(":hover") || host.matches(":focus-within") || host.classList.contains("is-drop-target");
+    if (!expanded) {
+      const handleRect = host.querySelector(".persistent-dock-handle")?.getBoundingClientRect();
+      if (handleRect) {
+        return handleRect;
+      }
+      return hostRect;
+    }
+  }
 
   if (!(body instanceof HTMLElement) || !bodyRect) {
     return hostRect;
@@ -5582,6 +5657,14 @@ function createDragPreviewSession(instance, options = {}) {
   let disposed = false;
   return {
     preview,
+    getPointerOffset() {
+      const offsetX = Number(preview?.dataset?.dragOffsetX);
+      const offsetY = Number(preview?.dataset?.dragOffsetY);
+      if (!Number.isFinite(offsetX) || !Number.isFinite(offsetY)) {
+        return null;
+      }
+      return { x: offsetX, y: offsetY };
+    },
     update(clientX, clientY) {
       positionWidgetDragPreview(preview, clientX, clientY);
     },
@@ -6362,11 +6445,14 @@ function tryDockWidgetByDrop(instance, pointerEvent, { record = true } = {}) {
   const sourceBoardPage = !wasDocked && !wasInContainer
     ? normalizeWidgetPage(instance.page, currentLauncherPageCount(), currentLauncherActivePage())
     : null;
-  const insertIndex = resolveDockInsertIndexFromPointer(pointerEvent.clientX, instance.id);
+  const targetSlot = resolveDockDropSlotIndex(pointerEvent.clientX, pointerEvent.clientY, instance);
+  if (targetSlot === null) {
+    return false;
+  }
 
   if (record) {
     if (wasDocked) {
-      recordHistorySnapshot("Reorder dock widget");
+      recordHistorySnapshot("Move dock widget");
     } else if (wasInContainer) {
       recordHistorySnapshot("Move widget from folder to dock");
     } else {
@@ -6376,25 +6462,150 @@ function tryDockWidgetByDrop(instance, pointerEvent, { record = true } = {}) {
     touchUserMutationClock();
   }
 
-  instance.containerId = "";
-  if (!wasDocked) {
-    instance.dockOrder = nextDockOrder(state.instances);
+  const moved = moveWidgetToDockSlot(instance, targetSlot, { record: false });
+  if (!moved) {
+    return false;
   }
-  setDockWidgetOrderByIndex(instance.id, insertIndex, { record: false });
-  normalizeDockedWidgetOrders(state.instances);
-  setDockActiveId(instance.id, { rerender: false });
   renderDockWidgets();
 
-  if (state.selectedWidgetId === instance.id) {
-    state.selectedWidgetId = "";
-  }
-  if (modalState.open && modalState.widgetId === instance.id) {
-    closeWidgetModal(false);
-  }
   if (Number.isFinite(sourceBoardPage)) {
     compactEmptyLauncherPagesForUseMode();
   }
   return true;
+}
+
+function applyWidgetDropPlan(instance, plan, payload = {}, { record = true } = {}) {
+  if (!instance || !plan || plan.kind === DROP_PLAN_KIND.NONE) {
+    return false;
+  }
+
+  if (plan.kind === DROP_PLAN_KIND.DELETE_ZONE) {
+    clearPendingPlaceholderDrop({ clearVirtualPage: true });
+    removeWidget(instance.id);
+    return true;
+  }
+
+  if (!isContainerDropPlan(plan) && !isBoardRealPageDropPlan(plan) && !isBoardPlaceholderDropPlan(plan)) {
+    return false;
+  }
+
+  if (isContainerDropPlan(plan)) {
+    clearPendingPlaceholderDrop({ clearVirtualPage: true });
+    if (plan.space.container.kind === DROP_CONTAINER_KIND.DOCK) {
+      const moved = tryDockWidgetByDrop(instance, payload, { record });
+      if (moved) {
+        renderBoard();
+        queueSave();
+      }
+      return moved;
+    }
+
+    if (plan.space.container.kind === DROP_CONTAINER_KIND.FOLDER) {
+      return tryContainerWidgetByDrop(instance, payload, { record });
+    }
+    return false;
+  }
+
+  if (isBoardPlaceholderDropPlan(plan)) {
+    const pageCount = currentLauncherPageCount();
+    const edge = plan.space.board.edge;
+    const placeholderPage = Number.isFinite(Number(plan.space.board.internalPlaceholderPage))
+      ? Math.floor(Number(plan.space.board.internalPlaceholderPage))
+      : internalPlaceholderFromPlaceholderEdge(edge, pageCount);
+    return queuePlaceholderPageDrop(
+      instance.id,
+      {
+        ...payload,
+        page: placeholderPage
+      },
+      placeholderPage
+    );
+  }
+
+  if (isBoardRealPageDropPlan(plan)) {
+    clearPendingPlaceholderDrop({ clearVirtualPage: true });
+    const targetPage = normalizeWidgetPage(plan.space.board.internalPage, currentLauncherPageCount(), currentLauncherActivePage());
+    const boardPayload = {
+      ...payload,
+      page: targetPage
+    };
+    if (isWidgetDocked(instance)) {
+      return releaseWidgetFromDockByDrop(instance.id, boardPayload);
+    }
+    if (isWidgetInContainer(instance)) {
+      return releaseWidgetFromContainerByDrop(instance.id, boardPayload);
+    }
+
+    const targetLayoutPatch =
+      plan.projection?.layout && typeof plan.projection.layout === "object"
+        ? plan.projection.layout
+        : null;
+    const targetGridLayout =
+      plan.projection?.gridLayout && typeof plan.projection.gridLayout === "object"
+        ? plan.projection.gridLayout
+        : null;
+
+    const nextLayout = targetLayoutPatch
+      ? {
+          ...instance.layout,
+          ...targetLayoutPatch
+        }
+      : instance.layout;
+
+    const layoutChanged =
+      nextLayout.x !== instance.layout.x ||
+      nextLayout.y !== instance.layout.y ||
+      nextLayout.w !== instance.layout.w ||
+      nextLayout.h !== instance.layout.h;
+
+    const gridChanged = Boolean(targetGridLayout) && (
+      !instance.gridLayout ||
+      instance.gridLayout.col !== targetGridLayout.col ||
+      instance.gridLayout.row !== targetGridLayout.row ||
+      instance.gridLayout.colSpan !== targetGridLayout.colSpan ||
+      instance.gridLayout.rowSpan !== targetGridLayout.rowSpan
+    );
+
+    const changed = targetPage !== instance.page || layoutChanged || gridChanged;
+    if (!changed) {
+      return false;
+    }
+
+    if (record) {
+      recordHistorySnapshot("Move widget");
+    } else {
+      touchUserMutationClock();
+    }
+
+    instance.page = targetPage;
+    if (targetLayoutPatch) {
+      instance.layout = nextLayout;
+    }
+    if (targetGridLayout) {
+      instance.gridLayout = targetGridLayout;
+    }
+    state.ui.home.activePage = targetPage;
+
+    if (isGridLayoutMode()) {
+      applyGridLayout({ commitFreeLayout: false, shouldSave: false });
+    } else {
+      const rt = runtime.get(instance.id);
+      if (rt?.card) {
+        applyLayout(rt.card, instance.layout, instance.page);
+        if (instance.type === "container") {
+          rt.controller?.refresh?.();
+        }
+      }
+      renderBoardViewport({ animate: true, dragging: false, dragOffsetX: 0 });
+    }
+
+    compactEmptyLauncherPagesForUseMode();
+    renderSettings();
+    queueSave();
+    return true;
+  }
+
+  return false;
 }
 
 function dockButtonsInStrip() {
@@ -6533,7 +6744,8 @@ function syncDockContentPadding(config) {
 
   const measured = Math.ceil((dockBody ?? dock).getBoundingClientRect().height || 0);
   const dockHeight = Math.max(config.heightPx, measured);
-  const contentPadding = dockHeight + 12;
+  const visibility = normalizeDockVisibility(config.visibility, "fixed");
+  const contentPadding = visibility === "collapsible" ? 0 : dockHeight + 12;
 
   root.style.setProperty("--persistent-dock-height", `${dockHeight}px`);
   root.style.setProperty("--persistent-dock-content-padding", `${contentPadding}px`);
@@ -6743,6 +6955,7 @@ function renderDockWidgets() {
       let pendingPageSwitchSince = 0;
       let pendingPageSwitchTimer = 0;
       let dragReleasePage = currentLauncherActivePage();
+      let lastDropPlan = createNoneDropPlan();
 
       const edgeDirectionFromPointer = (clientX) => {
         const viewportRect = getLauncherViewportRect();
@@ -6844,27 +7057,41 @@ function renderDockWidgets() {
           schedulePageSwitch(edgeDirectionFromPointer(clientX));
         }
 
-        const projection = isPlaceholderLauncherPage(dragReleasePage, currentLauncherPageCount())
+        const boardProjection = isPlaceholderLauncherPage(dragReleasePage, currentLauncherPageCount())
           ? null
-          : projectWidgetBoardDropLayout(item, {
+          : projectWidgetBoardDropLayout(item, buildDragPayloadWithPreviewOffset(previewSession, {
             clientX,
             clientY,
             page: dragReleasePage
-          }, {
+          }), {
             pageFallback: dragReleasePage
           });
-        const deleteHovering = updateDragDeleteZoneHover(clientX, clientY);
+
+        const nextDropPlan = resolveWidgetDropPlan(item, buildDragPayloadWithPreviewOffset(previewSession, {
+          clientX,
+          clientY,
+          page: dragReleasePage
+        }), {
+          boardProjection,
+          suppressSurfaceTargets: false,
+          allowDeleteZone: true
+        });
+        lastDropPlan = nextDropPlan;
+        const deleteHovering = nextDropPlan.kind === DROP_PLAN_KIND.DELETE_ZONE;
+
         updateCrossSurfaceDropIndicators(item, clientX, clientY, {
           silhouette: dropSilhouette,
-          boardProjection: projection,
-          suppressSurfaceTargets: deleteHovering
+          boardProjection,
+          suppressSurfaceTargets: false,
+          dropPlan: nextDropPlan
         });
-        if (deleteHovering) {
+        const boardGuideProjection = isBoardRealPageDropPlan(nextDropPlan) ? nextDropPlan.projection : null;
+        if (deleteHovering || !boardGuideProjection?.layout) {
           clearWidgetDragGuideState();
         } else {
           updateWidgetDragGuideAtPointer(item, clientX, clientY, {
-            boardLayout: projection?.layout,
-            boardPage: projection?.page,
+            boardLayout: boardGuideProjection.layout,
+            boardPage: boardGuideProjection.page,
             showGuide: false
           });
         }
@@ -6881,12 +7108,25 @@ function renderDockWidgets() {
         setLauncherDragPlaceholderPolicy(false);
         const dropX = Number.isFinite(upEvent?.clientX) ? upEvent.clientX : event.clientX;
         const dropY = Number.isFinite(upEvent?.clientY) ? upEvent.clientY : event.clientY;
-        const pointerEventLike = {
+        const finalBoardProjection = isPlaceholderLauncherPage(dragReleasePage, currentLauncherPageCount())
+          ? null
+          : projectWidgetBoardDropLayout(item, buildDragPayloadWithPreviewOffset(previewSession, {
+            clientX: dropX,
+            clientY: dropY,
+            page: dragReleasePage
+          }), {
+            pageFallback: dragReleasePage
+          });
+        const finalDropPlan = resolveWidgetDropPlan(item, buildDragPayloadWithPreviewOffset(previewSession, {
           clientX: dropX,
-          clientY: dropY
-        };
-        const insideDock = isDockDropPoint(dropX, dropY);
-        const droppedOnDeleteZone = isPointOverDragDeleteZone(dropX, dropY);
+          clientY: dropY,
+          page: dragReleasePage
+        }), {
+          boardProjection: finalBoardProjection,
+          suppressSurfaceTargets: false,
+          allowDeleteZone: true
+        });
+        lastDropPlan = finalDropPlan;
 
         elements.persistentDock?.classList.remove("is-drag-out-active");
         clearWidgetDragGuideState();
@@ -6904,41 +7144,28 @@ function renderDockWidgets() {
         sourceCard?.classList.remove("widget-drag-origin-hidden");
         previewSession.dispose();
 
-        if (droppedOnDeleteZone) {
-          clearPendingPlaceholderDrop({ clearVirtualPage: true });
-          card.dataset.suppressClick = "true";
-          lastDragEndAt = Date.now();
-          removeWidget(item.id);
-          return;
-        }
-
-        if (insideDock) {
-          clearPendingPlaceholderDrop({ clearVirtualPage: true });
-          card.dataset.suppressClick = "true";
-          lastDragEndAt = Date.now();
-          if (tryDockWidgetByDrop(item, pointerEventLike, { record: true })) {
-            renderBoard();
-            queueSave();
-          }
-          return;
-        }
-
-        if (tryContainerWidgetByDrop(item, pointerEventLike, { record: true })) {
-          clearPendingPlaceholderDrop({ clearVirtualPage: true });
-          card.dataset.suppressClick = "true";
-          lastDragEndAt = Date.now();
-          renderBoard();
-          queueSave();
-          return;
-        }
-
         card.dataset.suppressClick = "true";
         lastDragEndAt = Date.now();
-        releaseWidgetFromDockByDrop(item.id, {
+        if (
+          applyWidgetDropPlan(
+            item,
+            lastDropPlan,
+            buildDragPayloadWithPreviewOffset(previewSession, {
+              clientX: dropX,
+              clientY: dropY,
+              page: dragReleasePage
+            }),
+            { record: true }
+          )
+        ) {
+          return;
+        }
+
+        releaseWidgetFromDockByDrop(item.id, buildDragPayloadWithPreviewOffset(previewSession, {
           clientX: dropX,
           clientY: dropY,
           page: dragReleasePage
-        });
+        }));
       };
 
       const move = (moveEvent) => {
@@ -6992,7 +7219,7 @@ function syncPersistentDock() {
   dock.classList.remove("is-disabled");
   dock.setAttribute("aria-hidden", "false");
   dock.dataset.shape = config.shape;
-  dock.dataset.visibility = state.mode === "edit" ? config.visibility : "always";
+  dock.dataset.visibility = config.visibility;
   dock.dataset.position = config.position;
   dock.style.setProperty("--dock-length-units", String(config.lengthUnits));
   dock.style.setProperty("--dock-unit-size", `${config.heightPx}px`);
@@ -7046,6 +7273,7 @@ function renderBoardViewport({ dragOffsetX = 0, animate = true, dragging = false
   refreshWidgetsByType("container");
   if (!dragging) {
     renderLauncherPageAffordances();
+    syncHomePageAnchorButton();
   }
 }
 
@@ -7068,6 +7296,24 @@ function setActiveLauncherPage(page, { animate = true } = {}) {
   return changed;
 }
 
+function refreshBoardCardsAfterLauncherPageMutation({ animate = true } = {}) {
+  for (const instance of state.instances || []) {
+    if (!isBoardWidgetInstance(instance)) {
+      continue;
+    }
+    const rt = runtime.get(instance.id);
+    if (!rt?.card) {
+      continue;
+    }
+    applyLayout(rt.card, instance.layout, instance.page);
+    if (instance.type === "container") {
+      rt.controller?.refresh?.();
+    }
+  }
+  renderBoardViewport({ animate, dragging: false, dragOffsetX: 0 });
+  renderSettings();
+}
+
 function addLauncherPage() {
   if (state.mode !== "edit") {
     return;
@@ -7079,9 +7325,17 @@ function addLauncherPage() {
   }
 
   recordHistorySnapshot("Add launcher page");
+  const manualPages = normalizeLauncherPageIndexList(home.manualPages, home.pageCount);
   home.pageCount = normalizePageCount(home.pageCount + 1, home.pageCount + 1);
-  home.activePage = home.pageCount - 1;
+  const createdPage = home.pageCount - 1;
+  home.activePage = createdPage;
+  home.manualPages = shiftLauncherPageIndexListOnInsert(manualPages, {
+    addLeft: false,
+    pageCount: home.pageCount,
+    insertedPage: createdPage
+  });
   state.ui.home = home;
+  clearPendingPlaceholderDrop({ clearVirtualPage: true });
 
   renderBoardViewport({ animate: true, dragging: false, dragOffsetX: 0 });
   renderSettings();
@@ -7093,34 +7347,7 @@ function removeLauncherPage() {
     return;
   }
 
-  const home = syncLauncherPagingState({ expandToFitInstances: true });
-  if (home.pageCount <= 1) {
-    return;
-  }
-
-  const targetPage = currentLauncherActivePage();
-  const fallbackPage = Math.max(0, targetPage - 1);
-
-  recordHistorySnapshot("Remove launcher page");
-
-  for (const instance of state.instances) {
-    const currentPage = normalizeWidgetPage(instance.page, home.pageCount, 0);
-    if (currentPage > targetPage) {
-      instance.page = currentPage - 1;
-      continue;
-    }
-    if (currentPage === targetPage) {
-      instance.page = fallbackPage;
-    }
-  }
-
-  home.pageCount = normalizePageCount(home.pageCount - 1, home.pageCount - 1);
-  home.activePage = normalizeActivePage(Math.min(targetPage, home.pageCount - 1), home.pageCount, fallbackPage);
-  state.ui.home = home;
-
-  updateBoardBounds();
-  renderSettings();
-  queueSave();
+  deleteLauncherPageAt(currentLauncherActivePage());
 }
 
 function applyLayout(card, layout, page = 0) {
@@ -7593,6 +7820,8 @@ function projectWidgetBoardDropLayout(instance, payload = {}, { pageFallback = n
   const page = normalizeWidgetPage(payload?.page, pageCount, defaultPage);
   const pointerX = Number.isFinite(payload?.clientX) ? payload.clientX : viewportRect.left + boardWidth / 2;
   const pointerY = Number.isFinite(payload?.clientY) ? payload.clientY : viewportRect.top + boardHeight / 2;
+  const dragOffsetX = Number(payload?.dragOffsetX);
+  const dragOffsetY = Number(payload?.dragOffsetY);
 
   if (isGridLayoutMode()) {
     const metrics = gridMetrics();
@@ -7608,8 +7837,10 @@ function projectWidgetBoardDropLayout(instance, payload = {}, { pageFallback = n
     const spanHeight = metrics.cellH * grid.rowSpan + metrics.gapY * (grid.rowSpan - 1);
     const stepX = Math.max(1, metrics.cellW + metrics.gapX);
     const stepY = Math.max(1, metrics.cellH + metrics.gapY);
-    const localX = clamp(pointerX - viewportRect.left - spanWidth / 2, 0, Math.max(0, boardWidth - spanWidth));
-    const localY = clamp(pointerY - viewportRect.top - spanHeight / 2, 0, Math.max(0, boardHeight - spanHeight));
+    const anchorOffsetX = Number.isFinite(dragOffsetX) ? clamp(dragOffsetX, 0, spanWidth) : spanWidth / 2;
+    const anchorOffsetY = Number.isFinite(dragOffsetY) ? clamp(dragOffsetY, 0, spanHeight) : spanHeight / 2;
+    const localX = clamp(pointerX - viewportRect.left - anchorOffsetX, 0, Math.max(0, boardWidth - spanWidth));
+    const localY = clamp(pointerY - viewportRect.top - anchorOffsetY, 0, Math.max(0, boardHeight - spanHeight));
 
     grid.col = clamp(Math.round((localX - metrics.marginX) / stepX), 0, Math.max(0, metrics.cols - grid.colSpan));
     grid.row = clamp(Math.round((localY - metrics.marginY) / stepY), 0, Math.max(0, metrics.rows - grid.rowSpan));
@@ -7632,8 +7863,10 @@ function projectWidgetBoardDropLayout(instance, payload = {}, { pageFallback = n
   const height = clamp(Number(instance.layout.h) || 220, 80, maxH);
   const maxX = Math.max(0, boardWidth - width);
   const maxY = Math.max(0, boardHeight - height);
-  const nextX = clamp(pointerX - viewportRect.left - width / 2, 0, maxX);
-  const nextY = clamp(pointerY - viewportRect.top - height / 2, 0, maxY);
+  const anchorOffsetX = Number.isFinite(dragOffsetX) ? clamp(dragOffsetX, 0, width) : width / 2;
+  const anchorOffsetY = Number.isFinite(dragOffsetY) ? clamp(dragOffsetY, 0, height) : height / 2;
+  const nextX = clamp(pointerX - viewportRect.left - anchorOffsetX, 0, maxX);
+  const nextY = clamp(pointerY - viewportRect.top - anchorOffsetY, 0, maxY);
 
   return {
     page,
@@ -7666,45 +7899,24 @@ function projectDockSilhouetteLayoutFromPointer(clientX, clientY, draggedWidgetI
     return null;
   }
 
-  const strip = elements.dockWidgetStrip;
-  if (!(strip instanceof HTMLElement)) {
+  const dockHost = elements.persistentDockBody ?? elements.persistentDock;
+  if (!(dockHost instanceof HTMLElement)) {
     return null;
   }
 
-  const cards = Array.from(strip.querySelectorAll(".dock-widget-item")).filter((card) => {
-    const cardId = normalizeText(card?.dataset?.widgetId);
-    return cardId && cardId !== normalizeText(draggedWidgetId);
-  });
-
-  const insertIndex = resolveDockInsertIndexFromPointer(clientX, draggedWidgetId);
-  if (insertIndex === null) {
+  const draggedId = normalizeText(draggedWidgetId);
+  const draggedInstance = draggedId ? instanceById(draggedId) || { id: draggedId } : null;
+  const slotRect = dockDropGuideSlotRect(draggedInstance, clientX, clientY);
+  if (!slotRect) {
     return null;
   }
 
-  if (cards.length && insertIndex < cards.length) {
-    return viewportRectToBoardLayout(cards[insertIndex].getBoundingClientRect());
-  }
-
-  if (cards.length) {
-    const lastRect = cards[cards.length - 1].getBoundingClientRect();
-    const stripStyle = window.getComputedStyle(strip);
-    const gap = cssPixelValue(stripStyle.columnGap, cssPixelValue(stripStyle.gap, 6));
-    return viewportRectToBoardLayout({
-      left: lastRect.right + gap,
-      top: lastRect.top,
-      width: lastRect.width,
-      height: lastRect.height
-    });
-  }
-
-  const stripRect = strip.getBoundingClientRect();
-  const config = buildDockConfig(state?.ui?.home);
-  const unit = Math.max(1, Number(config.heightPx) || 44);
+  const hostRect = dockHost.getBoundingClientRect();
   return viewportRectToBoardLayout({
-    left: stripRect.left,
-    top: stripRect.top,
-    width: unit,
-    height: unit
+    left: hostRect.left + slotRect.x,
+    top: hostRect.top + slotRect.y,
+    width: slotRect.w,
+    height: slotRect.h
   });
 }
 
@@ -7764,45 +7976,150 @@ function projectContainerSilhouetteLayoutFromPointer(containerId, clientX, clien
   return viewportRectToBoardLayout(anchor.getBoundingClientRect());
 }
 
-function updateCrossSurfaceDropIndicators(
+function buildDropPlanProjection(layout = null, page = 0, gridLayout = null) {
+  if (!layout) {
+    return null;
+  }
+  return {
+    layout,
+    page: Number.isFinite(Number(page)) ? Math.floor(Number(page)) : 0,
+    gridLayout: gridLayout || null
+  };
+}
+
+function buildDragPayloadWithPreviewOffset(previewSession, payload = {}) {
+  const next = { ...payload };
+  const offset = previewSession?.getPointerOffset?.();
+  if (offset && Number.isFinite(offset.x) && Number.isFinite(offset.y)) {
+    next.dragOffsetX = offset.x;
+    next.dragOffsetY = offset.y;
+  }
+  return next;
+}
+
+function resolveWidgetDropPlan(
   instance,
-  clientX,
-  clientY,
+  payload = {},
   {
-    silhouette = null,
     boardProjection = null,
-    suppressSurfaceTargets = false
+    suppressSurfaceTargets = false,
+    allowDeleteZone = true
   } = {}
 ) {
   if (suppressSurfaceTargets) {
-    setContainerDropTargetActive("");
-    setDockDropTargetActive(false);
-    setWidgetDropSilhouetteVisible(silhouette, false);
-    return {
-      containerDropTargetId: "",
-      dockDropActive: false,
-      showBoardSilhouette: false
-    };
+    return createNoneDropPlan();
+  }
+
+  const clientX = Number(payload?.clientX);
+  const clientY = Number(payload?.clientY);
+  const pageCount = currentLauncherPageCount();
+  const requestedPage = Number(payload?.page);
+
+  if (allowDeleteZone && isPointOverDragDeleteZone(clientX, clientY)) {
+    return createDeleteZoneDropPlan();
   }
 
   const containerDropTargetId = containerDropTargetAtPoint(clientX, clientY, instance);
-  const dockDropActive = !containerDropTargetId && isDockDropPoint(clientX, clientY);
-  setContainerDropTargetActive(containerDropTargetId);
-  setDockDropTargetActive(dockDropActive);
+  if (containerDropTargetId) {
+    const insertIndex = resolveContainerInsertIndexFromPointer(containerDropTargetId, clientX, clientY, {
+      excludeWidgetId: instance?.id,
+      panelElement: payload?.panelElement
+    });
+    const projection = buildDropPlanProjection(
+      projectContainerSilhouetteLayoutFromPointer(containerDropTargetId, clientX, clientY, instance?.id),
+      0,
+      null
+    );
+    return createContainerDropPlan({
+      containerKind: DROP_CONTAINER_KIND.FOLDER,
+      containerId: containerDropTargetId,
+      insertIndex,
+      projection
+    });
+  }
 
+  const dockDropActive = isDockDropPoint(clientX, clientY) && isDockEligibleWidget(instance);
+  if (dockDropActive) {
+    const projection = buildDropPlanProjection(projectDockSilhouetteLayoutFromPointer(clientX, clientY, instance?.id), 0, null);
+    const insertIndex = resolveDockDropSlotIndex(clientX, clientY, instance) ?? 0;
+    return createContainerDropPlan({
+      containerKind: DROP_CONTAINER_KIND.DOCK,
+      insertIndex,
+      projection
+    });
+  }
+
+  const requestedInternalPage = Number.isFinite(requestedPage) ? Math.floor(requestedPage) : null;
+  if (requestedInternalPage !== null && isPlaceholderLauncherPage(requestedInternalPage, pageCount)) {
+    const edge = placeholderEdgeFromInternalPlaceholder(requestedInternalPage, pageCount);
+    return createBoardPlaceholderDropPlan({
+      edge,
+      policyPlaceholderPage: policyPlaceholderPageFromInternalPlaceholder(requestedInternalPage, pageCount),
+      internalPlaceholderPage: requestedInternalPage,
+      projection: null
+    });
+  }
+
+  const fallbackProjection = projectWidgetBoardDropLayout(instance, payload, {
+    pageFallback: currentLauncherActivePage()
+  });
+  const projected = boardProjection || fallbackProjection;
+  if (!projected?.layout) {
+    return createNoneDropPlan();
+  }
+
+  const internalPage = normalizeWidgetPage(projected.page, pageCount, currentLauncherActivePage());
+  const projection = buildDropPlanProjection(projected.layout, internalPage, projected.gridLayout || null);
+
+  if (isPlaceholderLauncherPage(internalPage, pageCount)) {
+    const edge = placeholderEdgeFromInternalPlaceholder(internalPage, pageCount);
+    return createBoardPlaceholderDropPlan({
+      edge,
+      policyPlaceholderPage: policyPlaceholderPageFromInternalPlaceholder(internalPage, pageCount),
+      internalPlaceholderPage: internalPage,
+      projection
+    });
+  }
+
+  return createBoardPageDropPlan({
+    policyPage: policyRealPageFromInternalPage(internalPage),
+    internalPage,
+    projection
+  });
+}
+
+function applyDropPlanIndicators(plan, { silhouette = null } = {}) {
+  const safePlan = plan || createNoneDropPlan();
+  const deleteHovering = safePlan.kind === DROP_PLAN_KIND.DELETE_ZONE;
+
+  let containerDropTargetId = "";
+  let dockDropActive = false;
   let projectedLayout = null;
   let projectedPage = 0;
+  let showBoardSilhouette = false;
 
-  if (containerDropTargetId) {
-    projectedLayout = projectContainerSilhouetteLayoutFromPointer(containerDropTargetId, clientX, clientY, instance?.id);
-    projectedPage = 0;
-  } else if (dockDropActive) {
-    projectedLayout = projectDockSilhouetteLayoutFromPointer(clientX, clientY, instance?.id);
-    projectedPage = 0;
-  } else if (boardProjection && boardProjection.layout) {
-    projectedLayout = boardProjection.layout;
-    projectedPage = normalizeWidgetPage(boardProjection.page, currentLauncherPageCount(), currentLauncherActivePage());
+  if (isContainerDropPlan(safePlan)) {
+    if (safePlan.space.container.kind === DROP_CONTAINER_KIND.FOLDER) {
+      containerDropTargetId = normalizeContainerId(safePlan.space.container.folderId);
+    } else if (safePlan.space.container.kind === DROP_CONTAINER_KIND.DOCK) {
+      dockDropActive = true;
+    }
+  } else if (isBoardRealPageDropPlan(safePlan) || isBoardPlaceholderDropPlan(safePlan)) {
+    showBoardSilhouette = true;
   }
+
+  if (safePlan.projection?.layout) {
+    projectedLayout = safePlan.projection.layout;
+    projectedPage = normalizeWidgetPage(
+      safePlan.projection.page,
+      currentLauncherPageCount(),
+      currentLauncherActivePage()
+    );
+  }
+
+  setContainerDropTargetActive(containerDropTargetId);
+  setDockDropTargetActive(dockDropActive);
+  setDragDeleteZoneHover(deleteHovering);
 
   const visible = Boolean(projectedLayout);
   if (visible) {
@@ -7811,10 +8128,33 @@ function updateCrossSurfaceDropIndicators(
   setWidgetDropSilhouetteVisible(silhouette, visible);
 
   return {
+    plan: safePlan,
+    deleteHovering,
     containerDropTargetId,
     dockDropActive,
-    showBoardSilhouette: visible && !containerDropTargetId && !dockDropActive
+    showBoardSilhouette: visible && showBoardSilhouette
   };
+}
+
+function updateCrossSurfaceDropIndicators(
+  instance,
+  clientX,
+  clientY,
+  {
+    silhouette = null,
+    boardProjection = null,
+    suppressSurfaceTargets = false,
+    dropPlan = null
+  } = {}
+) {
+  const resolvedPlan =
+    dropPlan ||
+    resolveWidgetDropPlan(instance, { clientX, clientY }, {
+      boardProjection,
+      suppressSurfaceTargets,
+      allowDeleteZone: !suppressSurfaceTargets
+    });
+  return applyDropPlanIndicators(resolvedPlan, { silhouette });
 }
 
 function setWidgetContainer(instanceId, containerId, { record = true, rerender = true, save = true } = {}) {
@@ -8733,6 +9073,7 @@ function createWidgetCard(instance) {
     let pendingPageSwitchSince = 0;
     let pendingPageSwitchTimer = 0;
     let dragReleasePage = normalizeWidgetPage(instance.page, currentLauncherPageCount(), currentLauncherActivePage());
+    let lastDropPlan = createNoneDropPlan();
 
     const edgeDirectionFromPointer = (clientX) => {
       const rect = getLauncherViewportRect();
@@ -8846,10 +9187,17 @@ function createWidgetCard(instance) {
       if (!viewportRect || !Number.isFinite(clientX) || !Number.isFinite(clientY)) {
         return;
       }
+      const pointerOffset = previewSession.getPointerOffset?.();
+      const anchorOffsetX = pointerOffset && Number.isFinite(pointerOffset.x)
+        ? clamp(pointerOffset.x, 0, instance.layout.w)
+        : instance.layout.w / 2;
+      const anchorOffsetY = pointerOffset && Number.isFinite(pointerOffset.y)
+        ? clamp(pointerOffset.y, 0, instance.layout.h)
+        : instance.layout.h / 2;
       const maxLocalX = Math.max(0, boardRect.width - instance.layout.w);
       const maxLocalY = Math.max(0, boardRect.height - instance.layout.h);
-      const nextX = clamp(clientX - viewportRect.left - instance.layout.w / 2, 0, maxLocalX);
-      const nextY = clamp(clientY - viewportRect.top - instance.layout.h / 2, 0, maxLocalY);
+      const nextX = clamp(clientX - viewportRect.left - anchorOffsetX, 0, maxLocalX);
+      const nextY = clamp(clientY - viewportRect.top - anchorOffsetY, 0, maxLocalY);
       if (commit) {
         patchWidgetLayout(instance.id, {
           x: nextX,
@@ -8926,30 +9274,42 @@ function createWidgetCard(instance) {
           placeDraftAtPointerInCurrentViewport(moveEvent.clientX, moveEvent.clientY);
         });
 
-        const projected = projectedGridDropLayout();
         const boardProjection = isPlaceholderLauncherPage(dragReleasePage, currentLauncherPageCount())
           ? null
           : projectWidgetBoardDropLayout(
             instance,
-            {
+            buildDragPayloadWithPreviewOffset(previewSession, {
               clientX: moveEvent.clientX,
               clientY: moveEvent.clientY,
               page: dragReleasePage
-            },
+            }),
             { pageFallback: dragReleasePage }
           );
-        const deleteHovering = updateDragDeleteZoneHover(moveEvent.clientX, moveEvent.clientY);
+        const nextDropPlan = resolveWidgetDropPlan(instance, buildDragPayloadWithPreviewOffset(previewSession, {
+          clientX: moveEvent.clientX,
+          clientY: moveEvent.clientY,
+          page: dragReleasePage
+        }), {
+          boardProjection,
+          suppressSurfaceTargets: false,
+          allowDeleteZone: true
+        });
+        lastDropPlan = nextDropPlan;
+
         updateCrossSurfaceDropIndicators(instance, moveEvent.clientX, moveEvent.clientY, {
           silhouette: dropSilhouette,
           boardProjection,
-          suppressSurfaceTargets: deleteHovering
+          suppressSurfaceTargets: false,
+          dropPlan: nextDropPlan
         });
-        if (deleteHovering || !boardProjection) {
+        const deleteHovering = nextDropPlan.kind === DROP_PLAN_KIND.DELETE_ZONE;
+        const boardGuideProjection = isBoardRealPageDropPlan(nextDropPlan) ? nextDropPlan.projection : null;
+        if (deleteHovering || !boardGuideProjection?.layout) {
           clearWidgetDragGuideState();
         } else {
           updateWidgetDragGuideAtPointer(instance, moveEvent.clientX, moveEvent.clientY, {
-            boardLayout: projected?.layout || null,
-            boardPage: dragReleasePage,
+            boardLayout: boardGuideProjection.layout,
+            boardPage: boardGuideProjection.page,
             showGuide: false
           });
         }
@@ -8972,26 +9332,40 @@ function createWidgetCard(instance) {
 
         const dropX = Number.isFinite(upEvent?.clientX) ? upEvent.clientX : lastPointerX;
         const dropY = Number.isFinite(upEvent?.clientY) ? upEvent.clientY : lastPointerY;
-        if (isPointOverDragDeleteZone(dropX, dropY)) {
-          clearPendingPlaceholderDrop({ clearVirtualPage: true });
-          removeWidget(instance.id);
-          return;
-        }
+        const finalBoardProjection = isPlaceholderLauncherPage(dragReleasePage, currentLauncherPageCount())
+          ? null
+          : projectWidgetBoardDropLayout(
+            instance,
+            buildDragPayloadWithPreviewOffset(previewSession, {
+              clientX: dropX,
+              clientY: dropY,
+              page: dragReleasePage
+            }),
+            { pageFallback: dragReleasePage }
+          );
+        const finalDropPlan = resolveWidgetDropPlan(instance, buildDragPayloadWithPreviewOffset(previewSession, {
+          clientX: dropX,
+          clientY: dropY,
+          page: dragReleasePage
+        }), {
+          boardProjection: finalBoardProjection,
+          suppressSurfaceTargets: false,
+          allowDeleteZone: true
+        });
+        lastDropPlan = finalDropPlan;
 
-        if (tryContainerWidgetByDrop(instance, upEvent, { record: false })) {
-          clearPendingPlaceholderDrop({ clearVirtualPage: true });
-          return;
-        }
-
-        if (tryDockWidgetByDrop(instance, upEvent, { record: false })) {
-          clearPendingPlaceholderDrop({ clearVirtualPage: true });
-          renderBoard();
-          queueSave();
-          return;
-        }
-
-        if (isLauncherPlaceholderPolicyActive() && isPlaceholderLauncherPage(dragReleasePage, currentLauncherPageCount())) {
-          queuePlaceholderPageDrop(instance.id, { clientX: dropX, clientY: dropY, page: dragReleasePage }, dragReleasePage);
+        if (
+          applyWidgetDropPlan(
+            instance,
+            lastDropPlan,
+            buildDragPayloadWithPreviewOffset(previewSession, {
+              clientX: dropX,
+              clientY: dropY,
+              page: dragReleasePage
+            }),
+            { record: false }
+          )
+        ) {
           return;
         }
 
@@ -9007,48 +9381,48 @@ function createWidgetCard(instance) {
       window.addEventListener("pointermove", move);
       window.addEventListener("pointerup", up);
       window.addEventListener("pointercancel", up);
-      const projected = projectedGridDropLayout();
       const initialBoardProjection = isPlaceholderLauncherPage(dragReleasePage, currentLauncherPageCount())
         ? null
         : projectWidgetBoardDropLayout(
           instance,
-          {
+          buildDragPayloadWithPreviewOffset(previewSession, {
             clientX: dragStartX,
             clientY: dragStartY,
             page: dragReleasePage
-          },
+          }),
           { pageFallback: dragReleasePage }
         );
+      const initialDropPlan = resolveWidgetDropPlan(instance, buildDragPayloadWithPreviewOffset(previewSession, {
+        clientX: dragStartX,
+        clientY: dragStartY,
+        page: dragReleasePage
+      }), {
+        boardProjection: initialBoardProjection,
+        suppressSurfaceTargets: false,
+        allowDeleteZone: true
+      });
+      lastDropPlan = initialDropPlan;
 
-      const deleteHovering = updateDragDeleteZoneHover(dragStartX, dragStartY);
       updateCrossSurfaceDropIndicators(instance, dragStartX, dragStartY, {
         silhouette: dropSilhouette,
         boardProjection: initialBoardProjection,
-        suppressSurfaceTargets: deleteHovering
+        suppressSurfaceTargets: false,
+        dropPlan: initialDropPlan
       });
-      if (deleteHovering || !initialBoardProjection) {
+      const deleteHovering = initialDropPlan.kind === DROP_PLAN_KIND.DELETE_ZONE;
+      const boardGuideProjection = isBoardRealPageDropPlan(initialDropPlan) ? initialDropPlan.projection : null;
+      if (deleteHovering || !boardGuideProjection?.layout) {
         clearWidgetDragGuideState();
       } else {
         updateWidgetDragGuideAtPointer(instance, dragStartX, dragStartY, {
-          boardLayout: projected.layout,
-          boardPage: dragReleasePage,
+          boardLayout: boardGuideProjection.layout,
+          boardPage: boardGuideProjection.page,
           showGuide: false
         });
       }
 
       return true;
     }
-
-    const projectedFreeDropLayout = () => {
-      const maxX = Math.max(0, boardRect.width - instance.layout.w);
-      const maxY = Math.max(0, boardRect.height - instance.layout.h);
-      return {
-        x: clamp(Math.round(instance.layout.x / SNAP) * SNAP, 0, maxX),
-        y: clamp(Math.round(instance.layout.y / SNAP) * SNAP, 0, maxY),
-        w: instance.layout.w,
-        h: instance.layout.h
-      };
-    };
 
     const move = (moveEvent) => {
       previewSession.update(moveEvent.clientX, moveEvent.clientY);
@@ -9077,24 +9451,38 @@ function createWidgetCard(instance) {
         ? null
         : projectWidgetBoardDropLayout(
           instance,
-          {
+          buildDragPayloadWithPreviewOffset(previewSession, {
             clientX: moveEvent.clientX,
             clientY: moveEvent.clientY,
             page: dragReleasePage
-          },
+          }),
           { pageFallback: dragReleasePage }
         );
-      const deleteHovering = updateDragDeleteZoneHover(moveEvent.clientX, moveEvent.clientY);
+      const nextDropPlan = resolveWidgetDropPlan(instance, buildDragPayloadWithPreviewOffset(previewSession, {
+        clientX: moveEvent.clientX,
+        clientY: moveEvent.clientY,
+        page: dragReleasePage
+      }), {
+        boardProjection,
+        suppressSurfaceTargets: false,
+        allowDeleteZone: true
+      });
+      lastDropPlan = nextDropPlan;
+
       updateCrossSurfaceDropIndicators(instance, moveEvent.clientX, moveEvent.clientY, {
         silhouette: dropSilhouette,
         boardProjection,
-        suppressSurfaceTargets: deleteHovering
+        suppressSurfaceTargets: false,
+        dropPlan: nextDropPlan
       });
-      if (deleteHovering || !boardProjection) {
+      const deleteHovering = nextDropPlan.kind === DROP_PLAN_KIND.DELETE_ZONE;
+      const boardGuideProjection = isBoardRealPageDropPlan(nextDropPlan) ? nextDropPlan.projection : null;
+      if (deleteHovering || !boardGuideProjection?.layout) {
         clearWidgetDragGuideState();
       } else {
         updateWidgetDragGuideAtPointer(instance, moveEvent.clientX, moveEvent.clientY, {
-          boardLayout: projectedFreeDropLayout(),
+          boardLayout: boardGuideProjection.layout,
+          boardPage: boardGuideProjection.page,
           showGuide: false
         });
       }
@@ -9117,26 +9505,40 @@ function createWidgetCard(instance) {
 
       const dropX = Number.isFinite(upEvent?.clientX) ? upEvent.clientX : lastPointerX;
       const dropY = Number.isFinite(upEvent?.clientY) ? upEvent.clientY : lastPointerY;
-      if (isPointOverDragDeleteZone(dropX, dropY)) {
-        clearPendingPlaceholderDrop({ clearVirtualPage: true });
-        removeWidget(instance.id);
-        return;
-      }
+      const finalBoardProjection = isPlaceholderLauncherPage(dragReleasePage, currentLauncherPageCount())
+        ? null
+        : projectWidgetBoardDropLayout(
+          instance,
+          buildDragPayloadWithPreviewOffset(previewSession, {
+            clientX: dropX,
+            clientY: dropY,
+            page: dragReleasePage
+          }),
+          { pageFallback: dragReleasePage }
+        );
+      const finalDropPlan = resolveWidgetDropPlan(instance, buildDragPayloadWithPreviewOffset(previewSession, {
+        clientX: dropX,
+        clientY: dropY,
+        page: dragReleasePage
+      }), {
+        boardProjection: finalBoardProjection,
+        suppressSurfaceTargets: false,
+        allowDeleteZone: true
+      });
+      lastDropPlan = finalDropPlan;
 
-      if (tryContainerWidgetByDrop(instance, upEvent, { record: true })) {
-        clearPendingPlaceholderDrop({ clearVirtualPage: true });
-        return;
-      }
-
-      if (tryDockWidgetByDrop(instance, upEvent, { record: true })) {
-        clearPendingPlaceholderDrop({ clearVirtualPage: true });
-        renderBoard();
-        queueSave();
-        return;
-      }
-
-      if (isLauncherPlaceholderPolicyActive() && isPlaceholderLauncherPage(dragReleasePage, currentLauncherPageCount())) {
-        queuePlaceholderPageDrop(instance.id, { clientX: dropX, clientY: dropY, page: dragReleasePage }, dragReleasePage);
+      if (
+        applyWidgetDropPlan(
+          instance,
+          lastDropPlan,
+          buildDragPayloadWithPreviewOffset(previewSession, {
+            clientX: dropX,
+            clientY: dropY,
+            page: dragReleasePage
+          }),
+          { record: true }
+        )
+      ) {
         return;
       }
 
@@ -9167,28 +9569,41 @@ function createWidgetCard(instance) {
     window.addEventListener("pointermove", move);
     window.addEventListener("pointerup", up);
     window.addEventListener("pointercancel", up);
-    const deleteHovering = updateDragDeleteZoneHover(dragStartX, dragStartY);
     const initialBoardProjection = isPlaceholderLauncherPage(dragReleasePage, currentLauncherPageCount())
       ? null
       : projectWidgetBoardDropLayout(
         instance,
-        {
+        buildDragPayloadWithPreviewOffset(previewSession, {
           clientX: dragStartX,
           clientY: dragStartY,
           page: dragReleasePage
-        },
+        }),
         { pageFallback: dragReleasePage }
       );
+    const initialDropPlan = resolveWidgetDropPlan(instance, buildDragPayloadWithPreviewOffset(previewSession, {
+      clientX: dragStartX,
+      clientY: dragStartY,
+      page: dragReleasePage
+    }), {
+      boardProjection: initialBoardProjection,
+      suppressSurfaceTargets: false,
+      allowDeleteZone: true
+    });
+    lastDropPlan = initialDropPlan;
     updateCrossSurfaceDropIndicators(instance, dragStartX, dragStartY, {
       silhouette: dropSilhouette,
       boardProjection: initialBoardProjection,
-      suppressSurfaceTargets: deleteHovering
+      suppressSurfaceTargets: false,
+      dropPlan: initialDropPlan
     });
-    if (deleteHovering || !initialBoardProjection) {
+    const deleteHovering = initialDropPlan.kind === DROP_PLAN_KIND.DELETE_ZONE;
+    const boardGuideProjection = isBoardRealPageDropPlan(initialDropPlan) ? initialDropPlan.projection : null;
+    if (deleteHovering || !boardGuideProjection?.layout) {
       clearWidgetDragGuideState();
     } else {
       updateWidgetDragGuideAtPointer(instance, dragStartX, dragStartY, {
-        boardLayout: projectedFreeDropLayout(),
+        boardLayout: boardGuideProjection.layout,
+        boardPage: boardGuideProjection.page,
         showGuide: false
       });
     }
@@ -11228,6 +11643,15 @@ function addWidget(type, options = {}) {
   }
 
   syncLauncherPagingState({ expandToFitInstances: true });
+  const viewportPage = currentLauncherViewportPage();
+  if (isPlaceholderLauncherPage(viewportPage, currentLauncherPageCount())) {
+    const materialized = materializeLauncherPlaceholderPage(viewportPage);
+    if (!materialized) {
+      return false;
+    }
+    syncLauncherPagingState({ expandToFitInstances: true });
+  }
+
   const targetPage = currentLauncherActivePage();
   const pageLocalIndex = state.instances.filter((instance) => {
     return (
@@ -11430,6 +11854,17 @@ function canStartBoardSwipeFromTarget(target) {
     return false;
   }
 
+  const widgetZones = [
+    ".widget-card",
+    ".dock-widget-item",
+    ".widget-folder-panel",
+    ".widget-folder-item-card"
+  ].join(",");
+
+  if (target.closest(widgetZones)) {
+    return false;
+  }
+
   return !isInteractiveSwipeTarget(target);
 }
 
@@ -11616,9 +12051,13 @@ function wireEvents() {
     elements.editDock?.classList.remove("is-dragging");
   });
 
-  elements.workspace?.addEventListener("pointerdown", (event) => {
-    beginBoardSwipe(event);
-  });
+  elements.workspace?.addEventListener(
+    "pointerdown",
+    (event) => {
+      beginBoardSwipe(event);
+    },
+    true
+  );
 
   window.addEventListener("pointermove", (event) => {
     moveBoardSwipe(event);
@@ -11653,7 +12092,19 @@ function wireEvents() {
   });
 
   elements.modeToggleBtn.addEventListener("click", () => {
-    state.mode = state.mode === "edit" ? "use" : "edit";
+    const nextMode = state.mode === "edit" ? "use" : "edit";
+    let deferBoundsSync = false;
+
+    if (state.mode === "edit" && nextMode === "use") {
+      const pageCount = currentLauncherPageCount();
+      const viewportPage = currentLauncherViewportPage();
+      if (isPlaceholderLauncherPage(viewportPage, pageCount)) {
+        setActiveLauncherPage(currentLauncherActivePage(), { animate: true });
+        deferBoundsSync = true;
+      }
+    }
+
+    state.mode = nextMode;
     if (state.mode === "use") {
       state.selectedWidgetId = "";
       compactEmptyLauncherPagesForUseMode();
@@ -11661,10 +12112,31 @@ function wireEvents() {
     setBodyMode();
     setSelected(state.selectedWidgetId);
     refreshAllWidgets();
-    updateBoardBounds();
-    requestAnimationFrame(() => {
+
+    const syncBounds = () => {
       updateBoardBounds();
-    });
+      requestAnimationFrame(() => {
+        updateBoardBounds();
+      });
+    };
+
+    if (deferBoundsSync) {
+      window.setTimeout(syncBounds, BOARD_PAGE_TRANSITION_MS + 20);
+    } else {
+      syncBounds();
+    }
+  });
+
+  elements.homePageAnchorBtn?.addEventListener("click", () => {
+    if (state.mode !== "edit") {
+      return;
+    }
+    const targetPage = resolveHomeAnchorTargetPage();
+    if (!Number.isFinite(targetPage)) {
+      showAddWidgetToast("실제 페이지에서만 홈 화면으로 지정할 수 있어요.");
+      return;
+    }
+    setLauncherHomePage(targetPage);
   });
 
   elements.dockSettingsBtn?.addEventListener("click", () => {
@@ -12162,6 +12634,10 @@ async function init() {
   lastSavedUserMutationAt = readUserMutationClock(normalizedLoaded);
   saveInFlightFingerprint = "";
   state = hydrate(normalizedLoaded);
+  const home = syncLauncherPagingState({ expandToFitInstances: true });
+  home.activePage = normalizeActivePage(home.homePage, home.pageCount, home.activePage);
+  state.ui.home = home;
+  launcherPageUiState.virtualPage = null;
   runtimeSettingsPanelOpen = false;
   wireStorageSync();
   if (

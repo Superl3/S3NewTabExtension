@@ -42,6 +42,7 @@
 - Monday Meeting Note
 - Flex Worktime
 - Weather
+- Codex Usage (ChatGPT page scrape)
 - Widget Folder (Container)
 
 ## AI Chat 위젯
@@ -74,6 +75,12 @@
 - 마이그레이션 참고: 기존 API 연동 사용자는 업데이트 후 위젯 설정에서 `Source mode`가 `API`로 잡혀 있는지 한 번 확인하세요(구형 설정에서 `sourceMode`가 없으면 API 관련 필드 존재 시 런타임에서 자동으로 `API`로 해석).
 - 기본 동작은 `refreshMinutes` 간격 자동 갱신 + 우측 상단 수동 새로고침입니다. 캐시는 날짜/설정/소스 모드 조합 기준으로 `localStorage`에 저장됩니다.
 - `detail URL template`이 설정되면 항목 클릭 시 상세 페이지로 이동합니다. 비어 있으면 클릭이 비활성화됩니다.
+
+## Codex Usage 위젯
+
+- `https://chatgpt.com/codex/settings/usage` 페이지의 화면 텍스트를 content script로 읽어 위젯에 표시합니다.
+- 공식 API 연동이 아닌 DOM 기반 추출이므로, ChatGPT UI 구조 변경 시 일부 항목 파싱이 깨질 수 있습니다.
+- 위젯의 `Open` 버튼으로 usage 페이지를 열고, 로그인/렌더 후 `Sync` 버튼으로 즉시 동기화할 수 있습니다.
 
 ## Widget Folder (Container) 위젯
 
@@ -203,7 +210,7 @@ If Edge reports `chrome.identity.launchWebAuthFlow is not available` for Monday 
   - `tabs`: Flex Worktime 스크랩 모드에서 flex.team/home 탭 탐색/생성/정리
   - `scripting`: Flex Worktime 스크랩 모드 DOM 텍스트 추출 스크립트 실행
   - 저장소 로드 실패/손상 데이터 시 기본 상태 안전 복구.
-- Host permissions: `http://*/*`, `https://*/*`
+- Host permissions: integration allowlist + local loopback (`http://localhost/*`, `http://127.0.0.1/*`)
 
 > 참고: AI Chat / Monday 위젯의 Auth connector 세션 토큰이 chrome.storage.local에 저장됩니다. 민감 정보 취급에 주의하세요.
 
@@ -236,12 +243,13 @@ If Edge reports `chrome.identity.launchWebAuthFlow is not available` for Monday 
 
 ## 로컬 점검
 
-빌드 도구 없이 동작하는 구조입니다. 문법 확인 예시:
+빌드 도구 없이 동작하는 구조입니다. 문법 확인/테스트 예시:
 
 ```bash
 node --check app.js
 node --check widgets/index.js
 node --check widgets/calendar.js
+npm test
 ```
 
 ## Startup State (외부 JSON 초기 상태)

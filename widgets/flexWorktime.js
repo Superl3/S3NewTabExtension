@@ -1,5 +1,12 @@
+import { pruneCacheIndex, touchCacheIndex } from "./shared/localStorageCacheIndex.js";
+
 const FLEX_WORKTIME_CACHE_PREFIX = "s3newtab:flex-worktime-cache:v1";
 const FLEX_WORKTIME_CACHE_MAX_ENTRIES = 24;
+const FLEX_WORKTIME_CACHE_INDEX_KEY = `${FLEX_WORKTIME_CACHE_PREFIX}:__index__`;
+const FLEX_WORKTIME_CACHE_INDEX_OPTIONS = {
+  prefix: `${FLEX_WORKTIME_CACHE_PREFIX}:`,
+  indexKey: FLEX_WORKTIME_CACHE_INDEX_KEY
+};
 const FLEX_HOME_TAB_LOAD_TIMEOUT_MS = 20000;
 const DEFAULT_FLEX_WORKTIME_REFRESH_MINUTES = 1;
 const DEFAULT_SOURCE_MODE = "flexHomeScrape";
@@ -465,38 +472,10 @@ function pruneCacheEntries(maxEntries = FLEX_WORKTIME_CACHE_MAX_ENTRIES) {
     return;
   }
 
-  const limit = Math.max(1, Number(maxEntries) || FLEX_WORKTIME_CACHE_MAX_ENTRIES);
-  const entries = [];
-
-  for (let index = 0; index < localStorage.length; index += 1) {
-    const key = localStorage.key(index);
-    if (!key || !key.startsWith(`${FLEX_WORKTIME_CACHE_PREFIX}:`)) {
-      continue;
-    }
-
-    let fetchedAt = 0;
-    try {
-      const parsed = tryParseJson(localStorage.getItem(key) || "");
-      fetchedAt = Number(parsed?.fetchedAt) || 0;
-    } catch {
-      fetchedAt = 0;
-    }
-
-    entries.push({ key, fetchedAt });
-  }
-
-  if (entries.length <= limit) {
-    return;
-  }
-
-  entries.sort((left, right) => right.fetchedAt - left.fetchedAt);
-  for (const entry of entries.slice(limit)) {
-    try {
-      localStorage.removeItem(entry.key);
-    } catch {
-      // noop
-    }
-  }
+  pruneCacheIndex(localStorage, {
+    ...FLEX_WORKTIME_CACHE_INDEX_OPTIONS,
+    maxEntries
+  });
 }
 
 function writeCachedSnapshot(config, queryDate, rows, fetchedAt = Date.now()) {
@@ -512,7 +491,12 @@ function writeCachedSnapshot(config, queryDate, rows, fetchedAt = Date.now()) {
 
   try {
     localStorage.setItem(key, JSON.stringify(payload));
-    pruneCacheEntries(FLEX_WORKTIME_CACHE_MAX_ENTRIES);
+    touchCacheIndex(localStorage, {
+      ...FLEX_WORKTIME_CACHE_INDEX_OPTIONS,
+      key,
+      fetchedAt: payload.fetchedAt,
+      maxEntries: FLEX_WORKTIME_CACHE_MAX_ENTRIES
+    });
   } catch {
     // noop
   }

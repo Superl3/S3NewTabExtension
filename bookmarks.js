@@ -1,5 +1,60 @@
-function getTree() {
-  return chrome.bookmarks.getTree();
+const BOOKMARK_TREE_CACHE_TTL_MS = 1200;
+
+let cachedBookmarkTree = null;
+let cachedBookmarkTreeAt = 0;
+let pendingBookmarkTreePromise = null;
+let bookmarkCacheListenersAttached = false;
+
+function invalidateBookmarkTreeCache() {
+  cachedBookmarkTree = null;
+  cachedBookmarkTreeAt = 0;
+  pendingBookmarkTreePromise = null;
+}
+
+function ensureBookmarkCacheInvalidationListeners() {
+  if (bookmarkCacheListenersAttached) {
+    return;
+  }
+
+  const bookmarksApi = chrome?.bookmarks;
+  if (!bookmarksApi?.onCreated || !bookmarksApi?.onChanged || !bookmarksApi?.onRemoved) {
+    return;
+  }
+
+  bookmarksApi.onCreated.addListener(invalidateBookmarkTreeCache);
+  bookmarksApi.onChanged.addListener(invalidateBookmarkTreeCache);
+  bookmarksApi.onRemoved.addListener(invalidateBookmarkTreeCache);
+  bookmarksApi.onMoved?.addListener(invalidateBookmarkTreeCache);
+  bookmarksApi.onChildrenReordered?.addListener(invalidateBookmarkTreeCache);
+  bookmarkCacheListenersAttached = true;
+}
+
+function getTree({ force = false } = {}) {
+  ensureBookmarkCacheInvalidationListeners();
+
+  const now = Date.now();
+  if (!force && cachedBookmarkTree && now - cachedBookmarkTreeAt < BOOKMARK_TREE_CACHE_TTL_MS) {
+    return Promise.resolve(cachedBookmarkTree);
+  }
+
+  if (!force && pendingBookmarkTreePromise) {
+    return pendingBookmarkTreePromise;
+  }
+
+  pendingBookmarkTreePromise = chrome.bookmarks
+    .getTree()
+    .then((tree) => {
+      cachedBookmarkTree = tree;
+      cachedBookmarkTreeAt = Date.now();
+      pendingBookmarkTreePromise = null;
+      return tree;
+    })
+    .catch((error) => {
+      pendingBookmarkTreePromise = null;
+      throw error;
+    });
+
+  return pendingBookmarkTreePromise;
 }
 
 function getSubTree(id) {
@@ -83,10 +138,6 @@ function findDefaultFolder(rootNodes) {
 }
 
 export async function resolveBookmarkRoot(config) {
-  const tree = await getTree();
-  const root = tree[0];
-  const allTop = root?.children || [];
-
   const rawId = (config?.folderId || "").trim();
   if (rawId) {
     try {
@@ -97,6 +148,10 @@ export async function resolveBookmarkRoot(config) {
     } catch {
     }
   }
+
+  const tree = await getTree();
+  const root = tree[0];
+  const allTop = root?.children || [];
 
   const segments = normalizePath(config?.folderPath || "");
   if (segments.length) {

@@ -1,0 +1,8 @@
+{
+  "name": "s3-new-tab-extension",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test tests/**/*.test.mjs"
+  }
+}

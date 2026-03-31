@@ -328,6 +328,10 @@ function parseIcsEvents(icsText, fallbackLink) {
   return events;
 }
 
+export function parseIcsEventsForContractTest(icsText, fallbackLink = GOOGLE_CALENDAR_WEB_URL) {
+  return parseIcsEvents(icsText, fallbackLink);
+}
+
 function filterUpcomingEvents(events, daysAhead) {
   const now = new Date();
   const rangeStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();

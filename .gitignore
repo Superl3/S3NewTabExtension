@@ -1,3 +1,7 @@
 # Ignore local connector environment overrides
 connector/.env
 .tmp
+
+# Keep GSD planning docs tracked in this repo
+!.planning/
+!.planning/**

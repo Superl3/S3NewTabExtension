@@ -1,8 +1,15 @@
+import { pruneCacheIndex, touchCacheIndex } from "./shared/localStorageCacheIndex.js";
+
 const GEOCODING_API_URL = "https://geocoding-api.open-meteo.com/v1/search";
 const FORECAST_API_URL = "https://api.open-meteo.com/v1/forecast";
 const DEFAULT_LOCATION_QUERY = "Seoul";
 const WEATHER_CACHE_PREFIX = "s3newtab:weather-cache:v1";
 const WEATHER_CACHE_MAX_ENTRIES = 12;
+const WEATHER_CACHE_INDEX_KEY = `${WEATHER_CACHE_PREFIX}:__index__`;
+const WEATHER_CACHE_INDEX_OPTIONS = {
+  prefix: `${WEATHER_CACHE_PREFIX}:`,
+  indexKey: WEATHER_CACHE_INDEX_KEY
+};
 
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
@@ -129,8 +136,14 @@ function writeWeatherCache(config, snapshot, fetchedAt) {
     snapshot
   };
   try {
-    localStorage.setItem(weatherCacheStorageKey(config), JSON.stringify(payload));
-    pruneWeatherCacheEntries(WEATHER_CACHE_MAX_ENTRIES);
+    const cacheKey = weatherCacheStorageKey(config);
+    localStorage.setItem(cacheKey, JSON.stringify(payload));
+    touchCacheIndex(localStorage, {
+      ...WEATHER_CACHE_INDEX_OPTIONS,
+      key: cacheKey,
+      fetchedAt: payload.fetchedAt,
+      maxEntries: WEATHER_CACHE_MAX_ENTRIES
+    });
   } catch {
     // noop
   }
@@ -141,38 +154,10 @@ function pruneWeatherCacheEntries(maxEntries = WEATHER_CACHE_MAX_ENTRIES) {
     return;
   }
 
-  const limit = Math.max(1, Number(maxEntries) || WEATHER_CACHE_MAX_ENTRIES);
-  const entries = [];
-
-  for (let index = 0; index < localStorage.length; index += 1) {
-    const key = localStorage.key(index);
-    if (!key || !key.startsWith(`${WEATHER_CACHE_PREFIX}:`)) {
-      continue;
-    }
-
-    let fetchedAt = 0;
-    try {
-      const parsed = tryParseJson(localStorage.getItem(key) || "");
-      fetchedAt = Number(parsed?.fetchedAt) || 0;
-    } catch {
-      fetchedAt = 0;
-    }
-
-    entries.push({ key, fetchedAt });
-  }
-
-  if (entries.length <= limit) {
-    return;
-  }
-
-  entries.sort((left, right) => right.fetchedAt - left.fetchedAt);
-  for (const entry of entries.slice(limit)) {
-    try {
-      localStorage.removeItem(entry.key);
-    } catch {
-      // noop
-    }
-  }
+  pruneCacheIndex(localStorage, {
+    ...WEATHER_CACHE_INDEX_OPTIONS,
+    maxEntries
+  });
 }
 
 function asFiniteNumber(value, fallback = null) {
@@ -309,6 +294,10 @@ async function fetchWeatherSnapshot(config) {
     throw new Error("Weather response parse failed.");
   }
 
+  return buildWeatherSnapshot(place, forecastPayload, config);
+}
+
+function buildWeatherSnapshot(place, forecastPayload, config) {
   const current = forecastPayload?.current || {};
   const daily = forecastPayload?.daily || {};
   const isDay = asFiniteNumber(current?.is_day, 1) === 1;
@@ -335,6 +324,11 @@ async function fetchWeatherSnapshot(config) {
     temperatureUnit,
     windUnit
   };
+}
+
+export function buildWeatherSnapshotForContractTest(place, forecastPayload, configInput = {}) {
+  const config = normalizedConfig(configInput);
+  return buildWeatherSnapshot(place, forecastPayload, config);
 }
 
 function createMetaItem(labelText, valueText) {

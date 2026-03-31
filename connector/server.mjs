@@ -4,6 +4,11 @@ import fs from "fs";
 import path from "path";
 import crypto from "crypto";
 import { fileURLToPath } from "url";
+import {
+  isAllowedRedirectUri as isAllowedRedirectUriByPolicy,
+  normalizeText,
+  parseAllowedExtensionIds
+} from "./redirect-policy.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ENV_PATH = path.join(__dirname, ".env");
@@ -163,59 +168,10 @@ function createRandomId(length = 16) {
 }
 
 function isAllowedRedirectUri(value) {
-  try {
-    const parsed = new URL(value);
-    const extensionId = extractExtensionId(parsed);
-    if (parsed.protocol === "https:") {
-      if (parsed.hostname.endsWith(".chromiumapp.org")) {
-        return extensionId && ALLOWED_EXTENSION_IDS.has(extensionId);
-      }
-      if (normalizeText(env.ALLOW_ANY_HTTPS_REDIRECT) === "1") {
-        return true;
-      }
-      return false;
-    }
-    if (parsed.protocol === "chrome-extension:") {
-      if (!extensionId) {
-        return false;
-      }
-      if (!ALLOW_CHROME_EXTENSION_REDIRECT || ALLOWED_EXTENSION_IDS.size === 0) {
-        return false;
-      }
-      return ALLOWED_EXTENSION_IDS.has(extensionId);
-    }
-    if (parsed.protocol === "http:") {
-      return parsed.hostname === "localhost" || parsed.hostname === "127.0.0.1";
-    }
-    return false;
-  } catch {
-    return false;
-  }
-}
-
-function normalizeText(value) {
-  if (typeof value === "string") {
-    return value.trim();
-  }
-  if (value == null) {
-    return "";
-  }
-  return String(value).trim();
-}
-
-function parseAllowedExtensionIds(value) {
-  const set = new Set();
-  const normalized = normalizeText(value);
-  if (!normalized) {
-    return set;
-  }
-  for (const item of normalized.split(",")) {
-    const candidate = normalizeText(item).toLowerCase();
-    if (/^[a-p]{32}$/.test(candidate)) {
-      set.add(candidate);
-    }
-  }
-  return set;
+  return isAllowedRedirectUriByPolicy(value, {
+    allowedExtensionIds: ALLOWED_EXTENSION_IDS,
+    allowChromeExtensionRedirect: ALLOW_CHROME_EXTENSION_REDIRECT
+  });
 }
 
 function parseClampedInt(value, fallback, min, max) {
@@ -224,20 +180,6 @@ function parseClampedInt(value, fallback, min, max) {
     return fallback;
   }
   return Math.max(min, Math.min(max, parsed));
-}
-
-function extractExtensionId(parsed) {
-  if (!parsed) {
-    return "";
-  }
-  if (parsed.protocol === "chrome-extension:") {
-    return normalizeText(parsed.hostname).toLowerCase();
-  }
-  if (parsed.protocol === "https:") {
-    const match = normalizeText(parsed.hostname).toLowerCase().match(/^([a-p]{32})\.chromiumapp\.org$/);
-    return match ? match[1] : "";
-  }
-  return "";
 }
 
 function redirectWithHash(res, redirectUri, params) {

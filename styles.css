@@ -257,13 +257,27 @@ body.mode-edit .edit-rail {
   z-index: 1390;
 }
 
+.corner-controls-home {
+  position: fixed;
+  left: 10px;
+  bottom: 10px;
+  display: inline-flex;
+  align-items: center;
+  z-index: 1390;
+}
+
 body.mode-edit .corner-controls-bottom {
+  bottom: 72px;
+}
+
+body.mode-edit .corner-controls-home {
   bottom: 72px;
 }
 
 .corner-mode-toggle,
 .corner-bg-refresh,
-.corner-settings-toggle {
+.corner-settings-toggle,
+.corner-home-anchor {
   width: 36px;
   height: 36px;
   display: inline-flex;
@@ -282,14 +296,16 @@ body.mode-edit .corner-controls-bottom {
 
 .corner-mode-toggle .icon,
 .corner-bg-refresh .icon,
-.corner-settings-toggle .icon {
+.corner-settings-toggle .icon,
+.corner-home-anchor .icon {
   width: 19px;
   height: 19px;
 }
 
 .corner-mode-toggle:hover,
 .corner-bg-refresh:hover,
-.corner-settings-toggle:hover {
+.corner-settings-toggle:hover,
+.corner-home-anchor:hover {
   opacity: 1;
   transform: translateY(-1px);
 }
@@ -298,7 +314,17 @@ body:not(.mode-edit) .corner-settings-toggle {
   display: none;
 }
 
+body:not(.mode-edit) .corner-controls-home {
+  display: none;
+}
+
 body.mode-edit .corner-mode-toggle {
+  background: color-mix(in srgb, var(--primary), var(--tone-light) 6%);
+  border-color: color-mix(in srgb, var(--primary), var(--tone-dark) 20%);
+  color: var(--tone-light);
+}
+
+.corner-home-anchor.is-active {
   background: color-mix(in srgb, var(--primary), var(--tone-light) 6%);
   border-color: color-mix(in srgb, var(--primary), var(--tone-dark) 20%);
   color: var(--tone-light);
@@ -928,39 +954,41 @@ body.mode-edit .dock-widget-item:hover {
   transition: opacity 0.2s ease;
 }
 
-.persistent-dock[data-visibility="hover"] .persistent-dock-handle {
-  display: none;
+.persistent-dock[data-visibility="collapsible"] .persistent-dock-handle {
+  display: block;
 }
 
-.persistent-dock[data-visibility="hover"][data-position="top"] .persistent-dock-handle,
-.persistent-dock[data-visibility="hover"][data-position="bottom"] .persistent-dock-handle {
+.persistent-dock[data-visibility="collapsible"][data-position="top"] .persistent-dock-handle,
+.persistent-dock[data-visibility="collapsible"][data-position="bottom"] .persistent-dock-handle {
   width: 44px;
   height: 5px;
   margin: 6px 0;
 }
 
-.persistent-dock[data-visibility="hover"][data-position="left"] .persistent-dock-handle,
-.persistent-dock[data-visibility="hover"][data-position="right"] .persistent-dock-handle {
+.persistent-dock[data-visibility="collapsible"][data-position="left"] .persistent-dock-handle,
+.persistent-dock[data-visibility="collapsible"][data-position="right"] .persistent-dock-handle {
   width: 5px;
   height: 44px;
   margin: 0 6px;
 }
 
-.persistent-dock[data-visibility="hover"] .persistent-dock-body {
+.persistent-dock[data-visibility="collapsible"] .persistent-dock-body {
   opacity: 0;
   pointer-events: none;
   transform: translate3d(var(--dock-hide-x), var(--dock-hide-y), 0) scale(0.98);
 }
 
-.persistent-dock[data-visibility="hover"]:hover .persistent-dock-body,
-.persistent-dock[data-visibility="hover"]:focus-within .persistent-dock-body {
+.persistent-dock[data-visibility="collapsible"]:hover .persistent-dock-body,
+.persistent-dock[data-visibility="collapsible"]:focus-within .persistent-dock-body,
+.persistent-dock[data-visibility="collapsible"].is-drop-target .persistent-dock-body {
   opacity: 1;
   pointer-events: auto;
   transform: translate3d(0, 0, 0) scale(1);
 }
 
-.persistent-dock[data-visibility="hover"]:hover .persistent-dock-handle,
-.persistent-dock[data-visibility="hover"]:focus-within .persistent-dock-handle {
+.persistent-dock[data-visibility="collapsible"]:hover .persistent-dock-handle,
+.persistent-dock[data-visibility="collapsible"]:focus-within .persistent-dock-handle,
+.persistent-dock[data-visibility="collapsible"].is-drop-target .persistent-dock-handle {
   opacity: 0.16;
 }
 
@@ -2269,6 +2297,137 @@ body.mode-edit .widget-float-remove:hover {
 
 .gmail-widget {
   min-height: 100%;
+}
+
+.codex-usage-widget {
+  min-height: 100%;
+}
+
+.codex-usage-shell {
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.codex-usage-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.codex-usage-status {
+  margin: 0;
+  width: 100%;
+  color: var(--muted);
+  font-size: 0.84em;
+  text-align: right;
+  flex: 0 0 auto;
+  padding-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.codex-usage-status.is-error {
+  color: color-mix(in srgb, var(--warn), var(--text) 18%);
+}
+
+.codex-usage-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.codex-usage-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 8px;
+  font-size: 0.82em;
+}
+
+.codex-usage-btn .icon {
+  width: 13px;
+  height: 13px;
+}
+
+.codex-usage-metrics,
+.codex-usage-lines {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.codex-usage-metrics {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+}
+
+.codex-usage-metric-item,
+.codex-usage-line-item,
+.codex-usage-empty {
+  border: 1px solid color-mix(in srgb, var(--line), transparent 55%);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--widget-effective-surface), transparent 36%);
+  padding: 8px 10px;
+}
+
+.codex-usage-metric-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    "label value"
+    "details details";
+  gap: 8px;
+  align-items: center;
+}
+
+.codex-usage-metric-label {
+  grid-area: label;
+  min-width: 0;
+  color: var(--muted);
+  font-size: 0.84em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.codex-usage-metric-value {
+  grid-area: value;
+  font-weight: 640;
+  font-size: 0.92em;
+}
+
+.codex-usage-metric-details {
+  grid-area: details;
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
+  color: color-mix(in srgb, var(--text), var(--muted) 42%);
+  font-size: 0.8em;
+}
+
+.codex-usage-metric-reset {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.codex-usage-line-item,
+.codex-usage-empty {
+  color: color-mix(in srgb, var(--text), var(--muted) 35%);
+  font-size: 0.82em;
+}
+
+.codex-usage-lines {
+  max-height: 96px;
+  overflow: auto;
 }
 
 .gmail-widget-shell {
@@ -4270,13 +4429,13 @@ body.mode-edit .widget-float-remove:hover {
 }
 
 @media (hover: none) {
-  .persistent-dock[data-visibility="hover"] .persistent-dock-body {
+  .persistent-dock[data-visibility="collapsible"] .persistent-dock-body {
     opacity: 1;
     pointer-events: auto;
     transform: none;
   }
 
-  .persistent-dock[data-visibility="hover"] .persistent-dock-handle {
+  .persistent-dock[data-visibility="collapsible"] .persistent-dock-handle {
     display: none;
   }
 
