@@ -33,6 +33,29 @@ import {
   policyRealPageFromInternalPage
 } from "./core/launcherDropPlan.js";
 import {
+  applyLauncherHomeMetadata,
+  normalizeActivePage,
+  normalizeLauncherPageIndexList,
+  normalizePageCount,
+  normalizeWidgetPage,
+  remapLauncherPageIndexList,
+  remapPageForDeletion,
+  resolvePageTowardHomeDirection,
+  shiftLauncherPageIndexListOnDelete,
+  shiftLauncherPageIndexListOnInsert
+} from "./core/launcher-pages.js";
+import {
+  defaultHomeLayout,
+  gapPresetToPx,
+  marginPresetToPx,
+  normalizeDockHeight,
+  normalizeDockLength,
+  normalizeDockShape,
+  normalizeDockSize,
+  normalizeDockVisibility,
+  normalizeHomeLayout
+} from "./core/home-layout.js";
+import {
   buildDragPayloadWithPreviewOffset as buildDragPayloadWithPreviewOffsetCore,
   createDragPreviewSession as createDragPreviewSessionCore,
   createWidgetDragPreview as createWidgetDragPreviewCore,
@@ -545,29 +568,6 @@ function normalizeMondayGlobalSettings(value) {
   };
 }
 
-function defaultHomeLayout() {
-  return {
-    mode: "grid",
-    gridColumns: 4,
-    gridRows: 3,
-    marginHorizontal: "medium",
-    marginVertical: "medium",
-    itemGap: "narrow",
-    pageCount: 1,
-    activePage: 0,
-    homePage: 0,
-    manualPages: [],
-    dockEnabled: true,
-    dockShape: "raised",
-    dockVisibility: "fixed",
-    dockPosition: "bottom",
-    dockLength: 6,
-    dockHeight: 44,
-    widgetBackdropBlur: true,
-    legacyHeadlessSurfaceMigrated: false
-  };
-}
-
 function defaultWidgetCommonMaster() {
   return {
     viewMode: "window",
@@ -1022,77 +1022,6 @@ function applyWidgetCommonMaster(instance, master, force = false) {
     setInstanceCommonValue(instance, key, master[key]);
   }
   instance.commonOverrides = normalizeCommonOverrides(instance.commonOverrides);
-}
-
-function normalizeHomeMode(value, fallback = "grid") {
-  if (value === "grid" || value === "free") {
-    return value;
-  }
-  return fallback;
-}
-
-function normalizeMarginPreset(value, fallback = "medium") {
-  if (value === "wide" || value === "medium" || value === "narrow" || value === "none") {
-    return value;
-  }
-  return fallback;
-}
-
-function normalizeGapPreset(value, fallback = "narrow") {
-  if (value === "wide" || value === "narrow" || value === "none") {
-    return value;
-  }
-  return fallback;
-}
-
-function normalizeDockShape(value, fallback = "raised") {
-  if (value === "raised" || value === "flat") {
-    return value;
-  }
-  return fallback;
-}
-
-function normalizeDockVisibility(value, fallback = "fixed") {
-  const raw = normalizeText(value, fallback).toLowerCase();
-  if (raw === "fixed" || raw === "always") {
-    return "fixed";
-  }
-  if (raw === "collapsible" || raw === "hover") {
-    return "collapsible";
-  }
-
-  const normalizedFallback = normalizeText(fallback, "fixed").toLowerCase();
-  if (normalizedFallback === "collapsible" || normalizedFallback === "hover") {
-    return "collapsible";
-  }
-  return "fixed";
-}
-
-function normalizeDockPosition(value, fallback = "bottom") {
-  if (value === "top" || value === "bottom" || value === "left" || value === "right") {
-    return value;
-  }
-  return fallback;
-}
-
-function normalizeDockLength(value, fallback = 6) {
-  const num = Number(value);
-  if (!Number.isFinite(num)) {
-    return clamp(Math.floor(fallback), 5, 14);
-  }
-  return clamp(Math.floor(num), 5, 14);
-}
-
-function normalizeDockHeight(value, fallback = 44) {
-  const num = Number(value);
-  if (!Number.isFinite(num)) {
-    return clamp(Math.round(fallback), 36, 72);
-  }
-  return clamp(Math.round(num), 36, 72);
-}
-
-function normalizeDockSize(value, fallback = 44) {
-  return normalizeDockHeight(value, fallback);
 }
 
 /**
@@ -1652,191 +1581,6 @@ function buildDockConfig(home = state?.ui?.home) {
     lengthUnits: normalizeDockLength(normalizedHome.dockLength, 6),
     heightPx: normalizeDockHeight(normalizedHome.dockHeight, 44),
     position: "bottom"
-  };
-}
-
-function normalizePageCount(value, fallback = 1) {
-  const num = Number(value);
-  if (!Number.isFinite(num)) {
-    return clamp(Math.floor(fallback), 1, MAX_LAUNCHER_PAGES);
-  }
-  return clamp(Math.floor(num), 1, MAX_LAUNCHER_PAGES);
-}
-
-function normalizeActivePage(value, pageCount = 1, fallback = 0) {
-  const maxPage = Math.max(0, normalizePageCount(pageCount, 1) - 1);
-  const num = Number(value);
-  if (!Number.isFinite(num)) {
-    return clamp(Math.floor(fallback), 0, maxPage);
-  }
-  return clamp(Math.floor(num), 0, maxPage);
-}
-
-function normalizeWidgetPage(value, pageCount = MAX_LAUNCHER_PAGES, fallback = 0) {
-  const num = Number(value);
-  const maxPage = Math.max(0, normalizePageCount(pageCount, 1) - 1);
-  if (!Number.isFinite(num)) {
-    return clamp(Math.floor(fallback), 0, maxPage);
-  }
-  return clamp(Math.floor(num), 0, maxPage);
-}
-
-function normalizeLauncherPageIndexList(value, pageCount = 1) {
-  if (!Array.isArray(value)) {
-    return [];
-  }
-  const normalized = new Set();
-  for (const item of value) {
-    const page = normalizeWidgetPage(item, pageCount, 0);
-    normalized.add(page);
-  }
-  return Array.from(normalized).sort((left, right) => left - right);
-}
-
-function remapLauncherPageIndexList(list, remap, pageCount = 1) {
-  if (!(remap instanceof Map)) {
-    return normalizeLauncherPageIndexList(list, pageCount);
-  }
-  const remapped = [];
-  for (const rawPage of Array.isArray(list) ? list : []) {
-    const page = Math.floor(Number(rawPage));
-    if (!Number.isFinite(page)) {
-      continue;
-    }
-    const mapped = remap.get(page);
-    if (Number.isFinite(mapped)) {
-      remapped.push(mapped);
-    }
-  }
-  return normalizeLauncherPageIndexList(remapped, pageCount);
-}
-
-function shiftLauncherPageIndexListOnInsert(list, { addLeft = false, pageCount = 1, insertedPage = 0 } = {}) {
-  const shifted = normalizeLauncherPageIndexList(list, Math.max(1, pageCount - 1)).map((page) =>
-    addLeft ? page + 1 : page
-  );
-  shifted.push(insertedPage);
-  return normalizeLauncherPageIndexList(shifted, pageCount);
-}
-
-function shiftLauncherPageIndexListOnDelete(list, deletedPage, pageCount = 1) {
-  const target = normalizeWidgetPage(deletedPage, pageCount + 1, 0);
-  const shifted = [];
-  for (const page of normalizeLauncherPageIndexList(list, pageCount + 1)) {
-    if (page === target) {
-      continue;
-    }
-    shifted.push(page > target ? page - 1 : page);
-  }
-  return normalizeLauncherPageIndexList(shifted, pageCount);
-}
-
-function resolvePageTowardHomeDirection(keptPages, currentPage, homePage) {
-  if (!Array.isArray(keptPages) || !keptPages.length) {
-    return 0;
-  }
-  const sorted = [...keptPages].sort((left, right) => left - right);
-  if (sorted.includes(currentPage)) {
-    return currentPage;
-  }
-
-  if (currentPage < homePage) {
-    const towardHome = sorted.find((page) => page > currentPage);
-    if (Number.isFinite(towardHome)) {
-      return towardHome;
-    }
-    return sorted[sorted.length - 1];
-  }
-
-  if (currentPage > homePage) {
-    for (let index = sorted.length - 1; index >= 0; index -= 1) {
-      if (sorted[index] < currentPage) {
-        return sorted[index];
-      }
-    }
-    return sorted[0];
-  }
-
-  const atOrAfterHome = sorted.find((page) => page >= homePage);
-  if (Number.isFinite(atOrAfterHome)) {
-    return atOrAfterHome;
-  }
-  return sorted[sorted.length - 1];
-}
-
-function remapPageForDeletion(page, deletedPage, pageCountAfter) {
-  const normalizedDeletedPage = normalizeWidgetPage(deletedPage, pageCountAfter + 1, 0);
-  const normalizedPage = normalizeWidgetPage(page, pageCountAfter + 1, normalizedDeletedPage);
-  if (normalizedPage < normalizedDeletedPage) {
-    return normalizeWidgetPage(normalizedPage, pageCountAfter, 0);
-  }
-  if (normalizedPage > normalizedDeletedPage) {
-    return normalizeWidgetPage(normalizedPage - 1, pageCountAfter, 0);
-  }
-  return normalizeWidgetPage(normalizedDeletedPage, pageCountAfter, normalizedDeletedPage - 1);
-}
-
-function applyLauncherHomeMetadata(home) {
-  if (!home || typeof home !== "object") {
-    return home;
-  }
-  const pageCount = normalizePageCount(home.pageCount, 1);
-  home.homePage = normalizeActivePage(home.homePage, pageCount, 0);
-  home.manualPages = normalizeLauncherPageIndexList(home.manualPages, pageCount);
-  return home;
-}
-
-function marginPresetToPx(value) {
-  if (value === "wide") {
-    return 40;
-  }
-  if (value === "narrow") {
-    return 14;
-  }
-  if (value === "none") {
-    return 0;
-  }
-  return 26;
-}
-
-function gapPresetToPx(value) {
-  if (value === "wide") {
-    return 16;
-  }
-  if (value === "none") {
-    return 0;
-  }
-  return 8;
-}
-
-function normalizeHomeLayout(layout) {
-  const base = {
-    ...defaultHomeLayout(),
-    ...(layout || {})
-  };
-  const pageCount = normalizePageCount(base.pageCount, 1);
-  const homePage = normalizeActivePage(base.homePage, pageCount, 0);
-  const manualPages = normalizeLauncherPageIndexList(base.manualPages, pageCount);
-
-  return {
-    mode: normalizeHomeMode(base.mode, "grid"),
-    gridColumns: clamp(Number(base.gridColumns) || 4, 1, GRID_MAX_COLUMNS),
-    gridRows: clamp(Number(base.gridRows) || 3, 1, GRID_MAX_ROWS),
-    marginHorizontal: normalizeMarginPreset(base.marginHorizontal, "medium"),
-    marginVertical: normalizeMarginPreset(base.marginVertical, "medium"),
-    itemGap: normalizeGapPreset(base.itemGap, "narrow"),
-    pageCount,
-    activePage: normalizeActivePage(base.activePage, pageCount, 0),
-    homePage,
-    manualPages,
-    dockEnabled: base.dockEnabled !== false,
-    dockShape: normalizeDockShape(base.dockShape, "raised"),
-    dockVisibility: normalizeDockVisibility(base.dockVisibility, "fixed"),
-    dockPosition: normalizeDockPosition(base.dockPosition, "bottom"),
-    dockLength: normalizeDockLength(base.dockLength, 6),
-    dockHeight: normalizeDockHeight(base.dockHeight ?? base.dockSize, 44),
-    widgetBackdropBlur: base.widgetBackdropBlur !== false,
-    legacyHeadlessSurfaceMigrated: base.legacyHeadlessSurfaceMigrated === true
   };
 }
 
