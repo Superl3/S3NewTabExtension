@@ -16,6 +16,22 @@ import {
   applyRuntimeOnlyWidgetConfigDefaults,
   buildPersistableWidgetConfigPatch
 } from "./core/runtimeSnapshotPolicy.js";
+import {
+  DROP_CONTAINER_KIND,
+  DROP_PLAN_KIND,
+  createBoardPageDropPlan,
+  createBoardPlaceholderDropPlan,
+  createContainerDropPlan,
+  createDeleteZoneDropPlan,
+  createNoneDropPlan,
+  internalPlaceholderFromPlaceholderEdge,
+  isBoardPlaceholderDropPlan,
+  isBoardRealPageDropPlan,
+  isContainerDropPlan,
+  placeholderEdgeFromInternalPlaceholder,
+  policyPlaceholderPageFromInternalPlaceholder,
+  policyRealPageFromInternalPage
+} from "./core/launcherDropPlan.js";
 
 const SNAP = 20;
 const LONG_PRESS_DRAG_DELAY_MS = 340;
@@ -6227,6 +6243,72 @@ function tryDockWidgetByDrop(instance, pointerEvent, { record = true } = {}) {
   return true;
 }
 
+function applyWidgetDropPlan(instance, plan, payload = {}, { record = true } = {}) {
+  if (!instance || !plan || plan.kind === DROP_PLAN_KIND.NONE) {
+    return false;
+  }
+
+  if (plan.kind === DROP_PLAN_KIND.DELETE_ZONE) {
+    clearPendingPlaceholderDrop({ clearVirtualPage: true });
+    removeWidget(instance.id);
+    return true;
+  }
+
+  if (!isContainerDropPlan(plan) && !isBoardRealPageDropPlan(plan) && !isBoardPlaceholderDropPlan(plan)) {
+    return false;
+  }
+
+  if (isContainerDropPlan(plan)) {
+    clearPendingPlaceholderDrop({ clearVirtualPage: true });
+    if (plan.space.container.kind === DROP_CONTAINER_KIND.DOCK) {
+      const moved = tryDockWidgetByDrop(instance, payload, { record });
+      if (moved) {
+        renderBoard();
+        queueSave();
+      }
+      return moved;
+    }
+
+    if (plan.space.container.kind === DROP_CONTAINER_KIND.FOLDER) {
+      return tryContainerWidgetByDrop(instance, payload, { record });
+    }
+    return false;
+  }
+
+  if (isBoardPlaceholderDropPlan(plan)) {
+    const pageCount = currentLauncherPageCount();
+    const edge = plan.space.board.edge;
+    const placeholderPage = Number.isFinite(Number(plan.space.board.internalPlaceholderPage))
+      ? Math.floor(Number(plan.space.board.internalPlaceholderPage))
+      : internalPlaceholderFromPlaceholderEdge(edge, pageCount);
+    return queuePlaceholderPageDrop(
+      instance.id,
+      {
+        ...payload,
+        page: placeholderPage
+      },
+      placeholderPage
+    );
+  }
+
+  if (isBoardRealPageDropPlan(plan)) {
+    clearPendingPlaceholderDrop({ clearVirtualPage: true });
+    const targetPage = normalizeWidgetPage(plan.space.board.internalPage, currentLauncherPageCount(), currentLauncherActivePage());
+    const boardPayload = {
+      ...payload,
+      page: targetPage
+    };
+    if (isWidgetDocked(instance)) {
+      return releaseWidgetFromDockByDrop(instance.id, boardPayload);
+    }
+    if (isWidgetInContainer(instance)) {
+      return releaseWidgetFromContainerByDrop(instance.id, boardPayload);
+    }
+  }
+
+  return false;
+}
+
 function dockButtonsInStrip() {
   const strip = elements.dockWidgetStrip;
   if (!strip) {
@@ -6573,6 +6655,7 @@ function renderDockWidgets() {
       let pendingPageSwitchSince = 0;
       let pendingPageSwitchTimer = 0;
       let dragReleasePage = currentLauncherActivePage();
+      let lastDropPlan = createNoneDropPlan();
 
       const edgeDirectionFromPointer = (clientX) => {
         const viewportRect = getLauncherViewportRect();
@@ -6674,7 +6757,7 @@ function renderDockWidgets() {
           schedulePageSwitch(edgeDirectionFromPointer(clientX));
         }
 
-        const projection = isPlaceholderLauncherPage(dragReleasePage, currentLauncherPageCount())
+        const boardProjection = isPlaceholderLauncherPage(dragReleasePage, currentLauncherPageCount())
           ? null
           : projectWidgetBoardDropLayout(item, {
             clientX,
@@ -6683,18 +6766,32 @@ function renderDockWidgets() {
           }, {
             pageFallback: dragReleasePage
           });
-        const deleteHovering = updateDragDeleteZoneHover(clientX, clientY);
+
+        const nextDropPlan = resolveWidgetDropPlan(item, {
+          clientX,
+          clientY,
+          page: dragReleasePage
+        }, {
+          boardProjection,
+          suppressSurfaceTargets: false,
+          allowDeleteZone: true
+        });
+        lastDropPlan = nextDropPlan;
+        const deleteHovering = nextDropPlan.kind === DROP_PLAN_KIND.DELETE_ZONE;
+
         updateCrossSurfaceDropIndicators(item, clientX, clientY, {
           silhouette: dropSilhouette,
-          boardProjection: projection,
-          suppressSurfaceTargets: deleteHovering
+          boardProjection,
+          suppressSurfaceTargets: false,
+          dropPlan: nextDropPlan
         });
-        if (deleteHovering) {
+        const boardGuideProjection = isBoardRealPageDropPlan(nextDropPlan) ? nextDropPlan.projection : null;
+        if (deleteHovering || !boardGuideProjection?.layout) {
           clearWidgetDragGuideState();
         } else {
           updateWidgetDragGuideAtPointer(item, clientX, clientY, {
-            boardLayout: projection?.layout,
-            boardPage: projection?.page,
+            boardLayout: boardGuideProjection.layout,
+            boardPage: boardGuideProjection.page,
             showGuide: false
           });
         }
@@ -6711,12 +6808,25 @@ function renderDockWidgets() {
         setLauncherDragPlaceholderPolicy(false);
         const dropX = Number.isFinite(upEvent?.clientX) ? upEvent.clientX : event.clientX;
         const dropY = Number.isFinite(upEvent?.clientY) ? upEvent.clientY : event.clientY;
-        const pointerEventLike = {
+        const finalBoardProjection = isPlaceholderLauncherPage(dragReleasePage, currentLauncherPageCount())
+          ? null
+          : projectWidgetBoardDropLayout(item, {
+            clientX: dropX,
+            clientY: dropY,
+            page: dragReleasePage
+          }, {
+            pageFallback: dragReleasePage
+          });
+        const finalDropPlan = resolveWidgetDropPlan(item, {
           clientX: dropX,
-          clientY: dropY
-        };
-        const insideDock = isDockDropPoint(dropX, dropY);
-        const droppedOnDeleteZone = isPointOverDragDeleteZone(dropX, dropY);
+          clientY: dropY,
+          page: dragReleasePage
+        }, {
+          boardProjection: finalBoardProjection,
+          suppressSurfaceTargets: false,
+          allowDeleteZone: true
+        });
+        lastDropPlan = finalDropPlan;
 
         elements.persistentDock?.classList.remove("is-drag-out-active");
         clearWidgetDragGuideState();
@@ -6734,36 +6844,23 @@ function renderDockWidgets() {
         sourceCard?.classList.remove("widget-drag-origin-hidden");
         previewSession.dispose();
 
-        if (droppedOnDeleteZone) {
-          clearPendingPlaceholderDrop({ clearVirtualPage: true });
-          card.dataset.suppressClick = "true";
-          lastDragEndAt = Date.now();
-          removeWidget(item.id);
-          return;
-        }
-
-        if (insideDock) {
-          clearPendingPlaceholderDrop({ clearVirtualPage: true });
-          card.dataset.suppressClick = "true";
-          lastDragEndAt = Date.now();
-          if (tryDockWidgetByDrop(item, pointerEventLike, { record: true })) {
-            renderBoard();
-            queueSave();
-          }
-          return;
-        }
-
-        if (tryContainerWidgetByDrop(item, pointerEventLike, { record: true })) {
-          clearPendingPlaceholderDrop({ clearVirtualPage: true });
-          card.dataset.suppressClick = "true";
-          lastDragEndAt = Date.now();
-          renderBoard();
-          queueSave();
-          return;
-        }
-
         card.dataset.suppressClick = "true";
         lastDragEndAt = Date.now();
+        if (
+          applyWidgetDropPlan(
+            item,
+            lastDropPlan,
+            {
+              clientX: dropX,
+              clientY: dropY,
+              page: dragReleasePage
+            },
+            { record: true }
+          )
+        ) {
+          return;
+        }
+
         releaseWidgetFromDockByDrop(item.id, {
           clientX: dropX,
           clientY: dropY,
@@ -6912,6 +7009,7 @@ function addLauncherPage() {
   home.pageCount = normalizePageCount(home.pageCount + 1, home.pageCount + 1);
   home.activePage = home.pageCount - 1;
   state.ui.home = home;
+  clearPendingPlaceholderDrop({ clearVirtualPage: true });
 
   renderBoardViewport({ animate: true, dragging: false, dragOffsetX: 0 });
   renderSettings();
@@ -6947,8 +7045,9 @@ function removeLauncherPage() {
   home.pageCount = normalizePageCount(home.pageCount - 1, home.pageCount - 1);
   home.activePage = normalizeActivePage(Math.min(targetPage, home.pageCount - 1), home.pageCount, fallbackPage);
   state.ui.home = home;
+  clearPendingPlaceholderDrop({ clearVirtualPage: true });
 
-  updateBoardBounds();
+  renderBoard();
   renderSettings();
   queueSave();
 }
@@ -7594,45 +7693,128 @@ function projectContainerSilhouetteLayoutFromPointer(containerId, clientX, clien
   return viewportRectToBoardLayout(anchor.getBoundingClientRect());
 }
 
-function updateCrossSurfaceDropIndicators(
+function buildDropPlanProjection(layout = null, page = 0, gridLayout = null) {
+  if (!layout) {
+    return null;
+  }
+  return {
+    layout,
+    page: Number.isFinite(Number(page)) ? Math.floor(Number(page)) : 0,
+    gridLayout: gridLayout || null
+  };
+}
+
+function resolveWidgetDropPlan(
   instance,
-  clientX,
-  clientY,
+  payload = {},
   {
-    silhouette = null,
     boardProjection = null,
-    suppressSurfaceTargets = false
+    suppressSurfaceTargets = false,
+    allowDeleteZone = true
   } = {}
 ) {
   if (suppressSurfaceTargets) {
-    setContainerDropTargetActive("");
-    setDockDropTargetActive(false);
-    setWidgetDropSilhouetteVisible(silhouette, false);
-    return {
-      containerDropTargetId: "",
-      dockDropActive: false,
-      showBoardSilhouette: false
-    };
+    return createNoneDropPlan();
+  }
+
+  const clientX = Number(payload?.clientX);
+  const clientY = Number(payload?.clientY);
+
+  if (allowDeleteZone && isPointOverDragDeleteZone(clientX, clientY)) {
+    return createDeleteZoneDropPlan();
   }
 
   const containerDropTargetId = containerDropTargetAtPoint(clientX, clientY, instance);
-  const dockDropActive = !containerDropTargetId && isDockDropPoint(clientX, clientY);
-  setContainerDropTargetActive(containerDropTargetId);
-  setDockDropTargetActive(dockDropActive);
+  if (containerDropTargetId) {
+    const insertIndex = resolveContainerInsertIndexFromPointer(containerDropTargetId, clientX, clientY, {
+      excludeWidgetId: instance?.id,
+      panelElement: payload?.panelElement
+    });
+    const projection = buildDropPlanProjection(
+      projectContainerSilhouetteLayoutFromPointer(containerDropTargetId, clientX, clientY, instance?.id),
+      0,
+      null
+    );
+    return createContainerDropPlan({
+      containerKind: DROP_CONTAINER_KIND.FOLDER,
+      containerId: containerDropTargetId,
+      insertIndex,
+      projection
+    });
+  }
 
+  const dockDropActive = isDockDropPoint(clientX, clientY) && isDockEligibleWidget(instance);
+  if (dockDropActive) {
+    const projection = buildDropPlanProjection(projectDockSilhouetteLayoutFromPointer(clientX, clientY, instance?.id), 0, null);
+    const insertIndex = resolveDockInsertIndexFromPointer(clientX, instance?.id);
+    return createContainerDropPlan({
+      containerKind: DROP_CONTAINER_KIND.DOCK,
+      insertIndex,
+      projection
+    });
+  }
+
+  const fallbackProjection = projectWidgetBoardDropLayout(instance, payload, {
+    pageFallback: currentLauncherActivePage()
+  });
+  const projected = boardProjection || fallbackProjection;
+  if (!projected?.layout) {
+    return createNoneDropPlan();
+  }
+
+  const pageCount = currentLauncherPageCount();
+  const internalPage = normalizeWidgetPage(projected.page, pageCount, currentLauncherActivePage());
+  const projection = buildDropPlanProjection(projected.layout, internalPage, projected.gridLayout || null);
+
+  if (isPlaceholderLauncherPage(internalPage, pageCount)) {
+    const edge = placeholderEdgeFromInternalPlaceholder(internalPage, pageCount);
+    return createBoardPlaceholderDropPlan({
+      edge,
+      policyPlaceholderPage: policyPlaceholderPageFromInternalPlaceholder(internalPage, pageCount),
+      internalPlaceholderPage: internalPage,
+      projection
+    });
+  }
+
+  return createBoardPageDropPlan({
+    policyPage: policyRealPageFromInternalPage(internalPage),
+    internalPage,
+    projection
+  });
+}
+
+function applyDropPlanIndicators(plan, { silhouette = null } = {}) {
+  const safePlan = plan || createNoneDropPlan();
+  const deleteHovering = safePlan.kind === DROP_PLAN_KIND.DELETE_ZONE;
+
+  let containerDropTargetId = "";
+  let dockDropActive = false;
   let projectedLayout = null;
   let projectedPage = 0;
+  let showBoardSilhouette = false;
 
-  if (containerDropTargetId) {
-    projectedLayout = projectContainerSilhouetteLayoutFromPointer(containerDropTargetId, clientX, clientY, instance?.id);
-    projectedPage = 0;
-  } else if (dockDropActive) {
-    projectedLayout = projectDockSilhouetteLayoutFromPointer(clientX, clientY, instance?.id);
-    projectedPage = 0;
-  } else if (boardProjection && boardProjection.layout) {
-    projectedLayout = boardProjection.layout;
-    projectedPage = normalizeWidgetPage(boardProjection.page, currentLauncherPageCount(), currentLauncherActivePage());
+  if (isContainerDropPlan(safePlan)) {
+    if (safePlan.space.container.kind === DROP_CONTAINER_KIND.FOLDER) {
+      containerDropTargetId = normalizeContainerId(safePlan.space.container.folderId);
+    } else if (safePlan.space.container.kind === DROP_CONTAINER_KIND.DOCK) {
+      dockDropActive = true;
+    }
+  } else if (isBoardRealPageDropPlan(safePlan) || isBoardPlaceholderDropPlan(safePlan)) {
+    showBoardSilhouette = true;
   }
+
+  if (safePlan.projection?.layout) {
+    projectedLayout = safePlan.projection.layout;
+    projectedPage = normalizeWidgetPage(
+      safePlan.projection.page,
+      currentLauncherPageCount(),
+      currentLauncherActivePage()
+    );
+  }
+
+  setContainerDropTargetActive(containerDropTargetId);
+  setDockDropTargetActive(dockDropActive);
+  setDragDeleteZoneHover(deleteHovering);
 
   const visible = Boolean(projectedLayout);
   if (visible) {
@@ -7641,10 +7823,33 @@ function updateCrossSurfaceDropIndicators(
   setWidgetDropSilhouetteVisible(silhouette, visible);
 
   return {
+    plan: safePlan,
+    deleteHovering,
     containerDropTargetId,
     dockDropActive,
-    showBoardSilhouette: visible && !containerDropTargetId && !dockDropActive
+    showBoardSilhouette: visible && showBoardSilhouette
   };
+}
+
+function updateCrossSurfaceDropIndicators(
+  instance,
+  clientX,
+  clientY,
+  {
+    silhouette = null,
+    boardProjection = null,
+    suppressSurfaceTargets = false,
+    dropPlan = null
+  } = {}
+) {
+  const resolvedPlan =
+    dropPlan ||
+    resolveWidgetDropPlan(instance, { clientX, clientY }, {
+      boardProjection,
+      suppressSurfaceTargets,
+      allowDeleteZone: !suppressSurfaceTargets
+    });
+  return applyDropPlanIndicators(resolvedPlan, { silhouette });
 }
 
 function setWidgetContainer(instanceId, containerId, { record = true, rerender = true, save = true } = {}) {
@@ -8563,6 +8768,7 @@ function createWidgetCard(instance) {
     let pendingPageSwitchSince = 0;
     let pendingPageSwitchTimer = 0;
     let dragReleasePage = normalizeWidgetPage(instance.page, currentLauncherPageCount(), currentLauncherActivePage());
+    let lastDropPlan = createNoneDropPlan();
 
     const edgeDirectionFromPointer = (clientX) => {
       const rect = getLauncherViewportRect();
@@ -8756,7 +8962,6 @@ function createWidgetCard(instance) {
           placeDraftAtPointerInCurrentViewport(moveEvent.clientX, moveEvent.clientY);
         });
 
-        const projected = projectedGridDropLayout();
         const boardProjection = isPlaceholderLauncherPage(dragReleasePage, currentLauncherPageCount())
           ? null
           : projectWidgetBoardDropLayout(
@@ -8768,18 +8973,31 @@ function createWidgetCard(instance) {
             },
             { pageFallback: dragReleasePage }
           );
-        const deleteHovering = updateDragDeleteZoneHover(moveEvent.clientX, moveEvent.clientY);
+        const nextDropPlan = resolveWidgetDropPlan(instance, {
+          clientX: moveEvent.clientX,
+          clientY: moveEvent.clientY,
+          page: dragReleasePage
+        }, {
+          boardProjection,
+          suppressSurfaceTargets: false,
+          allowDeleteZone: true
+        });
+        lastDropPlan = nextDropPlan;
+
         updateCrossSurfaceDropIndicators(instance, moveEvent.clientX, moveEvent.clientY, {
           silhouette: dropSilhouette,
           boardProjection,
-          suppressSurfaceTargets: deleteHovering
+          suppressSurfaceTargets: false,
+          dropPlan: nextDropPlan
         });
-        if (deleteHovering || !boardProjection) {
+        const deleteHovering = nextDropPlan.kind === DROP_PLAN_KIND.DELETE_ZONE;
+        const boardGuideProjection = isBoardRealPageDropPlan(nextDropPlan) ? nextDropPlan.projection : null;
+        if (deleteHovering || !boardGuideProjection?.layout) {
           clearWidgetDragGuideState();
         } else {
           updateWidgetDragGuideAtPointer(instance, moveEvent.clientX, moveEvent.clientY, {
-            boardLayout: projected?.layout || null,
-            boardPage: dragReleasePage,
+            boardLayout: boardGuideProjection.layout,
+            boardPage: boardGuideProjection.page,
             showGuide: false
           });
         }
@@ -8802,26 +9020,40 @@ function createWidgetCard(instance) {
 
         const dropX = Number.isFinite(upEvent?.clientX) ? upEvent.clientX : lastPointerX;
         const dropY = Number.isFinite(upEvent?.clientY) ? upEvent.clientY : lastPointerY;
-        if (isPointOverDragDeleteZone(dropX, dropY)) {
-          clearPendingPlaceholderDrop({ clearVirtualPage: true });
-          removeWidget(instance.id);
-          return;
-        }
+        const finalBoardProjection = isPlaceholderLauncherPage(dragReleasePage, currentLauncherPageCount())
+          ? null
+          : projectWidgetBoardDropLayout(
+            instance,
+            {
+              clientX: dropX,
+              clientY: dropY,
+              page: dragReleasePage
+            },
+            { pageFallback: dragReleasePage }
+          );
+        const finalDropPlan = resolveWidgetDropPlan(instance, {
+          clientX: dropX,
+          clientY: dropY,
+          page: dragReleasePage
+        }, {
+          boardProjection: finalBoardProjection,
+          suppressSurfaceTargets: false,
+          allowDeleteZone: true
+        });
+        lastDropPlan = finalDropPlan;
 
-        if (tryContainerWidgetByDrop(instance, upEvent, { record: false })) {
-          clearPendingPlaceholderDrop({ clearVirtualPage: true });
-          return;
-        }
-
-        if (tryDockWidgetByDrop(instance, upEvent, { record: false })) {
-          clearPendingPlaceholderDrop({ clearVirtualPage: true });
-          renderBoard();
-          queueSave();
-          return;
-        }
-
-        if (isLauncherPlaceholderPolicyActive() && isPlaceholderLauncherPage(dragReleasePage, currentLauncherPageCount())) {
-          queuePlaceholderPageDrop(instance.id, { clientX: dropX, clientY: dropY, page: dragReleasePage }, dragReleasePage);
+        if (
+          applyWidgetDropPlan(
+            instance,
+            lastDropPlan,
+            {
+              clientX: dropX,
+              clientY: dropY,
+              page: dragReleasePage
+            },
+            { record: false }
+          )
+        ) {
           return;
         }
 
@@ -8837,7 +9069,6 @@ function createWidgetCard(instance) {
       window.addEventListener("pointermove", move);
       window.addEventListener("pointerup", up);
       window.addEventListener("pointercancel", up);
-      const projected = projectedGridDropLayout();
       const initialBoardProjection = isPlaceholderLauncherPage(dragReleasePage, currentLauncherPageCount())
         ? null
         : projectWidgetBoardDropLayout(
@@ -8849,36 +9080,37 @@ function createWidgetCard(instance) {
           },
           { pageFallback: dragReleasePage }
         );
+      const initialDropPlan = resolveWidgetDropPlan(instance, {
+        clientX: dragStartX,
+        clientY: dragStartY,
+        page: dragReleasePage
+      }, {
+        boardProjection: initialBoardProjection,
+        suppressSurfaceTargets: false,
+        allowDeleteZone: true
+      });
+      lastDropPlan = initialDropPlan;
 
-      const deleteHovering = updateDragDeleteZoneHover(dragStartX, dragStartY);
       updateCrossSurfaceDropIndicators(instance, dragStartX, dragStartY, {
         silhouette: dropSilhouette,
         boardProjection: initialBoardProjection,
-        suppressSurfaceTargets: deleteHovering
+        suppressSurfaceTargets: false,
+        dropPlan: initialDropPlan
       });
-      if (deleteHovering || !initialBoardProjection) {
+      const deleteHovering = initialDropPlan.kind === DROP_PLAN_KIND.DELETE_ZONE;
+      const boardGuideProjection = isBoardRealPageDropPlan(initialDropPlan) ? initialDropPlan.projection : null;
+      if (deleteHovering || !boardGuideProjection?.layout) {
         clearWidgetDragGuideState();
       } else {
         updateWidgetDragGuideAtPointer(instance, dragStartX, dragStartY, {
-          boardLayout: projected.layout,
-          boardPage: dragReleasePage,
+          boardLayout: boardGuideProjection.layout,
+          boardPage: boardGuideProjection.page,
           showGuide: false
         });
       }
 
       return true;
     }
-
-    const projectedFreeDropLayout = () => {
-      const maxX = Math.max(0, boardRect.width - instance.layout.w);
-      const maxY = Math.max(0, boardRect.height - instance.layout.h);
-      return {
-        x: clamp(Math.round(instance.layout.x / SNAP) * SNAP, 0, maxX),
-        y: clamp(Math.round(instance.layout.y / SNAP) * SNAP, 0, maxY),
-        w: instance.layout.w,
-        h: instance.layout.h
-      };
-    };
 
     const move = (moveEvent) => {
       previewSession.update(moveEvent.clientX, moveEvent.clientY);
@@ -8914,17 +9146,31 @@ function createWidgetCard(instance) {
           },
           { pageFallback: dragReleasePage }
         );
-      const deleteHovering = updateDragDeleteZoneHover(moveEvent.clientX, moveEvent.clientY);
+      const nextDropPlan = resolveWidgetDropPlan(instance, {
+        clientX: moveEvent.clientX,
+        clientY: moveEvent.clientY,
+        page: dragReleasePage
+      }, {
+        boardProjection,
+        suppressSurfaceTargets: false,
+        allowDeleteZone: true
+      });
+      lastDropPlan = nextDropPlan;
+
       updateCrossSurfaceDropIndicators(instance, moveEvent.clientX, moveEvent.clientY, {
         silhouette: dropSilhouette,
         boardProjection,
-        suppressSurfaceTargets: deleteHovering
+        suppressSurfaceTargets: false,
+        dropPlan: nextDropPlan
       });
-      if (deleteHovering || !boardProjection) {
+      const deleteHovering = nextDropPlan.kind === DROP_PLAN_KIND.DELETE_ZONE;
+      const boardGuideProjection = isBoardRealPageDropPlan(nextDropPlan) ? nextDropPlan.projection : null;
+      if (deleteHovering || !boardGuideProjection?.layout) {
         clearWidgetDragGuideState();
       } else {
         updateWidgetDragGuideAtPointer(instance, moveEvent.clientX, moveEvent.clientY, {
-          boardLayout: projectedFreeDropLayout(),
+          boardLayout: boardGuideProjection.layout,
+          boardPage: boardGuideProjection.page,
           showGuide: false
         });
       }
@@ -8947,26 +9193,40 @@ function createWidgetCard(instance) {
 
       const dropX = Number.isFinite(upEvent?.clientX) ? upEvent.clientX : lastPointerX;
       const dropY = Number.isFinite(upEvent?.clientY) ? upEvent.clientY : lastPointerY;
-      if (isPointOverDragDeleteZone(dropX, dropY)) {
-        clearPendingPlaceholderDrop({ clearVirtualPage: true });
-        removeWidget(instance.id);
-        return;
-      }
+      const finalBoardProjection = isPlaceholderLauncherPage(dragReleasePage, currentLauncherPageCount())
+        ? null
+        : projectWidgetBoardDropLayout(
+          instance,
+          {
+            clientX: dropX,
+            clientY: dropY,
+            page: dragReleasePage
+          },
+          { pageFallback: dragReleasePage }
+        );
+      const finalDropPlan = resolveWidgetDropPlan(instance, {
+        clientX: dropX,
+        clientY: dropY,
+        page: dragReleasePage
+      }, {
+        boardProjection: finalBoardProjection,
+        suppressSurfaceTargets: false,
+        allowDeleteZone: true
+      });
+      lastDropPlan = finalDropPlan;
 
-      if (tryContainerWidgetByDrop(instance, upEvent, { record: true })) {
-        clearPendingPlaceholderDrop({ clearVirtualPage: true });
-        return;
-      }
-
-      if (tryDockWidgetByDrop(instance, upEvent, { record: true })) {
-        clearPendingPlaceholderDrop({ clearVirtualPage: true });
-        renderBoard();
-        queueSave();
-        return;
-      }
-
-      if (isLauncherPlaceholderPolicyActive() && isPlaceholderLauncherPage(dragReleasePage, currentLauncherPageCount())) {
-        queuePlaceholderPageDrop(instance.id, { clientX: dropX, clientY: dropY, page: dragReleasePage }, dragReleasePage);
+      if (
+        applyWidgetDropPlan(
+          instance,
+          lastDropPlan,
+          {
+            clientX: dropX,
+            clientY: dropY,
+            page: dragReleasePage
+          },
+          { record: true }
+        )
+      ) {
         return;
       }
 
@@ -8997,7 +9257,6 @@ function createWidgetCard(instance) {
     window.addEventListener("pointermove", move);
     window.addEventListener("pointerup", up);
     window.addEventListener("pointercancel", up);
-    const deleteHovering = updateDragDeleteZoneHover(dragStartX, dragStartY);
     const initialBoardProjection = isPlaceholderLauncherPage(dragReleasePage, currentLauncherPageCount())
       ? null
       : projectWidgetBoardDropLayout(
@@ -9009,16 +9268,30 @@ function createWidgetCard(instance) {
         },
         { pageFallback: dragReleasePage }
       );
+    const initialDropPlan = resolveWidgetDropPlan(instance, {
+      clientX: dragStartX,
+      clientY: dragStartY,
+      page: dragReleasePage
+    }, {
+      boardProjection: initialBoardProjection,
+      suppressSurfaceTargets: false,
+      allowDeleteZone: true
+    });
+    lastDropPlan = initialDropPlan;
     updateCrossSurfaceDropIndicators(instance, dragStartX, dragStartY, {
       silhouette: dropSilhouette,
       boardProjection: initialBoardProjection,
-      suppressSurfaceTargets: deleteHovering
+      suppressSurfaceTargets: false,
+      dropPlan: initialDropPlan
     });
-    if (deleteHovering || !initialBoardProjection) {
+    const deleteHovering = initialDropPlan.kind === DROP_PLAN_KIND.DELETE_ZONE;
+    const boardGuideProjection = isBoardRealPageDropPlan(initialDropPlan) ? initialDropPlan.projection : null;
+    if (deleteHovering || !boardGuideProjection?.layout) {
       clearWidgetDragGuideState();
     } else {
       updateWidgetDragGuideAtPointer(instance, dragStartX, dragStartY, {
-        boardLayout: projectedFreeDropLayout(),
+        boardLayout: boardGuideProjection.layout,
+        boardPage: boardGuideProjection.page,
         showGuide: false
       });
     }
