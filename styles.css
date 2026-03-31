@@ -954,39 +954,41 @@ body.mode-edit .dock-widget-item:hover {
   transition: opacity 0.2s ease;
 }
 
-.persistent-dock[data-visibility="hover"] .persistent-dock-handle {
-  display: none;
+.persistent-dock[data-visibility="collapsible"] .persistent-dock-handle {
+  display: block;
 }
 
-.persistent-dock[data-visibility="hover"][data-position="top"] .persistent-dock-handle,
-.persistent-dock[data-visibility="hover"][data-position="bottom"] .persistent-dock-handle {
+.persistent-dock[data-visibility="collapsible"][data-position="top"] .persistent-dock-handle,
+.persistent-dock[data-visibility="collapsible"][data-position="bottom"] .persistent-dock-handle {
   width: 44px;
   height: 5px;
   margin: 6px 0;
 }
 
-.persistent-dock[data-visibility="hover"][data-position="left"] .persistent-dock-handle,
-.persistent-dock[data-visibility="hover"][data-position="right"] .persistent-dock-handle {
+.persistent-dock[data-visibility="collapsible"][data-position="left"] .persistent-dock-handle,
+.persistent-dock[data-visibility="collapsible"][data-position="right"] .persistent-dock-handle {
   width: 5px;
   height: 44px;
   margin: 0 6px;
 }
 
-.persistent-dock[data-visibility="hover"] .persistent-dock-body {
+.persistent-dock[data-visibility="collapsible"] .persistent-dock-body {
   opacity: 0;
   pointer-events: none;
   transform: translate3d(var(--dock-hide-x), var(--dock-hide-y), 0) scale(0.98);
 }
 
-.persistent-dock[data-visibility="hover"]:hover .persistent-dock-body,
-.persistent-dock[data-visibility="hover"]:focus-within .persistent-dock-body {
+.persistent-dock[data-visibility="collapsible"]:hover .persistent-dock-body,
+.persistent-dock[data-visibility="collapsible"]:focus-within .persistent-dock-body,
+.persistent-dock[data-visibility="collapsible"].is-drop-target .persistent-dock-body {
   opacity: 1;
   pointer-events: auto;
   transform: translate3d(0, 0, 0) scale(1);
 }
 
-.persistent-dock[data-visibility="hover"]:hover .persistent-dock-handle,
-.persistent-dock[data-visibility="hover"]:focus-within .persistent-dock-handle {
+.persistent-dock[data-visibility="collapsible"]:hover .persistent-dock-handle,
+.persistent-dock[data-visibility="collapsible"]:focus-within .persistent-dock-handle,
+.persistent-dock[data-visibility="collapsible"].is-drop-target .persistent-dock-handle {
   opacity: 0.16;
 }
 
@@ -4427,13 +4429,13 @@ body.mode-edit .widget-float-remove:hover {
 }
 
 @media (hover: none) {
-  .persistent-dock[data-visibility="hover"] .persistent-dock-body {
+  .persistent-dock[data-visibility="collapsible"] .persistent-dock-body {
     opacity: 1;
     pointer-events: auto;
     transform: none;
   }
 
-  .persistent-dock[data-visibility="hover"] .persistent-dock-handle {
+  .persistent-dock[data-visibility="collapsible"] .persistent-dock-handle {
     display: none;
   }
 

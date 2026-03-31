@@ -552,7 +552,7 @@ function defaultHomeLayout() {
     manualPages: [],
     dockEnabled: true,
     dockShape: "raised",
-    dockVisibility: "always",
+    dockVisibility: "fixed",
     dockPosition: "bottom",
     dockLength: 6,
     dockHeight: 44,
@@ -1045,11 +1045,20 @@ function normalizeDockShape(value, fallback = "raised") {
   return fallback;
 }
 
-function normalizeDockVisibility(value, fallback = "always") {
-  if (value === "always" || value === "hover") {
-    return value;
+function normalizeDockVisibility(value, fallback = "fixed") {
+  const raw = normalizeText(value, fallback).toLowerCase();
+  if (raw === "fixed" || raw === "always") {
+    return "fixed";
   }
-  return fallback;
+  if (raw === "collapsible" || raw === "hover") {
+    return "collapsible";
+  }
+
+  const normalizedFallback = normalizeText(fallback, "fixed").toLowerCase();
+  if (normalizedFallback === "collapsible" || normalizedFallback === "hover") {
+    return "collapsible";
+  }
+  return "fixed";
 }
 
 function normalizeDockPosition(value, fallback = "bottom") {
@@ -1083,7 +1092,7 @@ function normalizeDockSize(value, fallback = 44) {
  * @typedef {Object} DockConfig
  * @property {boolean} enabled
  * @property {"raised" | "flat"} shape
- * @property {"always" | "hover"} visibility
+ * @property {"fixed" | "collapsible"} visibility
  * @property {number} lengthUnits
  * @property {number} heightPx
  * @property {"bottom"} position
@@ -1632,7 +1641,7 @@ function buildDockConfig(home = state?.ui?.home) {
   return {
     enabled: normalizedHome.dockEnabled !== false,
     shape: normalizeDockShape(normalizedHome.dockShape, "raised"),
-    visibility: normalizeDockVisibility(normalizedHome.dockVisibility, "always"),
+    visibility: normalizeDockVisibility(normalizedHome.dockVisibility, "fixed"),
     lengthUnits: normalizeDockLength(normalizedHome.dockLength, 6),
     heightPx: normalizeDockHeight(normalizedHome.dockHeight, 44),
     position: "bottom"
@@ -1815,7 +1824,7 @@ function normalizeHomeLayout(layout) {
     manualPages,
     dockEnabled: base.dockEnabled !== false,
     dockShape: normalizeDockShape(base.dockShape, "raised"),
-    dockVisibility: normalizeDockVisibility(base.dockVisibility, "always"),
+    dockVisibility: normalizeDockVisibility(base.dockVisibility, "fixed"),
     dockPosition: normalizeDockPosition(base.dockPosition, "bottom"),
     dockLength: normalizeDockLength(base.dockLength, 6),
     dockHeight: normalizeDockHeight(base.dockHeight ?? base.dockSize, 44),
@@ -3295,8 +3304,8 @@ function dockSettingsFields() {
       label: "Dock visibility",
       type: "select",
       options: [
-        { value: "always", label: "Always visible" },
-        { value: "hover", label: "Reveal on hover" }
+        { value: "fixed", label: "Fixed" },
+        { value: "collapsible", label: "Collapsible (reveal on hover)" }
       ]
     },
     {
@@ -3359,7 +3368,7 @@ function openDockSettingsModal() {
   const home = normalizeHomeLayout(state.ui.home);
   dockModalState.draft = {
     dockShape: normalizeDockShape(home.dockShape, "raised"),
-    dockVisibility: normalizeDockVisibility(home.dockVisibility, "always"),
+    dockVisibility: normalizeDockVisibility(home.dockVisibility, "fixed"),
     dockLength: normalizeDockLength(home.dockLength, 6),
     dockSize: normalizeDockSize(home.dockSize, 44)
   };
@@ -3422,7 +3431,7 @@ function applyDockSettingsModal() {
 
   const patch = {
     dockShape: normalizeDockShape(dockModalState.draft.dockShape, "raised"),
-    dockVisibility: normalizeDockVisibility(dockModalState.draft.dockVisibility, "always"),
+    dockVisibility: normalizeDockVisibility(dockModalState.draft.dockVisibility, "fixed"),
     dockPosition: "bottom",
     dockLength: normalizeDockLength(dockModalState.draft.dockLength, 6),
     dockSize: normalizeDockSize(dockModalState.draft.dockSize, 44)
@@ -5519,8 +5528,21 @@ function getPersistentDockHitRect() {
     return null;
   }
 
+  const config = buildDockConfig(state?.ui?.home);
+  const visibility = normalizeDockVisibility(host.dataset.visibility || config.visibility, "fixed");
   const hostRect = host.getBoundingClientRect();
   const bodyRect = body?.getBoundingClientRect();
+
+  if (visibility === "collapsible") {
+    const expanded = host.matches(":hover") || host.matches(":focus-within") || host.classList.contains("is-drop-target");
+    if (!expanded) {
+      const handleRect = host.querySelector(".persistent-dock-handle")?.getBoundingClientRect();
+      if (handleRect) {
+        return handleRect;
+      }
+      return hostRect;
+    }
+  }
 
   if (!(body instanceof HTMLElement) || !bodyRect) {
     return hostRect;
@@ -6414,11 +6436,14 @@ function tryDockWidgetByDrop(instance, pointerEvent, { record = true } = {}) {
   const sourceBoardPage = !wasDocked && !wasInContainer
     ? normalizeWidgetPage(instance.page, currentLauncherPageCount(), currentLauncherActivePage())
     : null;
-  const insertIndex = resolveDockInsertIndexFromPointer(pointerEvent.clientX, instance.id);
+  const targetSlot = resolveDockDropSlotIndex(pointerEvent.clientX, pointerEvent.clientY, instance);
+  if (targetSlot === null) {
+    return false;
+  }
 
   if (record) {
     if (wasDocked) {
-      recordHistorySnapshot("Reorder dock widget");
+      recordHistorySnapshot("Move dock widget");
     } else if (wasInContainer) {
       recordHistorySnapshot("Move widget from folder to dock");
     } else {
@@ -6428,21 +6453,12 @@ function tryDockWidgetByDrop(instance, pointerEvent, { record = true } = {}) {
     touchUserMutationClock();
   }
 
-  instance.containerId = "";
-  if (!wasDocked) {
-    instance.dockOrder = nextDockOrder(state.instances);
+  const moved = moveWidgetToDockSlot(instance, targetSlot, { record: false });
+  if (!moved) {
+    return false;
   }
-  setDockWidgetOrderByIndex(instance.id, insertIndex, { record: false });
-  normalizeDockedWidgetOrders(state.instances);
-  setDockActiveId(instance.id, { rerender: false });
   renderDockWidgets();
 
-  if (state.selectedWidgetId === instance.id) {
-    state.selectedWidgetId = "";
-  }
-  if (modalState.open && modalState.widgetId === instance.id) {
-    closeWidgetModal(false);
-  }
   if (Number.isFinite(sourceBoardPage)) {
     compactEmptyLauncherPagesForUseMode();
   }
@@ -7193,7 +7209,7 @@ function syncPersistentDock() {
   dock.classList.remove("is-disabled");
   dock.setAttribute("aria-hidden", "false");
   dock.dataset.shape = config.shape;
-  dock.dataset.visibility = state.mode === "edit" ? config.visibility : "always";
+  dock.dataset.visibility = state.mode === "edit" ? config.visibility : "fixed";
   dock.dataset.position = config.position;
   dock.style.setProperty("--dock-length-units", String(config.lengthUnits));
   dock.style.setProperty("--dock-unit-size", `${config.heightPx}px`);
@@ -7867,45 +7883,24 @@ function projectDockSilhouetteLayoutFromPointer(clientX, clientY, draggedWidgetI
     return null;
   }
 
-  const strip = elements.dockWidgetStrip;
-  if (!(strip instanceof HTMLElement)) {
+  const dockHost = elements.persistentDockBody ?? elements.persistentDock;
+  if (!(dockHost instanceof HTMLElement)) {
     return null;
   }
 
-  const cards = Array.from(strip.querySelectorAll(".dock-widget-item")).filter((card) => {
-    const cardId = normalizeText(card?.dataset?.widgetId);
-    return cardId && cardId !== normalizeText(draggedWidgetId);
-  });
-
-  const insertIndex = resolveDockInsertIndexFromPointer(clientX, draggedWidgetId);
-  if (insertIndex === null) {
+  const draggedId = normalizeText(draggedWidgetId);
+  const draggedInstance = draggedId ? instanceById(draggedId) || { id: draggedId } : null;
+  const slotRect = dockDropGuideSlotRect(draggedInstance, clientX, clientY);
+  if (!slotRect) {
     return null;
   }
 
-  if (cards.length && insertIndex < cards.length) {
-    return viewportRectToBoardLayout(cards[insertIndex].getBoundingClientRect());
-  }
-
-  if (cards.length) {
-    const lastRect = cards[cards.length - 1].getBoundingClientRect();
-    const stripStyle = window.getComputedStyle(strip);
-    const gap = cssPixelValue(stripStyle.columnGap, cssPixelValue(stripStyle.gap, 6));
-    return viewportRectToBoardLayout({
-      left: lastRect.right + gap,
-      top: lastRect.top,
-      width: lastRect.width,
-      height: lastRect.height
-    });
-  }
-
-  const stripRect = strip.getBoundingClientRect();
-  const config = buildDockConfig(state?.ui?.home);
-  const unit = Math.max(1, Number(config.heightPx) || 44);
+  const hostRect = dockHost.getBoundingClientRect();
   return viewportRectToBoardLayout({
-    left: stripRect.left,
-    top: stripRect.top,
-    width: unit,
-    height: unit
+    left: hostRect.left + slotRect.x,
+    top: hostRect.top + slotRect.y,
+    width: slotRect.w,
+    height: slotRect.h
   });
 }
 
@@ -8020,7 +8015,7 @@ function resolveWidgetDropPlan(
   const dockDropActive = isDockDropPoint(clientX, clientY) && isDockEligibleWidget(instance);
   if (dockDropActive) {
     const projection = buildDropPlanProjection(projectDockSilhouetteLayoutFromPointer(clientX, clientY, instance?.id), 0, null);
-    const insertIndex = resolveDockInsertIndexFromPointer(clientX, instance?.id);
+    const insertIndex = resolveDockDropSlotIndex(clientX, clientY, instance) ?? 0;
     return createContainerDropPlan({
       containerKind: DROP_CONTAINER_KIND.DOCK,
       insertIndex,
