@@ -6735,7 +6735,8 @@ function syncDockContentPadding(config) {
 
   const measured = Math.ceil((dockBody ?? dock).getBoundingClientRect().height || 0);
   const dockHeight = Math.max(config.heightPx, measured);
-  const contentPadding = dockHeight + 12;
+  const visibility = normalizeDockVisibility(config.visibility, "fixed");
+  const contentPadding = visibility === "collapsible" ? 0 : dockHeight + 12;
 
   root.style.setProperty("--persistent-dock-height", `${dockHeight}px`);
   root.style.setProperty("--persistent-dock-content-padding", `${contentPadding}px`);
@@ -7209,7 +7210,7 @@ function syncPersistentDock() {
   dock.classList.remove("is-disabled");
   dock.setAttribute("aria-hidden", "false");
   dock.dataset.shape = config.shape;
-  dock.dataset.visibility = state.mode === "edit" ? config.visibility : "fixed";
+  dock.dataset.visibility = config.visibility;
   dock.dataset.position = config.position;
   dock.style.setProperty("--dock-length-units", String(config.lengthUnits));
   dock.style.setProperty("--dock-unit-size", `${config.heightPx}px`);
