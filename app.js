@@ -5657,6 +5657,14 @@ function createDragPreviewSession(instance, options = {}) {
   let disposed = false;
   return {
     preview,
+    getPointerOffset() {
+      const offsetX = Number(preview?.dataset?.dragOffsetX);
+      const offsetY = Number(preview?.dataset?.dragOffsetY);
+      if (!Number.isFinite(offsetX) || !Number.isFinite(offsetY)) {
+        return null;
+      }
+      return { x: offsetX, y: offsetY };
+    },
     update(clientX, clientY) {
       positionWidgetDragPreview(preview, clientX, clientY);
     },
@@ -7051,19 +7059,19 @@ function renderDockWidgets() {
 
         const boardProjection = isPlaceholderLauncherPage(dragReleasePage, currentLauncherPageCount())
           ? null
-          : projectWidgetBoardDropLayout(item, {
+          : projectWidgetBoardDropLayout(item, buildDragPayloadWithPreviewOffset(previewSession, {
             clientX,
             clientY,
             page: dragReleasePage
-          }, {
+          }), {
             pageFallback: dragReleasePage
           });
 
-        const nextDropPlan = resolveWidgetDropPlan(item, {
+        const nextDropPlan = resolveWidgetDropPlan(item, buildDragPayloadWithPreviewOffset(previewSession, {
           clientX,
           clientY,
           page: dragReleasePage
-        }, {
+        }), {
           boardProjection,
           suppressSurfaceTargets: false,
           allowDeleteZone: true
@@ -7102,18 +7110,18 @@ function renderDockWidgets() {
         const dropY = Number.isFinite(upEvent?.clientY) ? upEvent.clientY : event.clientY;
         const finalBoardProjection = isPlaceholderLauncherPage(dragReleasePage, currentLauncherPageCount())
           ? null
-          : projectWidgetBoardDropLayout(item, {
+          : projectWidgetBoardDropLayout(item, buildDragPayloadWithPreviewOffset(previewSession, {
             clientX: dropX,
             clientY: dropY,
             page: dragReleasePage
-          }, {
+          }), {
             pageFallback: dragReleasePage
           });
-        const finalDropPlan = resolveWidgetDropPlan(item, {
+        const finalDropPlan = resolveWidgetDropPlan(item, buildDragPayloadWithPreviewOffset(previewSession, {
           clientX: dropX,
           clientY: dropY,
           page: dragReleasePage
-        }, {
+        }), {
           boardProjection: finalBoardProjection,
           suppressSurfaceTargets: false,
           allowDeleteZone: true
@@ -7142,22 +7150,22 @@ function renderDockWidgets() {
           applyWidgetDropPlan(
             item,
             lastDropPlan,
-            {
+            buildDragPayloadWithPreviewOffset(previewSession, {
               clientX: dropX,
               clientY: dropY,
               page: dragReleasePage
-            },
+            }),
             { record: true }
           )
         ) {
           return;
         }
 
-        releaseWidgetFromDockByDrop(item.id, {
+        releaseWidgetFromDockByDrop(item.id, buildDragPayloadWithPreviewOffset(previewSession, {
           clientX: dropX,
           clientY: dropY,
           page: dragReleasePage
-        });
+        }));
       };
 
       const move = (moveEvent) => {
@@ -7812,6 +7820,8 @@ function projectWidgetBoardDropLayout(instance, payload = {}, { pageFallback = n
   const page = normalizeWidgetPage(payload?.page, pageCount, defaultPage);
   const pointerX = Number.isFinite(payload?.clientX) ? payload.clientX : viewportRect.left + boardWidth / 2;
   const pointerY = Number.isFinite(payload?.clientY) ? payload.clientY : viewportRect.top + boardHeight / 2;
+  const dragOffsetX = Number(payload?.dragOffsetX);
+  const dragOffsetY = Number(payload?.dragOffsetY);
 
   if (isGridLayoutMode()) {
     const metrics = gridMetrics();
@@ -7827,8 +7837,10 @@ function projectWidgetBoardDropLayout(instance, payload = {}, { pageFallback = n
     const spanHeight = metrics.cellH * grid.rowSpan + metrics.gapY * (grid.rowSpan - 1);
     const stepX = Math.max(1, metrics.cellW + metrics.gapX);
     const stepY = Math.max(1, metrics.cellH + metrics.gapY);
-    const localX = clamp(pointerX - viewportRect.left - spanWidth / 2, 0, Math.max(0, boardWidth - spanWidth));
-    const localY = clamp(pointerY - viewportRect.top - spanHeight / 2, 0, Math.max(0, boardHeight - spanHeight));
+    const anchorOffsetX = Number.isFinite(dragOffsetX) ? clamp(dragOffsetX, 0, spanWidth) : spanWidth / 2;
+    const anchorOffsetY = Number.isFinite(dragOffsetY) ? clamp(dragOffsetY, 0, spanHeight) : spanHeight / 2;
+    const localX = clamp(pointerX - viewportRect.left - anchorOffsetX, 0, Math.max(0, boardWidth - spanWidth));
+    const localY = clamp(pointerY - viewportRect.top - anchorOffsetY, 0, Math.max(0, boardHeight - spanHeight));
 
     grid.col = clamp(Math.round((localX - metrics.marginX) / stepX), 0, Math.max(0, metrics.cols - grid.colSpan));
     grid.row = clamp(Math.round((localY - metrics.marginY) / stepY), 0, Math.max(0, metrics.rows - grid.rowSpan));
@@ -7851,8 +7863,10 @@ function projectWidgetBoardDropLayout(instance, payload = {}, { pageFallback = n
   const height = clamp(Number(instance.layout.h) || 220, 80, maxH);
   const maxX = Math.max(0, boardWidth - width);
   const maxY = Math.max(0, boardHeight - height);
-  const nextX = clamp(pointerX - viewportRect.left - width / 2, 0, maxX);
-  const nextY = clamp(pointerY - viewportRect.top - height / 2, 0, maxY);
+  const anchorOffsetX = Number.isFinite(dragOffsetX) ? clamp(dragOffsetX, 0, width) : width / 2;
+  const anchorOffsetY = Number.isFinite(dragOffsetY) ? clamp(dragOffsetY, 0, height) : height / 2;
+  const nextX = clamp(pointerX - viewportRect.left - anchorOffsetX, 0, maxX);
+  const nextY = clamp(pointerY - viewportRect.top - anchorOffsetY, 0, maxY);
 
   return {
     page,
@@ -7971,6 +7985,16 @@ function buildDropPlanProjection(layout = null, page = 0, gridLayout = null) {
     page: Number.isFinite(Number(page)) ? Math.floor(Number(page)) : 0,
     gridLayout: gridLayout || null
   };
+}
+
+function buildDragPayloadWithPreviewOffset(previewSession, payload = {}) {
+  const next = { ...payload };
+  const offset = previewSession?.getPointerOffset?.();
+  if (offset && Number.isFinite(offset.x) && Number.isFinite(offset.y)) {
+    next.dragOffsetX = offset.x;
+    next.dragOffsetY = offset.y;
+  }
+  return next;
 }
 
 function resolveWidgetDropPlan(
@@ -9163,10 +9187,17 @@ function createWidgetCard(instance) {
       if (!viewportRect || !Number.isFinite(clientX) || !Number.isFinite(clientY)) {
         return;
       }
+      const pointerOffset = previewSession.getPointerOffset?.();
+      const anchorOffsetX = pointerOffset && Number.isFinite(pointerOffset.x)
+        ? clamp(pointerOffset.x, 0, instance.layout.w)
+        : instance.layout.w / 2;
+      const anchorOffsetY = pointerOffset && Number.isFinite(pointerOffset.y)
+        ? clamp(pointerOffset.y, 0, instance.layout.h)
+        : instance.layout.h / 2;
       const maxLocalX = Math.max(0, boardRect.width - instance.layout.w);
       const maxLocalY = Math.max(0, boardRect.height - instance.layout.h);
-      const nextX = clamp(clientX - viewportRect.left - instance.layout.w / 2, 0, maxLocalX);
-      const nextY = clamp(clientY - viewportRect.top - instance.layout.h / 2, 0, maxLocalY);
+      const nextX = clamp(clientX - viewportRect.left - anchorOffsetX, 0, maxLocalX);
+      const nextY = clamp(clientY - viewportRect.top - anchorOffsetY, 0, maxLocalY);
       if (commit) {
         patchWidgetLayout(instance.id, {
           x: nextX,
@@ -9247,18 +9278,18 @@ function createWidgetCard(instance) {
           ? null
           : projectWidgetBoardDropLayout(
             instance,
-            {
+            buildDragPayloadWithPreviewOffset(previewSession, {
               clientX: moveEvent.clientX,
               clientY: moveEvent.clientY,
               page: dragReleasePage
-            },
+            }),
             { pageFallback: dragReleasePage }
           );
-        const nextDropPlan = resolveWidgetDropPlan(instance, {
+        const nextDropPlan = resolveWidgetDropPlan(instance, buildDragPayloadWithPreviewOffset(previewSession, {
           clientX: moveEvent.clientX,
           clientY: moveEvent.clientY,
           page: dragReleasePage
-        }, {
+        }), {
           boardProjection,
           suppressSurfaceTargets: false,
           allowDeleteZone: true
@@ -9305,18 +9336,18 @@ function createWidgetCard(instance) {
           ? null
           : projectWidgetBoardDropLayout(
             instance,
-            {
+            buildDragPayloadWithPreviewOffset(previewSession, {
               clientX: dropX,
               clientY: dropY,
               page: dragReleasePage
-            },
+            }),
             { pageFallback: dragReleasePage }
           );
-        const finalDropPlan = resolveWidgetDropPlan(instance, {
+        const finalDropPlan = resolveWidgetDropPlan(instance, buildDragPayloadWithPreviewOffset(previewSession, {
           clientX: dropX,
           clientY: dropY,
           page: dragReleasePage
-        }, {
+        }), {
           boardProjection: finalBoardProjection,
           suppressSurfaceTargets: false,
           allowDeleteZone: true
@@ -9327,11 +9358,11 @@ function createWidgetCard(instance) {
           applyWidgetDropPlan(
             instance,
             lastDropPlan,
-            {
+            buildDragPayloadWithPreviewOffset(previewSession, {
               clientX: dropX,
               clientY: dropY,
               page: dragReleasePage
-            },
+            }),
             { record: false }
           )
         ) {
@@ -9354,18 +9385,18 @@ function createWidgetCard(instance) {
         ? null
         : projectWidgetBoardDropLayout(
           instance,
-          {
+          buildDragPayloadWithPreviewOffset(previewSession, {
             clientX: dragStartX,
             clientY: dragStartY,
             page: dragReleasePage
-          },
+          }),
           { pageFallback: dragReleasePage }
         );
-      const initialDropPlan = resolveWidgetDropPlan(instance, {
+      const initialDropPlan = resolveWidgetDropPlan(instance, buildDragPayloadWithPreviewOffset(previewSession, {
         clientX: dragStartX,
         clientY: dragStartY,
         page: dragReleasePage
-      }, {
+      }), {
         boardProjection: initialBoardProjection,
         suppressSurfaceTargets: false,
         allowDeleteZone: true
@@ -9420,18 +9451,18 @@ function createWidgetCard(instance) {
         ? null
         : projectWidgetBoardDropLayout(
           instance,
-          {
+          buildDragPayloadWithPreviewOffset(previewSession, {
             clientX: moveEvent.clientX,
             clientY: moveEvent.clientY,
             page: dragReleasePage
-          },
+          }),
           { pageFallback: dragReleasePage }
         );
-      const nextDropPlan = resolveWidgetDropPlan(instance, {
+      const nextDropPlan = resolveWidgetDropPlan(instance, buildDragPayloadWithPreviewOffset(previewSession, {
         clientX: moveEvent.clientX,
         clientY: moveEvent.clientY,
         page: dragReleasePage
-      }, {
+      }), {
         boardProjection,
         suppressSurfaceTargets: false,
         allowDeleteZone: true
@@ -9478,18 +9509,18 @@ function createWidgetCard(instance) {
         ? null
         : projectWidgetBoardDropLayout(
           instance,
-          {
+          buildDragPayloadWithPreviewOffset(previewSession, {
             clientX: dropX,
             clientY: dropY,
             page: dragReleasePage
-          },
+          }),
           { pageFallback: dragReleasePage }
         );
-      const finalDropPlan = resolveWidgetDropPlan(instance, {
+      const finalDropPlan = resolveWidgetDropPlan(instance, buildDragPayloadWithPreviewOffset(previewSession, {
         clientX: dropX,
         clientY: dropY,
         page: dragReleasePage
-      }, {
+      }), {
         boardProjection: finalBoardProjection,
         suppressSurfaceTargets: false,
         allowDeleteZone: true
@@ -9500,11 +9531,11 @@ function createWidgetCard(instance) {
         applyWidgetDropPlan(
           instance,
           lastDropPlan,
-          {
+          buildDragPayloadWithPreviewOffset(previewSession, {
             clientX: dropX,
             clientY: dropY,
             page: dragReleasePage
-          },
+          }),
           { record: true }
         )
       ) {
@@ -9542,18 +9573,18 @@ function createWidgetCard(instance) {
       ? null
       : projectWidgetBoardDropLayout(
         instance,
-        {
+        buildDragPayloadWithPreviewOffset(previewSession, {
           clientX: dragStartX,
           clientY: dragStartY,
           page: dragReleasePage
-        },
+        }),
         { pageFallback: dragReleasePage }
       );
-    const initialDropPlan = resolveWidgetDropPlan(instance, {
+    const initialDropPlan = resolveWidgetDropPlan(instance, buildDragPayloadWithPreviewOffset(previewSession, {
       clientX: dragStartX,
       clientY: dragStartY,
       page: dragReleasePage
-    }, {
+    }), {
       boardProjection: initialBoardProjection,
       suppressSurfaceTargets: false,
       allowDeleteZone: true
