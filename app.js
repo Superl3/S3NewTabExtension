@@ -69,6 +69,11 @@ import {
   normalizeDockOrder,
   normalizeDockedWidgetOrders as normalizeDockedWidgetOrdersCore
 } from "./core/dock-state.js";
+import {
+  isHorizontalDockPosition,
+  resolveDockSlotIndexAtPoint,
+  resolveDockSlotRectRelativeToHost
+} from "./core/dock-geometry.js";
 
 const SNAP = 20;
 const LONG_PRESS_DRAG_DELAY_MS = 340;
@@ -1246,7 +1251,7 @@ function dockSlotCount(home = state?.ui?.home) {
 }
 
 function isHorizontalDock(config = buildDockConfig(state?.ui?.home)) {
-  return config.position === "top" || config.position === "bottom";
+  return isHorizontalDockPosition(config.position);
 }
 
 function dockSlotOccupants({ excludeWidgetId = "" } = {}) {
@@ -1278,9 +1283,6 @@ function dockSlotIndexAtPoint(clientX, clientY, { clampToRange = false } = {}) {
 
   const slotCount = Math.max(1, config.lengthUnits);
   const rect = strip.getBoundingClientRect();
-  if (!pointInsideRect(clientX, clientY, rect) && !clampToRange) {
-    return null;
-  }
 
   const stripStyle = window.getComputedStyle(strip);
   const gapFallback = cssPixelValue(stripStyle.gap, 6);
@@ -1288,19 +1290,15 @@ function dockSlotIndexAtPoint(clientX, clientY, { clampToRange = false } = {}) {
   const gap = horizontal
     ? cssPixelValue(stripStyle.columnGap, gapFallback)
     : cssPixelValue(stripStyle.rowGap, gapFallback);
-  const step = Math.max(1, Number(config.heightPx) + gap);
-  const local = horizontal
-    ? clamp(clientX - rect.left, 0, Math.max(0, rect.width - 1))
-    : clamp(clientY - rect.top, 0, Math.max(0, rect.height - 1));
 
-  const slot = Math.floor((local + gap * 0.5) / step);
-  if (slot < 0 || slot >= slotCount) {
-    if (!clampToRange) {
-      return null;
-    }
-    return clamp(slot, 0, slotCount - 1);
-  }
-  return slot;
+  return resolveDockSlotIndexAtPoint(clientX, clientY, {
+    stripRect: rect,
+    slotCount,
+    unitSize: config.heightPx,
+    gap,
+    horizontal,
+    clampToRange
+  });
 }
 
 function dockSlotRectRelativeToHost(slotIndex) {
@@ -1312,9 +1310,6 @@ function dockSlotRectRelativeToHost(slotIndex) {
 
   const config = buildDockConfig(state?.ui?.home);
   const slotCount = Math.max(1, config.lengthUnits);
-  if (!Number.isFinite(slotIndex) || slotIndex < 0 || slotIndex >= slotCount) {
-    return null;
-  }
 
   const stripStyle = window.getComputedStyle(strip);
   const gapFallback = cssPixelValue(stripStyle.gap, 6);
@@ -1326,17 +1321,14 @@ function dockSlotRectRelativeToHost(slotIndex) {
 
   const dockRect = dockHost.getBoundingClientRect();
   const stripRect = strip.getBoundingClientRect();
-  const baseX = stripRect.left - dockRect.left;
-  const baseY = stripRect.top - dockRect.top;
-  const offset = slotIndex * (unit + gap);
-
-  return {
-    x: Math.round(baseX + (horizontal ? offset : 0)),
-    y: Math.round(baseY + (horizontal ? 0 : offset)),
-    w: unit,
-    h: unit,
-    borderRadius: Math.round(unit * 0.28)
-  };
+  return resolveDockSlotRectRelativeToHost(slotIndex, {
+    hostRect: dockRect,
+    stripRect,
+    slotCount,
+    unitSize: unit,
+    gap,
+    horizontal
+  });
 }
 
 function resolveDockDropSlotIndex(clientX, clientY, draggedInstance = null) {
