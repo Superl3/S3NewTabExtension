@@ -79,6 +79,12 @@ import {
   resolveDockSlotIndexAtPoint,
   resolveDockSlotRectRelativeToHost
 } from "./core/dock-geometry.js";
+import {
+  clampLauncherVirtualPage,
+  isPlaceholderLauncherPage as isPlaceholderLauncherPageCore,
+  resolveLauncherViewportPage,
+  shouldRenderLauncherPlaceholderPage as shouldRenderLauncherPlaceholderPageCore
+} from "./core/launcher-viewport.js";
 
 const SNAP = 20;
 const LONG_PRESS_DRAG_DELAY_MS = 340;
@@ -4766,7 +4772,7 @@ function launcherPageWidgetCounts(pageCount = currentLauncherPageCount()) {
 }
 
 function isPlaceholderLauncherPage(page, pageCount = currentLauncherPageCount()) {
-  return page === -1 || page === pageCount;
+  return isPlaceholderLauncherPageCore(page, pageCount);
 }
 
 function isLauncherPlaceholderPolicyActive() {
@@ -4774,7 +4780,11 @@ function isLauncherPlaceholderPolicyActive() {
 }
 
 function shouldRenderLauncherPlaceholderPage() {
-  return isLauncherPlaceholderPolicyActive() || Boolean(launcherPageUiState.pendingPlaceholderDrop);
+  return shouldRenderLauncherPlaceholderPageCore({
+    mode: state?.mode,
+    dragPlaceholderPolicyActive: launcherPageUiState.dragPlaceholderPolicyActive,
+    hasPendingPlaceholderDrop: Boolean(launcherPageUiState.pendingPlaceholderDrop)
+  });
 }
 
 function setLauncherDragPlaceholderPolicy(active, { animate = false } = {}) {
@@ -4798,26 +4808,23 @@ function clearPendingPlaceholderDrop({ clearVirtualPage = false } = {}) {
 }
 
 function currentLauncherViewportPage() {
-  const pageCount = currentLauncherPageCount();
-  const active = currentLauncherActivePage();
-  const virtualRaw = launcherPageUiState.virtualPage;
-  const hasVirtualPage = virtualRaw !== null && virtualRaw !== undefined && virtualRaw !== "";
-  const virtual = hasVirtualPage ? Number(virtualRaw) : NaN;
-  if (shouldRenderLauncherPlaceholderPage() && Number.isFinite(virtual)) {
-    return clamp(Math.floor(virtual), -1, pageCount);
-  }
-  return active;
+  return resolveLauncherViewportPage({
+    activePage: currentLauncherActivePage(),
+    pageCount: currentLauncherPageCount(),
+    virtualPage: launcherPageUiState.virtualPage,
+    allowPlaceholderPages: shouldRenderLauncherPlaceholderPage()
+  });
 }
 
 function setLauncherVirtualPage(page, { animate = true } = {}) {
   const pageCount = currentLauncherPageCount();
-  const next = Number(page);
-  if (!Number.isFinite(next) || !shouldRenderLauncherPlaceholderPage()) {
+  const next = clampLauncherVirtualPage(page, pageCount);
+  if (next === null || !shouldRenderLauncherPlaceholderPage()) {
     launcherPageUiState.virtualPage = null;
     renderBoardViewport({ animate, dragging: false, dragOffsetX: 0 });
     return;
   }
-  launcherPageUiState.virtualPage = clamp(Math.floor(next), -1, pageCount);
+  launcherPageUiState.virtualPage = next;
   renderBoardViewport({ animate, dragging: false, dragOffsetX: 0 });
 }
 
