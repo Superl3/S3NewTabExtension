@@ -247,3 +247,49 @@ test("todo alarm adapter ignores blank todo text without breaking runtime regist
 
   assert.equal(issuedNotifications.length, 0);
 });
+
+test("todo alarm adapter swallows notification constructor errors during register", () => {
+  const dueAt = new Date(2030, 0, 15, 9, 0, 0, 0).getTime();
+
+  function ThrowingNotification() {
+    throw new Error("notify-fail");
+  }
+  ThrowingNotification.permission = "granted";
+
+  const adapter = createTodoAlarmRuntimeAdapterForTest({
+    notificationApi: ThrowingNotification
+  });
+
+  const runtime = createAlarmRuntime({
+    ...adapter,
+    getNow: () => dueAt,
+    tickMs: 30_000,
+    dedupeTtlMs: 1_000,
+    maxCatchupMs: 120_000,
+    scheduleTimeout() {
+      return 1;
+    },
+    clearScheduledTimeout() {}
+  });
+
+  assert.doesNotThrow(() => {
+    runtime.register("todo-owner", {
+      scopeId: "todo-scope",
+      getItems() {
+        return [
+          {
+            id: "item-1",
+            text: "Prepare release",
+            alarm: {
+              repeat: "none",
+              time: "09:00",
+              interval: "off",
+              reminderBefore: "none",
+              singleDate: "2030-01-15"
+            }
+          }
+        ];
+      }
+    });
+  });
+});

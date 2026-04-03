@@ -181,8 +181,13 @@ export function createTodoAlarmRuntimeAdapterForTest(deps = {}) {
       if (resolveNotificationPermission(notificationApi) !== "granted") {
         return false;
       }
-      dispatchNotification(event, { notificationApi });
-      return true;
+      try {
+        dispatchNotification(event, { notificationApi });
+        return true;
+      } catch (error) {
+        console.error("TODO alarm dispatch failed", error);
+        return false;
+      }
     }
   };
 }
