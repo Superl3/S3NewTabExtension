@@ -1,3 +1,16 @@
+import { normalizeErrorMessage } from "../core/utils/error.js";
+import { clamp } from "../core/utils/number.js";
+import { normalizeText } from "../core/utils/text.js";
+import { executeScript, hasScriptingApi } from "../core/platform/chrome-scripting.js";
+import {
+  createTab,
+  getTabIfExists,
+  hasTabsApi,
+  queryTabs,
+  removeTab,
+  updateTab,
+  waitForTabReady
+} from "../core/platform/chrome-tabs.js";
 import { pruneCacheIndex, touchCacheIndex } from "./shared/localStorageCacheIndex.js";
 
 const FLEX_WORKTIME_CACHE_PREFIX = "s3newtab:flex-worktime-cache:v1";
@@ -110,27 +123,6 @@ const DURATION_GENERIC_FIELDS = [
   "elapsed"
 ];
 
-function clamp(value, min, max) {
-  return Math.max(min, Math.min(max, value));
-}
-
-function normalizeText(value, fallback = "") {
-  const text = String(value || "").trim();
-  return text || fallback;
-}
-
-function normalizeErrorMessage(error) {
-  if (!error) {
-    return "Unknown error";
-  }
-  if (typeof error === "string") {
-    return normalizeText(error, "Unknown error");
-  }
-  if (typeof error.message === "string") {
-    return normalizeText(error.message, "Unknown error");
-  }
-  return "Unknown error";
-}
 
 function createFlexAuthRequiredError(message) {
   const error = new Error(
@@ -958,19 +950,7 @@ async function fetchWorktimeRows(config, queryDate) {
 }
 
 function ensureFlexHomeScrapeApis() {
-  const hasApis =
-    typeof chrome !== "undefined" &&
-    Boolean(chrome?.tabs) &&
-    Boolean(chrome?.scripting) &&
-    typeof chrome.tabs.query === "function" &&
-    typeof chrome.tabs.create === "function" &&
-    typeof chrome.tabs.get === "function" &&
-    typeof chrome.tabs.update === "function" &&
-    typeof chrome.tabs.remove === "function" &&
-    Boolean(chrome.tabs.onUpdated) &&
-    typeof chrome.scripting.executeScript === "function";
-
-  if (!hasApis) {
+  if (!hasTabsApi() || !hasScriptingApi()) {
     throw new Error('Flex Home scrape mode requires "tabs" and "scripting" extension permissions.');
   }
 }
@@ -1093,6 +1073,9 @@ function parseAllowedFlexTabUrl(value) {
 }
 
 function normalizeTabId(value) {
+  if (value === null || value === undefined || value === "") {
+    return null;
+  }
   const tabId = Number(value);
   return Number.isInteger(tabId) && tabId >= 0 ? tabId : null;
 }
@@ -1203,62 +1186,10 @@ function findPreferredFlexTab(tabs, targetUrl) {
   return tabs.find((tab) => isMatchingFlexLoginTabUrl(tab?.url, targetUrl)) || null;
 }
 
-function fromChromeCallback(run, fallbackMessage) {
-  return new Promise((resolve, reject) => {
-    try {
-      run((result) => {
-        const runtimeError = normalizeText(chrome?.runtime?.lastError?.message);
-        if (runtimeError) {
-          reject(new Error(runtimeError));
-          return;
-        }
-        resolve(result);
-      });
-    } catch (error) {
-      if (error instanceof Error) {
-        reject(error);
-        return;
-      }
-      reject(new Error(fallbackMessage));
-    }
-  });
-}
-
-function queryTabs(queryInfo) {
-  return fromChromeCallback((callback) => chrome.tabs.query(queryInfo, callback), "Unable to query browser tabs.");
-}
-
-function getTab(tabId) {
-  return fromChromeCallback((callback) => chrome.tabs.get(tabId, callback), "Unable to read browser tab state.");
-}
-
-async function getTabIfExists(tabId) {
-  try {
-    return await getTab(tabId);
-  } catch {
-    return null;
-  }
-}
-
-function createTab(createProperties) {
-  return fromChromeCallback((callback) => chrome.tabs.create(createProperties, callback), "Unable to open Flex Home tab.");
-}
-
-function updateTab(tabId, updateProperties) {
-  return fromChromeCallback(
-    (callback) => chrome.tabs.update(tabId, updateProperties, callback),
-    "Unable to activate temporary Flex Home tab."
-  );
-}
-
-function removeTab(tabId) {
-  return fromChromeCallback((callback) => chrome.tabs.remove(tabId, callback), "Unable to close temporary Flex Home tab.");
-}
-
 function executeScriptInTab(tabId, func) {
-  return fromChromeCallback(
-    (callback) => chrome.scripting.executeScript({ target: { tabId }, func }, callback),
-    "Unable to run script in Flex Home tab."
+  return executeScript(
+    { target: { tabId }, func },
+    { fallbackMessage: "Unable to run script in Flex Home tab." }
   );
 }
 
@@ -1277,72 +1208,6 @@ async function findFlexHomeTab(targetUrl) {
 
   const allTabs = await queryTabs({});
   return findPreferredFlexTab(allTabs, targetUrl);
-}
-
-function waitForTabReady(tabId, timeoutMs = FLEX_HOME_TAB_LOAD_TIMEOUT_MS) {
-  return new Promise((resolve, reject) => {
-    let settled = false;
-    let timeoutId = null;
-    let updatedListener = null;
-
-    function cleanup() {
-      if (timeoutId) {
-        clearTimeout(timeoutId);
-        timeoutId = null;
-      }
-      if (updatedListener) {
-        try {
-          chrome.tabs.onUpdated.removeListener(updatedListener);
-        } catch {
-          // noop
-        }
-        updatedListener = null;
-      }
-    }
-
-    function finish(error) {
-      if (settled) {
-        return;
-      }
-      settled = true;
-      cleanup();
-      if (error) {
-        reject(error);
-        return;
-      }
-      resolve();
-    }
-
-    updatedListener = (updatedTabId, changeInfo, tab) => {
-      if (updatedTabId !== tabId) {
-        return;
-      }
-      if (changeInfo.status === "complete" || tab?.status === "complete") {
-        finish();
-      }
-    };
-
-    try {
-      chrome.tabs.onUpdated.addListener(updatedListener);
-    } catch {
-      finish(new Error("Unable to subscribe to Flex Home tab updates."));
-      return;
-    }
-
-    timeoutId = setTimeout(() => {
-      finish(new Error("Timed out waiting for Flex Home tab to finish loading."));
-    }, Math.max(1000, Number(timeoutMs) || FLEX_HOME_TAB_LOAD_TIMEOUT_MS));
-
-    void getTab(tabId)
-      .then((tab) => {
-        if (tab?.status === "complete") {
-          finish();
-        }
-      })
-      .catch((error) => {
-        finish(error);
-      });
-  });
 }
 
 async function extractFlexHomeWorktimeFromTab(tabId) {
@@ -1651,7 +1516,7 @@ function normalizeFlexHomeScrapeRow(scraped, queryDate, flexHomeUrl) {
   return row;
 }
 
-async function fetchFlexHomeScrapeRows(config, queryDate, scrapeFlowState = null) {
+export async function fetchFlexHomeScrapeRows(config, queryDate, scrapeFlowState = null) {
   ensureFlexHomeScrapeApis();
   const targetUrl = parseFlexHomeTargetUrl(config.flexHomeUrl);
 
@@ -1698,7 +1563,7 @@ async function fetchFlexHomeScrapeRows(config, queryDate, scrapeFlowState = null
   }
 
   try {
-    await waitForTabReady(tabId, FLEX_HOME_TAB_LOAD_TIMEOUT_MS);
+    await waitForTabReady(tabId, { timeoutMs: FLEX_HOME_TAB_LOAD_TIMEOUT_MS });
     const extracted = await extractFlexHomeWorktimeFromTab(tabId);
     return [normalizeFlexHomeScrapeRow(extracted, queryDate, targetUrl.toString())];
   } catch (error) {

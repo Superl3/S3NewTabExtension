@@ -1,3 +1,5 @@
+import { parseIcsEvents } from "./shared/icsParser.js";
+
 const GOOGLE_CALENDAR_HOST = "https://calendar.google.com";
 const GOOGLE_CALENDAR_WEB_URL = `${GOOGLE_CALENDAR_HOST}/calendar/u/0/r`;
 
@@ -117,219 +119,33 @@ function toLocalDateKey(date) {
   return `${year}-${month}-${day}`;
 }
 
-function unfoldIcsLines(rawText) {
-  const normalized = String(rawText || "").replace(/\r\n/g, "\n").replace(/\r/g, "\n");
-  const sourceLines = normalized.split("\n");
-  const out = [];
-
-  for (const line of sourceLines) {
-    if ((line.startsWith(" ") || line.startsWith("\t")) && out.length) {
-      out[out.length - 1] += line.slice(1);
-      continue;
+function mapCalendarEvents(parsedEvents, fallbackLink) {
+  return parsedEvents.reduce((events, event) => {
+    if (!event || event.status === "CANCELLED") {
+      return events;
     }
-    out.push(line);
-  }
-
-  return out;
-}
-
-function parseIcsLine(line) {
-  const colonIndex = line.indexOf(":");
-  if (colonIndex <= 0) {
-    return null;
-  }
-
-  const left = line.slice(0, colonIndex);
-  const value = line.slice(colonIndex + 1);
-  const [rawName, ...rawParams] = left.split(";");
-  const name = normalizeText(rawName).toUpperCase();
-  if (!name) {
-    return null;
-  }
-
-  const params = {};
-  for (const paramChunk of rawParams) {
-    const equalIndex = paramChunk.indexOf("=");
-    if (equalIndex <= 0) {
-      continue;
-    }
-    const key = normalizeText(paramChunk.slice(0, equalIndex)).toUpperCase();
-    if (!key) {
-      continue;
-    }
-    const paramValue = normalizeText(paramChunk.slice(equalIndex + 1)).replace(/^"|"$/g, "");
-    params[key] = paramValue;
-  }
-
-  return { name, params, value };
-}
-
-function unescapeIcsText(value) {
-  return String(value || "")
-    .replace(/\\n/gi, "\n")
-    .replace(/\\,/g, ",")
-    .replace(/\\;/g, ";")
-    .replace(/\\\\/g, "\\");
-}
-
-function parseDateParts(parts, utc = false) {
-  const [year, month, day, hour = 0, minute = 0, second = 0] = parts.map((part) => Number(part));
-  if (
-    !Number.isFinite(year) ||
-    !Number.isFinite(month) ||
-    !Number.isFinite(day) ||
-    !Number.isFinite(hour) ||
-    !Number.isFinite(minute) ||
-    !Number.isFinite(second)
-  ) {
-    return null;
-  }
-
-  const date = utc
-    ? new Date(Date.UTC(year, month - 1, day, hour, minute, second))
-    : new Date(year, month - 1, day, hour, minute, second);
-  if (!Number.isFinite(date.getTime())) {
-    return null;
-  }
-  return date;
-}
-
-function buildDateInfo(date, allDay) {
-  return {
-    allDay,
-    startDate: date,
-    startTs: date.getTime(),
-    dateKey: toLocalDateKey(date),
-    dateLabel: date.toLocaleDateString(undefined, {
-      month: "short",
-      day: "numeric",
-      weekday: "short"
-    }),
-    timeLabel: allDay
-      ? "All day"
-      : date.toLocaleTimeString(undefined, {
-          hour: "numeric",
-          minute: "2-digit"
-        })
-  };
-}
-
-function parseIcsStartDate(rawValue, params = {}) {
-  const value = normalizeText(rawValue);
-  if (!value) {
-    return null;
-  }
-
-  const valueType = normalizeText(params.VALUE).toUpperCase();
-  if (valueType === "DATE" || /^\d{8}$/.test(value)) {
-    const match = value.match(/^(\d{4})(\d{2})(\d{2})$/);
-    if (!match) {
-      return null;
-    }
-    const date = parseDateParts([match[1], match[2], match[3]]);
-    if (!date) {
-      return null;
-    }
-    return buildDateInfo(date, true);
-  }
-
-  let date = null;
-  const utcMatch = value.match(/^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})Z$/);
-  if (utcMatch) {
-    date = parseDateParts(utcMatch.slice(1), true);
-  }
-
-  if (!date) {
-    const localMatch = value.match(/^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})$/);
-    if (localMatch) {
-      date = parseDateParts(localMatch.slice(1), false);
-    }
-  }
-
-  if (!date) {
-    const parsed = new Date(value);
-    if (Number.isFinite(parsed.getTime())) {
-      date = parsed;
-    }
-  }
-
-  if (!date) {
-    return null;
-  }
-
-  return buildDateInfo(date, false);
-}
-
-function parseIcsEvents(icsText, fallbackLink) {
-  const lines = unfoldIcsLines(icsText);
-  const rawEvents = [];
-  let current = null;
-
-  for (const line of lines) {
-    const upper = normalizeText(line).toUpperCase();
-    if (upper === "BEGIN:VEVENT") {
-      current = {};
-      continue;
-    }
-    if (upper === "END:VEVENT") {
-      if (current) {
-        rawEvents.push(current);
-      }
-      current = null;
-      continue;
-    }
-    if (!current) {
-      continue;
-    }
-
-    const parsed = parseIcsLine(line);
-    if (!parsed) {
-      continue;
-    }
-
-    const { name, params, value } = parsed;
-    if (!Object.prototype.hasOwnProperty.call(current, name)) {
-      current[name] = { value, params };
-    }
-  }
-
-  const events = [];
-  let fallbackIndex = 0;
-  for (const entry of rawEvents) {
-    const status = normalizeText(entry.STATUS?.value).toUpperCase();
-    if (status === "CANCELLED") {
-      continue;
-    }
-
-    const start = parseIcsStartDate(entry.DTSTART?.value, entry.DTSTART?.params || {});
-    if (!start) {
-      continue;
-    }
-
-    const title = normalizeText(unescapeIcsText(entry.SUMMARY?.value), "(No title)");
-    const location = normalizeText(unescapeIcsText(entry.LOCATION?.value));
-    const id = normalizeText(unescapeIcsText(entry.UID?.value), `event-${fallbackIndex}`);
-    const link = normalizeEventLink(unescapeIcsText(entry.URL?.value), fallbackLink);
-    fallbackIndex += 1;
 
     events.push({
-      id,
-      title,
-      location,
-      link,
-      allDay: start.allDay,
-      startTs: start.startTs,
-      dateKey: start.dateKey,
-      dateLabel: start.dateLabel,
-      timeLabel: start.timeLabel
+      id: event.id,
+      title: event.title,
+      location: event.location,
+      link: normalizeEventLink(event.url, fallbackLink),
+      allDay: event.allDay,
+      startTs: event.startTs,
+      dateKey: event.dateKey,
+      dateLabel: event.dateLabel,
+      timeLabel: event.timeLabel
     });
-  }
+    return events;
+  }, []);
+}
 
-  return events;
+function parseCalendarIcsEvents(icsText, fallbackLink) {
+  return mapCalendarEvents(parseIcsEvents(icsText), fallbackLink);
 }
 
 export function parseIcsEventsForContractTest(icsText, fallbackLink = GOOGLE_CALENDAR_WEB_URL) {
-  return parseIcsEvents(icsText, fallbackLink);
+  return parseCalendarIcsEvents(icsText, fallbackLink);
 }
 
 function filterUpcomingEvents(events, daysAhead) {
@@ -936,7 +752,7 @@ export const calendarWidget = {
 
         const icsText = await response.text();
         const calendarHomeHref = calendarHomeUrl(cfg.accountIndex);
-        const parsedEvents = parseIcsEvents(icsText, calendarHomeHref);
+        const parsedEvents = parseCalendarIcsEvents(icsText, calendarHomeHref);
         const upcoming = filterUpcomingEvents(parsedEvents, cfg.daysAhead).sort((a, b) => {
           if (a.startTs === b.startTs) {
             return a.title.localeCompare(b.title);

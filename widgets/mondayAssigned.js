@@ -1,3 +1,4 @@
+import { normalizeErrorMessage } from "../core/utils/error.js";
 import {
   buildAuthConnectorStartUrl,
   createAuthState,
@@ -5,9 +6,22 @@ import {
   normalizeConnectorUrl as normalizeSharedConnectorUrl,
   parseAuthFlowResult
 } from "./shared/authConnector.js";
+import {
+  createAuthSessionStorage,
+  hasAuthSessionStorageChange,
+  resolveActiveAuthSession
+} from "./shared/authSessionStorage.js";
+import {
+  normalizeBoardIds,
+  normalizeColumnSelectorList,
+  parseColumnSelectorList
+} from "./shared/mondayConfig.js";
+import {
+  mondayFetchGraphql,
+  MONDAY_WEB_URL,
+  resolveMondaySiteUrl
+} from "./shared/mondayClient.js";
 
-const MONDAY_API_URL = "https://api.monday.com/v2";
-const MONDAY_WEB_URL = "https://monday.com/";
 const MONDAY_AUTH_STORAGE_KEY = "s3newtab-monday-auth-session-v1";
 const LOCAL_AUTH_CONNECTOR_URL = "http://localhost:8787/api/auth/start";
 
@@ -18,66 +32,6 @@ function clamp(value, min, max) {
 function normalizeText(value, fallback = "") {
   const text = String(value || "").trim();
   return text || fallback;
-}
-
-function normalizeHostname(value) {
-  const text = normalizeText(value).toLowerCase().replace(/^\.+|\.+$/g, "");
-  if (!text || text.includes("..") || !text.includes(".")) {
-    return "";
-  }
-  if (!/^[a-z0-9.-]+$/i.test(text)) {
-    return "";
-  }
-  return text;
-}
-
-function parseUrlSafely(rawUrl) {
-  const text = normalizeText(rawUrl);
-  if (!text) {
-    return null;
-  }
-
-  try {
-    return new URL(text);
-  } catch {
-    return null;
-  }
-}
-
-function extractHostFromUrl(rawUrl) {
-  const parsed = parseUrlSafely(rawUrl);
-  if (!parsed || (parsed.protocol !== "https:" && parsed.protocol !== "http:")) {
-    return "";
-  }
-  return normalizeHostname(parsed.hostname);
-}
-
-function resolveMondayHostFromAccountLabel(rawValue) {
-  const text = normalizeText(rawValue);
-  if (!text) {
-    return "";
-  }
-
-  const directUrlHost = extractHostFromUrl(text);
-  if (directUrlHost) {
-    return directUrlHost;
-  }
-
-  const emailMatch = text.match(/@([a-z0-9.-]+\.[a-z]{2,})$/i);
-  if (emailMatch?.[1]) {
-    return normalizeHostname(emailMatch[1]);
-  }
-
-  const hostCandidate = text.replace(/^https?:\/\//i, "").split(/[/?#]/, 1)[0];
-  return normalizeHostname(hostCandidate);
-}
-
-function mondaySiteRootFromHost(host) {
-  const normalizedHost = normalizeHostname(host);
-  if (!normalizedHost) {
-    return "";
-  }
-  return `https://${normalizedHost}/`;
 }
 
 const DONE_GROUP_TITLES = new Set(["done", "completed", "완료"]);
@@ -91,58 +45,6 @@ function isDoneGroupTitle(value) {
 function isDoneStatusLabel(value) {
   const normalized = normalizeText(value).toLowerCase();
   return normalized ? DONE_STATUS_LABELS.has(normalized) : false;
-}
-
-function normalizeBoardId(value, fallback = 0) {
-  const num = Number(value);
-  if (!Number.isFinite(num)) {
-    return Math.max(0, Math.floor(Number(fallback) || 0));
-  }
-  return Math.max(0, Math.floor(num));
-}
-
-function splitCsvText(value) {
-  return normalizeText(value)
-    .split(",")
-    .map((entry) => normalizeText(entry))
-    .filter(Boolean);
-}
-
-function csvEntries(value) {
-  if (Array.isArray(value)) {
-    const out = [];
-    for (const entry of value) {
-      out.push(...splitCsvText(entry));
-    }
-    return out;
-  }
-  return splitCsvText(value);
-}
-
-function normalizeBoardIds(value, fallback = []) {
-  const source = csvEntries(value);
-  const fallbackIds = csvEntries(fallback);
-  const out = [];
-
-  for (const entry of source) {
-    const id = normalizeBoardId(entry, 0);
-    if (id > 0 && !out.includes(id)) {
-      out.push(id);
-    }
-  }
-
-  if (out.length) {
-    return out;
-  }
-
-  for (const entry of fallbackIds) {
-    const id = normalizeBoardId(entry, 0);
-    if (id > 0 && !out.includes(id)) {
-      out.push(id);
-    }
-  }
-
-  return out;
 }
 
 function normalizeMaxItems(value, fallback = 15) {
@@ -161,32 +63,20 @@ function normalizeHour(value, fallback, min, max) {
   return clamp(Math.round(num), min, max);
 }
 
-function normalizeColumnId(value, fallback = "") {
-  return normalizeText(value, fallback).slice(0, 80);
-}
-
-function normalizePeopleColumnSelector(value, fallback = "") {
-  const text = normalizeText(value, fallback);
-  if (text === "*") {
-    return "*";
-  }
-  return normalizeColumnId(text);
-}
-
 function normalizePeopleColumnSelectorList(value, fallback = "") {
-  const source = csvEntries(value);
-  const fallbackEntries = csvEntries(fallback);
-  const normalized = source.length ? source : fallbackEntries;
-  return normalized
-    .map((entry) => normalizePeopleColumnSelector(entry))
-    .filter(Boolean)
-    .join(", ");
+  return normalizeColumnSelectorList(value, {
+    fallback,
+    maxLength: 80,
+    allowWildcard: true,
+    unique: false
+  });
 }
 
 function parsePeopleColumnSelectorList(value) {
-  return csvEntries(value)
-    .map((entry) => normalizePeopleColumnSelector(entry))
-    .filter(Boolean);
+  return parseColumnSelectorList(value, {
+    maxLength: 80,
+    allowWildcard: true
+  });
 }
 
 function resolveBoardPeopleColumnSelector(config, boardIndex) {
@@ -204,36 +94,12 @@ function normalizeConnectorUrl(value, fallback = LOCAL_AUTH_CONNECTOR_URL) {
   return normalizeSharedConnectorUrl(value, fallback);
 }
 
-function normalizeErrorMessage(error) {
-  if (!error) {
-    return "Unknown error";
-  }
-  if (typeof error === "string") {
-    return normalizeText(error, "Unknown error");
-  }
-  if (typeof error.message === "string") {
-    return normalizeText(error.message, "Unknown error");
-  }
-  return "Unknown error";
-}
-
 function rewriteAuthorizationLoadError(message) {
   const text = normalizeText(message).toLowerCase();
   if (text.includes("authorization page") && (text.includes("load") || text.includes("not loaded"))) {
     return "Authorization page could not be loaded. Check that connector server is running at http://localhost:8787 and then try Connect again.";
   }
   return message;
-}
-
-function isAuthErrorMessage(message) {
-  const text = normalizeText(message).toLowerCase();
-  return (
-    text.includes("unauthorized") ||
-    text.includes("not authenticated") ||
-    text.includes("invalid token") ||
-    text.includes("forbidden") ||
-    text.includes("access denied")
-  );
 }
 
 function isAuthCancelledMessage(message) {
@@ -296,76 +162,37 @@ function formatTimeLabel(date) {
 }
 
 function resolveMondayUrl(boardSnapshots, accountValue) {
-  const accountHost = resolveMondayHostFromAccountLabel(accountValue);
-  if (accountHost) {
-    return mondaySiteRootFromHost(accountHost);
-  }
-
   const snapshots = Array.isArray(boardSnapshots) ? boardSnapshots : [];
+  const candidateUrls = [];
+
   for (const snapshot of snapshots) {
-    const boardHost = extractHostFromUrl(snapshot?.boardUrl);
-    if (boardHost) {
-      return mondaySiteRootFromHost(boardHost);
-    }
+    candidateUrls.push(snapshot?.boardUrl);
 
     const issues = Array.isArray(snapshot?.issues) ? snapshot.issues : [];
     for (const issue of issues) {
-      const issueHost = extractHostFromUrl(issue?.url);
-      if (issueHost) {
-        return mondaySiteRootFromHost(issueHost);
-      }
+      candidateUrls.push(issue?.url);
     }
   }
 
-  return "";
+  return resolveMondaySiteUrl(accountValue, candidateUrls);
 }
 
-function normalizeStoredAuthSession(raw) {
-  if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
-    return null;
-  }
-
-  const rawConnector = normalizeText(raw.connectorUrl);
-  if (!rawConnector) {
-    return null;
-  }
-  const connectorUrl = normalizeConnectorUrl(rawConnector, "");
-  const accessToken = normalizeText(raw.accessToken);
-  if (!connectorUrl || !accessToken) {
-    return null;
-  }
-
-  return {
-    connectorUrl,
-    accessToken,
-    accountLabel: normalizeText(raw.accountLabel)
-  };
-}
+const authSessionStorage = createAuthSessionStorage({
+  storageKey: MONDAY_AUTH_STORAGE_KEY,
+  getStorageArea: () => chrome?.storage?.local,
+  normalizeConnectorUrl
+});
 
 async function loadStoredAuthSession() {
-  try {
-    const stored = await chrome.storage.local.get(MONDAY_AUTH_STORAGE_KEY);
-    return normalizeStoredAuthSession(stored?.[MONDAY_AUTH_STORAGE_KEY]);
-  } catch {
-    return null;
-  }
+  return authSessionStorage.load();
 }
 
 async function saveStoredAuthSession(session) {
-  await chrome.storage.local.set({
-    [MONDAY_AUTH_STORAGE_KEY]: {
-      connectorUrl: normalizeConnectorUrl(session?.connectorUrl, ""),
-      accessToken: normalizeText(session?.accessToken),
-      accountLabel: normalizeText(session?.accountLabel)
-    }
-  });
+  await authSessionStorage.save(session);
 }
 
 async function clearStoredAuthSession() {
-  try {
-    await chrome.storage.local.remove(MONDAY_AUTH_STORAGE_KEY);
-  } catch {
-  }
+  await authSessionStorage.clear();
 }
 
 function normalizedConfig(config) {
@@ -524,47 +351,6 @@ function updateDoneSlotsForToday(config, now, indicesToMark) {
     dayKey,
     slotsDone: serializeAutoSlotsDone(doneSet)
   };
-}
-
-async function mondayFetchGraphql(accessToken, query) {
-  const response = await fetch(MONDAY_API_URL, {
-    method: "POST",
-    headers: {
-      Authorization: accessToken,
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({ query }),
-    cache: "no-store"
-  });
-
-  const payload = await response.json().catch(() => null);
-
-  if (!response.ok) {
-    const message =
-      normalizeText(payload?.errors?.[0]?.message) ||
-      normalizeText(payload?.error_message) ||
-      `HTTP ${response.status}`;
-    const error = new Error(message);
-    if (response.status === 401 || response.status === 403) {
-      error.code = "auth";
-    }
-    throw error;
-  }
-
-  if (!payload || typeof payload !== "object") {
-    throw new Error("Monday API response is empty.");
-  }
-
-  if (Array.isArray(payload.errors) && payload.errors.length) {
-    const message = normalizeText(payload.errors[0]?.message, "Monday API request failed.");
-    const error = new Error(message);
-    if (isAuthErrorMessage(message)) {
-      error.code = "auth";
-    }
-    throw error;
-  }
-
-  return payload.data || {};
 }
 
 async function fetchContext(config, accessToken) {
@@ -1571,29 +1357,26 @@ export const mondayAssignedWidget = {
       const syncId = ++sessionSyncSerial;
       const connectorUrl = normalizeConnectorUrl(config?.connectorUrl);
       const configuredToken = normalizeText(config?.accessToken);
-      if (configuredToken) {
-        connected = true;
-        accessToken = configuredToken;
-        accountLabel = "Configured token";
-        sessionConnectorUrl = connectorUrl;
-        return true;
-      }
-
-      if (!connectorUrl) {
+      if (!connectorUrl && !configuredToken) {
         await clearConnectionState({ clearStored: false });
         return false;
       }
 
-      const stored = await loadStoredAuthSession();
+      const stored = connectorUrl ? await loadStoredAuthSession() : null;
       if (syncId !== sessionSyncSerial) {
         return false;
       }
 
-      if (stored && stored.connectorUrl === connectorUrl) {
+      const activeSession = resolveActiveAuthSession({
+        connectorUrl,
+        configuredAccessToken: configuredToken,
+        storedSession: stored
+      });
+      if (activeSession) {
         connected = true;
-        accessToken = stored.accessToken;
-        accountLabel = stored.accountLabel;
-        sessionConnectorUrl = stored.connectorUrl;
+        accessToken = activeSession.accessToken;
+        accountLabel = activeSession.accountLabel;
+        sessionConnectorUrl = activeSession.connectorUrl;
         return true;
       }
 
@@ -1607,11 +1390,7 @@ export const mondayAssignedWidget = {
       }
 
       storageListener = (changes, areaName) => {
-        if (
-          areaName !== "local" ||
-          !changes ||
-          !Object.prototype.hasOwnProperty.call(changes, MONDAY_AUTH_STORAGE_KEY)
-        ) {
+        if (areaName !== "local" || !hasAuthSessionStorageChange(changes, MONDAY_AUTH_STORAGE_KEY)) {
           return;
         }
 

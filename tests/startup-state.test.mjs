@@ -7,29 +7,7 @@ import {
   resolveComposableStartupState,
   resolveStartupStateDefault
 } from "../core/startupState.js";
-
-function isStateObject(value) {
-  return value !== null && typeof value === "object" && !Array.isArray(value);
-}
-
-function mergeStateObjects(base, patch) {
-  const out = isStateObject(base) ? structuredClone(base) : {};
-  if (!isStateObject(patch)) {
-    return out;
-  }
-  for (const [key, value] of Object.entries(patch)) {
-    if (Array.isArray(value)) {
-      out[key] = value.slice();
-      continue;
-    }
-    if (isStateObject(value) && isStateObject(out[key])) {
-      out[key] = mergeStateObjects(out[key], value);
-      continue;
-    }
-    out[key] = value;
-  }
-  return out;
-}
+import { isStateObject, mergeStateObjects } from "../core/state/merge.js";
 
 test("composes startup state v2 defaults, presets, and overrides", () => {
   const raw = {

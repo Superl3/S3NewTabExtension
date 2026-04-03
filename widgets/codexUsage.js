@@ -1,3 +1,5 @@
+import { executeScript } from "../core/platform/chrome-scripting.js";
+
 const CODEX_USAGE_URL = "https://chatgpt.com/codex/settings/usage";
 const CHATGPT_TAB_MATCH = "https://chatgpt.com/*";
 const CODEX_USAGE_STORAGE_KEY = "s3newtab-codex-usage-snapshot-v1";
@@ -267,16 +269,12 @@ async function injectScraperScript(tabId) {
     throw new Error("Scripting API unavailable.");
   }
 
-  await fromChromeCallback(
-    (callback) =>
-      chrome.scripting.executeScript(
-        {
-          target: { tabId },
-          files: ["content-scripts/codexUsageScraper.js"]
-        },
-        callback
-      ),
-    "Unable to inject usage scraper script."
+  await executeScript(
+    {
+      target: { tabId },
+      files: ["content-scripts/codexUsageScraper.js"]
+    },
+    { fallbackMessage: "Unable to inject usage scraper script." }
   );
 }
 
