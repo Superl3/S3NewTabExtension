@@ -1,4 +1,9 @@
 export function createBackgroundWallpaperRuntime(deps) {
+  const scheduleTimeout =
+    typeof deps.setTimeout === "function"
+      ? (...args) => Reflect.apply(deps.setTimeout, globalThis, args)
+      : (...args) => globalThis.setTimeout(...args);
+
   function wallpaperSignature(cfg) {
     return [
       cfg.wallpaperProvider,
@@ -201,7 +206,7 @@ export function createBackgroundWallpaperRuntime(deps) {
     }
 
     deps.setWallpaperTimer(
-      deps.setTimeout(() => {
+      scheduleTimeout(() => {
         if (deps.getState().ui.background.mode !== "wallpaper") {
           return;
         }

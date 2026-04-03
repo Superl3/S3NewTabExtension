@@ -126,6 +126,32 @@ test("queueSave schedules and flushes pending save", async () => {
   assert.equal(harness.persist.saveAllowsNonUserMutation, false);
 });
 
+test("queueSave supports timeout functions that require global this binding", () => {
+  let scheduledCallback = null;
+
+  const harness = createHarness({
+    setTimeout(fn) {
+      if (this !== globalThis) {
+        throw new TypeError("Illegal invocation");
+      }
+      scheduledCallback = fn;
+      return 77;
+    },
+    clearTimeout(id) {
+      if (this !== globalThis) {
+        throw new TypeError("Illegal invocation");
+      }
+      return id;
+    }
+  });
+
+  assert.doesNotThrow(() => {
+    harness.runtime.queueSave({ allowWithoutUserMutation: true });
+  });
+  assert.equal(harness.persist.saveTimer, 77);
+  assert.equal(typeof scheduledCallback, "function");
+});
+
 test("syncFromExternalSnapshot restores newer incoming state", () => {
   const harness = createHarness();
   harness.state.meta.lastUserMutationAt = 10;

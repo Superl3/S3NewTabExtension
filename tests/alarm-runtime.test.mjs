@@ -143,6 +143,44 @@ test("unregister clears the pending timer when the last owner is removed", () =>
   assert.equal(harness.scheduled.size, 0);
 });
 
+test("register works with timeout functions that require global this binding", () => {
+  let scheduledDelay = null;
+
+  const timerHost = {
+    scheduleTimeout(_callback, delay) {
+      if (this !== globalThis) {
+        throw new TypeError("Illegal invocation");
+      }
+      scheduledDelay = delay;
+      return 1;
+    },
+    clearScheduledTimeout() {
+      if (this !== globalThis) {
+        throw new TypeError("Illegal invocation");
+      }
+    }
+  };
+
+  const runtime = createAlarmRuntime({
+    tickMs: 30_000,
+    dedupeTtlMs: 1_000,
+    maxCatchupMs: 120_000,
+    listOwnerEvents() {
+      return [];
+    },
+    emitEvent() {
+      return true;
+    },
+    scheduleTimeout: timerHost.scheduleTimeout,
+    clearScheduledTimeout: timerHost.clearScheduledTimeout
+  });
+
+  assert.doesNotThrow(() => {
+    runtime.register("owner", { scopeId: "todo-scope" });
+  });
+  assert.equal(scheduledDelay, 30_000);
+});
+
 test("todo alarm adapter lets the shared runtime schedule and dispatch todo events", () => {
   const dispatched = [];
   const dueAt = new Date(2030, 0, 15, 9, 0, 0, 0).getTime();

@@ -190,3 +190,19 @@ test("scheduleWallpaperRefresh computes wait from cached age", () => {
   assert.equal(harness.calls.setTimeout[0].delay, 55_000);
   assert.equal(harness.runtimeState.wallpaperTimer, 99);
 });
+
+test("scheduleWallpaperRefresh supports timeout functions that require global this binding", () => {
+  const harness = createHarness({
+    setTimeout(_fn, _delay) {
+      if (this !== globalThis) {
+        throw new TypeError("Illegal invocation");
+      }
+      return 123;
+    }
+  });
+
+  assert.doesNotThrow(() => {
+    harness.runtime.scheduleWallpaperRefresh("sig-1");
+  });
+  assert.equal(harness.runtimeState.wallpaperTimer, 123);
+});

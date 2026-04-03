@@ -12,6 +12,7 @@ import {
   resolveActiveAuthSession
 } from "./shared/authSessionStorage.js";
 import {
+  normalizeBoardId,
   normalizeBoardIds,
   normalizeColumnSelectorList,
   parseColumnSelectorList

@@ -1,5 +1,13 @@
 export function createPersistenceRuntime(deps) {
   const isStateObject = (value) => value !== null && typeof value === "object" && !Array.isArray(value);
+  const scheduleTimeout =
+    typeof deps.setTimeout === "function"
+      ? (...args) => Reflect.apply(deps.setTimeout, globalThis, args)
+      : (...args) => globalThis.setTimeout(...args);
+  const clearScheduledTimeout =
+    typeof deps.clearTimeout === "function"
+      ? (...args) => Reflect.apply(deps.clearTimeout, globalThis, args)
+      : (...args) => globalThis.clearTimeout(...args);
 
   function snapshotFingerprint(snapshot) {
     try {
@@ -143,7 +151,7 @@ export function createPersistenceRuntime(deps) {
     }
 
     if (deps.getSaveTimer()) {
-      deps.clearTimeout(deps.getSaveTimer());
+      clearScheduledTimeout(deps.getSaveTimer());
       deps.setSaveTimer(null);
     }
 
@@ -161,11 +169,11 @@ export function createPersistenceRuntime(deps) {
     deps.setSaveAllowsNonUserMutation(deps.getSaveAllowsNonUserMutation() || allowWithoutUserMutation);
 
     if (deps.getSaveTimer()) {
-      deps.clearTimeout(deps.getSaveTimer());
+      clearScheduledTimeout(deps.getSaveTimer());
     }
 
     deps.setSaveTimer(
-      deps.setTimeout(() => {
+      scheduleTimeout(() => {
         flushPendingSave();
       }, 150)
     );
