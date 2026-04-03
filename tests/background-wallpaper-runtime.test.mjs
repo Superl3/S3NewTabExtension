@@ -206,3 +206,18 @@ test("scheduleWallpaperRefresh supports timeout functions that require global th
   });
   assert.equal(harness.runtimeState.wallpaperTimer, 123);
 });
+
+test("applyWallpaperSwap does not throw when luminance sampling fails", () => {
+  const harness = createHarness({
+    requestWallpaperLuminanceSample: () => {
+      throw new Error("sample-failed");
+    }
+  });
+  harness.runtimeState.wallpaperLoadToken = 7;
+
+  assert.doesNotThrow(() => {
+    harness.runtime.applyWallpaperSwap("https://example.com/bg.jpg", 7);
+  });
+  assert.equal(harness.elements.bgImage.src, "https://example.com/bg.jpg");
+  assert.equal(harness.elements.bgImage.classList.contains("visible"), true);
+});

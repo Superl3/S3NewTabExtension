@@ -1,5 +1,9 @@
 export function createPersistenceRuntime(deps) {
   const isStateObject = (value) => value !== null && typeof value === "object" && !Array.isArray(value);
+  const structuredCloneValue =
+    typeof deps.structuredClone === "function"
+      ? (value) => Reflect.apply(deps.structuredClone, globalThis, [value])
+      : (value) => globalThis.structuredClone(value);
   const scheduleTimeout =
     typeof deps.setTimeout === "function"
       ? (...args) => Reflect.apply(deps.setTimeout, globalThis, args)
@@ -54,7 +58,7 @@ export function createPersistenceRuntime(deps) {
     if (!isStateObject(value)) {
       return null;
     }
-    const normalized = deps.structuredClone(value);
+    const normalized = structuredCloneValue(value);
     deps.applyRuntimeOnlyPolicyToSnapshot(normalized);
     return normalized;
   }

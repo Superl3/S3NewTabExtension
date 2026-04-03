@@ -152,6 +152,25 @@ test("queueSave supports timeout functions that require global this binding", ()
   assert.equal(typeof scheduledCallback, "function");
 });
 
+test("syncFromExternalSnapshot supports structuredClone that requires global this binding", () => {
+  const harness = createHarness({
+    structuredClone(value) {
+      if (this !== globalThis) {
+        throw new TypeError("Illegal invocation");
+      }
+      return JSON.parse(JSON.stringify(value));
+    }
+  });
+
+  assert.doesNotThrow(() => {
+    harness.runtime.syncFromExternalSnapshot({
+      meta: { lastUserMutationAt: 20 },
+      instances: [{ id: "clock-1" }]
+    });
+  });
+  assert.equal(harness.calls.restore.length, 1);
+});
+
 test("syncFromExternalSnapshot restores newer incoming state", () => {
   const harness = createHarness();
   harness.state.meta.lastUserMutationAt = 10;

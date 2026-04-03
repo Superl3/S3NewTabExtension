@@ -43,7 +43,11 @@ export function createBackgroundWallpaperRuntime(deps) {
     deps.elements.bgImage.src = url;
     deps.elements.bgImage.classList.add("visible");
     void deps.updateBlurFromImage(url);
-    deps.requestWallpaperLuminanceSample(url);
+    try {
+      deps.requestWallpaperLuminanceSample(url);
+    } catch (error) {
+      console.warn("Wallpaper luminance sampling failed", error);
+    }
     return true;
   }
 
