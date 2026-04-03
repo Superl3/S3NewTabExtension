@@ -1,0 +1,142 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+
+import {
+  applyWidgetCommonMaster,
+  defaultWidgetCommonMaster,
+  inferCommonOverrides,
+  instanceCommonValue,
+  normalizeCommonOverrides,
+  normalizeHexColor,
+  normalizeWidgetColor,
+  normalizeWidgetCommonMaster,
+  resolveTransparentGhostOpacity,
+  resolveTransparentWidgetText,
+  resolveWidgetPadding,
+  setInstanceCommonValue
+} from "../core/widget-common-style.js";
+
+test("normalizeHexColor keeps valid hex and falls back for invalid", () => {
+  assert.equal(normalizeHexColor("#abc", "#000000"), "#abc");
+  assert.equal(normalizeHexColor("#A1B2C3", "#000000"), "#A1B2C3");
+  assert.equal(normalizeHexColor("abc", "#FF00FF"), "#FF00FF");
+});
+
+test("normalizeWidgetColor uppercases normalized values", () => {
+  assert.equal(normalizeWidgetColor("#abc", "#112233"), "#ABC");
+  assert.equal(normalizeWidgetColor("#112233", "#445566"), "#112233");
+});
+
+test("resolveWidgetPadding resolves directional and uniform paddings", () => {
+  const padding = resolveWidgetPadding({
+    type: "note",
+    contentPadding: 12,
+    contentPaddingTop: 10,
+    contentPaddingRight: 11,
+    contentPaddingBottom: 13,
+    contentPaddingLeft: 14
+  });
+
+  assert.deepEqual(padding, {
+    top: 10,
+    right: 11,
+    bottom: 13,
+    left: 14,
+    uniform: 12
+  });
+});
+
+test("normalizeWidgetCommonMaster and override helpers keep contracts", () => {
+  const master = normalizeWidgetCommonMaster({
+    transparency: 2,
+    contentPadding: -5,
+    contentFontScale: 3,
+    customTextColor: "#abc"
+  });
+
+  assert.equal(master.transparency, 1);
+  assert.equal(master.contentPadding, 0);
+  assert.equal(master.contentFontScale, 2);
+  assert.equal(master.customTextColor, "#ABC");
+
+  const instance = {
+    type: "note",
+    commonOverrides: normalizeCommonOverrides({ contentPadding: true }),
+    contentPadding: 20,
+    contentPaddingTop: 20,
+    contentPaddingRight: 20,
+    contentPaddingBottom: 20,
+    contentPaddingLeft: 20,
+    contentFontScale: 1,
+    transparency: 0.94,
+    backdropBlur: true,
+    edgeRoundness: 12,
+    contentAlignY: "top",
+    titleAlign: "center",
+    contentFillParent: false,
+    viewMode: "window",
+    surfaceMode: "normal",
+    transparentAutoContrast: true,
+    transparentGhostStrength: 100,
+    widgetThemeMode: "inherit",
+    useCustomColors: false,
+    customTextColor: "#1F2226",
+    customAccentColor: "#1F4F9F",
+    customSurfaceColor: "#FFFAF2"
+  };
+
+  applyWidgetCommonMaster(instance, master, false);
+  assert.equal(instanceCommonValue(instance, "contentPadding"), 20);
+
+  const overrides = inferCommonOverrides(instance, master);
+  assert.equal(overrides.contentPadding, true);
+});
+
+test("setInstanceCommonValue applies content and color fields", () => {
+  const instance = {
+    type: "note",
+    contentPadding: 10,
+    contentPaddingTop: 10,
+    contentPaddingRight: 10,
+    contentPaddingBottom: 10,
+    contentPaddingLeft: 10,
+    contentPaddingTopRight: 10,
+    contentPaddingBottomLeft: 10
+  };
+
+  setInstanceCommonValue(instance, "contentPadding", 18);
+  setInstanceCommonValue(instance, "customTextColor", "#abc");
+
+  assert.equal(instance.contentPadding, 18);
+  assert.equal(instance.contentPaddingTop, 18);
+  assert.equal(instance.customTextColor, "#ABC");
+});
+
+test("resolveTransparentWidgetText and ghost opacity remain deterministic", () => {
+  const ui = {
+    background: {
+      mode: "wallpaper",
+      overlayOpacity: 0.24
+    },
+    theme: {
+      text: "#101010",
+      background: "#F3EFE6",
+      surface: "#FFFAF2",
+      accent: "#1F4F9F"
+    }
+  };
+
+  const textColor = resolveTransparentWidgetText(
+    {
+      useCustomColors: false,
+      transparentAutoContrast: true
+    },
+    ui,
+    { sampledWallpaperBaseLuminance: 0.1 }
+  );
+
+  assert.equal(typeof textColor, "string");
+  assert.equal(textColor.startsWith("#"), true);
+  assert.equal(resolveTransparentGhostOpacity(ui, 120) > 0, true);
+  assert.deepEqual(Object.keys(defaultWidgetCommonMaster()).length > 0, true);
+});
