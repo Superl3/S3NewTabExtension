@@ -87,7 +87,8 @@ export function wireAppEvents({
   dockDragState,
   beginBoardSwipe,
   moveBoardSwipe,
-  endBoardSwipe
+  endBoardSwipe,
+  onBoardWheelNavigate
 } = {}) {
   wireEventModule(wireDockAndSwipeEvents, {
     elements,
@@ -97,7 +98,8 @@ export function wireAppEvents({
     applyEditDockPosition,
     beginBoardSwipe,
     moveBoardSwipe,
-    endBoardSwipe
+    endBoardSwipe,
+    onBoardWheelNavigate
   });
 
   wireEventModule(wireSettingsAndModeEvents, {

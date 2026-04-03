@@ -6,19 +6,22 @@ import { wireDockAndSwipeEvents } from "../core/wire-events-dock-and-swipe.js";
 function createEventHub() {
   const listeners = new Map();
   return {
-    addEventListener(type, handler) {
+    addEventListener(type, handler, options) {
       if (!listeners.has(type)) {
         listeners.set(type, []);
       }
-      listeners.get(type).push(handler);
+      listeners.get(type).push({ handler, options });
     },
     first(type) {
-      return listeners.get(type)?.[0] || null;
+      return listeners.get(type)?.[0]?.handler || null;
+    },
+    firstOptions(type) {
+      return listeners.get(type)?.[0]?.options;
     },
     emit(type, event) {
-      const handlers = listeners.get(type) || [];
-      for (const handler of handlers) {
-        handler(event);
+      const entries = listeners.get(type) || [];
+      for (const entry of entries) {
+        entry.handler(event);
       }
     }
   };
@@ -152,4 +155,30 @@ test("wireDockAndSwipeEvents wires board swipe callbacks", () => {
   assert.equal(end.length, 2);
   assert.deepEqual(end[0].options, { cancelled: false });
   assert.deepEqual(end[1].options, { cancelled: true });
+});
+
+test("wireDockAndSwipeEvents wires workspace wheel navigation callback", () => {
+  const workspace = createEventHub();
+  const wheel = [];
+
+  wireDockAndSwipeEvents({
+    elements: {
+      editDock: null,
+      editDockGrip: null,
+      workspace
+    },
+    windowObj: { innerWidth: 800, ...createEventHub() },
+    requestAnimationFrameFn: () => {},
+    dockDragState: { active: false, pointerId: null },
+    onBoardWheelNavigate: (event) => {
+      wheel.push(event);
+    }
+  });
+
+  const event = { type: "wheel" };
+  workspace.emit("wheel", event);
+
+  assert.equal(workspace.firstOptions("wheel")?.passive, false);
+  assert.equal(wheel.length, 1);
+  assert.equal(wheel[0], event);
 });

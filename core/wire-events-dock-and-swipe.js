@@ -6,7 +6,8 @@ export function wireDockAndSwipeEvents({
   applyEditDockPosition,
   beginBoardSwipe,
   moveBoardSwipe,
-  endBoardSwipe
+  endBoardSwipe,
+  onBoardWheelNavigate
 } = {}) {
   if (!elements || !windowObj || !dockDragState) {
     return;
@@ -73,6 +74,14 @@ export function wireDockAndSwipeEvents({
       beginBoardSwipe?.(event);
     },
     true
+  );
+
+  elements.workspace?.addEventListener(
+    "wheel",
+    (event) => {
+      onBoardWheelNavigate?.(event);
+    },
+    { passive: false }
   );
 
   windowObj.addEventListener("pointermove", (event) => {
