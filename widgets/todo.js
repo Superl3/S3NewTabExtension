@@ -96,6 +96,11 @@ function buildAlarmEvents(item, scopeId, rangeStartMs, rangeEndMs) {
     return [];
   }
 
+  const notificationBody = typeof item.text === "string" ? item.text.trim() : "";
+  if (!notificationBody) {
+    return [];
+  }
+
   const alarm = normalizeAlarm(item.alarm);
   if (!alarm.time) {
     return [];
@@ -137,7 +142,7 @@ function buildAlarmEvents(item, scopeId, rangeStartMs, rangeEndMs) {
         key: `${scopeId}|${item.id}|reminder|${reminderAt}`,
         at: reminderAt,
         title: "TODO reminder",
-        body: `${item.text} (${reminderMinutes} min before)`
+        body: `${notificationBody} (${reminderMinutes} min before)`
       });
     }
 
@@ -145,7 +150,7 @@ function buildAlarmEvents(item, scopeId, rangeStartMs, rangeEndMs) {
       key: `${scopeId}|${item.id}|due|${dueAt}`,
       at: dueAt,
       title: "TODO due",
-      body: item.text
+      body: notificationBody
     });
 
     if (intervalMinutes > 0) {
@@ -154,7 +159,7 @@ function buildAlarmEvents(item, scopeId, rangeStartMs, rangeEndMs) {
           key: `${scopeId}|${item.id}|interval|${intervalAt}`,
           at: intervalAt,
           title: "TODO follow-up",
-          body: item.text
+          body: notificationBody
         });
       }
     }

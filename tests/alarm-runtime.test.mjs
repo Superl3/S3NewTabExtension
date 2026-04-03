@@ -198,3 +198,52 @@ test("todo alarm adapter lets the shared runtime schedule and dispatch todo even
     }
   });
 });
+
+test("todo alarm adapter ignores blank todo text without breaking runtime register", () => {
+  const dueAt = new Date(2030, 0, 15, 9, 0, 0, 0).getTime();
+  const issuedNotifications = [];
+
+  function MockNotification(title, options) {
+    issuedNotifications.push({ title, options });
+  }
+  MockNotification.permission = "granted";
+
+  const adapter = createTodoAlarmRuntimeAdapterForTest({
+    notificationApi: MockNotification
+  });
+
+  const runtime = createAlarmRuntime({
+    ...adapter,
+    getNow: () => dueAt,
+    tickMs: 30_000,
+    dedupeTtlMs: 1_000,
+    maxCatchupMs: 120_000,
+    scheduleTimeout() {
+      return 1;
+    },
+    clearScheduledTimeout() {}
+  });
+
+  assert.doesNotThrow(() => {
+    runtime.register("todo-owner", {
+      scopeId: "todo-scope",
+      getItems() {
+        return [
+          {
+            id: "item-empty",
+            text: "   ",
+            alarm: {
+              repeat: "none",
+              time: "09:00",
+              interval: "off",
+              reminderBefore: "none",
+              singleDate: "2030-01-15"
+            }
+          }
+        ];
+      }
+    });
+  });
+
+  assert.equal(issuedNotifications.length, 0);
+});
