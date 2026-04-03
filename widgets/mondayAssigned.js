@@ -12,7 +12,9 @@ import {
   resolveActiveAuthSession
 } from "./shared/authSessionStorage.js";
 import {
+  normalizeBoardId,
   normalizeBoardIds,
+  normalizeColumnSelector,
   normalizeColumnSelectorList,
   parseColumnSelectorList
 } from "./shared/mondayConfig.js";
@@ -467,7 +469,7 @@ async function fetchContext(config, accessToken) {
 }
 
 function resolvePeopleColumnIds(peopleColumns, configuredSelector = "") {
-  const configured = normalizePeopleColumnSelector(configuredSelector);
+  const configured = normalizeColumnSelector(configuredSelector);
 
   const normalizedColumns = Array.isArray(peopleColumns)
     ? peopleColumns
@@ -545,7 +547,7 @@ function resolveBoardPeopleScope(config, boardIndex, peopleColumns) {
 
 function normalizeStatusColumnIds(statusColumnIds) {
   return Array.isArray(statusColumnIds)
-    ? statusColumnIds.map((value) => normalizeColumnId(value)).filter(Boolean)
+    ? statusColumnIds.map((value) => normalizeColumnSelector(value)).filter(Boolean)
     : [];
 }
 
@@ -958,7 +960,7 @@ async function fetchAssignedFromColumn(config, meId, peopleColumnId, accessToken
 
 async function fetchAssignedSubitemsAcrossBoard(config, meId, peopleColumnIds, accessToken) {
   const columnIds = Array.isArray(peopleColumnIds)
-    ? peopleColumnIds.map((value) => normalizeColumnId(value)).filter(Boolean)
+    ? peopleColumnIds.map((value) => normalizeColumnSelector(value)).filter(Boolean)
     : [];
 
   if (!columnIds.length) {
@@ -1009,7 +1011,7 @@ async function fetchAssignedSubitemsAcrossBoard(config, meId, peopleColumnIds, a
 
 async function fetchAssignedIssues(config, meId, peopleColumnIds, accessToken, statusColumnIds = []) {
   const columnIds = Array.isArray(peopleColumnIds)
-    ? peopleColumnIds.map((value) => normalizeColumnId(value)).filter(Boolean)
+    ? peopleColumnIds.map((value) => normalizeColumnSelector(value)).filter(Boolean)
     : [];
 
   if (!columnIds.length) {

@@ -79,6 +79,7 @@ import {
   normalizeWidgetThemeMode,
   resolveTransparentGhostOpacity,
   resolveTransparentWidgetText,
+  srgbToLinear,
   resolveWidgetPadding,
   setInstanceCommonValue,
   widgetPaddingFallback

@@ -1,0 +1,78 @@
+export function shouldRerenderOnModalFieldChange(field = {}) {
+  return field.key === "useCustomColors";
+}
+
+export function renderWidgetModalFieldsView({
+  fields = [],
+  currentType = "",
+  useCustomColors = false,
+  shouldRenderWidgetModalField,
+  createFormRow,
+  isThemeFieldKey,
+  isShortcutIconEditorField,
+  normalizeText,
+  getCurrentShortcutIcon,
+  openShortcutIconEditor,
+  setModalFieldValue,
+  renderWidgetModal,
+  createInputBySchema,
+  modalFieldValue,
+  settingsEventName,
+  readFieldValue
+} = {}) {
+  const frag = document.createDocumentFragment();
+
+  for (const field of fields) {
+    if (!shouldRenderWidgetModalField(field, { currentType, useCustomColors })) {
+      continue;
+    }
+
+    const row = createFormRow(field.label, field.helpText || "");
+    if (isThemeFieldKey(field.key)) {
+      row.classList.add("theme-row");
+    }
+
+    if (isShortcutIconEditorField(field)) {
+      const actionWrap = document.createElement("div");
+      actionWrap.className = "shortcut-icon-editor-inline-actions";
+
+      const editBtn = document.createElement("button");
+      editBtn.type = "button";
+      editBtn.className = "btn";
+      editBtn.textContent = "Edit icon";
+      editBtn.addEventListener("click", () => {
+        const currentIcon = normalizeText(getCurrentShortcutIcon?.());
+        openShortcutIconEditor(currentIcon, (nextDataUrl) => {
+          setModalFieldValue({ group: "config", key: "icon" }, nextDataUrl);
+          renderWidgetModal();
+        });
+      });
+
+      const clearBtn = document.createElement("button");
+      clearBtn.type = "button";
+      clearBtn.className = "btn";
+      clearBtn.textContent = "Remove custom icon";
+      clearBtn.addEventListener("click", () => {
+        setModalFieldValue({ group: "config", key: "icon" }, "");
+        renderWidgetModal();
+      });
+
+      actionWrap.append(editBtn, clearBtn);
+      row.append(actionWrap);
+      frag.append(row);
+      continue;
+    }
+
+    const input = createInputBySchema(field, modalFieldValue(field));
+    input.addEventListener(settingsEventName(field), () => {
+      setModalFieldValue(field, readFieldValue(input, field));
+      if (shouldRerenderOnModalFieldChange(field)) {
+        renderWidgetModal();
+      }
+    });
+    row.append(input);
+    frag.append(row);
+  }
+
+  return frag;
+}

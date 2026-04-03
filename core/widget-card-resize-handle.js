@@ -1,0 +1,103 @@
+export function attachWidgetResizeHandle({
+  resizeHandle,
+  instance,
+  isEditMode,
+  setSelected,
+  isGridLayoutMode,
+  recordHistorySnapshot,
+  gridMetrics,
+  normalizeGridLayout,
+  widgetDefaultGridSize,
+  widgetRegistry,
+  startGridResizeSession,
+  applyGridLayout,
+  queueSave,
+  setLastDragEndAt,
+  startFreeResizeSession,
+  patchWidgetLayout,
+  getBoardRect,
+  snap,
+  eventTarget
+} = {}) {
+  if (!resizeHandle || !instance) {
+    return;
+  }
+
+  resizeHandle.addEventListener("pointerdown", (event) => {
+    if (!isEditMode?.()) {
+      return;
+    }
+    if (event.button !== 0) {
+      return;
+    }
+    if (instance.type === "container") {
+      return;
+    }
+
+    event.stopPropagation();
+    event.preventDefault();
+    setSelected?.(instance.id);
+
+    const startX = event.clientX;
+    const startY = event.clientY;
+    const startW = instance.layout.w;
+    const startH = instance.layout.h;
+
+    if (isGridLayoutMode?.()) {
+      recordHistorySnapshot?.("Resize widget");
+      const metrics = gridMetrics?.();
+      const startGrid = normalizeGridLayout?.(instance.gridLayout, {
+        col: 0,
+        row: 0,
+        ...widgetDefaultGridSize?.(instance.type, widgetRegistry?.[instance.type])
+      });
+      startGridResizeSession?.({
+        startX,
+        startY,
+        startGrid,
+        metrics,
+        setGridLayout: (nextGrid) => {
+          instance.gridLayout = nextGrid;
+        },
+        applyGridLayout: () => {
+          applyGridLayout?.({ commitFreeLayout: false, shouldSave: false });
+        },
+        onComplete: () => {
+          setLastDragEndAt?.(Date.now());
+          applyGridLayout?.({ commitFreeLayout: false, shouldSave: false });
+          queueSave?.();
+        },
+        eventTarget
+      });
+      return;
+    }
+
+    startFreeResizeSession?.({
+      startX,
+      startY,
+      startW,
+      startH,
+      getLayoutPosition: () => ({ x: instance.layout.x, y: instance.layout.y }),
+      getBoardRect,
+      patchSize: (size, { commit = false } = {}) => {
+        patchWidgetLayout?.(
+          instance.id,
+          {
+            w: size.w,
+            h: size.h
+          },
+          commit ? { label: "Resize widget" } : { record: false }
+        );
+      },
+      onComplete: {
+        getCurrentWidth: () => instance.layout.w,
+        getCurrentHeight: () => instance.layout.h,
+        afterCommit: () => {
+          setLastDragEndAt?.(Date.now());
+        }
+      },
+      snap,
+      eventTarget
+    });
+  });
+}

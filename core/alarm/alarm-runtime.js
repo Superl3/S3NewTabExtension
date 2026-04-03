@@ -7,9 +7,18 @@ function isAlarmEventCandidate(value) {
 }
 
 function normalizeTimeoutApi(scheduleTimeout, clearScheduledTimeout) {
+  const scheduleTimeoutFn =
+    typeof scheduleTimeout === "function"
+      ? (...args) => Reflect.apply(scheduleTimeout, globalThis, args)
+      : (...args) => globalThis.setTimeout(...args);
+  const clearScheduledTimeoutFn =
+    typeof clearScheduledTimeout === "function"
+      ? (...args) => Reflect.apply(clearScheduledTimeout, globalThis, args)
+      : (...args) => globalThis.clearTimeout(...args);
+
   return {
-    scheduleTimeout: typeof scheduleTimeout === "function" ? scheduleTimeout : setTimeout,
-    clearScheduledTimeout: typeof clearScheduledTimeout === "function" ? clearScheduledTimeout : clearTimeout
+    scheduleTimeout: scheduleTimeoutFn,
+    clearScheduledTimeout: clearScheduledTimeoutFn
   };
 }
 

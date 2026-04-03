@@ -143,6 +143,44 @@ test("unregister clears the pending timer when the last owner is removed", () =>
   assert.equal(harness.scheduled.size, 0);
 });
 
+test("register works with timeout functions that require global this binding", () => {
+  let scheduledDelay = null;
+
+  const timerHost = {
+    scheduleTimeout(_callback, delay) {
+      if (this !== globalThis) {
+        throw new TypeError("Illegal invocation");
+      }
+      scheduledDelay = delay;
+      return 1;
+    },
+    clearScheduledTimeout() {
+      if (this !== globalThis) {
+        throw new TypeError("Illegal invocation");
+      }
+    }
+  };
+
+  const runtime = createAlarmRuntime({
+    tickMs: 30_000,
+    dedupeTtlMs: 1_000,
+    maxCatchupMs: 120_000,
+    listOwnerEvents() {
+      return [];
+    },
+    emitEvent() {
+      return true;
+    },
+    scheduleTimeout: timerHost.scheduleTimeout,
+    clearScheduledTimeout: timerHost.clearScheduledTimeout
+  });
+
+  assert.doesNotThrow(() => {
+    runtime.register("owner", { scopeId: "todo-scope" });
+  });
+  assert.equal(scheduledDelay, 30_000);
+});
+
 test("todo alarm adapter lets the shared runtime schedule and dispatch todo events", () => {
   const dispatched = [];
   const dueAt = new Date(2030, 0, 15, 9, 0, 0, 0).getTime();
@@ -196,5 +234,100 @@ test("todo alarm adapter lets the shared runtime schedule and dispatch todo even
     deps: {
       notificationApi: { permission: "granted" }
     }
+  });
+});
+
+test("todo alarm adapter ignores blank todo text without breaking runtime register", () => {
+  const dueAt = new Date(2030, 0, 15, 9, 0, 0, 0).getTime();
+  const issuedNotifications = [];
+
+  function MockNotification(title, options) {
+    issuedNotifications.push({ title, options });
+  }
+  MockNotification.permission = "granted";
+
+  const adapter = createTodoAlarmRuntimeAdapterForTest({
+    notificationApi: MockNotification
+  });
+
+  const runtime = createAlarmRuntime({
+    ...adapter,
+    getNow: () => dueAt,
+    tickMs: 30_000,
+    dedupeTtlMs: 1_000,
+    maxCatchupMs: 120_000,
+    scheduleTimeout() {
+      return 1;
+    },
+    clearScheduledTimeout() {}
+  });
+
+  assert.doesNotThrow(() => {
+    runtime.register("todo-owner", {
+      scopeId: "todo-scope",
+      getItems() {
+        return [
+          {
+            id: "item-empty",
+            text: "   ",
+            alarm: {
+              repeat: "none",
+              time: "09:00",
+              interval: "off",
+              reminderBefore: "none",
+              singleDate: "2030-01-15"
+            }
+          }
+        ];
+      }
+    });
+  });
+
+  assert.equal(issuedNotifications.length, 0);
+});
+
+test("todo alarm adapter swallows notification constructor errors during register", () => {
+  const dueAt = new Date(2030, 0, 15, 9, 0, 0, 0).getTime();
+
+  function ThrowingNotification() {
+    throw new Error("notify-fail");
+  }
+  ThrowingNotification.permission = "granted";
+
+  const adapter = createTodoAlarmRuntimeAdapterForTest({
+    notificationApi: ThrowingNotification
+  });
+
+  const runtime = createAlarmRuntime({
+    ...adapter,
+    getNow: () => dueAt,
+    tickMs: 30_000,
+    dedupeTtlMs: 1_000,
+    maxCatchupMs: 120_000,
+    scheduleTimeout() {
+      return 1;
+    },
+    clearScheduledTimeout() {}
+  });
+
+  assert.doesNotThrow(() => {
+    runtime.register("todo-owner", {
+      scopeId: "todo-scope",
+      getItems() {
+        return [
+          {
+            id: "item-1",
+            text: "Prepare release",
+            alarm: {
+              repeat: "none",
+              time: "09:00",
+              interval: "off",
+              reminderBefore: "none",
+              singleDate: "2030-01-15"
+            }
+          }
+        ];
+      }
+    });
   });
 });
