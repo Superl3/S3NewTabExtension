@@ -28,6 +28,7 @@ const MONDAY_AUTH_STORAGE_KEY = "s3newtab-monday-auth-session-v1";
 const LOCAL_AUTH_CONNECTOR_URL = "http://localhost:8787/api/auth/start";
 const WEEKDAY_AUTO_SLOTS_MINUTES = [9 * 60, 13 * 60];
 const DEFAULT_MEETING_NOTE_COLUMN_SELECTOR = "미팅 노트, monday Doc";
+const FALLBACK_LATEST_SCAN_LIMIT = 300;
 
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
@@ -888,7 +889,7 @@ function buildFallbackLatestQuery(boardId, columnIds = []) {
       boards(ids: [${boardId}]) {
         id
         name
-        items_page(limit: 40) {
+        items_page(limit: ${FALLBACK_LATEST_SCAN_LIMIT}) {
           items {
             id
             name
