@@ -195,6 +195,10 @@ import {
   resolveBoardSwipeThreshold
 } from "./core/board-swipe.js";
 import {
+  createBoardWheelState,
+  handleBoardWheelNavigate
+} from "./core/board-wheel-navigation.js";
+import {
   renderGlobalSettingsView
 } from "./core/global-settings-render.js";
 import {
@@ -566,6 +570,7 @@ const boardSwipeState = {
   dragOffsetX: 0,
   dragging: false
 };
+const boardWheelState = createBoardWheelState();
 const widgetLongPressState = {
   pending: false,
   pointerId: null
@@ -5037,6 +5042,29 @@ function endBoardSwipe(event, { cancelled = false } = {}) {
   );
 }
 
+function onBoardWheelNavigate(event) {
+  handleBoardWheelNavigate(event, {
+    boardWheelState,
+    boardSwipeState,
+    state,
+    elements,
+    syncLauncherPagingState,
+    currentLauncherViewportPage,
+    currentLauncherActivePage,
+    resolveBoardSwipeThreshold,
+    resolveBoardSwipeNextPage,
+    isPlaceholderLauncherPage,
+    setLauncherVirtualPage,
+    setActiveLauncherPage,
+    canStartBoardSwipeFromTarget,
+    isTextEditableTarget,
+    modalState,
+    isAddWidgetModalOpen: () => addWidgetModalOpen,
+    shortcutIconEditorState,
+    isDockSettingsModalOpen: () => dockSettingsModalOpen
+  });
+}
+
 function wireEvents() {
   return wireAppEvents({
     wireDockAndSwipeEvents,
@@ -5125,7 +5153,8 @@ function wireEvents() {
     dockDragState,
     beginBoardSwipe,
     moveBoardSwipe,
-    endBoardSwipe
+    endBoardSwipe,
+    onBoardWheelNavigate
   });
 }
 
