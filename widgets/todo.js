@@ -1,3 +1,6 @@
+import { dispatchAlarmNotification } from "../core/alarm/notification-dispatcher.js";
+import { createAlarmRuntime } from "../core/alarm/alarm-runtime.js";
+
 function uid() {
   return `${Date.now()}-${Math.random().toString(16).slice(2, 8)}`;
 }
@@ -81,6 +84,13 @@ function canRunNotificationApi() {
   return typeof Notification !== "undefined";
 }
 
+function resolveNotificationPermission(notificationApi) {
+  if (typeof notificationApi === "undefined") {
+    return "unsupported";
+  }
+  return notificationApi.permission;
+}
+
 function buildAlarmEvents(item, scopeId, rangeStartMs, rangeEndMs) {
   if (!item || rangeEndMs <= rangeStartMs) {
     return [];
@@ -153,88 +163,32 @@ function buildAlarmEvents(item, scopeId, rangeStartMs, rangeEndMs) {
   return events.filter((event) => event.at > rangeStartMs && event.at <= rangeEndMs);
 }
 
-function createTodoAlarmRuntime() {
-  const owners = new Map();
-  const fired = new Map();
-  let timer = null;
-  let lastTickMs = Date.now() - 1000;
-
-  function schedule() {
-    if (timer) {
-      clearTimeout(timer);
-      timer = null;
-    }
-    if (owners.size === 0) {
-      return;
-    }
-    timer = setTimeout(tick, TODO_ALARM_TICK_MS);
-  }
-
-  function cleanupFired(now) {
-    for (const [key, firedAt] of fired.entries()) {
-      if (now - firedAt > TODO_ALARM_DEDUPE_TTL_MS) {
-        fired.delete(key);
-      }
-    }
-  }
-
-  function emit(event, now) {
-    if (!canRunNotificationApi() || Notification.permission !== "granted") {
-      return;
-    }
-    if (fired.has(event.key)) {
-      return;
-    }
-    fired.set(event.key, now);
-    new Notification(event.title, {
-      body: event.body,
-      tag: event.key
-    });
-  }
-
-  function tick() {
-    timer = null;
-    if (owners.size === 0) {
-      return;
-    }
-
-    const now = Date.now();
-    const safeLastTickMs = Math.min(lastTickMs, now);
-    const rangeStart = Math.max(safeLastTickMs, now - TODO_ALARM_MAX_CATCHUP_MS);
-    for (const owner of owners.values()) {
-      const items = typeof owner.getItems === "function" ? owner.getItems() : [];
-      for (const item of items) {
-        const events = buildAlarmEvents(item, owner.scopeId, rangeStart, now);
-        for (const event of events) {
-          emit(event, now);
-        }
-      }
-    }
-
-    lastTickMs = now;
-    cleanupFired(now);
-    schedule();
-  }
+export function createTodoAlarmRuntimeAdapterForTest(deps = {}) {
+  const notificationApi = deps.notificationApi ?? globalThis.Notification;
+  const dispatchNotification = typeof deps.dispatchNotification === "function" ? deps.dispatchNotification : dispatchAlarmNotification;
 
   return {
-    register(ownerId, scopeId, getItems) {
-      owners.set(ownerId, {
-        scopeId,
-        getItems
-      });
-      tick();
+    listOwnerEvents(owner, rangeStartMs, rangeEndMs) {
+      const items = typeof owner?.getItems === "function" ? owner.getItems() : [];
+      return items.flatMap((item) => buildAlarmEvents(item, owner?.scopeId, rangeStartMs, rangeEndMs));
     },
-    unregister(ownerId) {
-      owners.delete(ownerId);
-      if (owners.size === 0 && timer) {
-        clearTimeout(timer);
-        timer = null;
+    emitEvent(event) {
+      if (resolveNotificationPermission(notificationApi) !== "granted") {
+        return false;
       }
-    },
-    kick() {
-      tick();
+      dispatchNotification(event, { notificationApi });
+      return true;
     }
   };
+}
+
+function createTodoAlarmRuntime() {
+  return createAlarmRuntime({
+    tickMs: TODO_ALARM_TICK_MS,
+    dedupeTtlMs: TODO_ALARM_DEDUPE_TTL_MS,
+    maxCatchupMs: TODO_ALARM_MAX_CATCHUP_MS,
+    ...createTodoAlarmRuntimeAdapterForTest()
+  });
 }
 
 function getTodoAlarmRuntime() {
@@ -377,6 +331,10 @@ function formatAlarmBadge(item) {
     return "Alarm set";
   }
   return `Alarm ${chunks.join(" ")}`;
+}
+
+export function buildTodoAlarmEventsForContractTest(item, scopeId, rangeStartMs, rangeEndMs) {
+  return buildAlarmEvents(item, scopeId, rangeStartMs, rangeEndMs);
 }
 
 export const todoWidget = {
@@ -1187,7 +1145,10 @@ export const todoWidget = {
     });
 
     render();
-    alarmRuntime.register(alarmRuntimeOwnerId, alarmScopeId, getItems);
+    alarmRuntime.register(alarmRuntimeOwnerId, {
+      scopeId: alarmScopeId,
+      getItems
+    });
 
     return {
       refresh: render,

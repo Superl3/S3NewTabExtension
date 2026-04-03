@@ -1,23 +1,16 @@
+import { normalizeErrorMessage } from "../core/utils/error.js";
+import { normalizeText } from "../core/utils/text.js";
+import {
+  buildAuthConnectorStartUrl,
+  createAuthState,
+  fetchConnectorToken,
+  normalizeConnectorUrl as normalizeSharedConnectorUrl,
+  parseAuthFlowResult
+} from "./shared/authConnector.js";
+import { createAuthSessionStorage } from "./shared/authSessionStorage.js";
+
 function toMessage(role, content) {
   return { role, content, ts: Date.now() };
-}
-
-function normalizeText(value, fallback = "") {
-  const text = String(value || "").trim();
-  return text || fallback;
-}
-
-function normalizeErrorMessage(error) {
-  if (!error) {
-    return "Unknown error";
-  }
-  if (typeof error === "string") {
-    return normalizeText(error, "Unknown error");
-  }
-  if (typeof error.message === "string") {
-    return normalizeText(error.message, "Unknown error");
-  }
-  return "Unknown error";
 }
 
 function rewriteAuthorizationLoadError(message) {
@@ -115,145 +108,29 @@ const AI_CHAT_AUTH_STORAGE_KEY = "s3newtab-ai-chat-auth-session-v1";
 const LOCAL_AUTH_CONNECTOR_URL = "http://localhost:8787/api/auth/start";
 
 function normalizeConnectorUrl(value, fallback = LOCAL_AUTH_CONNECTOR_URL) {
-  const text = normalizeText(value, fallback);
-  if (!text) {
-    return "";
-  }
-
-  try {
-    const parsed = new URL(text);
-    const isLocalhost = parsed.hostname === "localhost" || parsed.hostname === "127.0.0.1";
-    if (parsed.protocol !== "https:" && !(isLocalhost && parsed.protocol === "http:")) {
-      return "";
-    }
-    parsed.hash = "";
-    return parsed.toString();
-  } catch {
-    return "";
-  }
+  return normalizeSharedConnectorUrl(value, fallback);
 }
 
-function createAuthState() {
-  const bytes = new Uint8Array(16);
-  crypto.getRandomValues(bytes);
-  return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
-}
+const authSessionStorage = createAuthSessionStorage({
+  storageKey: AI_CHAT_AUTH_STORAGE_KEY,
+  getStorageArea: () => chrome?.storage?.local,
+  normalizeConnectorUrl
+});
 
-function buildAuthConnectorStartUrl(connectorUrl, redirectUri, state, provider = "") {
-  const url = new URL(connectorUrl);
-  url.searchParams.set("redirect_uri", redirectUri);
-  url.searchParams.set("state", state);
-  if (provider) {
-    url.searchParams.set("provider", provider);
-  }
-  return url.toString();
-}
-
-function parseAuthFlowResult(callbackUrl) {
-  const parsed = new URL(callbackUrl);
-  const hashText = parsed.hash.startsWith("#") ? parsed.hash.slice(1) : parsed.hash;
-  const hashParams = new URLSearchParams(hashText);
-  const queryParams = parsed.searchParams;
-  const read = (key) => normalizeText(queryParams.get(key) || hashParams.get(key));
-
-  return {
-    state: read("state"),
-    accessToken:
-      read("access_token") ||
-      read("accessToken") ||
-      read("token") ||
-      read("id_token"),
-    accountLabel: read("account") || read("email") || read("user") || read("name"),
-    error: read("error"),
-    errorDescription: read("error_description")
-  };
-}
-
-function tryParseJson(value) {
-  try {
-    return value ? JSON.parse(value) : {};
-  } catch {
-    return {};
-  }
-}
-
-async function fetchConnectorToken(connectorUrl, provider) {
-  const url = new URL(connectorUrl);
-  url.searchParams.set("mode", "token");
-  url.searchParams.set("provider", provider);
-  const response = await fetch(url.toString());
-  const text = normalizeText(await response.text());
-  const payload = tryParseJson(text);
-  if (!response.ok) {
-    const message =
-      normalizeText(payload?.message) ||
-      normalizeText(payload?.error) ||
-      normalizeText(payload?.error_description) ||
-      `Token relay failed (HTTP ${response.status})`;
-    throw new Error(message);
-  }
-  const token =
-    normalizeText(payload?.access_token) ||
-    normalizeText(payload?.accessToken) ||
-    normalizeText(payload?.token) ||
-    normalizeText(payload?.id_token);
-  if (!token) {
-    throw new Error("Token relay response missing access_token.");
-  }
-  const accountLabel =
-    normalizeText(payload?.account) ||
-    normalizeText(payload?.email) ||
-    normalizeText(payload?.user) ||
-    normalizeText(payload?.name);
-  return { accessToken: token, accountLabel };
-}
-
-function normalizeStoredAuthSession(raw) {
-  if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
-    return null;
+export function resolveAiChatActiveSession({ connectorUrl, configuredAccessToken, storedSession }) {
+  if (configuredAccessToken) {
+    return {
+      connectorUrl,
+      accessToken: configuredAccessToken,
+      accountLabel: "Configured token"
+    };
   }
 
-  const rawConnector = normalizeText(raw.connectorUrl);
-  if (!rawConnector) {
-    return null;
-  }
-  const connectorUrl = normalizeConnectorUrl(rawConnector, "");
-  const accessToken = normalizeText(raw.accessToken);
-  if (!connectorUrl || !accessToken) {
-    return null;
+  if (connectorUrl && storedSession?.connectorUrl === connectorUrl) {
+    return storedSession;
   }
 
-  return {
-    connectorUrl,
-    accessToken,
-    accountLabel: normalizeText(raw.accountLabel)
-  };
-}
-
-async function loadStoredAuthSession() {
-  try {
-    const stored = await chrome.storage.local.get(AI_CHAT_AUTH_STORAGE_KEY);
-    return normalizeStoredAuthSession(stored?.[AI_CHAT_AUTH_STORAGE_KEY]);
-  } catch {
-    return null;
-  }
-}
-
-async function saveStoredAuthSession(session) {
-  await chrome.storage.local.set({
-    [AI_CHAT_AUTH_STORAGE_KEY]: {
-      connectorUrl: normalizeConnectorUrl(session?.connectorUrl, ""),
-      accessToken: normalizeText(session?.accessToken),
-      accountLabel: normalizeText(session?.accountLabel)
-    }
-  });
-}
-
-async function clearStoredAuthSession() {
-  try {
-    await chrome.storage.local.remove(AI_CHAT_AUTH_STORAGE_KEY);
-  } catch {
-  }
+  return null;
 }
 
 function isAuthCancelledMessage(message) {
@@ -466,16 +343,11 @@ export const aiChatWidget = {
 
     function updateActiveSessionFromStorage() {
       const connectorUrl = getConnectorUrl();
-      const configuredToken = getConfiguredAccessToken();
-      if (configuredToken) {
-        activeSession = {
-          connectorUrl,
-          accessToken: configuredToken,
-          accountLabel: "Configured token"
-        };
-        return;
-      }
-      activeSession = connectorUrl && storedSession?.connectorUrl === connectorUrl ? storedSession : null;
+      activeSession = resolveAiChatActiveSession({
+        connectorUrl,
+        configuredAccessToken: getConfiguredAccessToken(),
+        storedSession
+      });
     }
 
     function renderToolbar() {
@@ -564,7 +436,7 @@ export const aiChatWidget = {
             accessToken: token,
             accountLabel: tokenAccount
           };
-          await saveStoredAuthSession(storedSession);
+          await authSessionStorage.save(storedSession);
         }
 
         updateActiveSessionFromStorage();
@@ -595,7 +467,7 @@ export const aiChatWidget = {
       storedSession = null;
       activeSession = null;
       connectionError = "";
-      await clearStoredAuthSession();
+      await authSessionStorage.clear();
       render();
     }
 
@@ -684,7 +556,7 @@ export const aiChatWidget = {
     });
 
     void (async () => {
-      storedSession = await loadStoredAuthSession();
+      storedSession = await authSessionStorage.load();
       render();
     })();
 

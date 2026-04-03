@@ -1,39 +1,10 @@
+import { isStateObject, mergeStateObjects } from "./state/merge.js";
+import { normalizeText } from "./utils/text.js";
+
 export const STARTUP_STATE_QUERY_KEY = "startup-state";
 export const STARTUP_STATE_INLINE_QUERY_KEY = "startupState";
 export const STARTUP_STATE_EMPTY_WIDGETS_QUERY_KEY = "startup-state-empty-widgets";
 export const STARTUP_STATE_JSON_PATH = "config/startup-state.json";
-
-function normalizeText(value, fallback = "") {
-  const text = String(value || "").trim();
-  return text || fallback;
-}
-
-function defaultIsStateObject(value) {
-  return value !== null && typeof value === "object" && !Array.isArray(value);
-}
-
-function defaultMergeStateObjects(base, patch) {
-  const output = defaultIsStateObject(base) ? structuredClone(base) : {};
-  if (!defaultIsStateObject(patch)) {
-    return output;
-  }
-
-  for (const [key, value] of Object.entries(patch)) {
-    if (Array.isArray(value)) {
-      output[key] = value.slice();
-      continue;
-    }
-
-    if (defaultIsStateObject(value) && defaultIsStateObject(output[key])) {
-      output[key] = defaultMergeStateObjects(output[key], value);
-      continue;
-    }
-
-    output[key] = value;
-  }
-
-  return output;
-}
 
 export function isAllowedStartupStateUrl(value, options = {}) {
   const baseOrigin = normalizeText(options.baseOrigin, "http://localhost");
@@ -55,11 +26,11 @@ export function normalizeStartupStateBoolean(value) {
 }
 
 export function resolveComposableStartupState(rawState, options = {}) {
-  const isStateObject = typeof options.isStateObject === "function" ? options.isStateObject : defaultIsStateObject;
-  const mergeStateObjects =
-    typeof options.mergeStateObjects === "function" ? options.mergeStateObjects : defaultMergeStateObjects;
+  const isStateObjectImpl = typeof options.isStateObject === "function" ? options.isStateObject : isStateObject;
+  const mergeStateObjectsImpl =
+    typeof options.mergeStateObjects === "function" ? options.mergeStateObjects : mergeStateObjects;
 
-  if (!isStateObject(rawState)) {
+  if (!isStateObjectImpl(rawState)) {
     return null;
   }
 
@@ -67,8 +38,8 @@ export function resolveComposableStartupState(rawState, options = {}) {
     return rawState;
   }
 
-  let composed = isStateObject(rawState.defaults) ? structuredClone(rawState.defaults) : {};
-  const presetMap = isStateObject(rawState.presets) ? rawState.presets : {};
+  let composed = isStateObjectImpl(rawState.defaults) ? structuredClone(rawState.defaults) : {};
+  const presetMap = isStateObjectImpl(rawState.presets) ? rawState.presets : {};
   const presetOrder = Array.isArray(rawState.applyPresets) ? rawState.applyPresets : [];
 
   for (const presetName of presetOrder) {
@@ -77,23 +48,23 @@ export function resolveComposableStartupState(rawState, options = {}) {
       continue;
     }
     const patch = presetMap[name];
-    if (!isStateObject(patch)) {
+    if (!isStateObjectImpl(patch)) {
       continue;
     }
-    composed = mergeStateObjects(composed, patch);
+    composed = mergeStateObjectsImpl(composed, patch);
   }
 
-  if (isStateObject(rawState.overrides)) {
-    composed = mergeStateObjects(composed, rawState.overrides);
+  if (isStateObjectImpl(rawState.overrides)) {
+    composed = mergeStateObjectsImpl(composed, rawState.overrides);
   }
 
   return composed;
 }
 
 export async function loadStartupStateFromJsonValue(rawValue, options = {}) {
-  const isStateObject = typeof options.isStateObject === "function" ? options.isStateObject : defaultIsStateObject;
-  const mergeStateObjects =
-    typeof options.mergeStateObjects === "function" ? options.mergeStateObjects : defaultMergeStateObjects;
+  const isStateObjectImpl = typeof options.isStateObject === "function" ? options.isStateObject : isStateObject;
+  const mergeStateObjectsImpl =
+    typeof options.mergeStateObjects === "function" ? options.mergeStateObjects : mergeStateObjects;
   const baseOrigin = normalizeText(options.baseOrigin, "http://localhost");
   const cache = normalizeText(options.cache, "no-store") || "no-store";
   const fetchFn = typeof options.fetchFn === "function" ? options.fetchFn : fetch;
@@ -117,12 +88,15 @@ export async function loadStartupStateFromJsonValue(rawValue, options = {}) {
     parsed = JSON.parse(await response.text());
   }
 
-  if (!isStateObject(parsed)) {
+  if (!isStateObjectImpl(parsed)) {
     return null;
   }
 
-  const resolved = resolveComposableStartupState(parsed, { isStateObject, mergeStateObjects });
-  return isStateObject(resolved) ? resolved : null;
+  const resolved = resolveComposableStartupState(parsed, {
+    isStateObject: isStateObjectImpl,
+    mergeStateObjects: mergeStateObjectsImpl
+  });
+  return isStateObjectImpl(resolved) ? resolved : null;
 }
 
 export async function getStartupStateFromLocation(options = {}) {
@@ -140,15 +114,15 @@ export async function getStartupStateFromLocation(options = {}) {
     return null;
   }
 
-  const isStateObject = typeof options.isStateObject === "function" ? options.isStateObject : defaultIsStateObject;
-  const mergeStateObjects =
-    typeof options.mergeStateObjects === "function" ? options.mergeStateObjects : defaultMergeStateObjects;
+  const isStateObjectImpl = typeof options.isStateObject === "function" ? options.isStateObject : isStateObject;
+  const mergeStateObjectsImpl =
+    typeof options.mergeStateObjects === "function" ? options.mergeStateObjects : mergeStateObjects;
   const logger = options.logger && typeof options.logger.warn === "function" ? options.logger : console;
 
   try {
     const startupState = await loadStartupStateFromJsonValue(startupStateValue, {
-      isStateObject,
-      mergeStateObjects,
+      isStateObject: isStateObjectImpl,
+      mergeStateObjects: mergeStateObjectsImpl,
       baseOrigin:
         typeof options.baseOrigin === "string"
           ? options.baseOrigin
@@ -199,14 +173,14 @@ export async function loadStartupStateFromConfigFile(options = {}) {
 
 export async function resolveStartupStateDefault(options = {}) {
   const defaultState = typeof options.defaultState === "function" ? options.defaultState : () => ({});
-  const isStateObject = typeof options.isStateObject === "function" ? options.isStateObject : defaultIsStateObject;
-  const mergeStateObjects =
-    typeof options.mergeStateObjects === "function" ? options.mergeStateObjects : defaultMergeStateObjects;
+  const isStateObjectImpl = typeof options.isStateObject === "function" ? options.isStateObject : isStateObject;
+  const mergeStateObjectsImpl =
+    typeof options.mergeStateObjects === "function" ? options.mergeStateObjects : mergeStateObjects;
   const base = defaultState();
 
   const startupState = await loadStartupStateFromConfigFile({
-    isStateObject,
-    mergeStateObjects,
+    isStateObject: isStateObjectImpl,
+    mergeStateObjects: mergeStateObjectsImpl,
     startupStateJsonPath: options.startupStateJsonPath,
     runtimeGetUrl: options.runtimeGetUrl,
     baseOrigin: options.baseOrigin,
@@ -214,8 +188,8 @@ export async function resolveStartupStateDefault(options = {}) {
     cache: options.cache
   });
 
-  if (!isStateObject(startupState)) {
+  if (!isStateObjectImpl(startupState)) {
     return base;
   }
-  return mergeStateObjects(base, startupState);
+  return mergeStateObjectsImpl(base, startupState);
 }

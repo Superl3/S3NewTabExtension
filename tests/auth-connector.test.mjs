@@ -6,6 +6,11 @@ import {
   normalizeConnectorUrl,
   parseAuthFlowResult
 } from "../widgets/shared/authConnector.js";
+import {
+  hasAuthSessionStorageChange,
+  resolveActiveAuthSession
+} from "../widgets/shared/authSessionStorage.js";
+import { resolveAiChatActiveSession } from "../widgets/aiChat.js";
 
 test("normalizes connector URL and removes hash", () => {
   assert.equal(
@@ -46,4 +51,110 @@ test("parses auth callback values from hash and query", () => {
   assert.equal(resultFromQuery.state, "xyz");
   assert.equal(resultFromQuery.accessToken, "t456");
   assert.equal(resultFromQuery.error, "oops");
+});
+
+test("aiChat prefers configured access token over stored session", () => {
+  const result = resolveAiChatActiveSession({
+    connectorUrl: "http://localhost:8787/api/auth/start",
+    configuredAccessToken: "configured-token",
+    storedSession: {
+      connectorUrl: "http://localhost:8787/api/auth/start",
+      accessToken: "stored-token",
+      accountLabel: "saved@example.com"
+    }
+  });
+
+  assert.deepEqual(result, {
+    connectorUrl: "http://localhost:8787/api/auth/start",
+    accessToken: "configured-token",
+    accountLabel: "Configured token"
+  });
+});
+
+test("aiChat only reuses stored session for matching connector URL", () => {
+  const storedSession = {
+    connectorUrl: "https://auth.example.com/start",
+    accessToken: "stored-token",
+    accountLabel: "saved@example.com"
+  };
+
+  assert.deepEqual(
+    resolveAiChatActiveSession({
+      connectorUrl: "https://auth.example.com/start",
+      configuredAccessToken: "",
+      storedSession
+    }),
+    storedSession
+  );
+
+  assert.equal(
+    resolveAiChatActiveSession({
+      connectorUrl: "https://other.example.com/start",
+      configuredAccessToken: "",
+      storedSession
+    }),
+    null
+  );
+});
+
+test("shared auth session prefers configured token over stored session", () => {
+  const result = resolveActiveAuthSession({
+    connectorUrl: "http://localhost:8787/api/auth/start",
+    configuredAccessToken: "configured-token",
+    storedSession: {
+      connectorUrl: "http://localhost:8787/api/auth/start",
+      accessToken: "stored-token",
+      accountLabel: "saved@example.com"
+    }
+  });
+
+  assert.deepEqual(result, {
+    connectorUrl: "http://localhost:8787/api/auth/start",
+    accessToken: "configured-token",
+    accountLabel: "Configured token"
+  });
+});
+
+test("shared auth session only reuses stored session for matching connector", () => {
+  const storedSession = {
+    connectorUrl: "https://auth.example.com/start",
+    accessToken: "stored-token",
+    accountLabel: "saved@example.com"
+  };
+
+  assert.deepEqual(
+    resolveActiveAuthSession({
+      connectorUrl: "https://auth.example.com/start",
+      configuredAccessToken: "",
+      storedSession
+    }),
+    storedSession
+  );
+
+  assert.equal(
+    resolveActiveAuthSession({
+      connectorUrl: "https://other.example.com/start",
+      configuredAccessToken: "",
+      storedSession
+    }),
+    null
+  );
+});
+
+test("shared auth session change detector matches the configured storage key", () => {
+  assert.equal(
+    hasAuthSessionStorageChange(
+      {
+        mondayKey: {
+          oldValue: null,
+          newValue: { accessToken: "next-token" }
+        }
+      },
+      "mondayKey"
+    ),
+    true
+  );
+
+  assert.equal(hasAuthSessionStorageChange({ otherKey: {} }, "mondayKey"), false);
+  assert.equal(hasAuthSessionStorageChange(null, "mondayKey"), false);
 });

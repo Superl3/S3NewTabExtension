@@ -39,3 +39,5 @@ export const widgetRegistry = {
 };
 
 export const widgetList = Object.values(widgetRegistry);
+
+export const defaultWidgetType = widgetList[0]?.type || "clock";

@@ -1,7 +1,4 @@
-function normalizeText(value, fallback = "") {
-  const text = String(value || "").trim();
-  return text || fallback;
-}
+import { normalizeText } from "../../core/utils/text.js";
 
 function tryParseJson(value) {
   try {
