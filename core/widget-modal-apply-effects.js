@@ -39,6 +39,11 @@ export function refreshWidgetRuntimeAfterModalApply(instance, defTitle = "", dep
     renderDockWidgets
   } = deps;
 
+  if (call(isWidgetDocked, instance)) {
+    call(renderDockWidgets);
+    return;
+  }
+
   const runtime = runtimeMap?.get?.(instance.id);
   if (runtime) {
     const titleEl = runtime.card?.querySelector?.(".widget-title");
@@ -48,11 +53,6 @@ export function refreshWidgetRuntimeAfterModalApply(instance, defTitle = "", dep
     call(applyLayout, runtime.card, instance.layout, instance.page);
     call(applyCardVisual, runtime.card, instance);
     runtime.controller?.refresh?.();
-    return;
-  }
-
-  if (call(isWidgetDocked, instance)) {
-    call(renderDockWidgets);
     return;
   }
 
