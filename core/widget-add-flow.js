@@ -44,7 +44,8 @@ export function addWidgetFlow(type, options = {}, deps = {}) {
     applyGridLayout,
     setSelected,
     updateBoardBounds,
-    queueSave
+    queueSave,
+    onWidgetAdded
   } = deps;
 
   if (state?.mode !== "edit") {
@@ -163,5 +164,6 @@ export function addWidgetFlow(type, options = {}, deps = {}) {
   setSelected?.(instance.id);
   updateBoardBounds?.();
   queueSave?.();
+  onWidgetAdded?.(instance);
   return true;
 }

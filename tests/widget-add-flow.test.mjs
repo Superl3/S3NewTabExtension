@@ -123,3 +123,18 @@ test("addWidgetFlow shows toast and aborts when grid has no slot", () => {
   assert.equal(deps.state.instances.length, 0);
   assert.equal(toasts.length, 1);
 });
+
+test("addWidgetFlow notifies added instance after successful add", () => {
+  const addedInstances = [];
+  const deps = createBaseDeps({
+    onWidgetAdded: (instance) => {
+      addedInstances.push(instance);
+    }
+  });
+
+  const added = addWidgetFlow("note", {}, deps);
+
+  assert.equal(added, true);
+  assert.equal(addedInstances.length, 1);
+  assert.equal(addedInstances[0]?.id, "widget-5");
+});
