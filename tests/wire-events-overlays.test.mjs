@@ -48,7 +48,7 @@ test("wireOverlayControlEvents wires title rename controls", () => {
   elements.widgetTitleRenameOkBtn.emit("click");
   elements.widgetTitleRenameOverlay.emit("pointerdown", { target: elements.widgetTitleRenameOverlay });
 
-  assert.equal(closeCalls.length, 3);
+  assert.equal(closeCalls.length, 4);
   assert.equal(applyCalls, 1);
 });
 
@@ -105,4 +105,74 @@ test("wireOverlayControlEvents updates shortcut editor source from text input", 
   shortcutIconEditorText.emit("input");
   assert.equal(shortcutIconEditorState.source, "preset");
   assert.equal(refreshCount, 2);
+});
+
+test("wireOverlayControlEvents closes modal on primary apply clicks", () => {
+  const modalState = { open: true };
+  const shortcutIconEditorState = { open: true };
+  const closeCalls = {
+    rename: 0,
+    dock: [],
+    widget: [],
+    shortcut: 0
+  };
+  const applyCalls = {
+    rename: 0,
+    dock: 0,
+    widget: 0,
+    shortcut: 0
+  };
+
+  const elements = {
+    widgetTitleRenameOkBtn: createEventNode(),
+    dockSettingsModalOkBtn: createEventNode(),
+    widgetModalOkBtn: createEventNode(),
+    shortcutIconEditorApplyBtn: createEventNode()
+  };
+
+  wireOverlayControlEvents({
+    elements,
+    modalState,
+    shortcutIconEditorState,
+    applyWidgetTitleRenameModal: () => {
+      applyCalls.rename += 1;
+    },
+    applyDockSettingsModal: () => {
+      applyCalls.dock += 1;
+    },
+    applyWidgetModal: () => {
+      applyCalls.widget += 1;
+    },
+    applyShortcutIconEditor: () => {
+      applyCalls.shortcut += 1;
+    },
+    closeWidgetTitleRenameModal: () => {
+      closeCalls.rename += 1;
+    },
+    closeDockSettingsModal: (rerender) => {
+      closeCalls.dock.push(rerender);
+    },
+    closeWidgetModal: (rerender) => {
+      closeCalls.widget.push(rerender);
+    },
+    closeShortcutIconEditor: () => {
+      closeCalls.shortcut += 1;
+    }
+  });
+
+  elements.widgetTitleRenameOkBtn.emit("click");
+  elements.dockSettingsModalOkBtn.emit("click");
+  elements.widgetModalOkBtn.emit("click");
+  elements.shortcutIconEditorApplyBtn.emit("click");
+
+  assert.deepEqual(applyCalls, {
+    rename: 1,
+    dock: 1,
+    widget: 1,
+    shortcut: 1
+  });
+  assert.equal(closeCalls.rename, 1);
+  assert.deepEqual(closeCalls.dock, [false]);
+  assert.deepEqual(closeCalls.widget, [false]);
+  assert.equal(closeCalls.shortcut, 1);
 });

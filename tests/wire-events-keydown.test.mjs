@@ -114,9 +114,10 @@ test("wireKeydownEvents prioritizes board context menu escape", () => {
   assert.equal(event.prevented, true);
 });
 
-test("wireKeydownEvents applies title rename on enter input", () => {
+test("wireKeydownEvents applies and closes title rename on enter input", () => {
   const windowObj = createWindowHub();
   let applied = 0;
+  let closed = 0;
 
   wireKeydownEvents({
     windowObj,
@@ -124,6 +125,9 @@ test("wireKeydownEvents applies title rename on enter input", () => {
     widgetTitleRenameState: { open: true },
     applyWidgetTitleRenameModal: () => {
       applied += 1;
+    },
+    closeWidgetTitleRenameModal: () => {
+      closed += 1;
     }
   });
 
@@ -131,6 +135,7 @@ test("wireKeydownEvents applies title rename on enter input", () => {
   windowObj.emit("keydown", event);
 
   assert.equal(applied, 1);
+  assert.equal(closed, 1);
   assert.equal(event.prevented, true);
 });
 
@@ -151,9 +156,37 @@ test("wireKeydownEvents blocks input when add-widget modal is open and target ou
   assert.equal(event.stopped, true);
 });
 
-test("wireKeydownEvents applies dock settings modal on enter select", () => {
+test("wireKeydownEvents closes add-widget modal on enter when apply succeeds", () => {
+  const windowObj = createWindowHub();
+  let applyCount = 0;
+  let closeCount = 0;
+
+  wireKeydownEvents({
+    windowObj,
+    ...createBaseDeps(),
+    isAddWidgetModalOpen: () => true,
+    isInsideAddWidgetModalOverlay: () => true,
+    applyAddWidgetModal: () => {
+      applyCount += 1;
+      return true;
+    },
+    closeAddWidgetModal: () => {
+      closeCount += 1;
+    }
+  });
+
+  const event = createKeyEvent({ key: "Enter", target: { kind: "input" } });
+  windowObj.emit("keydown", event);
+
+  assert.equal(applyCount, 1);
+  assert.equal(closeCount, 1);
+  assert.equal(event.prevented, true);
+});
+
+test("wireKeydownEvents applies and closes dock settings modal on enter select", () => {
   const windowObj = createWindowHub();
   let applied = 0;
+  const closed = [];
 
   wireKeydownEvents({
     windowObj,
@@ -161,6 +194,9 @@ test("wireKeydownEvents applies dock settings modal on enter select", () => {
     isDockSettingsModalOpen: () => true,
     applyDockSettingsModal: () => {
       applied += 1;
+    },
+    closeDockSettingsModal: (rerender) => {
+      closed.push(rerender);
     }
   });
 
@@ -168,6 +204,7 @@ test("wireKeydownEvents applies dock settings modal on enter select", () => {
   windowObj.emit("keydown", event);
 
   assert.equal(applied, 1);
+  assert.deepEqual(closed, [false]);
   assert.equal(event.prevented, true);
 });
 

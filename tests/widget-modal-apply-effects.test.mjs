@@ -75,3 +75,20 @@ test("refreshWidgetRuntimeAfterModalApply refreshes containers for unmounted con
 
   assert.deepEqual(calls, ["container"]);
 });
+
+test("refreshWidgetRuntimeAfterModalApply refreshes dock for unmounted docked widget", () => {
+  const calls = [];
+  refreshWidgetRuntimeAfterModalApply(
+    { id: "w3" },
+    "Fallback",
+    {
+      runtimeMap: new Map(),
+      refreshWidgetsByType: () => calls.push("container"),
+      isWidgetInContainer: () => false,
+      isWidgetDocked: () => true,
+      renderDockWidgets: () => calls.push("dock")
+    }
+  );
+
+  assert.deepEqual(calls, ["dock"]);
+});
