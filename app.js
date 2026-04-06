@@ -517,7 +517,8 @@ const modalState = {
   dismissStartY: 0,
   dismissMoved: false,
   dismissStartedOnOverlay: false,
-  activeTab: "widget"
+  activeTab: "widget",
+  requireInitialApply: false
 };
 
 const widgetTitleRenameState = {
@@ -4849,16 +4850,20 @@ function setModalFieldValue(field, value) {
   return widgetModalRuntime.setModalFieldValue(field, value);
 }
 
-function closeWidgetModal(rerender = true) {
-  return widgetModalRuntime.closeWidgetModal(rerender);
+function closeWidgetModal(rerender = true, options = {}) {
+  const closed = widgetModalRuntime.closeWidgetModal(rerender, options);
+  if (closed === false && modalState.requireInitialApply === true && options?.force !== true) {
+    showAddWidgetToast("새 위젯 설정을 적용해야 추가가 완료됩니다. OK를 눌러 주세요.");
+  }
+  return closed;
 }
 
 function renderWidgetModal() {
   return widgetModalRuntime.renderWidgetModal();
 }
 
-function openWidgetModal(instanceId) {
-  return widgetModalRuntime.openWidgetModal(instanceId);
+function openWidgetModal(instanceId, options = {}) {
+  return widgetModalRuntime.openWidgetModal(instanceId, options);
 }
 
 function applyWidgetModal() {
@@ -4908,7 +4913,8 @@ function findFirstAvailableBoardGridSlot(page, colSpan, rowSpan) {
 }
 
 function addWidget(type, options = {}) {
-  return addWidgetFlow(type, options, {
+  let addedInstanceId = "";
+  const added = addWidgetFlow(type, options, {
     state,
     widgetRegistry,
     syncLauncherPagingState,
@@ -4955,8 +4961,25 @@ function addWidget(type, options = {}) {
     applyGridLayout,
     setSelected,
     updateBoardBounds,
-    queueSave
+    queueSave,
+    onWidgetAdded: (instance) => {
+      addedInstanceId = instance?.id || "";
+    }
   });
+
+  if (!added) {
+    return false;
+  }
+
+  if (addWidgetModalOpen) {
+    closeAddWidgetModal();
+  }
+
+  if (addedInstanceId) {
+    openWidgetModal(addedInstanceId, { requireInitialApply: true });
+  }
+
+  return true;
 }
 
 async function resetState() {

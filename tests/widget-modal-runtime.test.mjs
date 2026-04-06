@@ -53,13 +53,16 @@ function createRuntime(overrides = {}) {
     dismissPointerId: 1,
     dismissMoved: true,
     dismissStartedOnOverlay: true,
-    activeTab: "common"
+    activeTab: "common",
+    requireInitialApply: false
   };
   const elements = {
     widgetModalOverlay: createElement(),
     widgetModalTabs: createElement(),
     widgetModalBody: createElement(),
-    widgetModalDefaultBtn: { onclick: () => {} }
+    widgetModalDefaultBtn: { onclick: () => {} },
+    widgetModalCloseBtn: { disabled: false },
+    widgetModalCancelBtn: { disabled: false }
   };
   let renderSettingsCalls = 0;
 
@@ -153,7 +156,30 @@ test("widget modal runtime close resets state and rerenders settings", () => {
   assert.equal(modalState.widgetId, "");
   assert.equal(modalState.draft, null);
   assert.equal(modalState.activeTab, "widget");
+  assert.equal(modalState.requireInitialApply, false);
   assert.equal(getRenderSettingsCalls(), 1);
+});
+
+test("widget modal runtime blocks close when initial apply is required", () => {
+  const { runtime, modalState } = createRuntime();
+
+  runtime.openWidgetModal("w1", { requireInitialApply: true });
+  const closed = runtime.closeWidgetModal(false);
+
+  assert.equal(closed, false);
+  assert.equal(modalState.open, true);
+  assert.equal(modalState.requireInitialApply, true);
+});
+
+test("widget modal runtime can force close when initial apply is required", () => {
+  const { runtime, modalState } = createRuntime();
+
+  runtime.openWidgetModal("w1", { requireInitialApply: true });
+  const closed = runtime.closeWidgetModal(false, { force: true });
+
+  assert.equal(closed, true);
+  assert.equal(modalState.open, false);
+  assert.equal(modalState.requireInitialApply, false);
 });
 
 test("widget modal runtime apply exits when modal closed", () => {
@@ -230,4 +256,14 @@ test("widget modal runtime apply preserves runtime update order before close", (
     "queueSave"
   ]);
   assert.equal(modalState.open, false);
+});
+
+test("widget modal runtime apply closes even when initial apply was required", () => {
+  const { runtime, modalState } = createRuntime();
+
+  runtime.openWidgetModal("w1", { requireInitialApply: true });
+  runtime.applyWidgetModal();
+
+  assert.equal(modalState.open, false);
+  assert.equal(modalState.requireInitialApply, false);
 });
