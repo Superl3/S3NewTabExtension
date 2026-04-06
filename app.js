@@ -227,6 +227,9 @@ import {
   addWidgetFlow
 } from "./core/widget-add-flow.js";
 import {
+  finalizeWidgetAddAction
+} from "./core/widget-add-finalize.js";
+import {
   captureResetPreservedData,
   restoreResetPreservedData
 } from "./core/reset-state-preservation.js";
@@ -4967,19 +4970,13 @@ function addWidget(type, options = {}) {
     }
   });
 
-  if (!added) {
-    return false;
-  }
-
-  if (addWidgetModalOpen) {
-    closeAddWidgetModal();
-  }
-
-  if (addedInstanceId) {
-    openWidgetModal(addedInstanceId, { requireInitialApply: true });
-  }
-
-  return true;
+  return finalizeWidgetAddAction({
+    added,
+    addedInstanceId,
+    isAddWidgetModalOpen: () => addWidgetModalOpen,
+    closeAddWidgetModal,
+    openWidgetModal
+  });
 }
 
 async function resetState() {
