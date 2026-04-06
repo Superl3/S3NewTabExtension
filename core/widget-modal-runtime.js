@@ -53,6 +53,8 @@ export function createWidgetModalRuntime({
   applyCardVisual,
   refreshWidgetsByType,
   isWidgetInContainer,
+  isWidgetDocked,
+  renderDockWidgets,
   updateBoardBounds,
   queueSave,
   documentObj = typeof document !== "undefined" ? document : null
@@ -407,7 +409,9 @@ export function createWidgetModalRuntime({
       applyLayout,
       applyCardVisual,
       refreshWidgetsByType,
-      isWidgetInContainer
+      isWidgetInContainer,
+      isWidgetDocked,
+      renderDockWidgets
     });
 
     updateBoardBounds?.();

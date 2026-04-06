@@ -75,3 +75,55 @@ test("refreshWidgetRuntimeAfterModalApply refreshes containers for unmounted con
 
   assert.deepEqual(calls, ["container"]);
 });
+
+test("refreshWidgetRuntimeAfterModalApply refreshes dock for unmounted docked widget", () => {
+  const calls = [];
+  refreshWidgetRuntimeAfterModalApply(
+    { id: "w3" },
+    "Fallback",
+    {
+      runtimeMap: new Map(),
+      refreshWidgetsByType: () => calls.push("container"),
+      isWidgetInContainer: () => false,
+      isWidgetDocked: () => true,
+      renderDockWidgets: () => calls.push("dock")
+    }
+  );
+
+  assert.deepEqual(calls, ["dock"]);
+});
+
+test("refreshWidgetRuntimeAfterModalApply prefers dock refresh for docked widget even with runtime", () => {
+  const calls = [];
+  const runtime = {
+    card: {
+      querySelector: () => ({ textContent: "" })
+    },
+    controller: {
+      refresh: () => {
+        calls.push("runtime-refresh");
+      }
+    }
+  };
+
+  refreshWidgetRuntimeAfterModalApply(
+    {
+      id: "w4",
+      title: "Docked",
+      layout: { x: 1, y: 1, w: 1, h: 1 },
+      page: 0
+    },
+    "Fallback",
+    {
+      runtimeMap: new Map([["w4", runtime]]),
+      applyLayout: () => calls.push("layout"),
+      applyCardVisual: () => calls.push("visual"),
+      refreshWidgetsByType: () => calls.push("container"),
+      isWidgetInContainer: () => false,
+      isWidgetDocked: () => true,
+      renderDockWidgets: () => calls.push("dock")
+    }
+  );
+
+  assert.deepEqual(calls, ["dock"]);
+});

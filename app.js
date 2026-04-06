@@ -4845,6 +4845,8 @@ const widgetModalRuntime = createWidgetModalRuntime({
   applyCardVisual,
   refreshWidgetsByType,
   isWidgetInContainer,
+  isWidgetDocked,
+  renderDockWidgets,
   updateBoardBounds,
   queueSave,
   documentObj: document

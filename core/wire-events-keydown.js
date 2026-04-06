@@ -85,6 +85,7 @@ export function wireKeydownEvents({
       if (event.key === "Enter" && isHtmlInputElement(event.target)) {
         event.preventDefault();
         applyWidgetTitleRenameModal?.();
+        closeWidgetTitleRenameModal?.();
         return;
       }
     }
@@ -104,7 +105,9 @@ export function wireKeydownEvents({
 
       if (event.key === "Enter" && isHtmlInputElement(event.target)) {
         event.preventDefault();
-        applyAddWidgetModal?.();
+        if (applyAddWidgetModal?.()) {
+          closeAddWidgetModal?.();
+        }
         return;
       }
     }
@@ -129,6 +132,7 @@ export function wireKeydownEvents({
       ) {
         event.preventDefault();
         applyDockSettingsModal?.();
+        closeDockSettingsModal?.(false);
         return;
       }
 
