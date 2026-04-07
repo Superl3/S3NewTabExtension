@@ -127,3 +127,11 @@ Do not make direct repo edits outside a GSD workflow unless the user explicitly 
 > Profile not yet configured. Run `/gsd:profile-user` to generate your developer profile.
 > This section is managed by `generate-claude-profile` -- do not edit manually.
 <!-- GSD:profile-end -->
+
+## Project Critical Rule: Modal Close Invariants
+
+- Applies globally to every modal flow in this repository.
+- Cancel/Close actions must always dismiss the modal.
+- Primary actions (OK/Add/Apply/Save) and Enter-submit paths must also always dismiss the modal.
+- Even when apply logic throws, returns false, or partially fails, modal dismissal must still occur.
+- Do not weaken this contract without explicit user approval and matching updates in AGENTS.md + .planning/PROJECT.md.

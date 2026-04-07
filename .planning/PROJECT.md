@@ -15,6 +15,7 @@ Codex Usage 위젯이 실제 ChatGPT Usage 화면과 일치하는 정보를 항�
 - ✓ 새 탭 오버라이드 기반 대시보드 렌더링 — existing
 - ✓ 위젯 추가/이동/리사이즈 및 설정 편집 흐름 — existing
 - ✓ 다수 데이터 소스 위젯(메일/캘린더/RSS/Weather 등) 동작 기반 — existing
+- ✓ 전역 모달 닫힘 불변식 고정 (Cancel/Primary/Enter 항상 닫힘, apply 예외 시에도 닫힘) — project-wide lock
 
 ### Active
 
@@ -48,6 +49,7 @@ Codex Usage 위젯이 실제 ChatGPT Usage 화면과 일치하는 정보를 항�
 | Content script + storage 방식 사용 | iframe/fetch 방식은 권한/CORS로 제한됨 | ✓ Good |
 | Codex Usage는 4 슬롯 고정 렌더 | 사용자가 원하는 핵심 지표가 명확함 | — Pending |
 | 파서 단순화(헤더-블록 기반) 우선 | 복잡한 heuristic은 누락/오탐을 늘림 | — Pending |
+| Global modal close contract is fail-safe and uniform | Prevents repeat regressions where Cancel closes but OK/Enter does not. | ✓ Locked |
 
 ## Evolution
 
@@ -67,4 +69,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-03-30 after initialization*
+*Last updated: 2026-04-07 — modal close contract locked project-wide.*

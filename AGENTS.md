@@ -38,3 +38,12 @@ These rules are mandatory for this repository across sessions.
 2. Drop silhouette must always render directly below the drag preview and above dock/board content.
 3. Drag preview and silhouette layering order must be preserved across board, dock, and folder drag flows.
 4. Overlay priority target: `drag preview > drop silhouette > dock widgets/content`.
+
+## Modal Close Contract (Non-Negotiable)
+
+1. The contract applies to every modal in this repository (existing and future), including Add Widget, Widget Settings, Dock Settings, Widget Title Rename, Shortcut Icon Editor, and widget-specific settings flows (Clock, Bookmarks Collection, Flex Worktime, etc.).
+2. Cancel/Close actions must always dismiss the modal.
+3. Primary actions (OK/Add/Apply/Save) and Enter-submit equivalents must also dismiss the modal in the same interaction.
+4. Primary-action dismissal must be fail-safe: even if apply logic throws, returns false, or partially fails, the modal must still close.
+5. Overlay/Escape dismiss behavior must remain consistent with Cancel semantics unless an exception is explicitly requested and documented in both AGENTS.md and .planning/PROJECT.md before implementation.
+6. Any modal behavior change must include regression tests for click and Enter paths, including apply-throws paths.
