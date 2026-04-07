@@ -50,6 +50,48 @@ test("wireSettingsAndModeEvents toggles settings rail only in edit mode", () => 
   assert.equal(syncCount, 1);
 });
 
+test("wireSettingsAndModeEvents prefers toggleSettingsPanel and closeSettingsPanel wiring", () => {
+  const state = { mode: "edit", selectedWidgetId: "w1" };
+  const elements = {
+    settingsRailToggleBtn: createEventNode(),
+    settingsPanelBackdrop: createEventNode()
+  };
+  const calls = {
+    toggle: 0,
+    close: 0,
+    setOpen: 0,
+    sync: 0
+  };
+
+  wireSettingsAndModeEvents({
+    elements,
+    state,
+    toggleSettingsPanel: () => {
+      calls.toggle += 1;
+    },
+    closeSettingsPanel: () => {
+      calls.close += 1;
+    },
+    getRuntimeSettingsPanelOpen: () => true,
+    setRuntimeSettingsPanelOpen: () => {
+      calls.setOpen += 1;
+    },
+    syncSettingsPanelVisibility: () => {
+      calls.sync += 1;
+    }
+  });
+
+  elements.settingsRailToggleBtn.emit("click");
+  elements.settingsPanelBackdrop.emit("click");
+
+  assert.deepEqual(calls, {
+    toggle: 1,
+    close: 1,
+    setOpen: 0,
+    sync: 0
+  });
+});
+
 test("wireSettingsAndModeEvents mode toggle defers bounds sync on placeholder", () => {
   const state = { mode: "edit", selectedWidgetId: "w2" };
   const elements = {

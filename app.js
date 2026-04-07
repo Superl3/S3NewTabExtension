@@ -168,6 +168,15 @@ import {
   readFieldValueBySchema as readFieldValueBySchemaCore
 } from "./core/settings-input-schema.js";
 import {
+  createSettingsPanelRuntime
+} from "./core/settings/panel-runtime.js";
+import {
+  createDockSettingsRuntime
+} from "./core/modal/dock-settings-runtime.js";
+import {
+  createWidgetTitleRenameRuntime
+} from "./core/modal/widget-title-rename-runtime.js";
+import {
   buildWidgetModalCommonFields
 } from "./core/widget-modal-fields.js";
 import {
@@ -239,6 +248,9 @@ import {
   createWidgetModalRuntime
 } from "./core/widget-modal-runtime.js";
 import {
+  createAppWidgetRuntime
+} from "./core/widget/index.js";
+import {
   attachWidgetTypeActions
 } from "./core/widget-card-actions.js";
 import {
@@ -257,12 +269,6 @@ import {
   startWidgetCardDragSession
 } from "./core/widget-card-drag-session.js";
 import {
-  createWidgetCardRuntime
-} from "./core/widget-card-runtime.js";
-import {
-  createWidgetStateRuntime
-} from "./core/widget-state-runtime.js";
-import {
   projectWidgetBoardDropLayoutRuntime
 } from "./core/widget-drop-projection.js";
 import {
@@ -274,9 +280,6 @@ import {
 import {
   moveWidgetToDockSlotRuntime
 } from "./core/dock-slot-move.js";
-import {
-  createWidgetDropSurfaceRuntime
-} from "./core/widget-drop-surface-runtime.js";
 import {
   createContainerDropRuntime
 } from "./core/container-drop-runtime.js";
@@ -1670,12 +1673,12 @@ function setBodyMode() {
     closeWidgetModal(false);
     closeAddWidgetModal();
     closeDockSettingsModal(false);
-    runtimeSettingsPanelOpen = false;
+    closeSettingsPanel();
   } else {
     renderLauncherPageAffordances();
+    syncSettingsPanelVisibility();
   }
 
-  syncSettingsPanelVisibility();
   syncPersistentDock();
   syncHomePageAnchorButton();
 }
@@ -1772,34 +1775,23 @@ function applyEditDockPosition(left, top) {
 }
 
 function syncSettingsPanelVisibility() {
-  const open = Boolean(state?.mode === "edit" && runtimeSettingsPanelOpen);
-  document.body.classList.toggle("settings-open", open);
-  elements.settingsRailToggleBtn?.setAttribute("aria-expanded", String(open));
-  elements.settingsPanel?.setAttribute("aria-hidden", String(!open));
-  if (elements.settingsRailToggleBtn) {
-    elements.settingsRailToggleBtn.title = open ? "Close settings" : "Open settings";
-  }
-  syncPersistentDock();
+  return settingsPanelRuntime.syncSettingsPanelVisibility();
 }
 
 function syncSettingsTabButtons() {
-  const active =
-    state.ui.activeTab === "background" ? "background" : state.ui.activeTab === "profile" ? "profile" : "global";
-  if (elements.tabGlobalBtn) {
-    const on = active === "global";
-    elements.tabGlobalBtn.classList.toggle("active", on);
-    elements.tabGlobalBtn.setAttribute("aria-selected", String(on));
-  }
-  if (elements.tabBackgroundBtn) {
-    const on = active === "background";
-    elements.tabBackgroundBtn.classList.toggle("active", on);
-    elements.tabBackgroundBtn.setAttribute("aria-selected", String(on));
-  }
-  if (elements.tabProfileBtn) {
-    const on = active === "profile";
-    elements.tabProfileBtn.classList.toggle("active", on);
-    elements.tabProfileBtn.setAttribute("aria-selected", String(on));
-  }
+  return settingsPanelRuntime.syncSettingsTabButtons();
+}
+
+function setActiveSettingsTab(nextTab, options) {
+  return settingsPanelRuntime.setActiveSettingsTab(nextTab, options);
+}
+
+function closeSettingsPanel() {
+  return settingsPanelRuntime.closeSettingsPanel();
+}
+
+function toggleSettingsPanel() {
+  return settingsPanelRuntime.toggleSettingsPanel();
 }
 
 function setModalInteractionLock(locked) {
@@ -1826,6 +1818,90 @@ function blurFocusedElementInOverlay(overlay) {
     activeElement.blur();
   }
 }
+
+const settingsPanelRuntime = createSettingsPanelRuntime({
+  state: {
+    get mode() {
+      return state?.mode;
+    },
+    get ui() {
+      return state?.ui;
+    }
+  },
+  elements,
+  documentObj: document,
+  getOpen: () => runtimeSettingsPanelOpen,
+  setOpen: (open) => {
+    runtimeSettingsPanelOpen = Boolean(open);
+  },
+  syncPersistentDock,
+  renderSettings
+});
+
+const dockSettingsRuntime = createDockSettingsRuntime({
+  state: {
+    get mode() {
+      return state?.mode;
+    },
+    get ui() {
+      return state?.ui;
+    }
+  },
+  elements,
+  dockModalState,
+  isOpen: () => dockSettingsModalOpen,
+  setOpen: (open) => {
+    dockSettingsModalOpen = Boolean(open);
+  },
+  modalState,
+  getAddWidgetModalOpen: () => addWidgetModalOpen,
+  shortcutIconEditorState,
+  widgetTitleRenameState,
+  closeWidgetModal,
+  closeAddWidgetModal,
+  closeShortcutIconEditor,
+  closeWidgetTitleRenameModal,
+  normalizeHomeLayout,
+  normalizeDockShape,
+  normalizeDockVisibility,
+  normalizeDockLength,
+  normalizeDockSize,
+  defaultHomeLayout,
+  patchHomeLayout,
+  setModalInteractionLock,
+  blurFocusedElementInOverlay,
+  syncPersistentDock,
+  renderSettings,
+  createFormRow,
+  createInputBySchema,
+  settingsEventName,
+  readFieldValue,
+  requestAnimationFrameFn: requestAnimationFrame
+});
+
+const widgetTitleRenameRuntime = createWidgetTitleRenameRuntime({
+  elements,
+  widgetTitleRenameState,
+  modalState,
+  getAddWidgetModalOpen: () => addWidgetModalOpen,
+  isDockSettingsModalOpen: () => dockSettingsModalOpen,
+  shortcutIconEditorState,
+  instanceById,
+  widgetRegistry,
+  normalizeText,
+  setModalInteractionLock,
+  blurFocusedElementInOverlay,
+  recordHistorySnapshot,
+  runtime,
+  renderWidgetModal,
+  isWidgetInContainer,
+  refreshWidgetsByType,
+  isWidgetDocked,
+  renderDockWidgets,
+  renderSettings,
+  queueSave,
+  requestAnimationFrameFn: requestAnimationFrame
+});
 
 function isInsideModalOverlay(target) {
   return target instanceof Element && Boolean(target.closest("#widgetModalOverlay"));
@@ -1937,158 +2013,24 @@ function openBoardContextMenu(clientX, clientY) {
   return true;
 }
 
-function dockSettingsFields() {
-  return [
-    {
-      key: "dockShape",
-      label: "Dock shape",
-      type: "select",
-      options: [
-        { value: "raised", label: "Raised tray" },
-        { value: "flat", label: "Flat wrap" }
-      ]
-    },
-    {
-      key: "dockVisibility",
-      label: "Dock visibility",
-      type: "select",
-      options: [
-        { value: "fixed", label: "Fixed" },
-        { value: "collapsible", label: "Collapsible (reveal on hover)" }
-      ]
-    },
-    {
-      key: "dockLength",
-      label: "Dock length (units)",
-      type: "number",
-      min: 5,
-      max: 14,
-      step: 1
-    },
-    {
-      key: "dockSize",
-      label: "Dock size (px)",
-      type: "number",
-      min: 36,
-      max: 72,
-      step: 1
-    }
-  ];
-}
-
 function renderDockSettingsModal() {
-  if (!dockSettingsModalOpen || !dockModalState.draft || !elements.dockSettingsModalBody) {
-    return;
-  }
-
-  elements.dockSettingsModalBody.replaceChildren();
-  for (const schema of dockSettingsFields()) {
-    const row = createFormRow(schema.label);
-    const input = createInputBySchema(schema, dockModalState.draft[schema.key]);
-    input.addEventListener(settingsEventName(schema), () => {
-      dockModalState.draft[schema.key] = readFieldValue(input, schema);
-    });
-    row.append(input);
-    elements.dockSettingsModalBody.append(row);
-  }
+  return dockSettingsRuntime.renderDockSettingsModal();
 }
 
 function openDockSettingsModal() {
-  if (state.mode !== "edit") {
-    return;
-  }
-  if (!elements.dockSettingsModalOverlay || !state?.ui?.home) {
-    return;
-  }
-
-  if (modalState.open) {
-    closeWidgetModal(false);
-  }
-  if (addWidgetModalOpen) {
-    closeAddWidgetModal();
-  }
-  if (shortcutIconEditorState.open) {
-    closeShortcutIconEditor();
-  }
-  if (widgetTitleRenameState.open) {
-    closeWidgetTitleRenameModal();
-  }
-
-  const home = normalizeHomeLayout(state.ui.home);
-  dockModalState.draft = {
-    dockShape: normalizeDockShape(home.dockShape, "raised"),
-    dockVisibility: normalizeDockVisibility(home.dockVisibility, "fixed"),
-    dockLength: normalizeDockLength(home.dockLength, 6),
-    dockSize: normalizeDockSize(home.dockSize, 44)
-  };
-
-  dockSettingsModalOpen = true;
-  renderDockSettingsModal();
-  elements.dockSettingsModalOverlay.classList.add("open");
-  elements.dockSettingsModalOverlay.setAttribute("aria-hidden", "false");
-  setModalInteractionLock(true);
-  syncPersistentDock();
-
-  requestAnimationFrame(() => {
-    const firstInput = elements.dockSettingsModalBody?.querySelector("input, select, button");
-    if (firstInput instanceof HTMLElement) {
-      firstInput.focus();
-    }
-  });
+  return dockSettingsRuntime.openDockSettingsModal();
 }
 
 function closeDockSettingsModal(rerender = false) {
-  if (!dockSettingsModalOpen) {
-    return;
-  }
-
-  dockSettingsModalOpen = false;
-  dockModalState.draft = null;
-  blurFocusedElementInOverlay(elements.dockSettingsModalOverlay);
-  elements.dockSettingsModalOverlay?.classList.remove("open");
-  elements.dockSettingsModalOverlay?.setAttribute("aria-hidden", "true");
-  elements.dockSettingsModalBody?.replaceChildren();
-
-  if (!modalState.open && !addWidgetModalOpen && !shortcutIconEditorState.open && !widgetTitleRenameState.open) {
-    setModalInteractionLock(false);
-  }
-
-  if (rerender) {
-    renderSettings();
-  }
-  syncPersistentDock();
+  return dockSettingsRuntime.closeDockSettingsModal(rerender);
 }
 
 function resetDockSettingsDraftToDefault() {
-  if (!dockSettingsModalOpen) {
-    return;
-  }
-  const defaults = defaultHomeLayout();
-  dockModalState.draft = {
-    dockShape: defaults.dockShape,
-    dockVisibility: defaults.dockVisibility,
-    dockLength: defaults.dockLength,
-    dockSize: defaults.dockSize
-  };
-  renderDockSettingsModal();
+  return dockSettingsRuntime.resetDockSettingsDraftToDefault();
 }
 
 function applyDockSettingsModal() {
-  if (!dockSettingsModalOpen || !dockModalState.draft) {
-    return false;
-  }
-
-  const patch = {
-    dockShape: normalizeDockShape(dockModalState.draft.dockShape, "raised"),
-    dockVisibility: normalizeDockVisibility(dockModalState.draft.dockVisibility, "fixed"),
-    dockPosition: "bottom",
-    dockLength: normalizeDockLength(dockModalState.draft.dockLength, 6),
-    dockSize: normalizeDockSize(dockModalState.draft.dockSize, 44)
-  };
-
-  closeDockSettingsModal(false);
-  patchHomeLayout(patch);
-  return true;
+  return dockSettingsRuntime.applyDockSettingsModal();
 }
 
 const shortcutIconEditorRuntime = createShortcutIconEditorRuntime({
@@ -2651,93 +2593,15 @@ function closeAddWidgetModal() {
 }
 
 function openWidgetTitleRenameModal(instanceId) {
-  const instance = instanceById(instanceId);
-  if (!instance || !elements.widgetTitleRenameOverlay || !elements.widgetTitleRenameInput) {
-    return;
-  }
-
-  if (modalState.open || addWidgetModalOpen || dockSettingsModalOpen || shortcutIconEditorState.open) {
-    return;
-  }
-
-  const def = widgetRegistry[instance.type];
-  const fallbackTitle = def?.title || "Widget";
-
-  widgetTitleRenameState.open = true;
-  widgetTitleRenameState.widgetId = instance.id;
-  elements.widgetTitleRenameInput.value = instance.title || fallbackTitle;
-  elements.widgetTitleRenameOverlay.classList.add("open");
-  elements.widgetTitleRenameOverlay.setAttribute("aria-hidden", "false");
-  setModalInteractionLock(true);
-
-  requestAnimationFrame(() => {
-    elements.widgetTitleRenameInput?.focus();
-    elements.widgetTitleRenameInput?.select();
-  });
+  return widgetTitleRenameRuntime.openWidgetTitleRenameModal(instanceId);
 }
 
 function closeWidgetTitleRenameModal() {
-  if (!widgetTitleRenameState.open) {
-    return;
-  }
-
-  widgetTitleRenameState.open = false;
-  widgetTitleRenameState.widgetId = "";
-  blurFocusedElementInOverlay(elements.widgetTitleRenameOverlay);
-  elements.widgetTitleRenameOverlay?.classList.remove("open");
-  elements.widgetTitleRenameOverlay?.setAttribute("aria-hidden", "true");
-
-  if (!modalState.open && !addWidgetModalOpen && !shortcutIconEditorState.open && !dockSettingsModalOpen) {
-    setModalInteractionLock(false);
-  }
+  return widgetTitleRenameRuntime.closeWidgetTitleRenameModal();
 }
 
 function applyWidgetTitleRenameModal() {
-  if (!widgetTitleRenameState.open || !widgetTitleRenameState.widgetId) {
-    return false;
-  }
-
-  const instance = instanceById(widgetTitleRenameState.widgetId);
-  if (!instance) {
-    closeWidgetTitleRenameModal();
-    return true;
-  }
-
-  const def = widgetRegistry[instance.type];
-  const fallbackTitle = def?.title || "Widget";
-  const nextTitle = normalizeText(elements.widgetTitleRenameInput?.value, fallbackTitle);
-  if (instance.title === nextTitle) {
-    closeWidgetTitleRenameModal();
-    return true;
-  }
-
-  recordHistorySnapshot("Rename widget title");
-  instance.title = nextTitle;
-
-  const rt = runtime.get(instance.id);
-  if (rt?.card) {
-    const titleEl = rt.card.querySelector(".widget-title");
-    if (titleEl) {
-      titleEl.textContent = nextTitle;
-    }
-  }
-
-  if (modalState.open && modalState.widgetId === instance.id && modalState.draft) {
-    modalState.draft.title = nextTitle;
-    renderWidgetModal();
-  }
-
-  if (isWidgetInContainer(instance)) {
-    refreshWidgetsByType("container");
-  }
-  if (isWidgetDocked(instance)) {
-    renderDockWidgets();
-  }
-
-  renderSettings();
-  queueSave();
-  closeWidgetTitleRenameModal();
-  return true;
+  return widgetTitleRenameRuntime.applyWidgetTitleRenameModal();
 }
 
 function applyAddWidgetModal() {
@@ -3343,7 +3207,7 @@ function resolveContainerInsertIndexFromPointer(
 }
 
 function tryContainerWidgetByDrop(instance, pointerEvent, { record = true } = {}) {
-  return widgetDropSurfaceRuntime.tryContainerWidgetByDrop(instance, pointerEvent, { record });
+  return appWidgetRuntime.tryContainerWidgetByDrop(instance, pointerEvent, { record });
 }
 
 function setDockDropTargetActive(active) {
@@ -3351,7 +3215,7 @@ function setDockDropTargetActive(active) {
 }
 
 function tryDockWidgetByDrop(instance, pointerEvent, { record = true } = {}) {
-  return widgetDropSurfaceRuntime.tryDockWidgetByDrop(instance, pointerEvent, { record });
+  return appWidgetRuntime.tryDockWidgetByDrop(instance, pointerEvent, { record });
 }
 
 function applyWidgetDropPlan(instance, plan, payload = {}, { record = true } = {}) {
@@ -3588,21 +3452,7 @@ function setActiveLauncherPage(page, { animate = true } = {}) {
 }
 
 function refreshBoardCardsAfterLauncherPageMutation({ animate = true } = {}) {
-  for (const instance of state.instances || []) {
-    if (!isBoardWidgetInstance(instance)) {
-      continue;
-    }
-    const rt = runtime.get(instance.id);
-    if (!rt?.card) {
-      continue;
-    }
-    applyLayout(rt.card, instance.layout, instance.page);
-    if (instance.type === "container") {
-      rt.controller?.refresh?.();
-    }
-  }
-  renderBoardViewport({ animate, dragging: false, dragOffsetX: 0 });
-  renderSettings();
+  return appWidgetRuntime.refreshBoardCardsAfterLauncherPageMutation({ animate });
 }
 
 function addLauncherPage() {
@@ -4177,88 +4027,7 @@ const containerDropRuntime = createContainerDropRuntime({
   containerDropGuideSlotRect
 });
 
-const widgetDropSurfaceRuntime = createWidgetDropSurfaceRuntime({
-  containerDropTargetAtPoint,
-  resolveContainerInsertIndexFromPointer,
-  normalizeContainerId,
-  reorderWidgetInContainerByIndex,
-  isBoardWidgetInstance,
-  normalizeWidgetPage,
-  currentLauncherPageCount,
-  currentLauncherActivePage,
-  setWidgetContainer,
-  compactEmptyLauncherPagesForUseMode,
-  renderBoard,
-  renderSettings,
-  queueSave,
-  isDockDropPoint,
-  isDockEligibleWidget,
-  isWidgetDocked,
-  isWidgetInContainer,
-  resolveDockDropSlotIndex,
-  recordHistorySnapshot,
-  touchUserMutationClock,
-  moveWidgetToDockSlot,
-  renderDockWidgets
-});
-
-const widgetStateRuntime = createWidgetStateRuntime({
-  getState: () => state,
-  elements,
-  runtimeMap: runtime,
-  modalState,
-  instanceById,
-  normalizeContainerId,
-  canPlaceWidgetInContainer,
-  recordHistorySnapshot,
-  touchUserMutationClock,
-  appendWidgetToContainerOrder,
-  normalizeContainerAssignments,
-  renderBoard,
-  renderSettings,
-  refreshWidgetsByType,
-  queueSave,
-  normalizeWidgetPage,
-  currentLauncherPageCount,
-  currentLauncherActivePage,
-  isLauncherPlaceholderPolicyActive,
-  isPlaceholderLauncherPage,
-  queuePlaceholderPageDrop,
-  clearPendingPlaceholderDrop,
-  projectWidgetBoardDropLayout,
-  isWidgetDocked,
-  normalizeDockedWidgetOrders,
-  applyLayout,
-  containerUnitLayoutSize,
-  updateBoardBounds,
-  closeWidgetModal,
-  compactEmptyLauncherPagesForUseMode,
-  renderDockWidgets,
-  isBoardWidgetInstance,
-  isWidgetInContainer
-});
-
-function setWidgetContainer(instanceId, containerId, options = {}) {
-  return widgetStateRuntime.setWidgetContainer(instanceId, containerId, options);
-}
-
-function releaseWidgetFromContainerByDrop(widgetId, payload = {}) {
-  return widgetStateRuntime.releaseWidgetFromContainerByDrop(widgetId, payload);
-}
-
-function releaseWidgetFromDockByDrop(widgetId, payload = {}) {
-  return widgetStateRuntime.releaseWidgetFromDockByDrop(widgetId, payload);
-}
-
-function patchWidgetLayout(instanceId, layoutPatch, options = {}) {
-  return widgetStateRuntime.patchWidgetLayout(instanceId, layoutPatch, options);
-}
-
-function removeWidget(instanceId) {
-  return widgetStateRuntime.removeWidget(instanceId);
-}
-
-const widgetCardRuntime = createWidgetCardRuntime({
+const appWidgetRuntime = createAppWidgetRuntime({
   getState: () => state,
   widgetRegistry,
   elements,
@@ -4356,38 +4125,52 @@ const widgetCardRuntime = createWidgetCardRuntime({
   startFreeResizeSession,
   applyCardVisual,
   applyCardStack,
-  getLastDragEndAt: () => lastDragEndAt
+  getLastDragEndAt: () => lastDragEndAt,
+  containerDropTargetAtPoint,
+  normalizeContainerId,
+  isBoardWidgetInstance,
+  isDockDropPoint,
+  isDockEligibleWidget,
+  resolveDockDropSlotIndex,
+  touchUserMutationClock,
+  moveWidgetToDockSlot,
+  canPlaceWidgetInContainer,
+  appendWidgetToContainerOrder,
+  normalizeContainerAssignments,
+  refreshWidgetsByType,
+  queuePlaceholderPageDrop,
+  containerUnitLayoutSize,
+  closeWidgetModal,
+  syncZCounterFromState,
+  setBodyMode
 });
 
+function setWidgetContainer(instanceId, containerId, options = {}) {
+  return appWidgetRuntime.setWidgetContainer(instanceId, containerId, options);
+}
+
+function releaseWidgetFromContainerByDrop(widgetId, payload = {}) {
+  return appWidgetRuntime.releaseWidgetFromContainerByDrop(widgetId, payload);
+}
+
+function releaseWidgetFromDockByDrop(widgetId, payload = {}) {
+  return appWidgetRuntime.releaseWidgetFromDockByDrop(widgetId, payload);
+}
+
+function patchWidgetLayout(instanceId, layoutPatch, options = {}) {
+  return appWidgetRuntime.patchWidgetLayout(instanceId, layoutPatch, options);
+}
+
+function removeWidget(instanceId) {
+  return appWidgetRuntime.removeWidget(instanceId);
+}
+
 function createWidgetCard(instance) {
-  return widgetCardRuntime.createWidgetCard(instance);
+  return appWidgetRuntime.createWidgetCard(instance);
 }
 
 function renderBoard() {
-  clearWidgetDragGuideState();
-  clearContainerDropTargets();
-  for (const rt of runtime.values()) {
-    rt.controller?.destroy?.();
-  }
-  runtime.clear();
-  elements.board.replaceChildren();
-  syncLauncherPagingState({ expandToFitInstances: true });
-  normalizeDockedWidgetOrders(state.instances);
-  syncZCounterFromState();
-
-  for (const instance of state.instances) {
-    if (instance.enabled !== false && !isWidgetDocked(instance) && !isWidgetInContainer(instance)) {
-      createWidgetCard(instance);
-    }
-  }
-
-  if (isGridLayoutMode()) {
-    applyGridLayout({ commitFreeLayout: false, shouldSave: false });
-  }
-
-  setSelected(state.selectedWidgetId);
-  setBodyMode();
-  updateBoardBounds();
+  return appWidgetRuntime.renderBoard();
 }
 
 function renderLauncherPageAffordances() {
@@ -4835,6 +4618,8 @@ function wireEvents() {
     wireKeydownEvents,
     elements,
     state,
+    toggleSettingsPanel,
+    closeSettingsPanel,
     getRuntimeSettingsPanelOpen: () => runtimeSettingsPanelOpen,
     setRuntimeSettingsPanelOpen: (open) => {
       runtimeSettingsPanelOpen = Boolean(open);
@@ -4864,6 +4649,7 @@ function wireEvents() {
     onDockStripWheel,
     syncDockOverflowState,
     renderSettings,
+    setActiveSettingsTab,
     isAddWidgetModalOpen: () => addWidgetModalOpen,
     syncAddWidgetSizeInputs,
     openAddWidgetModal,

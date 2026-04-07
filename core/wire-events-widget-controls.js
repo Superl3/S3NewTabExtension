@@ -8,6 +8,7 @@ export function wireWidgetControlEvents({
   onDockStripWheel,
   syncDockOverflowState,
   renderSettings,
+  setActiveSettingsTab,
   isAddWidgetModalOpen,
   syncAddWidgetSizeInputs,
   openAddWidgetModal,
@@ -48,16 +49,28 @@ export function wireWidgetControlEvents({
   );
 
   elements.tabGlobalBtn?.addEventListener("click", () => {
+    if (setActiveSettingsTab) {
+      setActiveSettingsTab("global");
+      return;
+    }
     state.ui.activeTab = "global";
     renderSettings?.();
   });
 
   elements.tabBackgroundBtn?.addEventListener("click", () => {
+    if (setActiveSettingsTab) {
+      setActiveSettingsTab("background");
+      return;
+    }
     state.ui.activeTab = "background";
     renderSettings?.();
   });
 
   elements.tabProfileBtn?.addEventListener("click", () => {
+    if (setActiveSettingsTab) {
+      setActiveSettingsTab("profile");
+      return;
+    }
     state.ui.activeTab = "profile";
     renderSettings?.();
   });
