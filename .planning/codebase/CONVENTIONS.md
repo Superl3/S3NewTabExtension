@@ -57,6 +57,11 @@
 - Normalize user-visible errors with helper functions (`normalizeErrorMessage` in `widgets/aiChat.js`, `widgets/weather.js`, `widgets/gmail.js`).
 - Use explicit `throw new Error(...)` for actionable failures, then catch at UI boundary (`connector/server.mjs`, `widgets/aiChat.js`, `app.js`).
 
+**Modal handlers:**
+- Wrap apply callbacks in try/catch at event boundary.
+- Never let apply exceptions block modal close.
+- Keep cancel/close semantics identical across click and keyboard submit flows.
+
 ## Logging
 
 **Framework:** console
