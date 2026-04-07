@@ -55,6 +55,7 @@ function createBaseDeps() {
     widgetTitleRenameState: { open: false },
     modalState: { open: false },
     shortcutIconEditorState: { open: false },
+    applyShortcutIconEditor: () => {},
     isTextEditableTarget: () => false,
     isInsideWidgetTitleRenameOverlay: () => true,
     isAddWidgetModalOpen: () => false,
@@ -410,6 +411,32 @@ test("wireKeydownEvents closes shortcut editor on escape when widget modal close
   const event = createKeyEvent({ key: "Escape" });
   windowObj.emit("keydown", event);
 
+  assert.equal(closed, 1);
+  assert.equal(event.prevented, true);
+});
+
+test("wireKeydownEvents applies and closes shortcut editor on enter input", () => {
+  const windowObj = createWindowHub();
+  let applied = 0;
+  let closed = 0;
+
+  wireKeydownEvents({
+    windowObj,
+    ...createBaseDeps(),
+    modalState: { open: false },
+    shortcutIconEditorState: { open: true },
+    applyShortcutIconEditor: () => {
+      applied += 1;
+    },
+    closeShortcutIconEditor: () => {
+      closed += 1;
+    }
+  });
+
+  const event = createKeyEvent({ key: "Enter", target: { kind: "input", type: "text" } });
+  windowObj.emit("keydown", event);
+
+  assert.equal(applied, 1);
   assert.equal(closed, 1);
   assert.equal(event.prevented, true);
 });

@@ -94,6 +94,11 @@ import {
   positionWidgetDragPreview as positionWidgetDragPreviewCore
 } from "./core/drag-preview.js";
 import {
+  normalizeRawContentZIndex,
+  resolveCardContentZIndex,
+  DROP_SILHOUETTE_Z_INDEX
+} from "./core/drag-layering.js";
+import {
   resolveBoundedDragPositionFromDelta,
   resolveDraftPlacementAtPointer,
   resolveSnappedPosition
@@ -2252,12 +2257,12 @@ function applyCardVisual(card, instance) {
 }
 
 function applyCardStack(card, instance) {
-  card.style.zIndex = String(Math.max(1, Number(instance.zIndex) || 1));
+  card.style.zIndex = String(resolveCardContentZIndex(instance.zIndex, zCounter));
 }
 
 function syncZCounterFromState() {
   zCounter = state.instances.reduce((max, instance) => {
-    return Math.max(max, Math.max(1, Number(instance.zIndex) || 1));
+    return Math.max(max, normalizeRawContentZIndex(instance.zIndex));
   }, 1);
 }
 
@@ -2267,7 +2272,7 @@ function bringWidgetToFront(instanceId) {
     return;
   }
 
-  const current = Math.max(1, Number(instance.zIndex) || 1);
+  const current = normalizeRawContentZIndex(instance.zIndex);
   if (current >= zCounter) {
     zCounter = current;
     return;
@@ -3309,7 +3314,7 @@ function createWidgetDropSilhouette(sourceElement = null, options = {}) {
   const silhouette = document.createElement("div");
   silhouette.className = "widget-drop-silhouette";
   silhouette.style.position = "fixed";
-  silhouette.style.zIndex = "8990";
+  silhouette.style.zIndex = String(DROP_SILHOUETTE_Z_INDEX);
 
   const sourceRect = sourceElement?.getBoundingClientRect?.();
   if (sourceRect) {
@@ -4939,7 +4944,7 @@ function addWidget(type, options = {}) {
     createWidgetInstanceDraft,
     getZCounter: () => zCounter,
     setZCounter: (value) => {
-      zCounter = value;
+      zCounter = normalizeRawContentZIndex(value);
     },
     normalizeText,
     isHeadlessDefaultType,

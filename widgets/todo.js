@@ -347,6 +347,139 @@ export function buildTodoAlarmEventsForContractTest(item, scopeId, rangeStartMs,
   return buildAlarmEvents(item, scopeId, rangeStartMs, rangeEndMs);
 }
 
+export function submitTodoAlarmModalAction({
+  alarmItemId,
+  alarmRepeatInput,
+  alarmTimeInput,
+  alarmIntervalInput,
+  alarmReminderInput,
+  getItems,
+  saveItems,
+  closeAlarmModal,
+  render,
+  nowFactory = () => new Date(),
+  notificationApi = globalThis.Notification,
+  canRunNotificationApiFn = canRunNotificationApi,
+  normalizeAlarmFn = normalizeAlarm,
+  formatDateKeyFn = formatDateKey
+} = {}) {
+  try {
+    if (!alarmItemId || !alarmRepeatInput || !alarmTimeInput || !alarmIntervalInput || !alarmReminderInput) {
+      return false;
+    }
+
+    const requiresTime =
+      alarmRepeatInput.value !== "none" || alarmIntervalInput.value !== "off" || alarmReminderInput.value !== "none";
+    if (requiresTime && !alarmTimeInput.value) {
+      alarmTimeInput.setCustomValidity("Completion time is required when repeat, notify interval, or reminder before is enabled.");
+      alarmTimeInput.reportValidity();
+      return false;
+    }
+    alarmTimeInput.setCustomValidity("");
+
+    const draftAlarm = normalizeAlarmFn({
+      repeat: alarmRepeatInput.value,
+      time: alarmTimeInput.value,
+      interval: alarmIntervalInput.value,
+      reminderBefore: alarmReminderInput.value
+    });
+    const now = nowFactory();
+    if (draftAlarm.repeat === "none") {
+      draftAlarm.singleDate = formatDateKeyFn(now);
+    } else {
+      draftAlarm.singleDate = "";
+    }
+    if (draftAlarm.repeat === "weekly") {
+      draftAlarm.weeklyDay = now.getDay();
+    } else {
+      draftAlarm.weeklyDay = null;
+    }
+
+    if (canRunNotificationApiFn() && notificationApi?.permission === "default") {
+      notificationApi.requestPermission?.().catch(() => {});
+    }
+
+    const items = typeof getItems === "function" ? getItems() : [];
+    const nextItems = items.map((entry) => {
+      if (entry.id !== alarmItemId) {
+        return entry;
+      }
+      return {
+        ...entry,
+        repeat: draftAlarm.repeat,
+        alarm: draftAlarm
+      };
+    });
+
+    saveItems?.(nextItems);
+    render?.();
+    return true;
+  } finally {
+    closeAlarmModal?.();
+  }
+}
+
+export function handleTodoAlarmModalKeydown(event, { alarmOverlay, closeAlarmModal, saveAlarmModal, documentObj = document } = {}) {
+  if (event.key === "Escape") {
+    event.preventDefault();
+    closeAlarmModal?.();
+    return true;
+  }
+
+  if (!alarmOverlay || !alarmOverlay.classList.contains("open")) {
+    return false;
+  }
+
+  const modal = alarmOverlay.querySelector(".todo-alarm-modal");
+  if (!(modal instanceof HTMLElement)) {
+    return false;
+  }
+
+  if (event.key === "Enter" && !event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey) {
+    const target = event.target;
+    if (!(target instanceof Element) || !modal.contains(target) || target.closest("button, textarea")) {
+      return false;
+    }
+    event.preventDefault();
+    saveAlarmModal?.();
+    return true;
+  }
+
+  if (event.key !== "Tab") {
+    return false;
+  }
+
+  const focusable = Array.from(
+    modal.querySelectorAll(
+      "button:not([disabled]), [href], input:not([disabled]):not([type='hidden']), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex='-1'])"
+    )
+  ).filter((element) => element instanceof HTMLElement);
+
+  if (focusable.length === 0) {
+    event.preventDefault();
+    return true;
+  }
+
+  const first = focusable[0];
+  const last = focusable[focusable.length - 1];
+  const active = documentObj.activeElement;
+  const activeInModal = active instanceof Element && modal.contains(active);
+
+  if (event.shiftKey) {
+    if (!activeInModal || active === first) {
+      event.preventDefault();
+      last.focus();
+    }
+    return true;
+  }
+
+  if (!activeInModal || active === last) {
+    event.preventDefault();
+    first.focus();
+  }
+  return true;
+}
+
 export const todoWidget = {
   type: "todo",
   title: "TODO",
@@ -386,7 +519,6 @@ export const todoWidget = {
     let alarmTimeInput = null;
     let alarmIntervalInput = null;
     let alarmReminderInput = null;
-    let alarmSaveBtn = null;
     let lastFocusedElement = null;
     const alarmRuntime = getTodoAlarmRuntime();
     const alarmRuntimeOwnerId = uid();
@@ -508,8 +640,6 @@ export const todoWidget = {
       alarmTimeInput = alarmOverlay.querySelector("input[name='time']");
       alarmIntervalInput = alarmOverlay.querySelector("select[name='interval']");
       alarmReminderInput = alarmOverlay.querySelector("select[name='reminderBefore']");
-      alarmSaveBtn = alarmOverlay.querySelector("button[data-alarm-modal-action='save']");
-
       const clearAlarmTimeValidity = () => {
         if (alarmTimeInput) {
           alarmTimeInput.setCustomValidity("");
@@ -557,49 +687,12 @@ export const todoWidget = {
     }
 
     function onAlarmModalKeydown(event) {
-      if (event.key === "Escape") {
-        event.preventDefault();
-        closeAlarmModal();
-        return;
-      }
-
-      if (event.key !== "Tab" || !alarmOverlay || !alarmOverlay.classList.contains("open")) {
-        return;
-      }
-
-      const modal = alarmOverlay.querySelector(".todo-alarm-modal");
-      if (!(modal instanceof HTMLElement)) {
-        return;
-      }
-
-      const focusable = Array.from(
-        modal.querySelectorAll(
-          "button:not([disabled]), [href], input:not([disabled]):not([type='hidden']), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex='-1'])"
-        )
-      ).filter((element) => element instanceof HTMLElement);
-
-      if (focusable.length === 0) {
-        event.preventDefault();
-        return;
-      }
-
-      const first = focusable[0];
-      const last = focusable[focusable.length - 1];
-      const active = document.activeElement;
-      const activeInModal = active instanceof Element && modal.contains(active);
-
-      if (event.shiftKey) {
-        if (!activeInModal || active === first) {
-          event.preventDefault();
-          last.focus();
-        }
-        return;
-      }
-
-      if (!activeInModal || active === last) {
-        event.preventDefault();
-        first.focus();
-      }
+      handleTodoAlarmModalKeydown(event, {
+        alarmOverlay,
+        closeAlarmModal,
+        saveAlarmModal,
+        documentObj: document
+      });
     }
 
     function openAlarmModal(itemId) {
@@ -653,56 +746,17 @@ export const todoWidget = {
     }
 
     function saveAlarmModal() {
-      if (!alarmItemId || !alarmSaveBtn || !alarmRepeatInput || !alarmTimeInput || !alarmIntervalInput || !alarmReminderInput) {
-        return;
-      }
-
-      const requiresTime =
-        alarmRepeatInput.value !== "none" || alarmIntervalInput.value !== "off" || alarmReminderInput.value !== "none";
-      if (requiresTime && !alarmTimeInput.value) {
-        alarmTimeInput.setCustomValidity("Completion time is required when repeat, notify interval, or reminder before is enabled.");
-        alarmTimeInput.reportValidity();
-        return;
-      }
-      alarmTimeInput.setCustomValidity("");
-
-      const draftAlarm = normalizeAlarm({
-        repeat: alarmRepeatInput.value,
-        time: alarmTimeInput.value,
-        interval: alarmIntervalInput.value,
-        reminderBefore: alarmReminderInput.value
+      submitTodoAlarmModalAction({
+        alarmItemId,
+        alarmRepeatInput,
+        alarmTimeInput,
+        alarmIntervalInput,
+        alarmReminderInput,
+        getItems,
+        saveItems,
+        closeAlarmModal,
+        render
       });
-      const now = new Date();
-      if (draftAlarm.repeat === "none") {
-        draftAlarm.singleDate = formatDateKey(now);
-      } else {
-        draftAlarm.singleDate = "";
-      }
-      if (draftAlarm.repeat === "weekly") {
-        draftAlarm.weeklyDay = now.getDay();
-      } else {
-        draftAlarm.weeklyDay = null;
-      }
-
-      if (canRunNotificationApi() && Notification.permission === "default") {
-        Notification.requestPermission().catch(() => {});
-      }
-
-      const items = getItems();
-      const nextItems = items.map((entry) => {
-        if (entry.id !== alarmItemId) {
-          return entry;
-        }
-        return {
-          ...entry,
-          repeat: draftAlarm.repeat,
-          alarm: draftAlarm
-        };
-      });
-
-      saveItems(nextItems);
-      closeAlarmModal();
-      render();
     }
 
     function render() {

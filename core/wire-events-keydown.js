@@ -34,6 +34,7 @@ export function wireKeydownEvents({
   modalState,
   shortcutIconEditorState,
   closeShortcutIconEditor,
+  applyShortcutIconEditor,
   isInsideModalOverlay,
   applyWidgetModal,
   closeWidgetModal,
@@ -150,9 +151,18 @@ export function wireKeydownEvents({
     }
 
     if (!modalState.open) {
-      if (shortcutIconEditorState?.open && event.key === "Escape") {
-        event.preventDefault();
-        closeShortcutIconEditor?.();
+      if (shortcutIconEditorState?.open) {
+        if (event.key === "Escape") {
+          event.preventDefault();
+          closeShortcutIconEditor?.();
+        } else if (
+          event.key === "Enter" &&
+          (isHtmlSelectElement(event.target) ||
+            (isHtmlInputElement(event.target) && event.target.type !== "checkbox" && event.target.type !== "file"))
+        ) {
+          event.preventDefault();
+          applyAndClose(applyShortcutIconEditor, closeShortcutIconEditor);
+        }
       }
       return;
     }
@@ -161,6 +171,16 @@ export function wireKeydownEvents({
       if (event.key === "Escape") {
         event.preventDefault();
         closeShortcutIconEditor?.();
+        return;
+      }
+
+      if (
+        event.key === "Enter" &&
+        (isHtmlSelectElement(event.target) ||
+          (isHtmlInputElement(event.target) && event.target.type !== "checkbox" && event.target.type !== "file"))
+      ) {
+        event.preventDefault();
+        applyAndClose(applyShortcutIconEditor, closeShortcutIconEditor);
       }
       return;
     }

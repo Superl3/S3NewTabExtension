@@ -1,3 +1,5 @@
+import { DRAG_PREVIEW_Z_INDEX } from "./drag-layering.js";
+
 function normalizeText(value, fallback = "") {
   const text = String(value || "").trim();
   return text || fallback;
@@ -26,7 +28,7 @@ export function createWidgetDragPreview(instance, options = {}) {
     preview.style.width = `${Math.max(1, Math.round(rect.width))}px`;
     preview.style.height = `${Math.max(1, Math.round(rect.height))}px`;
     preview.style.position = "fixed";
-    preview.style.zIndex = "9000";
+    preview.style.zIndex = String(DRAG_PREVIEW_Z_INDEX);
     preview.style.pointerEvents = "none";
 
     const pointerX = Number.isFinite(Number(options?.pointerX))
@@ -49,7 +51,7 @@ export function createWidgetDragPreview(instance, options = {}) {
   preview.className = "widget-drag-preview";
   preview.textContent = normalizeText(instance?.title, fallbackTitle);
   preview.style.position = "fixed";
-  preview.style.zIndex = "9000";
+  preview.style.zIndex = String(DRAG_PREVIEW_Z_INDEX);
   preview.style.pointerEvents = "none";
   document.body.append(preview);
   return preview;

@@ -274,3 +274,28 @@ test("wireOverlayControlEvents still closes widget modal when apply throws", () 
   });
   assert.deepEqual(closeCalls, [false]);
 });
+
+test("wireOverlayControlEvents still closes shortcut editor when apply throws", () => {
+  let closed = 0;
+
+  const elements = {
+    shortcutIconEditorApplyBtn: createEventNode()
+  };
+
+  wireOverlayControlEvents({
+    elements,
+    modalState: { open: false },
+    shortcutIconEditorState: { open: true },
+    applyShortcutIconEditor: () => {
+      throw new Error("apply-fail");
+    },
+    closeShortcutIconEditor: () => {
+      closed += 1;
+    }
+  });
+
+  assert.doesNotThrow(() => {
+    elements.shortcutIconEditorApplyBtn.emit("click");
+  });
+  assert.equal(closed, 1);
+});

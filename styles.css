@@ -1429,14 +1429,16 @@ body.mode-edit .drag-handle {
 body:not(.mode-edit) .widget-inline-actions .widget-drag-btn,
 body:not(.mode-edit) .widget-inline-actions .widget-float-select,
 body:not(.mode-edit) .widget-inline-actions .widget-float-remove,
-body:not(.mode-edit) .widget-inline-actions .widget-float-auth-toggle {
+body:not(.mode-edit) .widget-inline-actions .widget-float-auth-toggle,
+body:not(.mode-edit) .widget-inline-actions .widget-float-switch-account {
   display: none;
 }
 
 body.mode-edit .widget-inline-actions .widget-drag-btn,
 body.mode-edit .widget-inline-actions .widget-float-select,
 body.mode-edit .widget-inline-actions .widget-float-remove,
-body.mode-edit .widget-inline-actions .widget-float-auth-toggle {
+body.mode-edit .widget-inline-actions .widget-float-auth-toggle,
+body.mode-edit .widget-inline-actions .widget-float-switch-account {
   display: none;
 }
 
@@ -1445,9 +1447,11 @@ body.mode-edit .widget-card.headless:focus-within .widget-inline-actions .widget
 body.mode-edit .widget-card:hover .widget-inline-actions .widget-float-select,
 body.mode-edit .widget-card:hover .widget-inline-actions .widget-float-remove,
 body.mode-edit .widget-card:hover .widget-inline-actions .widget-float-auth-toggle,
+body.mode-edit .widget-card:hover .widget-inline-actions .widget-float-switch-account,
 body.mode-edit .widget-card:focus-within .widget-inline-actions .widget-float-select,
 body.mode-edit .widget-card:focus-within .widget-inline-actions .widget-float-remove,
-body.mode-edit .widget-card:focus-within .widget-inline-actions .widget-float-auth-toggle {
+body.mode-edit .widget-card:focus-within .widget-inline-actions .widget-float-auth-toggle,
+body.mode-edit .widget-card:focus-within .widget-inline-actions .widget-float-switch-account {
   display: inline-flex;
 }
 
@@ -1466,7 +1470,9 @@ body.mode-edit .widget-inline-actions-bottom .widget-float-back {
 .widget-open-btn,
 .widget-float-open,
 .widget-auth-toggle-btn,
-.widget-float-auth-toggle {
+.widget-float-auth-toggle,
+.widget-switch-account-btn,
+.widget-float-switch-account {
   border-color: color-mix(in srgb, var(--widget-effective-accent), var(--tone-dark) 22%);
   color: var(--widget-effective-accent);
 }
@@ -1492,7 +1498,9 @@ body.mode-edit .widget-inline-actions-bottom .widget-float-back {
 }
 
 .widget-auth-toggle-btn .icon,
-.widget-float-auth-toggle .icon {
+.widget-float-auth-toggle .icon,
+.widget-switch-account-btn .icon,
+.widget-float-switch-account .icon {
   stroke-width: 1.95;
 }
 
@@ -1851,7 +1859,7 @@ body.mode-edit .widget-folder-item-card .widget-head {
 
 .widget-drop-silhouette {
   position: absolute;
-  z-index: 5400;
+  z-index: 8990;
   pointer-events: none;
   border: 2px dashed color-mix(in srgb, var(--primary), var(--line) 32%);
   border-radius: 18px;
@@ -1908,7 +1916,7 @@ body.mode-edit .widget-folder-item-card .widget-head {
 
 .widget-drag-preview {
   position: fixed;
-  z-index: 6400;
+  z-index: 9000;
   pointer-events: none;
   max-width: min(300px, 54vw);
   border: 1px solid color-mix(in srgb, var(--line), transparent 12%);
@@ -1929,7 +1937,7 @@ body.mode-edit .widget-folder-item-card .widget-head {
 
 .widget-drag-preview-card {
   position: fixed;
-  z-index: 6400;
+  z-index: 9000;
   pointer-events: none;
   margin: 0;
   transform: translateZ(0) scale(1.02);

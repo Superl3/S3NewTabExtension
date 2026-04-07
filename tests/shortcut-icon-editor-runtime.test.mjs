@@ -118,3 +118,26 @@ test("shortcut icon runtime close returns false when already closed", () => {
 
   assert.equal(harness.runtime.closeShortcutIconEditor(), false);
 });
+
+test("shortcut icon runtime apply still closes when onApply throws", () => {
+  const harness = createHarness({
+    elements: {
+      shortcutIconEditorOverlay: {
+        classList: {
+          remove: () => {}
+        },
+        setAttribute: () => {}
+      }
+    }
+  });
+
+  harness.state.open = true;
+  harness.state.onApply = () => {
+    throw new Error("apply-fail");
+  };
+
+  assert.throws(() => {
+    harness.runtime.applyShortcutIconEditor();
+  }, /apply-fail/);
+  assert.equal(harness.state.open, false);
+});

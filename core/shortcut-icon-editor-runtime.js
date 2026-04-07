@@ -336,10 +336,13 @@ export function createShortcutIconEditorRuntime(deps) {
       return false;
     }
 
-    const dataUrl = shortcutEditorBuildDataUrl();
-    deps.shortcutIconEditorState.onApply?.(dataUrl || "");
-    closeShortcutIconEditor();
-    return true;
+    try {
+      const dataUrl = shortcutEditorBuildDataUrl();
+      deps.shortcutIconEditorState.onApply?.(dataUrl || "");
+      return true;
+    } finally {
+      closeShortcutIconEditor();
+    }
   }
 
   function loadImageIntoShortcutEditor(file) {
