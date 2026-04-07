@@ -91,12 +91,11 @@ export function createWidgetModalRuntime({
   };
 
   const syncDismissControlState = () => {
-    const dismissLocked = modalState.requireInitialApply === true;
     if (elements?.widgetModalCloseBtn) {
-      elements.widgetModalCloseBtn.disabled = dismissLocked;
+      elements.widgetModalCloseBtn.disabled = false;
     }
     if (elements?.widgetModalCancelBtn) {
-      elements.widgetModalCancelBtn.disabled = dismissLocked;
+      elements.widgetModalCancelBtn.disabled = false;
     }
   };
 
@@ -122,7 +121,6 @@ export function createWidgetModalRuntime({
     modalState.dismissMoved = false;
     modalState.dismissStartedOnOverlay = false;
     modalState.activeTab = "widget";
-    modalState.requireInitialApply = false;
   };
 
   const createTabButton = ({ id, panelId, label, active, onClick }) => {
@@ -245,12 +243,7 @@ export function createWidgetModalRuntime({
   };
 
   const closeWidgetModal = (rerender = true, options = {}) => {
-    const forceClose = options?.force === true;
-    const activeInstance = resolveModalInstance();
-    if (!forceClose && modalState.open && modalState.requireInitialApply === true && activeInstance) {
-      return false;
-    }
-
+    void options;
     if (shortcutIconEditorState?.open) {
       closeShortcutIconEditor?.();
     }
@@ -264,6 +257,7 @@ export function createWidgetModalRuntime({
     if (rerender) {
       renderSettings?.();
     }
+
     return true;
   };
 
@@ -305,7 +299,7 @@ export function createWidgetModalRuntime({
     }
   };
 
-  const openWidgetModal = (instanceId, { requireInitialApply = false } = {}) => {
+  const openWidgetModal = (instanceId, _options = {}) => {
     const instance = instanceById?.(instanceId);
     if (!instance) {
       return;
@@ -318,7 +312,6 @@ export function createWidgetModalRuntime({
     modalState.open = true;
     modalState.widgetId = instance.id;
     modalState.activeTab = "widget";
-    modalState.requireInitialApply = requireInitialApply === true;
     modalState.draft = buildWidgetModalDraft?.(
       instance,
       { pageCount: currentLauncherPageCount?.() },
@@ -416,8 +409,7 @@ export function createWidgetModalRuntime({
 
     updateBoardBounds?.();
     queueSave?.();
-    modalState.requireInitialApply = false;
-    closeWidgetModal(true, { force: true });
+    closeWidgetModal(true);
   };
 
   return {

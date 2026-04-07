@@ -195,10 +195,6 @@ import {
   resolveBoardSwipeThreshold
 } from "./core/board-swipe.js";
 import {
-  createBoardWheelState,
-  handleBoardWheelNavigate
-} from "./core/board-wheel-navigation.js";
-import {
   renderGlobalSettingsView
 } from "./core/global-settings-render.js";
 import {
@@ -230,9 +226,6 @@ import {
 import {
   addWidgetFlow
 } from "./core/widget-add-flow.js";
-import {
-  finalizeWidgetAddAction
-} from "./core/widget-add-finalize.js";
 import {
   captureResetPreservedData,
   restoreResetPreservedData
@@ -524,8 +517,7 @@ const modalState = {
   dismissStartY: 0,
   dismissMoved: false,
   dismissStartedOnOverlay: false,
-  activeTab: "widget",
-  requireInitialApply: false
+  activeTab: "widget"
 };
 
 const widgetTitleRenameState = {
@@ -574,7 +566,6 @@ const boardSwipeState = {
   dragOffsetX: 0,
   dragging: false
 };
-const boardWheelState = createBoardWheelState();
 const widgetLongPressState = {
   pending: false,
   pointerId: null
@@ -4861,19 +4852,15 @@ function setModalFieldValue(field, value) {
 }
 
 function closeWidgetModal(rerender = true, options = {}) {
-  const closed = widgetModalRuntime.closeWidgetModal(rerender, options);
-  if (closed === false && modalState.requireInitialApply === true && options?.force !== true) {
-    showAddWidgetToast("새 위젯 설정을 적용해야 추가가 완료됩니다. OK를 눌러 주세요.");
-  }
-  return closed;
+  return widgetModalRuntime.closeWidgetModal(rerender, options);
 }
 
 function renderWidgetModal() {
   return widgetModalRuntime.renderWidgetModal();
 }
 
-function openWidgetModal(instanceId, options = {}) {
-  return widgetModalRuntime.openWidgetModal(instanceId, options);
+function openWidgetModal(instanceId) {
+  return widgetModalRuntime.openWidgetModal(instanceId);
 }
 
 function applyWidgetModal() {
@@ -4923,8 +4910,7 @@ function findFirstAvailableBoardGridSlot(page, colSpan, rowSpan) {
 }
 
 function addWidget(type, options = {}) {
-  let addedInstanceId = "";
-  const added = addWidgetFlow(type, options, {
+  return addWidgetFlow(type, options, {
     state,
     widgetRegistry,
     syncLauncherPagingState,
@@ -4971,18 +4957,7 @@ function addWidget(type, options = {}) {
     applyGridLayout,
     setSelected,
     updateBoardBounds,
-    queueSave,
-    onWidgetAdded: (instance) => {
-      addedInstanceId = instance?.id || "";
-    }
-  });
-
-  return finalizeWidgetAddAction({
-    added,
-    addedInstanceId,
-    isAddWidgetModalOpen: () => addWidgetModalOpen,
-    closeAddWidgetModal,
-    openWidgetModal
+    queueSave
   });
 }
 
@@ -5062,29 +5037,6 @@ function endBoardSwipe(event, { cancelled = false } = {}) {
       }
     }
   );
-}
-
-function onBoardWheelNavigate(event) {
-  handleBoardWheelNavigate(event, {
-    boardWheelState,
-    boardSwipeState,
-    state,
-    elements,
-    syncLauncherPagingState,
-    currentLauncherViewportPage,
-    currentLauncherActivePage,
-    resolveBoardSwipeThreshold,
-    resolveBoardSwipeNextPage,
-    isPlaceholderLauncherPage,
-    setLauncherVirtualPage,
-    setActiveLauncherPage,
-    canStartBoardSwipeFromTarget,
-    isTextEditableTarget,
-    modalState,
-    isAddWidgetModalOpen: () => addWidgetModalOpen,
-    shortcutIconEditorState,
-    isDockSettingsModalOpen: () => dockSettingsModalOpen
-  });
 }
 
 function wireEvents() {
@@ -5175,8 +5127,7 @@ function wireEvents() {
     dockDragState,
     beginBoardSwipe,
     moveBoardSwipe,
-    endBoardSwipe,
-    onBoardWheelNavigate
+    endBoardSwipe
   });
 }
 
