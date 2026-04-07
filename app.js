@@ -171,26 +171,10 @@ import {
   buildWidgetModalCommonFields
 } from "./core/widget-modal-fields.js";
 import {
+  createAppBackgroundSubsystem,
+  patchBackgroundRuntime,
   renderBackgroundSettingsView
-} from "./core/background-settings-render.js";
-import {
-  createBackgroundRuntime
-} from "./core/background-runtime.js";
-import {
-  createBackgroundWallpaperRuntime
-} from "./core/background-wallpaper-runtime.js";
-import {
-  createBackgroundLocalMediaRuntime
-} from "./core/background-local-media-runtime.js";
-import {
-  createBackgroundVideoCacheRuntime
-} from "./core/background-video-cache-runtime.js";
-import {
-  createBackgroundBlurRuntime
-} from "./core/background-blur-runtime.js";
-import {
-  requestWallpaperLuminanceSample as requestWallpaperLuminanceSampleRuntime
-} from "./core/wallpaper-luminance-runtime.js";
+} from "./core/background/index.js";
 import {
   findFirstAvailableBoardGridSlot as findFirstAvailableBoardGridSlotCore
 } from "./core/board-grid-slot.js";
@@ -281,9 +265,6 @@ import {
 import {
   projectWidgetBoardDropLayoutRuntime
 } from "./core/widget-drop-projection.js";
-import {
-  patchBackgroundRuntime
-} from "./core/background-patch.js";
 import {
   materializeHistorySnapshotRuntime
 } from "./core/history-snapshot-materialize.js";
@@ -2313,51 +2294,6 @@ function clearWallpaperTimer() {
   }
 }
 
-function hideVideo() {
-  return backgroundLocalMediaRuntime.hideVideo();
-}
-
-function resetBackgroundMediaFrame(target) {
-  return backgroundLocalMediaRuntime.resetBackgroundMediaFrame(target);
-}
-
-function applyBackgroundLocalFit(target, fitMode) {
-  return backgroundLocalMediaRuntime.applyBackgroundLocalFit(target, fitMode);
-}
-
-function applyBackgroundMediaFitStyles(cfg) {
-  return backgroundLocalMediaRuntime.applyBackgroundMediaFitStyles(cfg);
-}
-
-function readFileAsDataUrl(file) {
-  return backgroundLocalMediaRuntime.readFileAsDataUrl(file);
-}
-
-async function importLocalBackgroundFile(file) {
-  return backgroundLocalMediaRuntime.importLocalBackgroundFile(file);
-}
-
-const backgroundBlurRuntime = createBackgroundBlurRuntime({
-  elements,
-  documentObj: document,
-  createImage: () => new Image(),
-  clamp,
-  getBlurAmount: () => state?.ui?.background?.blurAmount,
-  incrementBlurComputeToken: () => {
-    blurComputeToken += 1;
-    return blurComputeToken;
-  },
-  getBlurComputeToken: () => blurComputeToken
-});
-
-function clearBlurLayer() {
-  return backgroundBlurRuntime.clearBlurLayer();
-}
-
-function loadImageForBlur(url) {
-  return backgroundBlurRuntime.loadImageForBlur(url);
-}
-
 async function sampleImageBaseLuminanceFromUrl(url) {
   const response = await fetch(url, {
     cache: "force-cache"
@@ -2392,7 +2328,7 @@ async function sampleImageBaseLuminanceFromUrl(url) {
   } else {
     const objectUrl = URL.createObjectURL(blob);
     try {
-      const image = await loadImageForBlur(objectUrl);
+      const image = await background.loadImageForBlur(objectUrl);
       ctx.drawImage(image, 0, 0, sampleSize, sampleSize);
     } finally {
       URL.revokeObjectURL(objectUrl);
@@ -2417,40 +2353,6 @@ async function sampleImageBaseLuminanceFromUrl(url) {
   }
 
   return clamp(luminanceSum / alphaWeight, 0, 1);
-}
-
-function requestWallpaperLuminanceSample(url) {
-  return requestWallpaperLuminanceSampleRuntime(url, {
-    normalizeText,
-    getSampledWallpaperSource: () => sampledWallpaperSource,
-    incrementWallpaperSampleToken: () => {
-      wallpaperSampleToken += 1;
-      return wallpaperSampleToken;
-    },
-    getWallpaperSampleToken: () => wallpaperSampleToken,
-    elements,
-    sampleImageBaseLuminanceFromUrl,
-    getState: () => state,
-    setSampledWallpaperBaseLuminance: (value) => {
-      sampledWallpaperBaseLuminance = value;
-    },
-    setSampledWallpaperSource: (value) => {
-      sampledWallpaperSource = value;
-    },
-    refreshAllWidgetCardsVisual,
-    refreshWidgetsByType,
-    documentObj: document,
-    srgbToLinear,
-    clamp
-  });
-}
-
-async function buildPrecomputedBlurData(url, amount) {
-  return backgroundBlurRuntime.buildPrecomputedBlurData(url, amount);
-}
-
-async function updateBlurFromImage(url) {
-  return backgroundBlurRuntime.updateBlurFromImage(url);
 }
 
 function randomInt(max) {
@@ -2501,26 +2403,6 @@ function normalizeLocalMediaFit(value, fallback = "stretch") {
   return fallback;
 }
 
-const backgroundLocalMediaRuntime = createBackgroundLocalMediaRuntime({
-  elements,
-  normalizeText,
-  normalizeLocalMediaFit,
-  normalizeLocalMediaType,
-  inferLocalMediaTypeFromDataUrl,
-  createFileReader: () => new FileReader(),
-  patchBackground,
-  onImportError: (error) => {
-    console.warn("Local media import failed", error);
-  },
-  getCurrentVideoObjectUrl: () => currentVideoObjectUrl,
-  setCurrentVideoObjectUrl: (value) => {
-    currentVideoObjectUrl = value;
-  },
-  revokeObjectURL: (value) => {
-    URL.revokeObjectURL(value);
-  }
-});
-
 function videoConfigSignature(cfg) {
   const source = normalizeVideoSource(cfg?.videoSource, "manual");
   const manualUrl = source === "manual" ? normalizeText(cfg?.videoUrl) : "";
@@ -2537,42 +2419,6 @@ function buildVideoCacheKey(signature) {
   return `${VIDEO_CACHE_KEY_PREFIX}${encodeURIComponent(normalized)}`;
 }
 
-const backgroundVideoCacheRuntime = createBackgroundVideoCacheRuntime({
-  getState: () => state,
-  elements,
-  normalizeText,
-  normalizeVideoSource,
-  pickRandom,
-  fetch: (...args) => fetch(...args),
-  videoCacheName: VIDEO_CACHE_NAME,
-  videoCacheKeyPrefix: VIDEO_CACHE_KEY_PREFIX,
-  videoCacheMaxEntries: VIDEO_CACHE_MAX_ENTRIES,
-  clamp,
-  hasCaches: () => typeof caches !== "undefined",
-  openCache: (name) => caches.open(name),
-  buildVideoCacheKey,
-  videoConfigSignature,
-  incrementVideoLoadToken: () => {
-    videoLoadToken += 1;
-    return videoLoadToken;
-  },
-  getVideoLoadToken: () => videoLoadToken,
-  hideVideo,
-  releaseVideoObjectUrl,
-  createObjectURL: (blob) => URL.createObjectURL(blob),
-  revokeObjectURL: (url) => {
-    URL.revokeObjectURL(url);
-  },
-  setCurrentVideoObjectUrl: (value) => {
-    currentVideoObjectUrl = value;
-  },
-  queueSave,
-  now: () => Date.now(),
-  onLoadError: (error) => {
-    console.warn("Loop video load failed", error);
-  }
-});
-
 function normalizeWallpaperProvider(value, fallback = "picsum") {
   const provider = normalizeText(value, fallback);
   if (provider === "picsum" || provider === "unsplash" || provider === "reddit") {
@@ -2584,15 +2430,61 @@ function normalizeWallpaperProvider(value, fallback = "picsum") {
   return "picsum";
 }
 
-const backgroundWallpaperRuntime = createBackgroundWallpaperRuntime({
+const background = createAppBackgroundSubsystem({
   getState: () => state,
   elements,
-  normalizeText,
-  clamp,
-  now: () => Date.now(),
-  fetch: (...args) => fetch(...args),
-  pickRandom,
+  documentObj: document,
   createImage: () => new Image(),
+  createFileReader: () => new FileReader(),
+  fetch: (...args) => fetch(...args),
+  setTimeout,
+  setWallpaperTimer: (value) => {
+    wallpaperTimer = value;
+  },
+  clearWallpaperTimer,
+  clamp,
+  srgbToLinear,
+  normalizeText,
+  normalizeHexColor,
+  defaultBackground,
+  normalizeVideoSource,
+  normalizeLocalMediaType,
+  inferLocalMediaTypeFromDataUrl,
+  normalizeLocalMediaFit,
+  pickRandom,
+  buildVideoCacheKey,
+  videoConfigSignature,
+  videoCacheName: VIDEO_CACHE_NAME,
+  videoCacheKeyPrefix: VIDEO_CACHE_KEY_PREFIX,
+  videoCacheMaxEntries: VIDEO_CACHE_MAX_ENTRIES,
+  hasCaches: () => typeof caches !== "undefined",
+  openCache: (name) => caches.open(name),
+  now: () => Date.now(),
+  patchBackground,
+  queueSave,
+  refreshAllWidgetCardsVisual,
+  refreshWidgetsByType,
+  sampleImageBaseLuminanceFromUrl,
+  getBlurAmount: () => state?.ui?.background?.blurAmount,
+  incrementBlurComputeToken: () => {
+    blurComputeToken += 1;
+    return blurComputeToken;
+  },
+  getBlurComputeToken: () => blurComputeToken,
+  getCurrentVideoObjectUrl: () => currentVideoObjectUrl,
+  setCurrentVideoObjectUrl: (value) => {
+    currentVideoObjectUrl = value;
+  },
+  createObjectURL: (blob) => URL.createObjectURL(blob),
+  revokeObjectURL: (value) => {
+    URL.revokeObjectURL(value);
+  },
+  onLocalMediaImportError: (error) => {
+    console.warn("Local media import failed", error);
+  },
+  onVideoLoadError: (error) => {
+    console.warn("Loop video load failed", error);
+  },
   incrementWallpaperCounter: () => {
     wallpaperCounter += 1;
     return wallpaperCounter;
@@ -2605,146 +2497,31 @@ const backgroundWallpaperRuntime = createBackgroundWallpaperRuntime({
   setWallpaperSourceSignature: (value) => {
     wallpaperSourceSignature = value;
   },
-  queueSave,
-  clearBlurLayer,
-  updateBlurFromImage,
-  requestWallpaperLuminanceSample,
-  clearWallpaperTimer,
-  setWallpaperTimer: (value) => {
-    wallpaperTimer = value;
-  },
-  setTimeout
-});
-
-function wallpaperSignature(cfg) {
-  return backgroundWallpaperRuntime.wallpaperSignature(cfg);
-}
-
-function wallpaperRotateMs(cfg) {
-  return backgroundWallpaperRuntime.wallpaperRotateMs(cfg);
-}
-
-function hasWallpaperCacheRecord(cfg, signature) {
-  return backgroundWallpaperRuntime.hasWallpaperCacheRecord(cfg, signature);
-}
-
-function isWallpaperCacheFresh(cfg, signature) {
-  return backgroundWallpaperRuntime.isWallpaperCacheFresh(cfg, signature);
-}
-
-function applyWallpaperSwap(url, token) {
-  return backgroundWallpaperRuntime.applyWallpaperSwap(url, token);
-}
-
-async function preloadAndSwapWallpaper(url, token) {
-  return backgroundWallpaperRuntime.preloadAndSwapWallpaper(url, token);
-}
-
-function buildSimpleWallpaperUrl(provider, themeTag) {
-  return backgroundWallpaperRuntime.buildSimpleWallpaperUrl(provider, themeTag);
-}
-
-function parseRedditImage(post) {
-  return backgroundWallpaperRuntime.parseRedditImage(post);
-}
-
-async function fetchRedditWallpaperUrl(cfg) {
-  return backgroundWallpaperRuntime.fetchRedditWallpaperUrl(cfg);
-}
-
-async function resolveWallpaperUrl(cfg) {
-  return backgroundWallpaperRuntime.resolveWallpaperUrl(cfg);
-}
-
-function parseRedditLoopVideoUrl(post) {
-  return backgroundVideoCacheRuntime.parseRedditLoopVideoUrl(post);
-}
-
-async function fetchRedditLoopVideoUrl(cfg) {
-  return backgroundVideoCacheRuntime.fetchRedditLoopVideoUrl(cfg);
-}
-
-function releaseVideoObjectUrl() {
-  return backgroundLocalMediaRuntime.releaseVideoObjectUrl();
-}
-
-async function resolveVideoRemoteUrl(cfg) {
-  return backgroundVideoCacheRuntime.resolveVideoRemoteUrl(cfg);
-}
-
-async function fetchLoopVideoResponse(url) {
-  return backgroundVideoCacheRuntime.fetchLoopVideoResponse(url);
-}
-
-async function ensureCachedLoopVideoResponse(cfg, signature, { force = false } = {}) {
-  return backgroundVideoCacheRuntime.ensureCachedLoopVideoResponse(cfg, signature, { force });
-}
-
-function isLoopVideoCacheRequest(request) {
-  return backgroundVideoCacheRuntime.isLoopVideoCacheRequest(request);
-}
-
-async function pruneLoopVideoCache(cache, keepCount = VIDEO_CACHE_MAX_ENTRIES) {
-  return backgroundVideoCacheRuntime.pruneLoopVideoCache(cache, keepCount);
-}
-
-async function loadVideoLoop({ force = false } = {}) {
-  return backgroundVideoCacheRuntime.loadVideoLoop({ force });
-}
-
-function preloadImage(url) {
-  return backgroundWallpaperRuntime.preloadImage(url);
-}
-
-async function refreshWallpaper({ signature = null, force = false } = {}) {
-  return backgroundWallpaperRuntime.refreshWallpaper({ signature, force });
-}
-
-function scheduleWallpaperRefresh(signature) {
-  return backgroundWallpaperRuntime.scheduleWallpaperRefresh(signature);
-}
-
-const backgroundRuntime = createBackgroundRuntime({
-  getState: () => state,
-  elements,
-  clamp,
-  normalizeText,
-  normalizeHexColor,
-  defaultBackground,
-  normalizeLocalMediaType,
-  inferLocalMediaTypeFromDataUrl,
-  clearWallpaperTimer,
-  hideVideo,
-  applyBackgroundMediaFitStyles,
-  setWallpaperSourceSignature: (value) => {
-    wallpaperSourceSignature = value;
-  },
-  incrementWallpaperLoadToken: () => {
-    wallpaperLoadToken += 1;
-    return wallpaperLoadToken;
-  },
   incrementVideoLoadToken: () => {
     videoLoadToken += 1;
     return videoLoadToken;
   },
-  clearBlurLayer,
-  loadVideoLoop,
-  wallpaperSignature,
-  refreshWallpaper,
-  scheduleWallpaperRefresh
+  getVideoLoadToken: () => videoLoadToken,
+  getSampledWallpaperSource: () => sampledWallpaperSource,
+  incrementWallpaperSampleToken: () => {
+    wallpaperSampleToken += 1;
+    return wallpaperSampleToken;
+  },
+  getWallpaperSampleToken: () => wallpaperSampleToken,
+  setSampledWallpaperBaseLuminance: (value) => {
+    sampledWallpaperBaseLuminance = value;
+  },
+  setSampledWallpaperSource: (value) => {
+    sampledWallpaperSource = value;
+  }
 });
 
-function syncBackgroundRefreshButton() {
-  return backgroundRuntime.syncBackgroundRefreshButton();
-}
-
-function refreshBackgroundNow() {
-  return backgroundRuntime.refreshBackgroundNow();
-}
-
-function applyBackground() {
-  return backgroundRuntime.applyBackground();
-}
+const {
+  importLocalBackgroundFile,
+  syncBackgroundRefreshButton,
+  refreshBackgroundNow,
+  applyBackground
+} = background;
 
 function refreshAllWidgets() {
   for (const rt of runtime.values()) {
