@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { wireKeydownEvents } from "../core/wire-events-keydown.js";
+import { createWidgetModalRuntime } from "../core/widget-modal-runtime.js";
 
 function createWindowHub() {
   const listeners = new Map();
@@ -61,10 +62,114 @@ function createBaseDeps() {
     isDockSettingsModalOpen: () => false,
     isInsideDockSettingsModalOverlay: () => true,
     isInsideModalOverlay: () => true,
+    applyWidgetModal: () => {},
     isHtmlInputElement: (target) => target?.kind === "input",
     isHtmlSelectElement: (target) => target?.kind === "select",
     isHtmlElement: () => false
   };
+}
+
+function createElement() {
+  return {
+    classList: {
+      add() {},
+      remove() {}
+    },
+    style: {
+      display: "",
+      setProperty() {},
+      removeProperty() {}
+    },
+    setAttribute() {},
+    replaceChildren() {},
+    append() {},
+    querySelector() {
+      return null;
+    }
+  };
+}
+
+function createLegacyWidgetModalRuntime() {
+  const modalState = {
+    open: true,
+    widgetId: "w1",
+    draft: {
+      layout: {},
+      config: {}
+    },
+    activeTab: "widget"
+  };
+
+  const runtime = createWidgetModalRuntime({
+    modalState,
+    widgetTitleRenameState: { open: false },
+    shortcutIconEditorState: { open: false },
+    elements: {
+      widgetModalOverlay: createElement(),
+      widgetModalTabs: createElement(),
+      widgetModalBody: createElement(),
+      widgetModalCloseBtn: { disabled: false },
+      widgetModalCancelBtn: { disabled: false },
+      widgetModalDefaultBtn: { onclick: null }
+    },
+    state: { ui: { home: {}, widgetCommonMaster: {} } },
+    instanceById: () => ({ id: "w1", type: "legacyMissing", title: "Legacy Widget", page: 0 }),
+    widgetRegistry: {},
+    closeWidgetTitleRenameModal: () => {},
+    buildWidgetModalDraft: () => ({ layout: {}, config: {} }),
+    currentLauncherPageCount: () => 1,
+    resolveWidgetPadding: () => ({ top: 10, right: 10, bottom: 10, left: 10, uniform: 10 }),
+    getWidgetModalCommonFields: () => [],
+    getWidgetModalSpecificFields: () => [],
+    normalizeWidgetPage: (page) => page,
+    normalizeSurfaceMode: (value) => value,
+    normalizeTransparentGhostStrength: (value) => value,
+    normalizeEdgeRoundness: (value) => value,
+    normalizeTransparency: (value) => value,
+    normalizeTitleAlign: (value) => value,
+    defaultWidgetTitleAlign: () => "center",
+    normalizeAlign: (value) => value,
+    defaultWidgetContentAlign: () => "top",
+    normalizeContentPadding: (value) => Number(value),
+    normalizeWidgetContentFontScale: (value) => Number(value),
+    normalizeWidgetThemeMode: (value) => value,
+    normalizeWidgetColor: (value) => value,
+    renderWidgetModalFields: () => createElement(),
+    setWidgetModalActiveTab: () => {},
+    resetWidgetTabDraftToDefaults: () => {},
+    resetCommonTabDraftToGlobal: () => {},
+    setModalInteractionLock: () => {},
+    blurFocusedElementInOverlay: () => {},
+    renderSettings: () => {},
+    closeShortcutIconEditor: () => {},
+    resolveAveragePaddingValue: () => 10,
+    widgetPaddingFallback: () => 10,
+    recordHistorySnapshot: () => {},
+    applyWidgetDraftToInstance: () => {},
+    normalizeText: (value) => String(value || ""),
+    resolveDirectionalPaddingFromDraft: () => ({ top: 10, right: 10, bottom: 10, left: 10 }),
+    cloneLayout: (layout) => ({ ...layout }),
+    normalizeContainerWidgetDraftConfig: () => {},
+    normalizeContainerExpandedCols: (value) => value,
+    normalizeContainerExpandedRows: (value) => value,
+    enforceContainerWidgetSize: () => {},
+    inferCommonOverrides: () => ({}),
+    syncLauncherPagingState: () => ({ pageCount: 1 }),
+    syncWidgetStateAfterModalApply: () => {},
+    refreshWidgetRuntimeAfterModalApply: () => {},
+    runtimeMap: new Map(),
+    applyLayout: () => {},
+    applyCardVisual: () => {},
+    refreshWidgetsByType: () => {},
+    isWidgetInContainer: () => false,
+    isWidgetDocked: () => false,
+    renderDockWidgets: () => {},
+    updateBoardBounds: () => {},
+    queueSave: () => {},
+    documentObj: { createElement }
+  });
+
+  return { runtime, modalState };
 }
 
 test("wireKeydownEvents handles undo/redo shortcuts", () => {
@@ -329,5 +434,106 @@ test("wireKeydownEvents closes widget modal on escape when inside modal", () => 
   windowObj.emit("keydown", event);
 
   assert.equal(closed, 1);
+  assert.equal(event.prevented, true);
+});
+
+test("wireKeydownEvents applies and closes widget settings modal on enter input", () => {
+  const windowObj = createWindowHub();
+  let applied = 0;
+  const closed = [];
+
+  wireKeydownEvents({
+    windowObj,
+    ...createBaseDeps(),
+    modalState: { open: true },
+    applyWidgetModal: () => {
+      applied += 1;
+    },
+    isInsideModalOverlay: () => true,
+    closeWidgetModal: (rerender) => {
+      closed.push(rerender);
+    }
+  });
+
+  const event = createKeyEvent({ key: "Enter", target: { kind: "input" } });
+  windowObj.emit("keydown", event);
+
+  assert.equal(applied, 1);
+  assert.deepEqual(closed, [false]);
+  assert.equal(event.prevented, true);
+});
+
+test("wireKeydownEvents closes widget settings modal on enter even when apply returns false", () => {
+  const windowObj = createWindowHub();
+  let applied = 0;
+  const closed = [];
+
+  wireKeydownEvents({
+    windowObj,
+    ...createBaseDeps(),
+    modalState: { open: true },
+    applyWidgetModal: () => {
+      applied += 1;
+      return false;
+    },
+    isInsideModalOverlay: () => true,
+    closeWidgetModal: (rerender) => {
+      closed.push(rerender);
+    }
+  });
+
+  const event = createKeyEvent({ key: "Enter", target: { kind: "input" } });
+  windowObj.emit("keydown", event);
+
+  assert.equal(applied, 1);
+  assert.deepEqual(closed, [false]);
+  assert.equal(event.prevented, true);
+});
+
+test("wireKeydownEvents closes widget settings modal on enter when apply throws", () => {
+  const windowObj = createWindowHub();
+  const closed = [];
+
+  wireKeydownEvents({
+    windowObj,
+    ...createBaseDeps(),
+    modalState: { open: true },
+    applyWidgetModal: () => {
+      throw new Error("apply-fail");
+    },
+    isInsideModalOverlay: () => true,
+    closeWidgetModal: (rerender) => {
+      closed.push(rerender);
+    }
+  });
+
+  const event = createKeyEvent({ key: "Enter", target: { kind: "input" } });
+  assert.doesNotThrow(() => {
+    windowObj.emit("keydown", event);
+  });
+
+  assert.deepEqual(closed, [false]);
+  assert.equal(event.prevented, true);
+});
+
+test("wireKeydownEvents enter-submit supports legacy widget settings definitions", () => {
+  const windowObj = createWindowHub();
+  const { runtime, modalState } = createLegacyWidgetModalRuntime();
+
+  wireKeydownEvents({
+    windowObj,
+    ...createBaseDeps(),
+    modalState,
+    applyWidgetModal: runtime.applyWidgetModal,
+    isInsideModalOverlay: () => true,
+    closeWidgetModal: runtime.closeWidgetModal
+  });
+
+  const event = createKeyEvent({ key: "Enter", target: { kind: "input" } });
+  assert.doesNotThrow(() => {
+    windowObj.emit("keydown", event);
+  });
+
+  assert.equal(modalState.open, false);
   assert.equal(event.prevented, true);
 });

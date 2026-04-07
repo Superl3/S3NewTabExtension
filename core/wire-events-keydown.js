@@ -35,6 +35,7 @@ export function wireKeydownEvents({
   shortcutIconEditorState,
   closeShortcutIconEditor,
   isInsideModalOverlay,
+  applyWidgetModal,
   closeWidgetModal,
   isHtmlInputElement = defaultIsHtmlInputElement,
   isHtmlSelectElement = defaultIsHtmlSelectElement,
@@ -173,6 +174,18 @@ export function wireKeydownEvents({
     if (event.key === "Escape") {
       event.preventDefault();
       closeWidgetModal?.(false);
+      return;
+    }
+
+    if (
+      event.key === "Enter" &&
+      (isHtmlSelectElement(event.target) ||
+        (isHtmlInputElement(event.target) && event.target.type !== "checkbox"))
+    ) {
+      event.preventDefault();
+      applyAndClose(applyWidgetModal, () => {
+        closeWidgetModal?.(false);
+      });
       return;
     }
 
