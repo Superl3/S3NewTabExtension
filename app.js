@@ -4129,6 +4129,8 @@ const appWidgetRuntime = createAppWidgetRuntime({
   containerDropTargetAtPoint,
   normalizeContainerId,
   isBoardWidgetInstance,
+  isWidgetDocked,
+  isWidgetInContainer,
   isDockDropPoint,
   isDockEligibleWidget,
   resolveDockDropSlotIndex,
@@ -4141,6 +4143,7 @@ const appWidgetRuntime = createAppWidgetRuntime({
   queuePlaceholderPageDrop,
   containerUnitLayoutSize,
   closeWidgetModal,
+  renderDockWidgets,
   syncZCounterFromState,
   setBodyMode
 });
