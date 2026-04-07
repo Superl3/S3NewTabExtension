@@ -210,6 +210,32 @@ test("wireKeydownEvents closes add-widget modal on enter even when apply fails",
   assert.equal(event.prevented, true);
 });
 
+test("wireKeydownEvents closes add-widget modal on enter when apply throws", () => {
+  const windowObj = createWindowHub();
+  let closeCount = 0;
+
+  wireKeydownEvents({
+    windowObj,
+    ...createBaseDeps(),
+    isAddWidgetModalOpen: () => true,
+    isInsideAddWidgetModalOverlay: () => true,
+    applyAddWidgetModal: () => {
+      throw new Error("apply-fail");
+    },
+    closeAddWidgetModal: () => {
+      closeCount += 1;
+    }
+  });
+
+  const event = createKeyEvent({ key: "Enter", target: { kind: "input" } });
+  assert.doesNotThrow(() => {
+    windowObj.emit("keydown", event);
+  });
+
+  assert.equal(closeCount, 1);
+  assert.equal(event.prevented, true);
+});
+
 test("wireKeydownEvents applies and closes dock settings modal on enter select", () => {
   const windowObj = createWindowHub();
   let applied = 0;

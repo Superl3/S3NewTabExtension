@@ -22,8 +22,13 @@ export function wireOverlayControlEvents({
   }
 
   const applyAndClose = (applyAction, closeAction) => {
-    applyAction?.();
-    closeAction?.();
+    try {
+      applyAction?.();
+    } catch {
+      // Swallow apply errors so close always runs.
+    } finally {
+      closeAction?.();
+    }
     return true;
   };
 

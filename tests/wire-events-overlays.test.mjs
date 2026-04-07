@@ -250,3 +250,27 @@ test("wireOverlayControlEvents closes modals even when primary apply returns fal
   assert.deepEqual(closeCalls.widget, [false]);
   assert.equal(closeCalls.shortcut, 1);
 });
+
+test("wireOverlayControlEvents still closes widget modal when apply throws", () => {
+  const closeCalls = [];
+
+  const elements = {
+    widgetModalOkBtn: createEventNode()
+  };
+
+  wireOverlayControlEvents({
+    elements,
+    modalState: { open: true },
+    applyWidgetModal: () => {
+      throw new Error("apply-fail");
+    },
+    closeWidgetModal: (rerender) => {
+      closeCalls.push(rerender);
+    }
+  });
+
+  assert.doesNotThrow(() => {
+    elements.widgetModalOkBtn.emit("click");
+  });
+  assert.deepEqual(closeCalls, [false]);
+});
