@@ -261,3 +261,20 @@ test("widget modal runtime apply preserves runtime update order before close", (
   ]);
   assert.equal(modalState.open, false);
 });
+
+test("widget modal runtime uses safe fallback definition when registry entry is missing", () => {
+  const { runtime, modalState } = createRuntime({
+    instanceById: () => ({ id: "w1", type: "missingWidget", title: "Legacy Widget", page: 0 }),
+    widgetRegistry: {}
+  });
+
+  assert.doesNotThrow(() => {
+    runtime.openWidgetModal("w1");
+  });
+  assert.equal(modalState.open, true);
+
+  assert.doesNotThrow(() => {
+    runtime.applyWidgetModal();
+  });
+  assert.equal(modalState.open, false);
+});

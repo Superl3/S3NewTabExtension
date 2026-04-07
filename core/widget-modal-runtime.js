@@ -77,7 +77,16 @@ export function createWidgetModalRuntime({
     if (!instance) {
       return null;
     }
-    return widgetRegistry?.[instance.type] || null;
+    const definition = widgetRegistry?.[instance.type];
+    if (definition) {
+      return definition;
+    }
+
+    return {
+      title: normalizeText?.(instance.title, "Widget") || "Widget",
+      settingsSchema: [],
+      defaultConfig: {}
+    };
   };
 
   const applyUniformContentPadding = (draft, padding) => {
@@ -216,7 +225,7 @@ export function createWidgetModalRuntime({
       }
       return draft[field.key];
     }
-    return draft.config[field.key];
+    return draft.config?.[field.key];
   };
 
   const setModalFieldValue = (field, value) => {
@@ -239,6 +248,7 @@ export function createWidgetModalRuntime({
       draft[field.key] = value;
       return;
     }
+    draft.config = draft.config && typeof draft.config === "object" ? draft.config : {};
     draft.config[field.key] = value;
   };
 
