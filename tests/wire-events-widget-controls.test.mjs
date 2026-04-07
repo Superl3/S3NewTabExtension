@@ -180,3 +180,29 @@ test("wireWidgetControlEvents closes add-widget modal on every ok click", () => 
   assert.equal(applyCalls, 2);
   assert.equal(closeCalls, 2);
 });
+
+test("wireWidgetControlEvents still closes add-widget modal when apply throws", () => {
+  const elements = {
+    addWidgetModalOkBtn: createEventNode()
+  };
+  const state = {
+    ui: { activeTab: "global" }
+  };
+  let closeCount = 0;
+
+  wireWidgetControlEvents({
+    elements,
+    state,
+    applyAddWidgetModal: () => {
+      throw new Error("apply-fail");
+    },
+    closeAddWidgetModal: () => {
+      closeCount += 1;
+    }
+  });
+
+  assert.doesNotThrow(() => {
+    elements.addWidgetModalOkBtn.emit("click");
+  });
+  assert.equal(closeCount, 1);
+});
