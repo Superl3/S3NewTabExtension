@@ -1,3 +1,5 @@
+import { DROP_SILHOUETTE_Z_INDEX, resolveFolderPanelZIndex } from "../core/drag-layering.js";
+
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
 }
@@ -353,7 +355,7 @@ export const containerWidget = {
       const left = Math.round(anchor.left - hostRect.left);
       const top = Math.round(anchor.top - hostRect.top);
       const cardZ = Number(card.style.zIndex || window.getComputedStyle(card).zIndex);
-      const panelZ = Number.isFinite(cardZ) ? Math.max(2, Math.round(cardZ) + 1) : 2;
+      const panelZ = resolveFolderPanelZIndex(cardZ);
 
       panel.style.width = `${width}px`;
       panel.style.height = `${height}px`;
@@ -447,7 +449,7 @@ export const containerWidget = {
                 const silhouette = document.createElement("div");
                 silhouette.className = "widget-drop-silhouette";
                 silhouette.style.position = "fixed";
-                silhouette.style.zIndex = "8990";
+                silhouette.style.zIndex = String(DROP_SILHOUETTE_Z_INDEX);
                 const source = sourceForSilhouette;
                 const borderRadius = normalizeText(window.getComputedStyle(source).borderRadius);
                 if (borderRadius) {
