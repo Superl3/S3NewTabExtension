@@ -4055,6 +4055,7 @@ const appWidgetRuntime = createAppWidgetRuntime({
   positionWidgetDragPreview,
   updateWidgetDragGuideAtPointer,
   clearWidgetDragGuideState,
+  clearContainerDropTargets,
   renderBoard,
   queueSave,
   instanceById,
@@ -4143,6 +4144,7 @@ const appWidgetRuntime = createAppWidgetRuntime({
   queuePlaceholderPageDrop,
   containerUnitLayoutSize,
   closeWidgetModal,
+  normalizeDockedWidgetOrders,
   renderDockWidgets,
   syncZCounterFromState,
   setBodyMode

@@ -432,11 +432,17 @@ test("releaseWidgetFromContainerByDrop can drive board rebuild through app-facin
 
 test("app.js wires board visibility predicates into createAppWidgetRuntime", async () => {
   const source = await fs.readFile(new URL("../app.js", import.meta.url), "utf8");
-  const match = source.match(/const appWidgetRuntime = createAppWidgetRuntime\(\{([\s\S]*?)\n\}\);/);
+  const start = source.indexOf("const appWidgetRuntime = createAppWidgetRuntime({");
+  const end = source.indexOf("function setWidgetContainer(", start);
 
-  assert.ok(match, "expected createAppWidgetRuntime wiring block in app.js");
-  assert.match(match[1], /\bisWidgetDocked\b/, "expected isWidgetDocked to be passed to app widget runtime");
-  assert.match(match[1], /\bisWidgetInContainer\b/, "expected isWidgetInContainer to be passed to app widget runtime");
+  assert.notEqual(start, -1, "expected createAppWidgetRuntime wiring block in app.js");
+  assert.notEqual(end, -1, "expected app widget runtime wrapper definitions in app.js");
+
+  const wiringBlock = source.slice(start, end);
+  assert.match(wiringBlock, /\bclearContainerDropTargets\b/, "expected clearContainerDropTargets to be passed to app widget runtime");
+  assert.match(wiringBlock, /\bisWidgetDocked\b/, "expected isWidgetDocked to be passed to app widget runtime");
+  assert.match(wiringBlock, /\bisWidgetInContainer\b/, "expected isWidgetInContainer to be passed to app widget runtime");
+  assert.match(wiringBlock, /\bnormalizeDockedWidgetOrders\b/, "expected normalizeDockedWidgetOrders to be passed to app widget runtime");
 });
 
 test("removeWidget can reuse app-facing renderBoard after normalization-sensitive mutation", () => {
