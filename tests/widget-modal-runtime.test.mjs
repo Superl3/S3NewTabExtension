@@ -158,6 +158,21 @@ test("widget modal runtime close resets state and rerenders settings", () => {
   assert.equal(getRenderSettingsCalls(), 1);
 });
 
+test("widget modal runtime close is idempotent when already closed", () => {
+  const { runtime } = createRuntime({
+    modalState: {
+      open: false,
+      widgetId: "",
+      draft: null,
+      activeTab: "widget"
+    }
+  });
+
+  const closed = runtime.closeWidgetModal(false);
+
+  assert.equal(closed, false);
+});
+
 test("widget modal runtime keeps dismiss controls enabled after add-flow open", () => {
   const { runtime, modalState, elements } = createRuntime();
 
@@ -181,7 +196,7 @@ test("widget modal runtime apply exits when modal closed", () => {
     }
   });
 
-  assert.equal(runtime.applyWidgetModal(), undefined);
+  assert.equal(runtime.applyWidgetModal(), false);
 });
 
 test("widget modal runtime open preserves rename-close then draft then render order", () => {

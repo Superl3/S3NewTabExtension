@@ -2089,7 +2089,7 @@ function resetDockSettingsDraftToDefault() {
 
 function applyDockSettingsModal() {
   if (!dockSettingsModalOpen || !dockModalState.draft) {
-    return;
+    return false;
   }
 
   const patch = {
@@ -2102,6 +2102,7 @@ function applyDockSettingsModal() {
 
   closeDockSettingsModal(false);
   patchHomeLayout(patch);
+  return true;
 }
 
 const shortcutIconEditorRuntime = createShortcutIconEditorRuntime({
@@ -2911,13 +2912,13 @@ function closeWidgetTitleRenameModal() {
 
 function applyWidgetTitleRenameModal() {
   if (!widgetTitleRenameState.open || !widgetTitleRenameState.widgetId) {
-    return;
+    return false;
   }
 
   const instance = instanceById(widgetTitleRenameState.widgetId);
   if (!instance) {
     closeWidgetTitleRenameModal();
-    return;
+    return true;
   }
 
   const def = widgetRegistry[instance.type];
@@ -2925,7 +2926,7 @@ function applyWidgetTitleRenameModal() {
   const nextTitle = normalizeText(elements.widgetTitleRenameInput?.value, fallbackTitle);
   if (instance.title === nextTitle) {
     closeWidgetTitleRenameModal();
-    return;
+    return true;
   }
 
   recordHistorySnapshot("Rename widget title");
@@ -2954,13 +2955,14 @@ function applyWidgetTitleRenameModal() {
   renderSettings();
   queueSave();
   closeWidgetTitleRenameModal();
+  return true;
 }
 
 function applyAddWidgetModal() {
   const type = elements.widgetTypeSelect?.value;
   const def = widgetRegistry[type];
   if (!def) {
-    return;
+    return false;
   }
 
   const defaultSize = widgetDefaultGridSize(type, def);
@@ -2976,6 +2978,7 @@ function applyAddWidgetModal() {
   if (added) {
     closeAddWidgetModal();
   }
+  return Boolean(added);
 }
 
 function syncLauncherPagingState({ expandToFitInstances = true } = {}) {
