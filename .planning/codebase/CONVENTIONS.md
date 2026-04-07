@@ -62,6 +62,11 @@
 - Never let apply exceptions block modal close.
 - Keep cancel/close semantics identical across click and keyboard submit flows.
 
+**Drag/Page transition handlers:**
+- Use shared resolver functions for hover/silhouette and final drop commit.
+- Keep page transition decisions (click/wheel/keyboard/drag) on one normalization path.
+- Ensure cancel/failure cleanup clears all drag transient state before returning.
+
 ## Logging
 
 **Framework:** console

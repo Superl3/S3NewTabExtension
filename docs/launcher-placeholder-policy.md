@@ -60,3 +60,24 @@ This guarantees that what users see is what gets committed.
 - widgets can only belong to real pages
 - placeholder pages never own widgets
 - drag transient state is always cleared on end/cancel/failure
+
+## Page Transition Contract
+- Click, wheel, keyboard, and drag-based placeholder materialization must share one page normalization contract.
+- Active page must always resolve to a real page after commit/cancel.
+
+## Deletion Contract
+- `DELETE_ZONE` intent always has priority over container/board placement.
+- Delete commit must execute exactly once per finalized delete intent.
+- After delete commit, ordering/page bounds/focus target must be normalized before returning to idle.
+
+## Container/Folder Contract
+- `SPACE.CONTAINER` resolution must deterministically choose one of: enter target container/folder, reorder within container/folder, or exit to board/dock.
+- Enter/reorder/exit outcomes must be mutually exclusive for a single pointerup.
+
+## Cross-Surface Consistency
+- Board, Dock, and Folder drag flows must use the same DropPlan precedence and resolver semantics.
+- Any surface-specific optimization must preserve identical user-visible intent resolution.
+
+## Failure/Cancellation Cleanup
+- On cancel/failure/end, clear preview, silhouette, delete-hover state, placeholder policy, and pending page-switch state.
+- Cleanup must occur before accepting new drag session input.

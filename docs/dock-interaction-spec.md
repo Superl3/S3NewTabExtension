@@ -25,3 +25,9 @@
 - Dock item strip은 가로 overflow를 허용한다.
 - overflow 시작/끝 상태를 data attribute로 반영해 시각적 fade 힌트를 제공한다.
 - 마우스 휠 세로 입력은 가로 스크롤로 변환한다.
+
+## Global Invariant Conformance
+- Dock drag/drop must conform to global DropPlan precedence (`DELETE_ZONE > SPACE.CONTAINER > SPACE.BOARD > NONE`).
+- Dock silhouette/hover interpretation and final commit must use the same resolver as board/folder flows.
+- Dock-related page transitions (click/keyboard/wheel when applicable) must follow the shared launcher page normalization rules.
+- Dock delete outcomes must preserve deterministic cleanup and state normalization contracts.

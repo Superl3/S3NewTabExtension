@@ -47,3 +47,15 @@ These rules are mandatory for this repository across sessions.
 4. Primary-action dismissal must be fail-safe: even if apply logic throws, returns false, or partially fails, the modal must still close.
 5. Overlay/Escape dismiss behavior must remain consistent with Cancel semantics unless an exception is explicitly requested and documented in both AGENTS.md and .planning/PROJECT.md before implementation.
 6. Any modal behavior change must include regression tests for click and Enter paths, including apply-throws paths.
+
+## Interaction and Navigation Invariants (Non-Negotiable)
+
+1. This interaction contract applies uniformly across board, dock, folder/container, and launcher page surfaces in both Edit and Use modes.
+2. Drop intent precedence is fixed globally: `DELETE_ZONE > SPACE.CONTAINER > SPACE.BOARD > NONE`.
+3. The same resolver must drive both drag silhouette/hover feedback and final pointerup commit (`what-you-see-is-what-commits`).
+4. Widget deletion must be deterministic across surfaces: one delete intent produces exactly one delete commit, with no ghost instance or partial removal.
+5. After deletion, runtime state must be normalized atomically (valid active page bounds, normalized ordering, and valid selection/focus recovery target).
+6. Page transitions (click, wheel, keyboard, drag placeholder materialization) must use one shared clamping/materialization rule set; active page must never point to placeholder/sentinel pages.
+7. Container/folder drag-drop behavior must be deterministic: enter-container, reorder-in-container, and exit-to-board/dock paths must not overlap ambiguously.
+8. Drag cancel/failure paths must clear all transient state (preview, silhouette, delete hover, placeholder policy, pending page switches) before returning control.
+9. Any behavior change in these paths must include regression tests that cover board+dock+folder/container flows and both Edit/Use modes.
