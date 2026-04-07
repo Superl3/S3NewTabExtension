@@ -222,6 +222,7 @@ export function wireAppEvents({
     shortcutIconEditorState,
     closeShortcutIconEditor,
     isInsideModalOverlay,
+    applyWidgetModal,
     closeWidgetModal,
     isHtmlInputElement,
     isHtmlSelectElement,
