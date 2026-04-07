@@ -22,10 +22,7 @@ export function wireOverlayControlEvents({
   }
 
   const applyAndClose = (applyAction, closeAction) => {
-    const applied = applyAction?.();
-    if (applied === false) {
-      return false;
-    }
+    applyAction?.();
     closeAction?.();
     return true;
   };
