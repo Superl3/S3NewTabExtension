@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import fs from "node:fs/promises";
 
 import { createAppWidgetRuntime } from "../core/widget/app-runtime.js";
 
@@ -427,6 +428,15 @@ test("releaseWidgetFromContainerByDrop can drive board rebuild through app-facin
   assert.equal(harness.calls.clearWidgetDragGuideState, 1);
   assert.equal(harness.calls.clearContainerDropTargets, 1);
   assert.equal(harness.calls.boardReplaceChildren, 1);
+});
+
+test("app.js wires board visibility predicates into createAppWidgetRuntime", async () => {
+  const source = await fs.readFile(new URL("../app.js", import.meta.url), "utf8");
+  const match = source.match(/const appWidgetRuntime = createAppWidgetRuntime\(\{([\s\S]*?)\n\}\);/);
+
+  assert.ok(match, "expected createAppWidgetRuntime wiring block in app.js");
+  assert.match(match[1], /\bisWidgetDocked\b/, "expected isWidgetDocked to be passed to app widget runtime");
+  assert.match(match[1], /\bisWidgetInContainer\b/, "expected isWidgetInContainer to be passed to app widget runtime");
 });
 
 test("removeWidget can reuse app-facing renderBoard after normalization-sensitive mutation", () => {
