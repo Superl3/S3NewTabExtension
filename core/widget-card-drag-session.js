@@ -363,6 +363,9 @@ export function startWidgetCardDragSession({
     };
 
     const up = (upEvent) => {
+      const finalDropOutcome = resolveFinalDropOutcome(upEvent, lastPointerX, lastPointerY);
+      const finalPayload = finalDropOutcome.finalPayload;
+
       cleanupBoardDragSession?.({
         moveHandler: move,
         upHandler: up,
@@ -371,9 +374,6 @@ export function startWidgetCardDragSession({
         card,
         previewSession
       });
-
-      const finalDropOutcome = resolveFinalDropOutcome(upEvent, lastPointerX, lastPointerY);
-      const finalPayload = finalDropOutcome.finalPayload;
 
       if (applyWidgetDropPlan?.(instance, lastDropPlan, finalPayload, { record: false })) {
         return;
@@ -424,6 +424,9 @@ export function startWidgetCardDragSession({
   };
 
   const up = (upEvent) => {
+    const finalDropOutcome = resolveFinalDropOutcome(upEvent, lastPointerX, lastPointerY);
+    const finalPayload = finalDropOutcome.finalPayload;
+
     cleanupBoardDragSession?.({
       moveHandler: move,
       upHandler: up,
@@ -432,9 +435,6 @@ export function startWidgetCardDragSession({
       card,
       previewSession
     });
-
-    const finalDropOutcome = resolveFinalDropOutcome(upEvent, lastPointerX, lastPointerY);
-    const finalPayload = finalDropOutcome.finalPayload;
 
     if (applyWidgetDropPlan?.(instance, lastDropPlan, finalPayload, { record: true })) {
       return;

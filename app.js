@@ -4851,8 +4851,8 @@ function setModalFieldValue(field, value) {
   return widgetModalRuntime.setModalFieldValue(field, value);
 }
 
-function closeWidgetModal(rerender = true) {
-  return widgetModalRuntime.closeWidgetModal(rerender);
+function closeWidgetModal(rerender = true, options = {}) {
+  return widgetModalRuntime.closeWidgetModal(rerender, options);
 }
 
 function renderWidgetModal() {

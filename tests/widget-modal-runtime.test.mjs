@@ -59,6 +59,8 @@ function createRuntime(overrides = {}) {
     widgetModalOverlay: createElement(),
     widgetModalTabs: createElement(),
     widgetModalBody: createElement(),
+    widgetModalCloseBtn: { disabled: true },
+    widgetModalCancelBtn: { disabled: true },
     widgetModalDefaultBtn: { onclick: () => {} }
   };
   let renderSettingsCalls = 0;
@@ -154,6 +156,19 @@ test("widget modal runtime close resets state and rerenders settings", () => {
   assert.equal(modalState.draft, null);
   assert.equal(modalState.activeTab, "widget");
   assert.equal(getRenderSettingsCalls(), 1);
+});
+
+test("widget modal runtime keeps dismiss controls enabled after add-flow open", () => {
+  const { runtime, modalState, elements } = createRuntime();
+
+  runtime.openWidgetModal("w1");
+  assert.equal(elements.widgetModalCloseBtn.disabled, false);
+  assert.equal(elements.widgetModalCancelBtn.disabled, false);
+
+  const closed = runtime.closeWidgetModal(false);
+
+  assert.equal(closed, true);
+  assert.equal(modalState.open, false);
 });
 
 test("widget modal runtime apply exits when modal closed", () => {

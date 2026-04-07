@@ -90,6 +90,15 @@ export function createWidgetModalRuntime({
     draft.contentPaddingBottomLeft = padding;
   };
 
+  const syncDismissControlState = () => {
+    if (elements?.widgetModalCloseBtn) {
+      elements.widgetModalCloseBtn.disabled = false;
+    }
+    if (elements?.widgetModalCancelBtn) {
+      elements.widgetModalCancelBtn.disabled = false;
+    }
+  };
+
   const clearWidgetModalView = () => {
     elements?.widgetModalOverlay?.classList.remove("open");
     elements?.widgetModalOverlay?.setAttribute("aria-hidden", "true");
@@ -101,6 +110,7 @@ export function createWidgetModalRuntime({
     if (elements?.widgetModalDefaultBtn) {
       elements.widgetModalDefaultBtn.onclick = null;
     }
+    syncDismissControlState();
   };
 
   const resetModalState = () => {
@@ -232,7 +242,8 @@ export function createWidgetModalRuntime({
     draft.config[field.key] = value;
   };
 
-  const closeWidgetModal = (rerender = true) => {
+  const closeWidgetModal = (rerender = true, options = {}) => {
+    void options;
     if (shortcutIconEditorState?.open) {
       closeShortcutIconEditor?.();
     }
@@ -246,6 +257,8 @@ export function createWidgetModalRuntime({
     if (rerender) {
       renderSettings?.();
     }
+
+    return true;
   };
 
   const renderWidgetModal = () => {
@@ -274,6 +287,7 @@ export function createWidgetModalRuntime({
     const activeFields = active === "widget" ? widgetFields : commonFields;
     renderWidgetModalPanel(active, activeFields, hasWidgetTab);
     updateWidgetModalDefaultButton(active, instance, def);
+    syncDismissControlState();
 
     elements?.widgetModalOverlay?.classList.add("open");
     elements?.widgetModalOverlay?.setAttribute("aria-hidden", "false");
@@ -285,7 +299,7 @@ export function createWidgetModalRuntime({
     }
   };
 
-  const openWidgetModal = (instanceId) => {
+  const openWidgetModal = (instanceId, _options = {}) => {
     const instance = instanceById?.(instanceId);
     if (!instance) {
       return;

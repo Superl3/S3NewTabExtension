@@ -24,7 +24,7 @@ test("finalizeWidgetAddAction returns false when add failed", () => {
   assert.equal(opened, 0);
 });
 
-test("finalizeWidgetAddAction closes add modal and opens required settings", () => {
+test("finalizeWidgetAddAction closes add modal and opens widget settings", () => {
   let closed = 0;
   const openCalls = [];
 
@@ -45,7 +45,7 @@ test("finalizeWidgetAddAction closes add modal and opens required settings", () 
   assert.deepEqual(openCalls, [
     {
       instanceId: "widget-5",
-      options: { requireInitialApply: true }
+      options: undefined
     }
   ]);
 });

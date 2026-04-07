@@ -181,8 +181,6 @@ export function startDockWidgetDragSession({
   const finish = (upEvent) => {
     detachPointerListeners();
 
-    resetPendingPageSwitch();
-    setLauncherDragPlaceholderPolicy?.(false);
     const finalDropOutcome = evaluateFinalWidgetDrop?.(item, {
       pointerEvent: upEvent,
       fallbackX: event.clientX,
@@ -196,6 +194,9 @@ export function startDockWidgetDragSession({
     const finalPayload = finalDropOutcome?.finalPayload;
     const finalDropPlan = finalDropOutcome?.finalDropPlan;
     lastDropPlan = finalDropPlan ?? lastDropPlan;
+
+    resetPendingPageSwitch();
+    setLauncherDragPlaceholderPolicy?.(false);
 
     persistentDockElement?.classList?.remove?.("is-drag-out-active");
     clearWidgetDragGuideState?.();

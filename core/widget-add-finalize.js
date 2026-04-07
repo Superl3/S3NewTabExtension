@@ -14,7 +14,7 @@ export function finalizeWidgetAddAction({
   }
 
   if (addedInstanceId) {
-    openWidgetModal?.(addedInstanceId, { requireInitialApply: true });
+    openWidgetModal?.(addedInstanceId);
   }
 
   return true;

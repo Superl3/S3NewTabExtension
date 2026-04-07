@@ -219,3 +219,60 @@ test("startDockWidgetDragSession runs drag lifecycle and releases on fallback", 
   assert.deepEqual(placeholderPolicyCalls, [true, false]);
   assert.deepEqual(silhouetteVisibility, [false]);
 });
+
+test("startDockWidgetDragSession preserves delete-zone plan at pointerup", () => {
+  const windowObj = createEventHub();
+  const card = createCard();
+  const sourceCard = createCard();
+  const item = { id: "w4" };
+  let deleteZoneActive = false;
+  const appliedPlans = [];
+
+  const started = startDockWidgetDragSession({
+    event: createPointerEvent({ clientX: 140, clientY: 160 }),
+    card,
+    item,
+    closeBoardContextMenu: () => {},
+    createDragPreviewSession: () => ({ update() {}, dispose() {} }),
+    runtimeMap: new Map([["w4", { card: sourceCard }]]),
+    createWidgetDropSilhouette: () => ({ remove() {} }),
+    setDragDeleteZoneActive: (value) => {
+      deleteZoneActive = value;
+    },
+    setLauncherDragPlaceholderPolicy: () => {},
+    updateDragDeleteZoneHover: () => {},
+    createNoneDropPlan: () => ({ kind: "NONE" }),
+    resolveEdgeDirectionFromPointer: () => 0,
+    getLauncherViewportRect: () => ({ left: 0, top: 0, width: 1000, height: 600 }),
+    syncLauncherPagingState: () => ({ pageCount: 3 }),
+    isLauncherPlaceholderPolicyActive: () => false,
+    isPlaceholderLauncherPage: () => false,
+    currentLauncherPageCount: () => 3,
+    currentLauncherActivePage: () => 0,
+    setLauncherVirtualPage: () => {},
+    setLauncherVirtualPageState: () => {},
+    setActiveLauncherPage: () => {},
+    createDeferredEdgeSwitchScheduler: () => ({ schedule() {}, reset() {} }),
+    isDockDropPoint: () => true,
+    persistentDockElement: { classList: createClassList() },
+    evaluateAndRenderWidgetDragIndicators: () => ({ dropPlan: { kind: "DELETE_ZONE" } }),
+    evaluateFinalWidgetDrop: () => ({
+      finalDropPlan: { kind: deleteZoneActive ? "DELETE_ZONE" : "NONE" },
+      finalPayload: { x: 9, y: 7 }
+    }),
+    clearWidgetDragGuideState: () => {},
+    setDockDropTargetActive: () => {},
+    setContainerDropTargetActive: () => {},
+    setWidgetDropSilhouetteVisible: () => {},
+    applyWidgetDropPlan: (_item, plan) => {
+      appliedPlans.push(plan);
+      return true;
+    },
+    releaseWidgetFromDockByDrop: () => {},
+    windowObj
+  });
+
+  assert.equal(started, true);
+  windowObj.emit("pointerup", createPointerEvent({ clientX: 150, clientY: 170 }));
+  assert.equal(appliedPlans[0]?.kind, "DELETE_ZONE");
+});

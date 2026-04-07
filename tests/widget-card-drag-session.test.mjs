@@ -380,3 +380,100 @@ test("startWidgetCardDragSession runs grid drag fallback commit when no drop pla
   assert.equal(compactCalls, 1);
   assert.equal(queueSaveCalls, 1);
 });
+
+test("startWidgetCardDragSession preserves delete-zone plan at pointerup", () => {
+  const instance = createBaseInstance();
+  const card = createCard();
+  const windowObj = createEventTarget();
+  const previewSession = {
+    update() {},
+    dispose() {},
+    getPointerOffset() {
+      return { x: 0, y: 0 };
+    }
+  };
+
+  let deleteZoneActive = false;
+  let appliedPlanKind = "";
+
+  const started = startWidgetCardDragSession({
+    event: createPointerEvent({ button: 0, clientX: 10, clientY: 20, target: {} }),
+    target: { closest: () => null },
+    instance,
+    card,
+    isEditMode: () => true,
+    setSelected: () => {},
+    closeBoardContextMenu: () => {},
+    bringWidgetToFront: () => {},
+    createDragPreviewSession: () => previewSession,
+    createWidgetDropSilhouette: () => ({ remove() {} }),
+    setWidgetDropSilhouetteVisible: () => {},
+    setDragDeleteZoneActive: (active) => {
+      deleteZoneActive = Boolean(active);
+    },
+    setLauncherDragPlaceholderPolicy: () => {},
+    updateDragDeleteZoneHover: () => {},
+    createNoneDropPlan: () => ({ kind: "NONE" }),
+    resolveEdgeDirectionFromPointer: () => 0,
+    getLauncherViewportRect: () => ({ left: 0, right: 1200, top: 0, width: 1200, height: 800 }),
+    syncLauncherPagingState: () => ({ pageCount: 1 }),
+    isLauncherPlaceholderPolicyActive: () => false,
+    isPlaceholderLauncherPage: () => false,
+    currentLauncherPageCount: () => 1,
+    currentLauncherActivePage: () => 0,
+    setLauncherVirtualPage: () => {},
+    setLauncherVirtualPageState: () => {},
+    applyActiveDragPage: () => {},
+    renderBoardViewport: () => {},
+    createDeferredEdgeSwitchScheduler: () => ({
+      schedule() {
+        return false;
+      },
+      reset() {}
+    }),
+    getBoardRect: () => ({ left: 0, top: 0, width: 1200, height: 800 }),
+    evaluateAndRenderWidgetDragIndicators: () => ({
+      dropPlan: { kind: "DELETE_ZONE" }
+    }),
+    evaluateFinalWidgetDrop: () => ({
+      finalPayload: { clientX: 10, clientY: 20, page: 0 },
+      finalDropPlan: { kind: deleteZoneActive ? "DELETE_ZONE" : "NONE" }
+    }),
+    resolveDraftPlacementAtPointer: () => ({ x: 10, y: 10 }),
+    patchWidgetLayout: () => {},
+    runtimeMap: new Map(),
+    applyLayout: () => {},
+    isGridLayoutMode: () => false,
+    recordHistorySnapshot: () => {},
+    gridMetrics: () => ({ cellW: 100, cellH: 80, gapX: 10, gapY: 10, marginX: 0, marginY: 0, cols: 4, rows: 4 }),
+    widgetRegistry: {},
+    widgetDefaultGridSize: () => ({ colSpan: 1, rowSpan: 1 }),
+    normalizeGridLayout: (_grid, fallback) => ({ ...fallback }),
+    clamp: (value, min, max) => Math.min(max, Math.max(min, value)),
+    resolveBoundedDragPositionFromDelta: () => ({ x: 10, y: 10 }),
+    cleanupBoardDragSession: ({ previewSession: session }) => {
+      deleteZoneActive = false;
+      session?.dispose?.();
+    },
+    applyWidgetDropPlan: (_targetInstance, plan) => {
+      appliedPlanKind = plan?.kind || "";
+      return true;
+    },
+    clearPendingPlaceholderDrop: () => {},
+    normalizeWidgetPage: (page) => page,
+    applyGridLayout: () => {},
+    compactEmptyLauncherPagesForUseMode: () => {},
+    queueSave: () => {},
+    updateBoardBounds: () => {},
+    renderSettings: () => {},
+    resolveSnappedPosition: (x, y) => ({ x, y, changed: false }),
+    snap: 20,
+    windowObj
+  });
+
+  assert.equal(started, true);
+
+  windowObj.firstListener("pointerup")(createPointerEvent({ button: 0, clientX: 10, clientY: 20, target: {} }));
+
+  assert.equal(appliedPlanKind, "DELETE_ZONE");
+});
