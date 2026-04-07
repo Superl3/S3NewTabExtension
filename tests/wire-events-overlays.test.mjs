@@ -176,3 +176,77 @@ test("wireOverlayControlEvents closes modal on primary apply clicks", () => {
   assert.deepEqual(closeCalls.widget, [false]);
   assert.equal(closeCalls.shortcut, 1);
 });
+
+test("wireOverlayControlEvents keeps modals open when primary apply returns false", () => {
+  const modalState = { open: true };
+  const shortcutIconEditorState = { open: true };
+  const closeCalls = {
+    rename: 0,
+    dock: [],
+    widget: [],
+    shortcut: 0
+  };
+  const applyCalls = {
+    rename: 0,
+    dock: 0,
+    widget: 0,
+    shortcut: 0
+  };
+
+  const elements = {
+    widgetTitleRenameOkBtn: createEventNode(),
+    dockSettingsModalOkBtn: createEventNode(),
+    widgetModalOkBtn: createEventNode(),
+    shortcutIconEditorApplyBtn: createEventNode()
+  };
+
+  wireOverlayControlEvents({
+    elements,
+    modalState,
+    shortcutIconEditorState,
+    applyWidgetTitleRenameModal: () => {
+      applyCalls.rename += 1;
+      return false;
+    },
+    applyDockSettingsModal: () => {
+      applyCalls.dock += 1;
+      return false;
+    },
+    applyWidgetModal: () => {
+      applyCalls.widget += 1;
+      return false;
+    },
+    applyShortcutIconEditor: () => {
+      applyCalls.shortcut += 1;
+      return false;
+    },
+    closeWidgetTitleRenameModal: () => {
+      closeCalls.rename += 1;
+    },
+    closeDockSettingsModal: (rerender) => {
+      closeCalls.dock.push(rerender);
+    },
+    closeWidgetModal: (rerender) => {
+      closeCalls.widget.push(rerender);
+    },
+    closeShortcutIconEditor: () => {
+      closeCalls.shortcut += 1;
+    }
+  });
+
+  elements.widgetTitleRenameOkBtn.emit("click");
+  elements.dockSettingsModalOkBtn.emit("click");
+  elements.widgetModalOkBtn.emit("click");
+  elements.shortcutIconEditorApplyBtn.emit("click");
+
+  assert.deepEqual(applyCalls, {
+    rename: 1,
+    dock: 1,
+    widget: 1,
+    shortcut: 1
+  });
+  assert.equal(closeCalls.rename, 0);
+  assert.deepEqual(closeCalls.dock, []);
+  assert.deepEqual(closeCalls.widget, []);
+  assert.equal(closeCalls.shortcut, 0);
+});

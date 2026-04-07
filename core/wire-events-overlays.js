@@ -21,6 +21,15 @@ export function wireOverlayControlEvents({
     return;
   }
 
+  const applyAndClose = (applyAction, closeAction) => {
+    const applied = applyAction?.();
+    if (applied === false) {
+      return false;
+    }
+    closeAction?.();
+    return true;
+  };
+
   elements.widgetModalCloseBtn?.addEventListener("click", () => {
     closeWidgetModal?.(false);
   });
@@ -34,8 +43,7 @@ export function wireOverlayControlEvents({
   });
 
   elements.widgetTitleRenameOkBtn?.addEventListener("click", () => {
-    applyWidgetTitleRenameModal?.();
-    closeWidgetTitleRenameModal?.();
+    applyAndClose(applyWidgetTitleRenameModal, closeWidgetTitleRenameModal);
   });
 
   elements.widgetTitleRenameOverlay?.addEventListener("pointerdown", (event) => {
@@ -53,8 +61,9 @@ export function wireOverlayControlEvents({
   });
 
   elements.dockSettingsModalOkBtn?.addEventListener("click", () => {
-    applyDockSettingsModal?.();
-    closeDockSettingsModal?.(false);
+    applyAndClose(applyDockSettingsModal, () => {
+      closeDockSettingsModal?.(false);
+    });
   });
 
   elements.dockSettingsModalDefaultBtn?.addEventListener("click", () => {
@@ -72,11 +81,9 @@ export function wireOverlayControlEvents({
   });
 
   elements.widgetModalOkBtn?.addEventListener("click", () => {
-    const wasOpen = modalState.open === true;
-    applyWidgetModal?.();
-    if (wasOpen && modalState.open) {
+    applyAndClose(applyWidgetModal, () => {
       closeWidgetModal?.(false);
-    }
+    });
   });
 
   elements.shortcutIconEditorCloseBtn?.addEventListener("click", () => {
@@ -88,11 +95,7 @@ export function wireOverlayControlEvents({
   });
 
   elements.shortcutIconEditorApplyBtn?.addEventListener("click", () => {
-    const wasOpen = shortcutIconEditorState?.open === true;
-    applyShortcutIconEditor?.();
-    if (wasOpen && shortcutIconEditorState?.open) {
-      closeShortcutIconEditor?.();
-    }
+    applyAndClose(applyShortcutIconEditor, closeShortcutIconEditor);
   });
 
   elements.shortcutIconEditorClearBtn?.addEventListener("click", () => {

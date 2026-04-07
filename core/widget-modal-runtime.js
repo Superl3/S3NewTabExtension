@@ -244,6 +244,9 @@ export function createWidgetModalRuntime({
 
   const closeWidgetModal = (rerender = true, options = {}) => {
     void options;
+    if (!modalState.open) {
+      return false;
+    }
     if (shortcutIconEditorState?.open) {
       closeShortcutIconEditor?.();
     }
@@ -338,13 +341,13 @@ export function createWidgetModalRuntime({
 
   const applyWidgetModal = () => {
     if (!modalState.open || !modalState.widgetId || !modalState.draft) {
-      return;
+      return false;
     }
 
     const instance = resolveModalInstance();
     if (!instance) {
       closeWidgetModal(false);
-      return;
+      return false;
     }
 
     const def = resolveWidgetDefinition(instance);
@@ -410,6 +413,7 @@ export function createWidgetModalRuntime({
     updateBoardBounds?.();
     queueSave?.();
     closeWidgetModal(true);
+    return true;
   };
 
   return {

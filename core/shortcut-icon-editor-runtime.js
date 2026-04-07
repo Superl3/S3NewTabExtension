@@ -265,6 +265,10 @@ export function createShortcutIconEditorRuntime(deps) {
   }
 
   function closeShortcutIconEditor() {
+    if (!deps.shortcutIconEditorState.open) {
+      return false;
+    }
+
     deps.shortcutIconEditorState.open = false;
     deps.shortcutIconEditorState.source = "none";
     deps.shortcutIconEditorState.onApply = null;
@@ -274,6 +278,7 @@ export function createShortcutIconEditorRuntime(deps) {
     deps.blurFocusedElementInOverlay(deps.elements?.shortcutIconEditorOverlay);
     deps.elements?.shortcutIconEditorOverlay?.classList.remove("open");
     deps.elements?.shortcutIconEditorOverlay?.setAttribute("aria-hidden", "true");
+    return true;
   }
 
   function openShortcutIconEditor(iconValue, onApply) {
@@ -327,9 +332,14 @@ export function createShortcutIconEditorRuntime(deps) {
   }
 
   function applyShortcutIconEditor() {
+    if (!deps.shortcutIconEditorState.open) {
+      return false;
+    }
+
     const dataUrl = shortcutEditorBuildDataUrl();
     deps.shortcutIconEditorState.onApply?.(dataUrl || "");
     closeShortcutIconEditor();
+    return true;
   }
 
   function loadImageIntoShortcutEditor(file) {

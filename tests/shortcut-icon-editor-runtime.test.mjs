@@ -83,3 +83,38 @@ test("shortcut icon runtime builds preset and text data URLs", () => {
   const textDataUrl = harness.runtime.shortcutEditorBuildDataUrl();
   assert.ok(textDataUrl.startsWith("data:image/svg+xml;charset=utf-8,"));
 });
+
+test("shortcut icon runtime apply returns false when editor is closed", () => {
+  const harness = createHarness();
+
+  assert.equal(harness.runtime.applyShortcutIconEditor(), false);
+});
+
+test("shortcut icon runtime apply closes open editor and returns true", () => {
+  const calls = [];
+  const harness = createHarness({
+    elements: {
+      shortcutIconEditorOverlay: {
+        classList: {
+          remove: () => {}
+        },
+        setAttribute: () => {}
+      }
+    }
+  });
+
+  harness.state.open = true;
+  harness.state.onApply = (value) => {
+    calls.push(value);
+  };
+
+  assert.equal(harness.runtime.applyShortcutIconEditor(), true);
+  assert.equal(harness.state.open, false);
+  assert.equal(calls.length, 1);
+});
+
+test("shortcut icon runtime close returns false when already closed", () => {
+  const harness = createHarness();
+
+  assert.equal(harness.runtime.closeShortcutIconEditor(), false);
+});

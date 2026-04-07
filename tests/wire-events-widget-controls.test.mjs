@@ -151,3 +151,32 @@ test("wireWidgetControlEvents updates tab and guards reset by mode/confirm", asy
   elements.resetBtn.emit("click");
   assert.equal(resetCount, 1);
 });
+
+test("wireWidgetControlEvents closes add-widget modal only when apply succeeds", () => {
+  const elements = {
+    addWidgetModalOkBtn: createEventNode()
+  };
+  const state = {
+    ui: { activeTab: "global" }
+  };
+  let applyCalls = 0;
+  let closeCalls = 0;
+
+  wireWidgetControlEvents({
+    elements,
+    state,
+    applyAddWidgetModal: () => {
+      applyCalls += 1;
+      return applyCalls > 1;
+    },
+    closeAddWidgetModal: () => {
+      closeCalls += 1;
+    }
+  });
+
+  elements.addWidgetModalOkBtn.emit("click");
+  elements.addWidgetModalOkBtn.emit("click");
+
+  assert.equal(applyCalls, 2);
+  assert.equal(closeCalls, 1);
+});

@@ -44,6 +44,15 @@ export function wireKeydownEvents({
     return;
   }
 
+  const applyAndClose = (applyAction, closeAction) => {
+    const applied = applyAction?.();
+    if (applied === false) {
+      return false;
+    }
+    closeAction?.();
+    return true;
+  };
+
   windowObj.addEventListener("keydown", (event) => {
     const key = String(event.key || "").toLowerCase();
     const withMod = event.ctrlKey || event.metaKey;
@@ -84,8 +93,7 @@ export function wireKeydownEvents({
 
       if (event.key === "Enter" && isHtmlInputElement(event.target)) {
         event.preventDefault();
-        applyWidgetTitleRenameModal?.();
-        closeWidgetTitleRenameModal?.();
+        applyAndClose(applyWidgetTitleRenameModal, closeWidgetTitleRenameModal);
         return;
       }
     }
@@ -105,9 +113,7 @@ export function wireKeydownEvents({
 
       if (event.key === "Enter" && isHtmlInputElement(event.target)) {
         event.preventDefault();
-        if (applyAddWidgetModal?.()) {
-          closeAddWidgetModal?.();
-        }
+        applyAndClose(applyAddWidgetModal, closeAddWidgetModal);
         return;
       }
     }
@@ -131,8 +137,9 @@ export function wireKeydownEvents({
           (isHtmlInputElement(event.target) && event.target.type !== "checkbox"))
       ) {
         event.preventDefault();
-        applyDockSettingsModal?.();
-        closeDockSettingsModal?.(false);
+        applyAndClose(applyDockSettingsModal, () => {
+          closeDockSettingsModal?.(false);
+        });
         return;
       }
 
