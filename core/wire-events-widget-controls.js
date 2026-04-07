@@ -98,10 +98,7 @@ export function wireWidgetControlEvents({
   });
 
   elements.addWidgetModalOkBtn?.addEventListener("click", () => {
-    const applied = applyAddWidgetModal?.();
-    if (applied === false) {
-      return;
-    }
+    applyAddWidgetModal?.();
     closeAddWidgetModal?.();
   });
 

@@ -152,7 +152,7 @@ test("wireWidgetControlEvents updates tab and guards reset by mode/confirm", asy
   assert.equal(resetCount, 1);
 });
 
-test("wireWidgetControlEvents closes add-widget modal only when apply succeeds", () => {
+test("wireWidgetControlEvents closes add-widget modal on every ok click", () => {
   const elements = {
     addWidgetModalOkBtn: createEventNode()
   };
@@ -178,5 +178,5 @@ test("wireWidgetControlEvents closes add-widget modal only when apply succeeds",
   elements.addWidgetModalOkBtn.emit("click");
 
   assert.equal(applyCalls, 2);
-  assert.equal(closeCalls, 1);
+  assert.equal(closeCalls, 2);
 });

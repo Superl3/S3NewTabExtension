@@ -177,7 +177,7 @@ test("wireOverlayControlEvents closes modal on primary apply clicks", () => {
   assert.equal(closeCalls.shortcut, 1);
 });
 
-test("wireOverlayControlEvents keeps modals open when primary apply returns false", () => {
+test("wireOverlayControlEvents closes modals even when primary apply returns false", () => {
   const modalState = { open: true };
   const shortcutIconEditorState = { open: true };
   const closeCalls = {
@@ -245,8 +245,8 @@ test("wireOverlayControlEvents keeps modals open when primary apply returns fals
     widget: 1,
     shortcut: 1
   });
-  assert.equal(closeCalls.rename, 0);
-  assert.deepEqual(closeCalls.dock, []);
-  assert.deepEqual(closeCalls.widget, []);
-  assert.equal(closeCalls.shortcut, 0);
+  assert.equal(closeCalls.rename, 1);
+  assert.deepEqual(closeCalls.dock, [false]);
+  assert.deepEqual(closeCalls.widget, [false]);
+  assert.equal(closeCalls.shortcut, 1);
 });

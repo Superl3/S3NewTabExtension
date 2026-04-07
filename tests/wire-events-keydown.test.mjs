@@ -183,7 +183,7 @@ test("wireKeydownEvents closes add-widget modal on enter when apply succeeds", (
   assert.equal(event.prevented, true);
 });
 
-test("wireKeydownEvents keeps add-widget modal open on enter when apply fails", () => {
+test("wireKeydownEvents closes add-widget modal on enter even when apply fails", () => {
   const windowObj = createWindowHub();
   let applyCount = 0;
   let closeCount = 0;
@@ -206,7 +206,7 @@ test("wireKeydownEvents keeps add-widget modal open on enter when apply fails", 
   windowObj.emit("keydown", event);
 
   assert.equal(applyCount, 1);
-  assert.equal(closeCount, 0);
+  assert.equal(closeCount, 1);
   assert.equal(event.prevented, true);
 });
 
@@ -235,7 +235,7 @@ test("wireKeydownEvents applies and closes dock settings modal on enter select",
   assert.equal(event.prevented, true);
 });
 
-test("wireKeydownEvents keeps dock settings modal open on enter when apply fails", () => {
+test("wireKeydownEvents closes dock settings modal on enter even when apply fails", () => {
   const windowObj = createWindowHub();
   let applied = 0;
   const closed = [];
@@ -258,7 +258,7 @@ test("wireKeydownEvents keeps dock settings modal open on enter when apply fails
   windowObj.emit("keydown", event);
 
   assert.equal(applied, 1);
-  assert.deepEqual(closed, []);
+  assert.deepEqual(closed, [false]);
   assert.equal(event.prevented, true);
 });
 
