@@ -135,3 +135,12 @@ Do not make direct repo edits outside a GSD workflow unless the user explicitly 
 - Primary actions (OK/Add/Apply/Save) and Enter-submit paths must also always dismiss the modal.
 - Even when apply logic throws, returns false, or partially fails, modal dismissal must still occur.
 - Do not weaken this contract without explicit user approval and matching updates in AGENTS.md + .planning/PROJECT.md.
+
+## Project Critical Rule: Interaction Invariants
+
+- This rule applies to page navigation, widget deletion, container/folder drag-drop, and cross-surface drag behavior (board/dock/folder/launcher) in both Edit and Use modes.
+- Drop intent precedence is fixed globally: `DELETE_ZONE > SPACE.CONTAINER > SPACE.BOARD > NONE`.
+- Drag feedback and final commit must use the same resolver so visible intent equals committed result.
+- Delete commits must be deterministic and followed by valid state normalization (active page bounds, ordering, focus target).
+- Page transitions from click/wheel/keyboard/drag must share one clamping/materialization contract.
+- Do not weaken this contract without explicit user approval and matching updates in AGENTS.md + .planning/PROJECT.md.

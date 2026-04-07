@@ -24,6 +24,15 @@
 - [ ] **SYNC-02**: content script 수신자 부재 오류 발생 시 스크립트 재주입 후 1회 재시도해야 한다.
 - [ ] **SYNC-03**: 하단 좌측 무의미 텍스트(`-`, 빈 placeholder, 불필요 상태문구)는 표시하지 않아야 한다.
 
+### Interaction Contracts (Locked)
+
+- [x] **NAV-01**: 페이지 전환(클릭/휠/키보드/드래그)은 동일한 클램프·머티리얼라이즈 규칙을 사용해야 한다.
+- [x] **NAV-02**: 활성 페이지는 항상 실페이지를 가리켜야 하며 placeholder/sentinel 페이지를 가리키면 안 된다.
+- [x] **DEL-01**: 삭제 의도(`DELETE_ZONE`)는 표면(보드/독/폴더)에 관계없이 단일·결정적 삭제 커밋으로 귀결되어야 한다.
+- [x] **DND-01**: 컨테이너/폴더 드롭은 enter/reorder/exit 경로가 상호배타적이고 결정적이어야 한다.
+- [x] **XSURF-01**: 드래그 시각 피드백(실루엣/호버)과 pointerup 커밋 결과는 동일한 해석기로 계산되어야 한다.
+- [x] **CLEANUP-01**: 드래그 취소/실패/종료 후 preview/silhouette/delete-hover/placeholder/pending-switch 상태는 항상 정리되어야 한다.
+
 ## v2 Requirements
 
 ### Diagnostics and Forecast
@@ -52,12 +61,18 @@
 | SYNC-01 | Phase 3 | Pending |
 | SYNC-02 | Phase 3 | Pending |
 | SYNC-03 | Phase 3 | Pending |
+| NAV-01 | Phase 0 | Locked |
+| NAV-02 | Phase 0 | Locked |
+| DEL-01 | Phase 0 | Locked |
+| DND-01 | Phase 0 | Locked |
+| XSURF-01 | Phase 0 | Locked |
+| CLEANUP-01 | Phase 0 | Locked |
 
 **Coverage:**
-- v1 requirements: 10 total
-- Mapped to phases: 10
+- v1 requirements: 16 total
+- Mapped to phases: 16
 - Unmapped: 0 ✓
 
 ---
 *Requirements defined: 2026-03-30*
-*Last updated: 2026-03-31 after roadmap creation*
+*Last updated: 2026-04-07 after interaction invariant lock*

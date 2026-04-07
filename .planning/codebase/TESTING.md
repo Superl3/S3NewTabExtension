@@ -121,6 +121,21 @@ docs/
 // - Storage fallback behavior in storage.js
 ```
 
+## Interaction Invariant Regression Gate
+
+Every change that touches navigation, deletion, drag-drop, container/folder routing, or modal submission must run and pass a focused regression gate before merge.
+
+**Required targeted suites:**
+- `node --test tests/wire-events-overlays.test.mjs tests/wire-events-keydown.test.mjs tests/wire-events-widget-controls.test.mjs tests/widget-modal-runtime.test.mjs`
+- `node --test tests/widget-card-drag-session.test.mjs tests/dock-widget-drag-session.test.mjs tests/drag-drop-evaluation.test.mjs tests/drag-drop-orchestration.test.mjs`
+- `node --test tests/launcher-drop-plan.test.mjs tests/launcher-page-runtime.test.mjs tests/launcher-pages.test.mjs tests/board-wheel-navigation.test.mjs`
+- `node --test tests/container-drop-runtime.test.mjs tests/container-order-runtime.test.mjs tests/widget-drop-plan-apply.test.mjs`
+
+**Coverage expectations:**
+- Include both Edit and Use mode paths where behavior differs.
+- Include delete-zone, container/folder enter/reorder/exit, and cancel/failure cleanup paths.
+- Include pointer + keyboard/Enter page navigation/modal submission paths when affected.
+
 ---
 
 *Testing analysis: 2026-03-30*
