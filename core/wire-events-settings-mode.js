@@ -1,6 +1,8 @@
 export function wireSettingsAndModeEvents({
   elements,
   state,
+  toggleSettingsPanel,
+  closeSettingsPanel,
   getRuntimeSettingsPanelOpen,
   setRuntimeSettingsPanelOpen,
   syncSettingsPanelVisibility,
@@ -30,6 +32,10 @@ export function wireSettingsAndModeEvents({
     if (state.mode !== "edit") {
       return;
     }
+    if (toggleSettingsPanel) {
+      toggleSettingsPanel();
+      return;
+    }
     const nextOpen = !Boolean(getRuntimeSettingsPanelOpen?.());
     setRuntimeSettingsPanelOpen?.(nextOpen);
     syncSettingsPanelVisibility?.();
@@ -37,6 +43,10 @@ export function wireSettingsAndModeEvents({
 
   elements.settingsPanelBackdrop?.addEventListener("click", () => {
     if (!getRuntimeSettingsPanelOpen?.()) {
+      return;
+    }
+    if (closeSettingsPanel) {
+      closeSettingsPanel();
       return;
     }
     setRuntimeSettingsPanelOpen?.(false);

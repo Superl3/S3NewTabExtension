@@ -152,6 +152,39 @@ test("wireWidgetControlEvents updates tab and guards reset by mode/confirm", asy
   assert.equal(resetCount, 1);
 });
 
+test("wireWidgetControlEvents prefers setActiveSettingsTab wiring when provided", () => {
+  const elements = {
+    tabGlobalBtn: createEventNode(),
+    tabBackgroundBtn: createEventNode(),
+    tabProfileBtn: createEventNode()
+  };
+  const state = {
+    mode: "edit",
+    ui: { activeTab: "global" }
+  };
+  const tabs = [];
+  let renderCount = 0;
+
+  wireWidgetControlEvents({
+    elements,
+    state,
+    setActiveSettingsTab: (tab) => {
+      tabs.push(tab);
+    },
+    renderSettings: () => {
+      renderCount += 1;
+    }
+  });
+
+  elements.tabBackgroundBtn.emit("click");
+  elements.tabProfileBtn.emit("click");
+  elements.tabGlobalBtn.emit("click");
+
+  assert.deepEqual(tabs, ["background", "profile", "global"]);
+  assert.equal(state.ui.activeTab, "global");
+  assert.equal(renderCount, 0);
+});
+
 test("wireWidgetControlEvents closes add-widget modal on every ok click", () => {
   const elements = {
     addWidgetModalOkBtn: createEventNode()
