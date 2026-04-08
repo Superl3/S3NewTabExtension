@@ -8,7 +8,11 @@ import {
   deriveLatestCodeUpdateAt,
   normalizeGithubLogin
 } from "../widgets/shared/githubReviewInboxLogic.js";
-import { githubReviewInboxWidget } from "../widgets/githubReviewInbox.js";
+import {
+  fetchPagedJson,
+  findNextPageUrl,
+  githubReviewInboxWidget
+} from "../widgets/githubReviewInbox.js";
 import { widgetRegistry } from "../widgets/index.js";
 
 test("normalizeGithubLogin trims @ and lowercases", () => {
@@ -124,4 +128,63 @@ test("github review inbox widget is registered with required settings", () => {
     "refreshMinutes"
   ]);
   assert.equal(githubReviewInboxWidget.title, "GitHub Review Inbox");
+});
+
+test("findNextPageUrl extracts rel next URL from GitHub link header", () => {
+  const linkHeader = [
+    '<https://api.github.com/repositories/1/pulls/2/reviews?per_page=100&page=2>; rel="next"',
+    '<https://api.github.com/repositories/1/pulls/2/reviews?per_page=100&page=4>; rel="last"'
+  ].join(", ");
+
+  assert.equal(
+    findNextPageUrl(linkHeader),
+    "https://api.github.com/repositories/1/pulls/2/reviews?per_page=100&page=2"
+  );
+});
+
+test("fetchPagedJson follows pagination links across multiple pages", async () => {
+  const originalFetch = globalThis.fetch;
+  const calls = [];
+
+  globalThis.fetch = async (url) => {
+    calls.push(String(url));
+
+    if (String(url).includes("page=2")) {
+      return {
+        ok: true,
+        status: 200,
+        text: async () => JSON.stringify([{ id: 101 }, { id: 102 }]),
+        headers: {
+          get: () => ""
+        }
+      };
+    }
+
+    return {
+      ok: true,
+      status: 200,
+      text: async () => JSON.stringify(Array.from({ length: 100 }, (_, index) => ({ id: index + 1 }))),
+      headers: {
+        get: (name) => name.toLowerCase() === "link"
+          ? '<https://api.github.com/repositories/1/pulls/2/reviews?per_page=100&page=2>; rel="next"'
+          : ""
+      }
+    };
+  };
+
+  try {
+    const items = await fetchPagedJson(
+      "https://api.github.com/repositories/1/pulls/2/reviews?per_page=100",
+      {},
+      20
+    );
+
+    assert.equal(items.length, 102);
+    assert.deepEqual(calls, [
+      "https://api.github.com/repositories/1/pulls/2/reviews?per_page=100",
+      "https://api.github.com/repositories/1/pulls/2/reviews?per_page=100&page=2"
+    ]);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
 });
