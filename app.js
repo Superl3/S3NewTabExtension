@@ -4879,6 +4879,7 @@ function wireEvents() {
     wireKeydownEvents,
     elements,
     state,
+    getState: () => state,
     toggleSettingsPanel,
     closeSettingsPanel,
     getRuntimeSettingsPanelOpen: () => runtimeSettingsPanelOpen,

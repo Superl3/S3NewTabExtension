@@ -22,6 +22,7 @@ test("wireAppEvents delegates to all wire modules", () => {
   const keydownSpy = createSpy();
   const commitPendingEditableState = () => {};
   const onBoardWheelNavigate = () => {};
+  const getState = () => ({ mode: "use" });
 
   wireAppEvents({
     wireDockAndSwipeEvents: dockSpy,
@@ -33,6 +34,7 @@ test("wireAppEvents delegates to all wire modules", () => {
     wireKeydownEvents: keydownSpy,
     elements: {},
     state: {},
+    getState,
     getRuntimeSettingsPanelOpen: () => false,
     setRuntimeSettingsPanelOpen: () => {},
     syncSettingsPanelVisibility: () => {},
@@ -122,4 +124,6 @@ test("wireAppEvents delegates to all wire modules", () => {
   assert.equal(keydownSpy.calls.length, 1);
   assert.equal(dockSpy.calls[0][0].onBoardWheelNavigate, onBoardWheelNavigate);
   assert.equal(keydownSpy.calls[0][0].commitPendingEditableState, commitPendingEditableState);
+  assert.equal(settingsSpy.calls[0][0].getState, getState);
+  assert.equal(widgetSpy.calls[0][0].getState, getState);
 });

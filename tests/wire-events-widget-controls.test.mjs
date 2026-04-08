@@ -239,3 +239,46 @@ test("wireWidgetControlEvents still closes add-widget modal when apply throws", 
   });
   assert.equal(closeCount, 1);
 });
+
+test("wireWidgetControlEvents context add uses latest state via getState after reassignment", () => {
+  const elements = {
+    boardContextAddWidgetBtn: createEventNode()
+  };
+  let activeState = {
+    mode: "use",
+    selectedWidgetId: "stale-selected",
+    ui: { activeTab: "global" }
+  };
+  const wiredState = activeState;
+  const selected = [];
+
+  wireWidgetControlEvents({
+    elements,
+    state: wiredState,
+    getState: () => activeState,
+    closeBoardContextMenu: () => {},
+    setBodyMode: () => {},
+    setSelected: (id) => {
+      selected.push(id);
+    },
+    refreshAllWidgets: () => {},
+    updateBoardBounds: () => {},
+    requestAnimationFrameFn: (callback) => {
+      callback();
+    },
+    queueSave: () => {},
+    openAddWidgetModal: () => {}
+  });
+
+  activeState = {
+    mode: "use",
+    selectedWidgetId: "latest-selected",
+    ui: { activeTab: "global" }
+  };
+
+  elements.boardContextAddWidgetBtn.emit("click");
+
+  assert.equal(activeState.mode, "edit");
+  assert.equal(wiredState.mode, "use");
+  assert.deepEqual(selected, ["latest-selected"]);
+});

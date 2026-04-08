@@ -12,6 +12,7 @@ export function wireAppEvents({
   wireKeydownEvents,
   elements,
   state,
+  getState,
   toggleSettingsPanel,
   closeSettingsPanel,
   getRuntimeSettingsPanelOpen,
@@ -109,6 +110,7 @@ export function wireAppEvents({
   wireEventModule(wireSettingsAndModeEvents, {
     elements,
     state,
+    getState,
     toggleSettingsPanel,
     closeSettingsPanel,
     getRuntimeSettingsPanelOpen,
@@ -136,6 +138,7 @@ export function wireAppEvents({
   wireEventModule(wireWidgetControlEvents, {
     elements,
     state,
+    getState,
     isDockSettingsModalOpen,
     closeDockSettingsModal,
     openDockSettingsModal,

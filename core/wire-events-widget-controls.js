@@ -1,6 +1,7 @@
 export function wireWidgetControlEvents({
   elements,
   state,
+  getState,
   isDockSettingsModalOpen,
   closeDockSettingsModal,
   openDockSettingsModal,
@@ -26,9 +27,11 @@ export function wireWidgetControlEvents({
   undoLastChange,
   redoLastChange
 } = {}) {
-  if (!elements || !state) {
+  if (!elements || (!state && !getState)) {
     return;
   }
+
+  const resolveState = () => getState?.() || state || null;
 
   elements.dockSettingsBtn?.addEventListener("click", () => {
     if (isDockSettingsModalOpen?.()) {
@@ -53,7 +56,11 @@ export function wireWidgetControlEvents({
       setActiveSettingsTab("global");
       return;
     }
-    state.ui.activeTab = "global";
+    const currentState = resolveState();
+    if (!currentState?.ui) {
+      return;
+    }
+    currentState.ui.activeTab = "global";
     renderSettings?.();
   });
 
@@ -62,7 +69,11 @@ export function wireWidgetControlEvents({
       setActiveSettingsTab("background");
       return;
     }
-    state.ui.activeTab = "background";
+    const currentState = resolveState();
+    if (!currentState?.ui) {
+      return;
+    }
+    currentState.ui.activeTab = "background";
     renderSettings?.();
   });
 
@@ -71,7 +82,11 @@ export function wireWidgetControlEvents({
       setActiveSettingsTab("profile");
       return;
     }
-    state.ui.activeTab = "profile";
+    const currentState = resolveState();
+    if (!currentState?.ui) {
+      return;
+    }
+    currentState.ui.activeTab = "profile";
     renderSettings?.();
   });
 
@@ -87,11 +102,16 @@ export function wireWidgetControlEvents({
   });
 
   elements.boardContextAddWidgetBtn?.addEventListener("click", () => {
+    const currentState = resolveState();
+    if (!currentState) {
+      return;
+    }
+
     closeBoardContextMenu?.();
-    if (state.mode !== "edit") {
-      state.mode = "edit";
+    if (currentState.mode !== "edit") {
+      currentState.mode = "edit";
       setBodyMode?.();
-      setSelected?.(state.selectedWidgetId);
+      setSelected?.(currentState.selectedWidgetId);
       refreshAllWidgets?.();
       updateBoardBounds?.();
       requestAnimationFrameFn?.(() => {
@@ -126,7 +146,8 @@ export function wireWidgetControlEvents({
   });
 
   elements.resetBtn?.addEventListener("click", () => {
-    if (state.mode !== "edit") {
+    const currentState = resolveState();
+    if (currentState?.mode !== "edit") {
       return;
     }
     const confirmed = windowConfirm?.("Reset layout, widget settings, and global theme/background to defaults?");
