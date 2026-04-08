@@ -186,3 +186,41 @@ test("wireSettingsAndModeEvents home anchor validates target page", () => {
   elements.homePageAnchorBtn.emit("click");
   assert.deepEqual(homePages, [3]);
 });
+
+test("wireSettingsAndModeEvents mode toggle reads latest state via getState after reassignment", () => {
+  const elements = {
+    modeToggleBtn: createEventNode()
+  };
+  let activeState = {
+    mode: "use",
+    selectedWidgetId: "stale-selected"
+  };
+  const wiredState = activeState;
+  const selected = [];
+
+  wireSettingsAndModeEvents({
+    elements,
+    state: wiredState,
+    getState: () => activeState,
+    setBodyMode: () => {},
+    setSelected: (id) => {
+      selected.push(id);
+    },
+    refreshAllWidgets: () => {},
+    updateBoardBounds: () => {},
+    requestAnimationFrameFn: (callback) => {
+      callback();
+    }
+  });
+
+  activeState = {
+    mode: "use",
+    selectedWidgetId: "latest-selected"
+  };
+
+  elements.modeToggleBtn.emit("click");
+
+  assert.equal(activeState.mode, "edit");
+  assert.equal(wiredState.mode, "use");
+  assert.deepEqual(selected, ["latest-selected"]);
+});

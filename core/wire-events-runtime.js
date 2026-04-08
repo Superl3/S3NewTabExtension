@@ -9,6 +9,7 @@ export function wireEventsRuntime(deps) {
     wireKeydownEvents: deps.wireKeydownEvents,
     elements: deps.elements,
     state: deps.state,
+    getState: deps.getState,
     toggleSettingsPanel: deps.toggleSettingsPanel,
     closeSettingsPanel: deps.closeSettingsPanel,
     getRuntimeSettingsPanelOpen: deps.getRuntimeSettingsPanelOpen,

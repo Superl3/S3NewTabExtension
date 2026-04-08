@@ -1,6 +1,7 @@
 export function wireSettingsAndModeEvents({
   elements,
   state,
+  getState,
   toggleSettingsPanel,
   closeSettingsPanel,
   getRuntimeSettingsPanelOpen,
@@ -24,12 +25,15 @@ export function wireSettingsAndModeEvents({
   showAddWidgetToast,
   setLauncherHomePage
 } = {}) {
-  if (!elements || !state) {
+  if (!elements || (!state && !getState)) {
     return;
   }
 
+  const resolveState = () => getState?.() || state || null;
+
   elements.settingsRailToggleBtn?.addEventListener("click", () => {
-    if (state.mode !== "edit") {
+    const currentState = resolveState();
+    if (currentState?.mode !== "edit") {
       return;
     }
     if (toggleSettingsPanel) {
@@ -58,10 +62,15 @@ export function wireSettingsAndModeEvents({
   });
 
   elements.modeToggleBtn?.addEventListener("click", () => {
-    const nextMode = state.mode === "edit" ? "use" : "edit";
+    const currentState = resolveState();
+    if (!currentState) {
+      return;
+    }
+
+    const nextMode = currentState.mode === "edit" ? "use" : "edit";
     let deferBoundsSync = false;
 
-    if (state.mode === "edit" && nextMode === "use") {
+    if (currentState.mode === "edit" && nextMode === "use") {
       const pageCount = currentLauncherPageCount?.();
       const viewportPage = currentLauncherViewportPage?.();
       if (isPlaceholderLauncherPage?.(viewportPage, pageCount)) {
@@ -70,13 +79,13 @@ export function wireSettingsAndModeEvents({
       }
     }
 
-    state.mode = nextMode;
-    if (state.mode === "use") {
-      state.selectedWidgetId = "";
+    currentState.mode = nextMode;
+    if (currentState.mode === "use") {
+      currentState.selectedWidgetId = "";
       compactEmptyLauncherPagesForUseMode?.();
     }
     setBodyMode?.();
-    setSelected?.(state.selectedWidgetId);
+    setSelected?.(currentState.selectedWidgetId);
     refreshAllWidgets?.();
 
     const syncBounds = () => {
@@ -94,7 +103,8 @@ export function wireSettingsAndModeEvents({
   });
 
   elements.homePageAnchorBtn?.addEventListener("click", () => {
-    if (state.mode !== "edit") {
+    const currentState = resolveState();
+    if (currentState?.mode !== "edit") {
       return;
     }
     const targetPage = resolveHomeAnchorTargetPage?.();
