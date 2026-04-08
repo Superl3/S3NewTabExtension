@@ -6,6 +6,7 @@ import {
   classifyReviewNeed,
   collectLatestUserParticipation,
   deriveLatestCodeUpdateAt,
+  deriveLatestOtherActivityAt,
   normalizeGithubLogin
 } from "../widgets/shared/githubReviewInboxLogic.js";
 import {
@@ -115,6 +116,87 @@ test("buildReviewCandidate excludes PRs when user responded after the latest cod
 
   assert.equal(candidate.included, false);
   assert.equal(candidate.reason, "REVIEWED_NO_NEW_UPDATES");
+});
+
+test("deriveLatestOtherActivityAt ignores self comments and self commits on own PRs", () => {
+  const latest = deriveLatestOtherActivityAt({
+    pullRequest: { updated_at: "2026-04-09T12:00:00Z" },
+    githubLogin: "bug95",
+    reviews: [{ user: { login: "bug95" }, submitted_at: "2026-04-05T09:00:00Z" }],
+    issueComments: [{ user: { login: "bug95" }, created_at: "2026-04-06T09:00:00Z" }],
+    reviewComments: [{ user: { login: "bug95" }, updated_at: "2026-04-07T11:00:00Z" }],
+    commits: [
+      {
+        author: { login: "bug95" },
+        committer: { login: "bug95" },
+        commit: { author: { date: "2026-04-08T10:00:00Z" }, committer: { date: "2026-04-08T10:00:00Z" } }
+      }
+    ]
+  });
+
+  assert.equal(latest, 0);
+});
+
+test("buildReviewCandidate excludes own PRs when only self activity happened", () => {
+  const candidate = buildReviewCandidate({
+    githubLogin: "bug95",
+    pullRequest: {
+      user: { login: "bug95" },
+      updated_at: "2026-04-09T12:00:00Z"
+    },
+    commits: [
+      {
+        author: { login: "bug95" },
+        committer: { login: "bug95" },
+        commit: { author: { date: "2026-04-08T10:00:00Z" }, committer: { date: "2026-04-08T10:00:00Z" } }
+      }
+    ],
+    reviews: [{ user: { login: "bug95" }, state: "COMMENTED", submitted_at: "2026-04-08T11:00:00Z" }],
+    issueComments: [{ user: { login: "bug95" }, created_at: "2026-04-09T09:00:00Z" }],
+    reviewComments: []
+  });
+
+  assert.equal(candidate.included, false);
+  assert.equal(candidate.reason, "REVIEWED_NO_NEW_UPDATES");
+});
+
+test("buildReviewCandidate includes own PRs when others act after user participation", () => {
+  const candidate = buildReviewCandidate({
+    githubLogin: "bug95",
+    pullRequest: {
+      user: { login: "bug95" },
+      updated_at: "2026-04-09T12:00:00Z"
+    },
+    commits: [
+      {
+        author: { login: "reviewer1" },
+        committer: { login: "reviewer1" },
+        commit: { author: { date: "2026-04-09T10:00:00Z" }, committer: { date: "2026-04-09T10:00:00Z" } }
+      }
+    ],
+    reviews: [{ user: { login: "bug95" }, state: "COMMENTED", submitted_at: "2026-04-08T11:00:00Z" }],
+    issueComments: [],
+    reviewComments: [{ user: { login: "reviewer2" }, updated_at: "2026-04-09T11:00:00Z" }]
+  });
+
+  assert.equal(candidate.included, true);
+  assert.equal(candidate.reason, "UPDATED_AFTER_YOUR_REVIEW");
+});
+
+test("buildReviewCandidate includes own PRs with other-user activity even before any user response", () => {
+  const candidate = buildReviewCandidate({
+    githubLogin: "bug95",
+    pullRequest: {
+      user: { login: "bug95" }
+    },
+    commits: [],
+    reviews: [{ user: { login: "reviewer1" }, state: "COMMENTED", submitted_at: "2026-04-09T08:00:00Z" }],
+    issueComments: [],
+    reviewComments: []
+  });
+
+  assert.equal(candidate.included, true);
+  assert.equal(candidate.reason, "OTHER_ACTIVITY_ON_YOUR_PR");
 });
 
 test("github review inbox widget is registered with required settings", () => {

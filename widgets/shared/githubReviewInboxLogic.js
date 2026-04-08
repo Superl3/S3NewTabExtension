@@ -3,6 +3,10 @@ const REVIEW_REASON_META = {
     label: "No review yet",
     included: true
   },
+  OTHER_ACTIVITY_ON_YOUR_PR: {
+    label: "Activity from others",
+    included: true
+  },
   UPDATED_AFTER_YOUR_REVIEW: {
     label: "Updated after your review",
     included: true
@@ -30,6 +34,15 @@ export function parseTimestamp(value) {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
+function maxTimestamp(values = []) {
+  const valid = values.filter((value) => Number.isFinite(value) && value > 0);
+  return valid.length ? Math.max(...valid) : 0;
+}
+
+function isSameGithubUser(left, right) {
+  return normalizeGithubLogin(left) && normalizeGithubLogin(left) === normalizeGithubLogin(right);
+}
+
 export function deriveLatestCodeUpdateAt(pullRequest, commits = []) {
   const commitTimes = Array.isArray(commits)
     ? commits
@@ -50,6 +63,50 @@ export function deriveLatestCodeUpdateAt(pullRequest, commits = []) {
     parseTimestamp(pullRequest?.updated_at),
     parseTimestamp(pullRequest?.created_at)
   );
+}
+
+export function deriveLatestOtherActivityAt({
+  pullRequest,
+  githubLogin,
+  reviews = [],
+  issueComments = [],
+  reviewComments = [],
+  commits = []
+}) {
+  const otherReviewAt = reviews
+    .filter((review) => !isSameGithubUser(review?.user?.login, githubLogin))
+    .map((review) => parseTimestamp(review?.submitted_at || review?.created_at));
+
+  const otherIssueCommentAt = issueComments
+    .filter((comment) => !isSameGithubUser(comment?.user?.login, githubLogin))
+    .map((comment) => parseTimestamp(comment?.updated_at || comment?.created_at));
+
+  const otherReviewCommentAt = reviewComments
+    .filter((comment) => !isSameGithubUser(comment?.user?.login, githubLogin))
+    .map((comment) => parseTimestamp(comment?.updated_at || comment?.created_at));
+
+  const otherCommitAt = commits
+    .filter((commit) => {
+      const authorLogin = normalizeGithubLogin(commit?.author?.login);
+      const committerLogin = normalizeGithubLogin(commit?.committer?.login);
+      const knownLogin = authorLogin || committerLogin;
+      if (!knownLogin) {
+        return false;
+      }
+      return knownLogin !== normalizeGithubLogin(githubLogin);
+    })
+    .map((commit) => {
+      const authoredAt = parseTimestamp(commit?.commit?.author?.date);
+      const committedAt = parseTimestamp(commit?.commit?.committer?.date);
+      return Math.max(authoredAt, committedAt);
+    });
+
+  return maxTimestamp([
+    ...otherReviewAt,
+    ...otherIssueCommentAt,
+    ...otherReviewCommentAt,
+    ...otherCommitAt
+  ]);
 }
 
 export function collectLatestUserParticipation({
@@ -159,21 +216,40 @@ export function buildReviewCandidate({
   reviewComments = [],
   commits = []
 }) {
-  const latestCodeUpdateAt = deriveLatestCodeUpdateAt(pullRequest, commits);
+  const isOwnPullRequest = isSameGithubUser(pullRequest?.user?.login, githubLogin);
+  const latestCodeUpdateAt = isOwnPullRequest
+    ? deriveLatestOtherActivityAt({
+        pullRequest,
+        githubLogin,
+        reviews,
+        issueComments,
+        reviewComments,
+        commits
+      })
+    : deriveLatestCodeUpdateAt(pullRequest, commits);
   const participation = collectLatestUserParticipation({
     githubLogin,
     reviews,
     issueComments,
     reviewComments
   });
-  const classification = classifyReviewNeed({
+  const baseClassification = classifyReviewNeed({
     latestCodeUpdateAt,
     hasParticipation: participation.hasParticipation,
     latestParticipationAt: participation.latestParticipationAt,
     latestApprovalAt: participation.latestApprovalAt
   });
 
+  const classification = isOwnPullRequest && latestCodeUpdateAt > 0 && !participation.hasParticipation
+    ? {
+        reason: "OTHER_ACTIVITY_ON_YOUR_PR",
+        label: REVIEW_REASON_META.OTHER_ACTIVITY_ON_YOUR_PR.label,
+        included: true
+      }
+    : baseClassification;
+
   return {
+    isOwnPullRequest,
     latestCodeUpdateAt,
     latestParticipationAt: participation.latestParticipationAt,
     latestApprovalAt: participation.latestApprovalAt,
