@@ -214,6 +214,9 @@ import {
   syncWidgetStateAfterModalApply
 } from "./core/widget-modal-apply-effects.js";
 import {
+  applyAddWidgetModalAction
+} from "./core/add-widget-modal-apply.js";
+import {
   applyFreeLayoutPlacement,
   createWidgetInstanceDraft
 } from "./core/widget-instance-factory.js";
@@ -510,7 +513,15 @@ const modalState = {
 };
 
 const pendingWidgetAddState = {
-  widgetId: ""
+  open: false,
+  widgetId: "",
+  instance: null,
+  pageCount: 1,
+  placeholderPage: null,
+  type: "",
+  colSpan: 1,
+  rowSpan: 1,
+  title: ""
 };
 
 const widgetTitleRenameState = {
@@ -2608,35 +2619,259 @@ function applyWidgetTitleRenameModal() {
   return widgetTitleRenameRuntime.applyWidgetTitleRenameModal();
 }
 
-function applyAddWidgetModal() {
-  const type = elements.widgetTypeSelect?.value;
+function resetPendingWidgetAddState() {
+  pendingWidgetAddState.open = false;
+  pendingWidgetAddState.widgetId = "";
+  pendingWidgetAddState.instance = null;
+  pendingWidgetAddState.pageCount = 1;
+  pendingWidgetAddState.placeholderPage = null;
+  pendingWidgetAddState.type = "";
+  pendingWidgetAddState.colSpan = 1;
+  pendingWidgetAddState.rowSpan = 1;
+  pendingWidgetAddState.title = "";
+}
+
+function createPendingWidgetAddPreview(type, options = {}) {
   const def = widgetRegistry[type];
   if (!def) {
+    return null;
+  }
+
+  syncLauncherPagingState({ expandToFitInstances: true });
+  const pageCount = currentLauncherPageCount();
+  const viewportPage = currentLauncherViewportPage();
+  const placeholderPage = isPlaceholderLauncherPage(viewportPage, pageCount) ? viewportPage : null;
+  const targetPage = placeholderPage == null ? currentLauncherActivePage() : (placeholderPage < 0 ? 0 : pageCount);
+  const defaultPadding = widgetPaddingFallback(type);
+  const instance = createWidgetInstanceDraft(
+    {
+      type,
+      def,
+      options,
+      nextId: state.nextId,
+      zIndex: (Number(zCounter) || 1) + 1,
+      targetPage,
+      pageLocalIndex: 0,
+      colSpan: options.colSpan,
+      rowSpan: options.rowSpan,
+      defaultPadding
+    },
+    {
+      normalizeText,
+      isHeadlessDefaultType,
+      isHeadlessTransparentDefaultType,
+      defaultWidgetBackdropBlur,
+      defaultWidgetTitleAlign,
+      defaultWidgetContentAlign,
+      normalizeCommonOverrides,
+      normalizeGridLayout,
+      cloneLayout
+    }
+  );
+
+  if (!instance) {
+    return null;
+  }
+
+  instance.commonOverrides = inferCommonOverrides(instance, state?.ui?.widgetCommonMaster) || {};
+  applyWidgetCommonMaster(instance, state?.ui?.widgetCommonMaster, false);
+
+  return {
+    instance,
+    pageCount: placeholderPage == null ? pageCount : pageCount + 1,
+    placeholderPage
+  };
+}
+
+function startPendingWidgetAdd(type, options = {}) {
+  const preview = createPendingWidgetAddPreview(type, options);
+  if (!preview?.instance) {
     return false;
   }
 
-  const defaultSize = widgetDefaultGridSize(type, def);
-  const colSpan = type === "container" ? 1 : defaultSize.colSpan;
-  const rowSpan = type === "container" ? 1 : defaultSize.rowSpan;
-  const title = normalizeText(elements.addWidgetTitleInput?.value, def.title);
-  let addedWidgetId = "";
+  pendingWidgetAddState.open = true;
+  pendingWidgetAddState.widgetId = preview.instance.id;
+  pendingWidgetAddState.instance = preview.instance;
+  pendingWidgetAddState.pageCount = preview.pageCount;
+  pendingWidgetAddState.placeholderPage = preview.placeholderPage;
+  pendingWidgetAddState.type = type;
+  pendingWidgetAddState.colSpan = options.colSpan;
+  pendingWidgetAddState.rowSpan = options.rowSpan;
+  pendingWidgetAddState.title = options.title || preview.instance.title || "";
 
-  const added = addWidget(type, {
-    colSpan,
-    rowSpan,
-    title,
-    onWidgetAdded: (instance) => {
-      addedWidgetId = instance?.id || "";
+  openWidgetModal(preview.instance.id, {
+    pendingAdd: {
+      instance: preview.instance,
+      pageCount: preview.pageCount,
+      placeholderPage: preview.placeholderPage,
+      type,
+      colSpan: options.colSpan,
+      rowSpan: options.rowSpan,
+      title: pendingWidgetAddState.title
     }
   });
-  if (added) {
-    pendingWidgetAddState.widgetId = addedWidgetId;
-    closeAddWidgetModal();
-    if (addedWidgetId) {
-      openWidgetModal(addedWidgetId);
+  return true;
+}
+
+function commitPendingWidgetAdd(draft, pending = pendingWidgetAddState) {
+  const type = pending?.type;
+  const def = widgetRegistry[type];
+  if (!draft || !def) {
+    return false;
+  }
+
+  if (pending.placeholderPage != null) {
+    const materialized = materializeLauncherPlaceholderPage(pending.placeholderPage);
+    if (!materialized) {
+      showAddWidgetToast("새 페이지를 만들 수 없어 위젯을 추가하지 못했습니다.");
+      return false;
     }
   }
-  return Boolean(added);
+
+  syncLauncherPagingState({ expandToFitInstances: true });
+  const targetPage = normalizeWidgetPage((Number(draft.page) || 1) - 1, currentLauncherPageCount(), currentLauncherActivePage());
+  const pageLocalIndex = countBoardWidgetsOnPage(
+    state.instances,
+    targetPage,
+    state?.ui?.home?.pageCount,
+    {
+      isWidgetDocked,
+      isWidgetInContainer,
+      normalizeWidgetPage
+    }
+  );
+
+  let gridPlacement = null;
+  if (isGridLayoutMode()) {
+    gridPlacement = findFirstAvailableBoardGridSlot(targetPage, pending.colSpan, pending.rowSpan);
+    if (!gridPlacement) {
+      showAddWidgetToast("빈 공간이 없어 위젯을 추가하지 못했습니다. 공간을 비우거나 새 페이지를 추가해 주세요.");
+      return false;
+    }
+  }
+
+  const defaultSize = widgetDefaultGridSize(type, def);
+  const defaultPadding = widgetPaddingFallback(type);
+  const instance = createWidgetInstanceDraft(
+    {
+      type,
+      def,
+      options: { title: pending.title },
+      nextId: state.nextId,
+      zIndex: (Number(zCounter) || 1) + 1,
+      targetPage,
+      gridPlacement,
+      pageLocalIndex,
+      colSpan: pending.colSpan,
+      rowSpan: pending.rowSpan,
+      defaultPadding
+    },
+    {
+      normalizeText,
+      isHeadlessDefaultType,
+      isHeadlessTransparentDefaultType,
+      defaultWidgetBackdropBlur,
+      defaultWidgetTitleAlign,
+      defaultWidgetContentAlign,
+      normalizeCommonOverrides,
+      normalizeGridLayout,
+      cloneLayout
+    }
+  );
+  if (!instance) {
+    return false;
+  }
+
+  instance.commonOverrides = inferCommonOverrides(instance, state?.ui?.widgetCommonMaster) || {};
+  applyWidgetCommonMaster(instance, state?.ui?.widgetCommonMaster, false);
+  applyWidgetDraftToInstanceCore(
+    instance,
+    draft,
+    {
+      defTitle: def.title,
+      pageCount: currentLauncherPageCount(),
+      previousPage: targetPage
+    },
+    {
+      normalizeText,
+      normalizeSurfaceMode,
+      normalizeTransparentGhostStrength,
+      normalizeEdgeRoundness,
+      normalizeTransparency,
+      normalizeTitleAlign,
+      defaultWidgetTitleAlign,
+      normalizeAlign,
+      defaultWidgetContentAlign,
+      resolveDirectionalPaddingFromDraft,
+      widgetPaddingFallback,
+      normalizeContentPadding,
+      normalizeWidgetContentFontScale,
+      normalizeWidgetThemeMode,
+      normalizeWidgetColor,
+      normalizeWidgetPage,
+      cloneLayout
+    }
+  );
+
+  normalizeContainerWidgetDraftConfigCore(instance, {
+    normalizeContainerExpandedCols,
+    normalizeContainerExpandedRows,
+    enforceContainerWidgetSize
+  });
+
+  if (!isGridLayoutMode()) {
+    applyFreeLayoutPlacement(
+      instance,
+      {
+        pageLocalIndex,
+        colSpan: pending.colSpan,
+        rowSpan: pending.rowSpan,
+        defaultSize,
+        boardRect: elements.board.getBoundingClientRect()
+      },
+      { clamp }
+    );
+  }
+
+  if (type === "container") {
+    enforceContainerWidgetSize(instance);
+  }
+
+  recordHistorySnapshot("Add widget");
+  state.nextId += 1;
+  zCounter = normalizeRawContentZIndex(instance.zIndex);
+  state.instances.push(instance);
+  createWidgetCard(instance);
+
+  if (isGridLayoutMode()) {
+    applyGridLayout({ commitFreeLayout: false, shouldSave: false });
+  }
+
+  setSelected(instance.id);
+  if (state?.ui?.home) {
+    state.ui.home.activePage = instance.page;
+  }
+  updateBoardBounds();
+  queueSave();
+  resetPendingWidgetAddState();
+  return true;
+}
+
+function applyAddWidgetModal() {
+  resetPendingWidgetAddState();
+  return applyAddWidgetModalAction(
+    {
+      type: elements.widgetTypeSelect?.value,
+      titleInputValue: elements.addWidgetTitleInput?.value
+    },
+    {
+      widgetRegistry,
+      widgetDefaultGridSize,
+      normalizeText,
+      addWidget: startPendingWidgetAdd,
+      closeAddWidgetModal
+    }
+  );
 }
 
 function syncLauncherPagingState({ expandToFitInstances = true } = {}) {
@@ -4427,7 +4662,7 @@ const widgetModalRuntime = createWidgetModalRuntime({
   renderDockWidgets,
   updateBoardBounds,
   queueSave,
-  removeWidget,
+  commitPendingWidgetAdd,
   documentObj: document
 });
 
@@ -4447,8 +4682,8 @@ function renderWidgetModal() {
   return widgetModalRuntime.renderWidgetModal();
 }
 
-function openWidgetModal(instanceId) {
-  return widgetModalRuntime.openWidgetModal(instanceId);
+function openWidgetModal(instanceId, options = {}) {
+  return widgetModalRuntime.openWidgetModal(instanceId, options);
 }
 
 function applyWidgetModal() {
