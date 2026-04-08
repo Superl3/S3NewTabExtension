@@ -20,6 +20,7 @@ test("wireAppEvents delegates to all wire modules", () => {
   const overlaysSpy = createSpy();
   const guardsSpy = createSpy();
   const keydownSpy = createSpy();
+  const commitPendingEditableState = () => {};
   const onBoardWheelNavigate = () => {};
 
   wireAppEvents({
@@ -75,6 +76,7 @@ test("wireAppEvents delegates to all wire modules", () => {
     applyEditDockPosition: () => {},
     syncPersistentDock: () => {},
     flushPendingSave: () => {},
+    commitPendingEditableState,
     modalState: {},
     getLastDragEndAt: () => 0,
     closeWidgetModal: () => {},
@@ -119,4 +121,5 @@ test("wireAppEvents delegates to all wire modules", () => {
   assert.equal(guardsSpy.calls.length, 1);
   assert.equal(keydownSpy.calls.length, 1);
   assert.equal(dockSpy.calls[0][0].onBoardWheelNavigate, onBoardWheelNavigate);
+  assert.equal(keydownSpy.calls[0][0].commitPendingEditableState, commitPendingEditableState);
 });
