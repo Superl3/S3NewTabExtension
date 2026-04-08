@@ -6,7 +6,8 @@ export function wireWindowLifecycleEvents({
   applyEditDockPosition,
   updateBoardBounds,
   syncPersistentDock,
-  flushPendingSave
+  flushPendingSave,
+  commitPendingEditableState
 } = {}) {
   if (!elements || !documentObj || !windowObj) {
     return;
@@ -24,6 +25,7 @@ export function wireWindowLifecycleEvents({
   });
 
   const flushStateOnLifecycleEvent = () => {
+    commitPendingEditableState?.(documentObj);
     flushPendingSave?.({ allowWithoutUserMutation: true });
   };
 

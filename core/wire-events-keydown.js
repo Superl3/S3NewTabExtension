@@ -38,6 +38,7 @@ export function wireKeydownEvents({
   isInsideModalOverlay,
   applyWidgetModal,
   closeWidgetModal,
+  commitPendingEditableState,
   isHtmlInputElement = defaultIsHtmlInputElement,
   isHtmlSelectElement = defaultIsHtmlSelectElement,
   isHtmlElement = defaultIsHtmlElement
@@ -203,6 +204,7 @@ export function wireKeydownEvents({
         (isHtmlInputElement(event.target) && event.target.type !== "checkbox"))
     ) {
       event.preventDefault();
+      commitPendingEditableState?.(event.target);
       applyAndClose(applyWidgetModal, () => {
         closeWidgetModal?.(false);
       });

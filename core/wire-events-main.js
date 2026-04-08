@@ -230,6 +230,7 @@ export function wireAppEvents({
     isInsideModalOverlay,
     applyWidgetModal,
     closeWidgetModal,
+    commitPendingEditableState,
     isHtmlInputElement,
     isHtmlSelectElement,
     isHtmlElement

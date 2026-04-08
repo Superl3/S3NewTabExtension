@@ -131,3 +131,47 @@ test("createDockSettingsRuntime applies patch after closing modal", () => {
   ]);
   assert.deepEqual(locks, [false]);
 });
+
+test("createDockSettingsRuntime commits pending edits before reading draft", () => {
+  let open = true;
+  const dockModalState = {
+    draft: {
+      dockShape: "raised",
+      dockVisibility: "fixed",
+      dockLength: 7,
+      dockSize: 48
+    }
+  };
+  const patches = [];
+  const runtime = createDockSettingsRuntime({
+    state: { mode: "edit", ui: { home: {} } },
+    elements: {
+      dockSettingsModalOverlay: createOverlay(),
+      dockSettingsModalBody: { replaceChildren() {}, append() {} }
+    },
+    dockModalState,
+    isOpen: () => open,
+    setOpen: (value) => {
+      open = value;
+    },
+    modalState: { open: false },
+    getAddWidgetModalOpen: () => false,
+    shortcutIconEditorState: { open: false },
+    widgetTitleRenameState: { open: false },
+    normalizeDockShape: (value) => value,
+    normalizeDockVisibility: (value) => value,
+    normalizeDockLength: (value) => value,
+    normalizeDockSize: (value) => value,
+    patchHomeLayout: (patch) => patches.push(patch),
+    setModalInteractionLock: () => {},
+    blurFocusedElementInOverlay: () => {},
+    syncPersistentDock: () => {},
+    commitPendingEditableState: (_root, options) => {
+      assert.deepEqual(options, { includeDescendants: true });
+      dockModalState.draft.dockLength = 11;
+    }
+  });
+
+  assert.equal(runtime.applyDockSettingsModal(), true);
+  assert.equal(patches[0].dockLength, 11);
+});

@@ -70,11 +70,16 @@ test("wireWindowLifecycleEvents flushes on hidden/pagehide/beforeunload", () => 
   const windowObj = createEventHub();
   const documentObj = createEventHub({ visibilityState: "visible" });
   let flushCount = 0;
+  let commitCount = 0;
 
   wireWindowLifecycleEvents({
     elements: {},
     documentObj,
     windowObj,
+    commitPendingEditableState: (root) => {
+      assert.equal(root, documentObj);
+      commitCount += 1;
+    },
     flushPendingSave: () => {
       flushCount += 1;
     }
@@ -90,6 +95,7 @@ test("wireWindowLifecycleEvents flushes on hidden/pagehide/beforeunload", () => 
   windowObj.emit("beforeunload");
 
   assert.equal(flushCount, 3);
+  assert.equal(commitCount, 3);
 });
 
 test("wireWindowLifecycleEvents closes context on blur", () => {

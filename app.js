@@ -174,6 +174,9 @@ import {
   createDockSettingsRuntime
 } from "./core/modal/dock-settings-runtime.js";
 import {
+  commitPendingEditableState
+} from "./core/pending-edit-commit.js";
+import {
   createWidgetTitleRenameRuntime
 } from "./core/modal/widget-title-rename-runtime.js";
 import {
@@ -1891,7 +1894,8 @@ const dockSettingsRuntime = createDockSettingsRuntime({
   createInputBySchema,
   settingsEventName,
   readFieldValue,
-  requestAnimationFrameFn: requestAnimationFrame
+  requestAnimationFrameFn: requestAnimationFrame,
+  commitPendingEditableState
 });
 
 const widgetTitleRenameRuntime = createWidgetTitleRenameRuntime({
@@ -4663,6 +4667,7 @@ const widgetModalRuntime = createWidgetModalRuntime({
   updateBoardBounds,
   queueSave,
   commitPendingWidgetAdd,
+  commitPendingEditableState,
   documentObj: document
 });
 
@@ -4922,6 +4927,7 @@ function wireEvents() {
     applyEditDockPosition,
     syncPersistentDock,
     flushPendingSave,
+    commitPendingEditableState,
     modalState,
     getLastDragEndAt: () => lastDragEndAt,
     closeWidgetModal,
@@ -4948,6 +4954,7 @@ function wireEvents() {
     isInsideAddWidgetModalOverlay,
     isInsideDockSettingsModalOverlay,
     isInsideModalOverlay,
+    commitPendingEditableState,
     isHtmlInputElement: (value) => value instanceof HTMLInputElement,
     isHtmlSelectElement: (value) => value instanceof HTMLSelectElement,
     isHtmlElement: (value) => value instanceof HTMLElement,
