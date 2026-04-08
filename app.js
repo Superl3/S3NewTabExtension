@@ -6504,7 +6504,7 @@ function createWidgetCard(instance) {
     }
   }
 
-  if (instance.type === "githubPrList") {
+  if (instance.type === "githubPrList" || instance.type === "githubReviewInbox") {
     const makeActionButton = (className, titleText, iconId, action) => {
       const btn = document.createElement("button");
       btn.type = "button";
@@ -6550,7 +6550,7 @@ function createWidgetCard(instance) {
     ) {
       const headRefresh = makeActionButton(
         "icon-btn widget-refresh-btn",
-        "Refresh pull requests",
+        instance.type === "githubReviewInbox" ? "Refresh review inbox" : "Refresh pull requests",
         "i-reset",
         runRefresh
       );
@@ -6558,7 +6558,7 @@ function createWidgetCard(instance) {
 
       const floatRefresh = makeActionButton(
         "icon-btn widget-float-refresh",
-        "Refresh pull requests",
+        instance.type === "githubReviewInbox" ? "Refresh review inbox" : "Refresh pull requests",
         "i-reset",
         runRefresh
       );
@@ -6568,7 +6568,7 @@ function createWidgetCard(instance) {
     if (typeof controller?.openRepository === "function") {
       const headOpen = makeActionButton(
         "icon-btn widget-open-btn",
-        "Open repository",
+        instance.type === "githubReviewInbox" ? "Open repository pull requests" : "Open repository",
         "i-open",
         runOpenRepository
       );
@@ -6576,7 +6576,7 @@ function createWidgetCard(instance) {
 
       const floatOpen = makeActionButton(
         "icon-btn widget-float-open",
-        "Open repository",
+        instance.type === "githubReviewInbox" ? "Open repository pull requests" : "Open repository",
         "i-open",
         runOpenRepository
       );
