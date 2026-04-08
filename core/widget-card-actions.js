@@ -304,7 +304,7 @@ export function attachWidgetTypeActions({
     }
   }
 
-  if (instance.type === "githubPrList") {
+  if (instance.type === "githubPrList" || instance.type === "githubReviewInbox") {
     const makeActionButton = (className, titleText, iconId, action) => {
       const btn = document.createElement("button");
       btn.type = "button";
@@ -350,7 +350,7 @@ export function attachWidgetTypeActions({
     ) {
       const headRefresh = makeActionButton(
         "icon-btn widget-refresh-btn",
-        "Refresh pull requests",
+        instance.type === "githubReviewInbox" ? "Refresh review inbox" : "Refresh pull requests",
         "i-reset",
         runRefresh
       );
@@ -358,7 +358,7 @@ export function attachWidgetTypeActions({
 
       const floatRefresh = makeActionButton(
         "icon-btn widget-float-refresh",
-        "Refresh pull requests",
+        instance.type === "githubReviewInbox" ? "Refresh review inbox" : "Refresh pull requests",
         "i-reset",
         runRefresh
       );
@@ -368,7 +368,7 @@ export function attachWidgetTypeActions({
     if (typeof controller?.openRepository === "function") {
       const headOpen = makeActionButton(
         "icon-btn widget-open-btn",
-        "Open repository",
+        instance.type === "githubReviewInbox" ? "Open repository pull requests" : "Open repository",
         "i-open",
         runOpenRepository
       );
@@ -376,7 +376,7 @@ export function attachWidgetTypeActions({
 
       const floatOpen = makeActionButton(
         "icon-btn widget-float-open",
-        "Open repository",
+        instance.type === "githubReviewInbox" ? "Open repository pull requests" : "Open repository",
         "i-open",
         runOpenRepository
       );

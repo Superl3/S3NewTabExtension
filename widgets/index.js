@@ -13,6 +13,7 @@ import { mondayAssignedWidget } from "./mondayAssigned.js";
 import { mondayMeetingNoteWidget } from "./mondayMeetingNote.js";
 import { githubPrListWidget } from "./githubPrList.js";
 import { flexWorktimeWidget } from "./flexWorktime.js";
+import { githubReviewInboxWidget } from "./githubReviewInbox.js";
 import { weatherWidget } from "./weather.js";
 import { containerWidget } from "./container.js";
 import { codexUsageWidget } from "./codexUsage.js";
@@ -32,6 +33,8 @@ export const widgetRegistry = {
   [mondayAssignedWidget.type]: mondayAssignedWidget,
   [mondayMeetingNoteWidget.type]: mondayMeetingNoteWidget,
   [githubPrListWidget.type]: githubPrListWidget,
+  [flexWorktimeWidget.type]: flexWorktimeWidget,
+  [githubReviewInboxWidget.type]: githubReviewInboxWidget,
   [flexWorktimeWidget.type]: flexWorktimeWidget,
   [weatherWidget.type]: weatherWidget,
   [containerWidget.type]: containerWidget,

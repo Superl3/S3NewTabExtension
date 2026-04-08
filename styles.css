@@ -3177,6 +3177,16 @@ body.mode-edit .widget-float-remove:hover {
   min-height: 100%;
 }
 
+.github-review-inbox-warning {
+  margin: 0;
+  color: color-mix(in srgb, var(--warn), var(--text) 22%);
+  font-size: 0.8em;
+}
+
+.github-review-inbox-warning[hidden] {
+  display: none;
+}
+
 .github-pr-widget-shell {
   min-height: 100%;
   display: flex;
@@ -3306,6 +3316,12 @@ body.mode-edit .widget-float-remove:hover {
 .github-pr-badge.is-draft {
   border-color: color-mix(in srgb, var(--warn), var(--line) 44%);
   color: color-mix(in srgb, var(--warn), var(--text) 24%);
+}
+
+.github-pr-badge.is-reason {
+  border-color: color-mix(in srgb, var(--accent), var(--line) 40%);
+  color: color-mix(in srgb, var(--accent), var(--text) 28%);
+  background: color-mix(in srgb, var(--accent), transparent 92%);
 }
 
 .github-pr-badge.is-branch,
