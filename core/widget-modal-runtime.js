@@ -1,5 +1,6 @@
 export function createWidgetModalRuntime({
   modalState,
+  pendingWidgetAddState,
   widgetTitleRenameState,
   shortcutIconEditorState,
   elements,
@@ -52,11 +53,13 @@ export function createWidgetModalRuntime({
   applyLayout,
   applyCardVisual,
   refreshWidgetsByType,
+  refreshAllWidgets,
   isWidgetInContainer,
   isWidgetDocked,
   renderDockWidgets,
   updateBoardBounds,
   queueSave,
+  removeWidget,
   documentObj = typeof document !== "undefined" ? document : null
 } = {}) {
   const isHTMLElement = (value) => {
@@ -253,7 +256,6 @@ export function createWidgetModalRuntime({
   };
 
   const closeWidgetModal = (rerender = true, options = {}) => {
-    void options;
     if (!modalState.open) {
       return false;
     }
@@ -261,11 +263,25 @@ export function createWidgetModalRuntime({
       closeShortcutIconEditor?.();
     }
 
+    const shouldDiscardPendingWidget =
+      options?.preservePendingWidget !== true &&
+      pendingWidgetAddState?.widgetId &&
+      pendingWidgetAddState.widgetId === modalState.widgetId;
+    const pendingWidgetId = shouldDiscardPendingWidget ? pendingWidgetAddState.widgetId : "";
+
     resetModalState();
 
     setModalInteractionLock?.(false);
     blurFocusedElementInOverlay?.(elements?.widgetModalOverlay);
     clearWidgetModalView();
+
+    if (pendingWidgetAddState?.widgetId === pendingWidgetId) {
+      pendingWidgetAddState.widgetId = "";
+    }
+
+    if (pendingWidgetId) {
+      removeWidget?.(pendingWidgetId);
+    }
 
     if (rerender) {
       renderSettings?.();
@@ -420,9 +436,14 @@ export function createWidgetModalRuntime({
       renderDockWidgets
     });
 
+    refreshAllWidgets?.();
+
     updateBoardBounds?.();
     queueSave?.();
-    closeWidgetModal(true);
+    if (pendingWidgetAddState?.widgetId === instance.id) {
+      pendingWidgetAddState.widgetId = "";
+    }
+    closeWidgetModal(true, { preservePendingWidget: true });
     return true;
   };
 

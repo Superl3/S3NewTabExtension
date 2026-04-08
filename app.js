@@ -509,6 +509,10 @@ const modalState = {
   activeTab: "widget"
 };
 
+const pendingWidgetAddState = {
+  widgetId: ""
+};
+
 const widgetTitleRenameState = {
   open: false,
   widgetId: ""
@@ -2615,14 +2619,22 @@ function applyAddWidgetModal() {
   const colSpan = type === "container" ? 1 : defaultSize.colSpan;
   const rowSpan = type === "container" ? 1 : defaultSize.rowSpan;
   const title = normalizeText(elements.addWidgetTitleInput?.value, def.title);
+  let addedWidgetId = "";
 
   const added = addWidget(type, {
     colSpan,
     rowSpan,
-    title
+    title,
+    onWidgetAdded: (instance) => {
+      addedWidgetId = instance?.id || "";
+    }
   });
   if (added) {
+    pendingWidgetAddState.widgetId = addedWidgetId;
     closeAddWidgetModal();
+    if (addedWidgetId) {
+      openWidgetModal(addedWidgetId);
+    }
   }
   return Boolean(added);
 }
@@ -4356,6 +4368,7 @@ function renderWidgetModalFields(fields) {
 
 const widgetModalRuntime = createWidgetModalRuntime({
   modalState,
+  pendingWidgetAddState,
   widgetTitleRenameState,
   shortcutIconEditorState,
   elements,
@@ -4408,11 +4421,13 @@ const widgetModalRuntime = createWidgetModalRuntime({
   applyLayout,
   applyCardVisual,
   refreshWidgetsByType,
+  refreshAllWidgets,
   isWidgetInContainer,
   isWidgetDocked,
   renderDockWidgets,
   updateBoardBounds,
   queueSave,
+  removeWidget,
   documentObj: document
 });
 
@@ -4530,7 +4545,8 @@ function addWidget(type, options = {}) {
     applyGridLayout,
     setSelected,
     updateBoardBounds,
-    queueSave
+    queueSave,
+    onWidgetAdded: options.onWidgetAdded
   });
 }
 

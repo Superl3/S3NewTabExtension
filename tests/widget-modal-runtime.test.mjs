@@ -67,6 +67,7 @@ function createRuntime(overrides = {}) {
 
   const runtime = createWidgetModalRuntime({
     modalState,
+    pendingWidgetAddState: { widgetId: "" },
     widgetTitleRenameState: { open: false },
     shortcutIconEditorState: { open: false },
     elements,
@@ -121,7 +122,9 @@ function createRuntime(overrides = {}) {
     applyLayout: () => {},
     applyCardVisual: () => {},
     refreshWidgetsByType: () => {},
+    refreshAllWidgets: () => {},
     isWidgetInContainer: () => false,
+    removeWidget: () => {},
     updateBoardBounds: () => {},
     queueSave: () => {},
     documentObj: {
@@ -240,6 +243,9 @@ test("widget modal runtime apply preserves runtime update order before close", (
     refreshWidgetRuntimeAfterModalApply: () => {
       calls.push("refreshWidgetRuntimeAfterModalApply");
     },
+    refreshAllWidgets: () => {
+      calls.push("refreshAllWidgets");
+    },
     updateBoardBounds: () => {
       calls.push("updateBoardBounds");
     },
@@ -256,10 +262,43 @@ test("widget modal runtime apply preserves runtime update order before close", (
     "normalizeContainerWidgetDraftConfig",
     "syncWidgetStateAfterModalApply",
     "refreshWidgetRuntimeAfterModalApply",
+    "refreshAllWidgets",
     "updateBoardBounds",
     "queueSave"
   ]);
   assert.equal(modalState.open, false);
+});
+
+test("widget modal runtime removes pending added widget when dismissed without apply", () => {
+  const removed = [];
+  const pendingWidgetAddState = { widgetId: "w1" };
+  const { runtime, modalState } = createRuntime({
+    pendingWidgetAddState,
+    removeWidget: (widgetId) => {
+      removed.push(widgetId);
+    }
+  });
+
+  runtime.closeWidgetModal(false);
+
+  assert.equal(modalState.open, false);
+  assert.equal(pendingWidgetAddState.widgetId, "");
+  assert.deepEqual(removed, ["w1"]);
+});
+
+test("widget modal runtime preserves pending added widget after apply", () => {
+  const removed = [];
+  const pendingWidgetAddState = { widgetId: "w1" };
+  const { runtime } = createRuntime({
+    pendingWidgetAddState,
+    removeWidget: (widgetId) => {
+      removed.push(widgetId);
+    }
+  });
+
+  assert.equal(runtime.applyWidgetModal(), true);
+  assert.equal(pendingWidgetAddState.widgetId, "");
+  assert.deepEqual(removed, []);
 });
 
 test("widget modal runtime uses safe fallback definition when registry entry is missing", () => {
