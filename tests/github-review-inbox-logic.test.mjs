@@ -137,6 +137,23 @@ test("deriveLatestOtherActivityAt ignores self comments and self commits on own 
   assert.equal(latest, 0);
 });
 
+test("buildReviewCandidate excludes own PRs with no other-user activity and no self participation", () => {
+  const candidate = buildReviewCandidate({
+    githubLogin: "bug95",
+    pullRequest: {
+      user: { login: "bug95" },
+      updated_at: "2026-04-09T12:00:00Z"
+    },
+    commits: [],
+    reviews: [],
+    issueComments: [],
+    reviewComments: []
+  });
+
+  assert.equal(candidate.included, false);
+  assert.equal(candidate.reason, "OWN_PR_NO_OTHER_ACTIVITY");
+});
+
 test("buildReviewCandidate excludes own PRs when only self activity happened", () => {
   const candidate = buildReviewCandidate({
     githubLogin: "bug95",
@@ -157,7 +174,7 @@ test("buildReviewCandidate excludes own PRs when only self activity happened", (
   });
 
   assert.equal(candidate.included, false);
-  assert.equal(candidate.reason, "REVIEWED_NO_NEW_UPDATES");
+  assert.equal(candidate.reason, "OWN_PR_NO_OTHER_ACTIVITY");
 });
 
 test("buildReviewCandidate includes own PRs when others act after user participation", () => {
