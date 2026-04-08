@@ -67,7 +67,17 @@ function createRuntime(overrides = {}) {
 
   const runtime = createWidgetModalRuntime({
     modalState,
-    pendingWidgetAddState: { widgetId: "" },
+    pendingWidgetAddState: {
+      open: false,
+      widgetId: "",
+      instance: null,
+      pageCount: 1,
+      placeholderPage: null,
+      type: "",
+      colSpan: 1,
+      rowSpan: 1,
+      title: ""
+    },
     widgetTitleRenameState: { open: false },
     shortcutIconEditorState: { open: false },
     elements,
@@ -124,7 +134,7 @@ function createRuntime(overrides = {}) {
     refreshWidgetsByType: () => {},
     refreshAllWidgets: () => {},
     isWidgetInContainer: () => false,
-    removeWidget: () => {},
+    commitPendingWidgetAdd: () => true,
     updateBoardBounds: () => {},
     queueSave: () => {},
     documentObj: {
@@ -269,36 +279,100 @@ test("widget modal runtime apply preserves runtime update order before close", (
   assert.equal(modalState.open, false);
 });
 
-test("widget modal runtime removes pending added widget when dismissed without apply", () => {
-  const removed = [];
-  const pendingWidgetAddState = { widgetId: "w1" };
+test("widget modal runtime clears pending add draft when dismissed without apply", () => {
+  const pendingWidgetAddState = {
+    open: true,
+    widgetId: "w1",
+    instance: { id: "w1", type: "note", page: 0 },
+    pageCount: 3,
+    placeholderPage: null,
+    type: "note",
+    colSpan: 2,
+    rowSpan: 2,
+    title: "Note"
+  };
   const { runtime, modalState } = createRuntime({
-    pendingWidgetAddState,
-    removeWidget: (widgetId) => {
-      removed.push(widgetId);
-    }
+    pendingWidgetAddState
   });
 
   runtime.closeWidgetModal(false);
 
   assert.equal(modalState.open, false);
+  assert.equal(pendingWidgetAddState.open, false);
   assert.equal(pendingWidgetAddState.widgetId, "");
-  assert.deepEqual(removed, ["w1"]);
+  assert.equal(pendingWidgetAddState.instance, null);
 });
 
-test("widget modal runtime preserves pending added widget after apply", () => {
-  const removed = [];
-  const pendingWidgetAddState = { widgetId: "w1" };
+test("widget modal runtime commits pending add on apply without existing widget instance", () => {
+  const calls = [];
+  const pendingWidgetAddState = {
+    open: true,
+    widgetId: "w1",
+    instance: { id: "w1", type: "note", title: "Note", page: 0 },
+    pageCount: 4,
+    placeholderPage: 3,
+    type: "note",
+    colSpan: 2,
+    rowSpan: 2,
+    title: "Note"
+  };
   const { runtime } = createRuntime({
     pendingWidgetAddState,
-    removeWidget: (widgetId) => {
-      removed.push(widgetId);
+    instanceById: () => null,
+    commitPendingWidgetAdd: (draft, pending) => {
+      calls.push({ draft, pending: { ...pending } });
+      return true;
     }
   });
 
   assert.equal(runtime.applyWidgetModal(), true);
+  assert.equal(pendingWidgetAddState.open, false);
   assert.equal(pendingWidgetAddState.widgetId, "");
-  assert.deepEqual(removed, []);
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].pending.placeholderPage, 3);
+});
+
+test("widget modal runtime opens pending add settings from provided draft instance", () => {
+  const pendingWidgetAddState = {
+    open: false,
+    widgetId: "",
+    instance: null,
+    pageCount: 1,
+    placeholderPage: null,
+    type: "",
+    colSpan: 1,
+    rowSpan: 1,
+    title: ""
+  };
+  const { runtime, modalState } = createRuntime({
+    pendingWidgetAddState,
+    instanceById: () => null,
+    buildWidgetModalDraft: (instance, options) => ({
+      title: instance.title,
+      page: options.pageCount,
+      layout: {},
+      config: {}
+    })
+  });
+
+  runtime.openWidgetModal("pending-note", {
+    pendingAdd: {
+      instance: { id: "pending-note", type: "note", title: "Pending Note", page: 0 },
+      pageCount: 4,
+      placeholderPage: 3,
+      type: "note",
+      colSpan: 2,
+      rowSpan: 2,
+      title: "Pending Note"
+    }
+  });
+
+  assert.equal(modalState.open, true);
+  assert.equal(modalState.widgetId, "pending-note");
+  assert.equal(modalState.draft.title, "Pending Note");
+  assert.equal(modalState.draft.page, 4);
+  assert.equal(pendingWidgetAddState.open, true);
+  assert.equal(pendingWidgetAddState.widgetId, "pending-note");
 });
 
 test("widget modal runtime uses safe fallback definition when registry entry is missing", () => {

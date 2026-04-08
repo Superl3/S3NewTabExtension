@@ -59,7 +59,7 @@ export function createWidgetModalRuntime({
   renderDockWidgets,
   updateBoardBounds,
   queueSave,
-  removeWidget,
+  commitPendingWidgetAdd,
   documentObj = typeof document !== "undefined" ? document : null
 } = {}) {
   const isHTMLElement = (value) => {
@@ -69,11 +69,36 @@ export function createWidgetModalRuntime({
     return Boolean(value && typeof value === "object");
   };
 
+  const resetPendingWidgetAddState = () => {
+    if (!pendingWidgetAddState) {
+      return;
+    }
+    pendingWidgetAddState.open = false;
+    pendingWidgetAddState.widgetId = "";
+    pendingWidgetAddState.instance = null;
+    pendingWidgetAddState.pageCount = 1;
+    pendingWidgetAddState.placeholderPage = null;
+    pendingWidgetAddState.type = "";
+    pendingWidgetAddState.colSpan = 1;
+    pendingWidgetAddState.rowSpan = 1;
+    pendingWidgetAddState.title = "";
+  };
+
+  const resolvePendingWidgetAdd = () => {
+    if (!pendingWidgetAddState?.open || !modalState.widgetId) {
+      return null;
+    }
+    if (pendingWidgetAddState.widgetId !== modalState.widgetId) {
+      return null;
+    }
+    return pendingWidgetAddState;
+  };
+
   const resolveModalInstance = () => {
     if (!modalState.widgetId) {
       return null;
     }
-    return instanceById?.(modalState.widgetId) || null;
+    return resolvePendingWidgetAdd()?.instance || instanceById?.(modalState.widgetId) || null;
   };
 
   const resolveWidgetDefinition = (instance) => {
@@ -263,11 +288,10 @@ export function createWidgetModalRuntime({
       closeShortcutIconEditor?.();
     }
 
-    const shouldDiscardPendingWidget =
+    const shouldResetPendingWidget =
       options?.preservePendingWidget !== true &&
       pendingWidgetAddState?.widgetId &&
       pendingWidgetAddState.widgetId === modalState.widgetId;
-    const pendingWidgetId = shouldDiscardPendingWidget ? pendingWidgetAddState.widgetId : "";
 
     resetModalState();
 
@@ -275,12 +299,8 @@ export function createWidgetModalRuntime({
     blurFocusedElementInOverlay?.(elements?.widgetModalOverlay);
     clearWidgetModalView();
 
-    if (pendingWidgetAddState?.widgetId === pendingWidgetId) {
-      pendingWidgetAddState.widgetId = "";
-    }
-
-    if (pendingWidgetId) {
-      removeWidget?.(pendingWidgetId);
+    if (shouldResetPendingWidget) {
+      resetPendingWidgetAddState();
     }
 
     if (rerender) {
@@ -328,8 +348,9 @@ export function createWidgetModalRuntime({
     }
   };
 
-  const openWidgetModal = (instanceId, _options = {}) => {
-    const instance = instanceById?.(instanceId);
+  const openWidgetModal = (instanceId, options = {}) => {
+    const pendingAdd = options?.pendingAdd;
+    const instance = pendingAdd?.instance || instanceById?.(instanceId);
     if (!instance) {
       return;
     }
@@ -338,12 +359,26 @@ export function createWidgetModalRuntime({
       closeWidgetTitleRenameModal?.();
     }
 
+    if (pendingAdd) {
+      pendingWidgetAddState.open = true;
+      pendingWidgetAddState.widgetId = instance.id;
+      pendingWidgetAddState.instance = pendingAdd.instance;
+      pendingWidgetAddState.pageCount = pendingAdd.pageCount || currentLauncherPageCount?.() || 1;
+      pendingWidgetAddState.placeholderPage = pendingAdd.placeholderPage ?? null;
+      pendingWidgetAddState.type = pendingAdd.type || instance.type || "";
+      pendingWidgetAddState.colSpan = pendingAdd.colSpan || 1;
+      pendingWidgetAddState.rowSpan = pendingAdd.rowSpan || 1;
+      pendingWidgetAddState.title = pendingAdd.title || instance.title || "";
+    } else if (resolvePendingWidgetAdd()) {
+      resetPendingWidgetAddState();
+    }
+
     modalState.open = true;
     modalState.widgetId = instance.id;
     modalState.activeTab = "widget";
     modalState.draft = buildWidgetModalDraft?.(
       instance,
-      { pageCount: currentLauncherPageCount?.() },
+      { pageCount: pendingAdd?.pageCount || currentLauncherPageCount?.() },
       {
         resolveWidgetPadding,
         normalizeWidgetPage,
@@ -374,6 +409,17 @@ export function createWidgetModalRuntime({
     if (!instance) {
       closeWidgetModal(false);
       return false;
+    }
+
+    const pendingAdd = resolvePendingWidgetAdd();
+
+    if (pendingAdd) {
+      const added = commitPendingWidgetAdd?.(modalState.draft, pendingAdd) === true;
+      if (added) {
+        resetPendingWidgetAddState();
+        closeWidgetModal(true, { preservePendingWidget: true });
+      }
+      return added;
     }
 
     const def = resolveWidgetDefinition(instance);
@@ -440,9 +486,6 @@ export function createWidgetModalRuntime({
 
     updateBoardBounds?.();
     queueSave?.();
-    if (pendingWidgetAddState?.widgetId === instance.id) {
-      pendingWidgetAddState.widgetId = "";
-    }
     closeWidgetModal(true, { preservePendingWidget: true });
     return true;
   };
