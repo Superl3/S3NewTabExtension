@@ -7,6 +7,10 @@ const REVIEW_REASON_META = {
     label: "Activity from others",
     included: true
   },
+  OWN_PR_NO_OTHER_ACTIVITY: {
+    label: "No other-user activity",
+    included: false
+  },
   UPDATED_AFTER_YOUR_REVIEW: {
     label: "Updated after your review",
     included: true
@@ -240,13 +244,23 @@ export function buildReviewCandidate({
     latestApprovalAt: participation.latestApprovalAt
   });
 
-  const classification = isOwnPullRequest && latestCodeUpdateAt > 0 && !participation.hasParticipation
-    ? {
+  let classification = baseClassification;
+
+  if (isOwnPullRequest) {
+    if (latestCodeUpdateAt <= 0) {
+      classification = {
+        reason: "OWN_PR_NO_OTHER_ACTIVITY",
+        label: REVIEW_REASON_META.OWN_PR_NO_OTHER_ACTIVITY.label,
+        included: false
+      };
+    } else if (!participation.hasParticipation) {
+      classification = {
         reason: "OTHER_ACTIVITY_ON_YOUR_PR",
         label: REVIEW_REASON_META.OTHER_ACTIVITY_ON_YOUR_PR.label,
         included: true
-      }
-    : baseClassification;
+      };
+    }
+  }
 
   return {
     isOwnPullRequest,
