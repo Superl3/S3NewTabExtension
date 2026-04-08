@@ -468,12 +468,18 @@ test("wireKeydownEvents applies and closes widget settings modal on enter input"
   const windowObj = createWindowHub();
   let applied = 0;
   const closed = [];
+  const calls = [];
+  const target = { kind: "input", type: "text" };
 
   wireKeydownEvents({
     windowObj,
     ...createBaseDeps(),
     modalState: { open: true },
+    commitPendingEditableState: (field) => {
+      calls.push(["commitPendingEditableState", field]);
+    },
     applyWidgetModal: () => {
+      calls.push(["applyWidgetModal"]);
       applied += 1;
     },
     isInsideModalOverlay: () => true,
@@ -482,11 +488,12 @@ test("wireKeydownEvents applies and closes widget settings modal on enter input"
     }
   });
 
-  const event = createKeyEvent({ key: "Enter", target: { kind: "input" } });
+  const event = createKeyEvent({ key: "Enter", target });
   windowObj.emit("keydown", event);
 
   assert.equal(applied, 1);
   assert.deepEqual(closed, [false]);
+  assert.deepEqual(calls, [["commitPendingEditableState", target], ["applyWidgetModal"]]);
   assert.equal(event.prevented, true);
 });
 

@@ -60,6 +60,7 @@ export function createWidgetModalRuntime({
   updateBoardBounds,
   queueSave,
   commitPendingWidgetAdd,
+  commitPendingEditableState,
   documentObj = typeof document !== "undefined" ? document : null
 } = {}) {
   const isHTMLElement = (value) => {
@@ -404,6 +405,8 @@ export function createWidgetModalRuntime({
     if (!modalState.open || !modalState.widgetId || !modalState.draft) {
       return false;
     }
+
+    commitPendingEditableState?.(elements?.widgetModalBody, { includeDescendants: true });
 
     const instance = resolveModalInstance();
     if (!instance) {

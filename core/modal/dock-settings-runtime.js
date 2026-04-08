@@ -27,7 +27,8 @@ export function createDockSettingsRuntime({
   createInputBySchema,
   settingsEventName,
   readFieldValue,
-  requestAnimationFrameFn
+  requestAnimationFrameFn,
+  commitPendingEditableState
 } = {}) {
   function dockSettingsFields() {
     return [
@@ -167,6 +168,8 @@ export function createDockSettingsRuntime({
     if (!isOpen?.() || !dockModalState?.draft) {
       return false;
     }
+
+    commitPendingEditableState?.(elements?.dockSettingsModalBody, { includeDescendants: true });
 
     const patch = {
       dockShape: normalizeDockShape?.(dockModalState.draft.dockShape, "raised"),

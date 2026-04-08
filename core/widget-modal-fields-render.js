@@ -2,6 +2,15 @@ export function shouldRerenderOnModalFieldChange(field = {}) {
   return field.key === "useCustomColors";
 }
 
+export function shouldSyncModalFieldOnInput(field = {}) {
+  return !(
+    field.type === "checkbox" ||
+    field.type === "select" ||
+    field.type === "bookmark-folder-select" ||
+    field.type === "color"
+  );
+}
+
 export function renderWidgetModalFieldsView({
   fields = [],
   currentType = "",
@@ -64,12 +73,16 @@ export function renderWidgetModalFieldsView({
     }
 
     const input = createInputBySchema(field, modalFieldValue(field));
-    input.addEventListener(settingsEventName(field), () => {
+    const syncFieldValue = () => {
       setModalFieldValue(field, readFieldValue(input, field));
       if (shouldRerenderOnModalFieldChange(field)) {
         renderWidgetModal();
       }
-    });
+    };
+    if (shouldSyncModalFieldOnInput(field)) {
+      input.addEventListener("input", syncFieldValue);
+    }
+    input.addEventListener(settingsEventName(field), syncFieldValue);
     row.append(input);
     frag.append(row);
   }

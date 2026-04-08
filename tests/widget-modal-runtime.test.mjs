@@ -238,6 +238,19 @@ test("widget modal runtime open preserves rename-close then draft then render or
 test("widget modal runtime apply preserves runtime update order before close", () => {
   const calls = [];
   const { runtime, modalState } = createRuntime({
+    commitPendingEditableState: (root, options) => {
+      calls.push("commitPendingEditableState");
+      assert.equal(root?.marker, "widgetModalBody");
+      assert.deepEqual(options, { includeDescendants: true });
+    },
+    elements: {
+      widgetModalOverlay: createElement(),
+      widgetModalTabs: createElement(),
+      widgetModalBody: { ...createElement(), marker: "widgetModalBody" },
+      widgetModalCloseBtn: { disabled: true },
+      widgetModalCancelBtn: { disabled: true },
+      widgetModalDefaultBtn: { onclick: () => {} }
+    },
     recordHistorySnapshot: () => {
       calls.push("recordHistorySnapshot");
     },
@@ -267,6 +280,7 @@ test("widget modal runtime apply preserves runtime update order before close", (
   runtime.applyWidgetModal();
 
   assert.deepEqual(calls, [
+    "commitPendingEditableState",
     "recordHistorySnapshot",
     "applyWidgetDraftToInstance",
     "normalizeContainerWidgetDraftConfig",
@@ -277,6 +291,22 @@ test("widget modal runtime apply preserves runtime update order before close", (
     "queueSave"
   ]);
   assert.equal(modalState.open, false);
+});
+
+test("widget modal runtime commits pending edits before applying draft", () => {
+  let appliedDraft = null;
+  const { runtime, modalState } = createRuntime({
+    commitPendingEditableState: () => {
+      modalState.draft.config.foo = "pending";
+    },
+    applyWidgetDraftToInstance: (_instance, draft) => {
+      appliedDraft = structuredClone(draft);
+    }
+  });
+
+  runtime.applyWidgetModal();
+
+  assert.equal(appliedDraft.config.foo, "pending");
 });
 
 test("widget modal runtime clears pending add draft when dismissed without apply", () => {
