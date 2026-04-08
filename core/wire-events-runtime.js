@@ -55,6 +55,7 @@ export function wireEventsRuntime(deps) {
     applyEditDockPosition: deps.applyEditDockPosition,
     syncPersistentDock: deps.syncPersistentDock,
     flushPendingSave: deps.flushPendingSave,
+    commitPendingEditableState: deps.commitPendingEditableState,
     modalState: deps.modalState,
     getLastDragEndAt: deps.getLastDragEndAt,
     closeWidgetModal: deps.closeWidgetModal,

@@ -58,6 +58,7 @@ export function wireAppEvents({
   applyEditDockPosition,
   syncPersistentDock,
   flushPendingSave,
+  commitPendingEditableState,
   modalState,
   getLastDragEndAt,
   closeWidgetModal,
