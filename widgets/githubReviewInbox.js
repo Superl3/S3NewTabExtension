@@ -178,18 +178,55 @@ async function fetchJson(url, headers) {
   }
 }
 
-async function fetchPagedJson(baseUrl, headers, maxPages = 5) {
+function findNextPageUrl(linkHeader) {
+  const text = normalizeText(linkHeader);
+  if (!text) {
+    return "";
+  }
+
+  const segments = text.split(",");
+  for (const segment of segments) {
+    const match = segment.match(/<([^>]+)>\s*;\s*rel="([^"]+)"/i);
+    if (match?.[2] === "next") {
+      return normalizeText(match[1]);
+    }
+  }
+
+  return "";
+}
+
+async function fetchPagedJson(baseUrl, headers, maxPages = 20) {
   const items = [];
-  for (let page = 1; page <= maxPages; page += 1) {
-    const url = new URL(baseUrl);
-    url.searchParams.set("page", String(page));
-    const payload = await fetchJson(url.toString(), headers);
+  let nextUrl = normalizeText(baseUrl);
+
+  for (let page = 1; page <= maxPages && nextUrl; page += 1) {
+    const response = await fetch(nextUrl, {
+      headers,
+      cache: "no-store"
+    });
+    const bodyText = await response.text();
+
+    if (!response.ok) {
+      throw new Error(parseGitHubError(bodyText, response.status));
+    }
+
+    let payload;
+    try {
+      payload = bodyText ? JSON.parse(bodyText) : null;
+    } catch {
+      throw new Error("GitHub response parse failed.");
+    }
+
     const list = Array.isArray(payload) ? payload : [];
     items.push(...list);
-    if (list.length < 100) {
+
+    const linkHeader = response.headers?.get?.("link") || response.headers?.get?.("Link") || "";
+    nextUrl = findNextPageUrl(linkHeader);
+    if (!nextUrl && list.length < 100) {
       break;
     }
   }
+
   return items;
 }
 
@@ -356,7 +393,7 @@ async function fetchReviewInboxItems(config) {
     }
   }
 
-  const pulls = await fetchPagedJson(pullsUrl, headers, 5);
+  const pulls = await fetchPagedJson(pullsUrl, headers, 20);
   const openPulls = pulls.filter((pull) => normalizeText(pull?.state, "open") === "open");
 
   const reviewItems = [];
@@ -367,10 +404,10 @@ async function fetchReviewInboxItems(config) {
     }
 
     const [reviews, issueComments, reviewComments, commits] = await Promise.all([
-      fetchJson(buildReviewsApiUrl(config.repository, pullNumber), headers),
-      fetchJson(buildIssueCommentsApiUrl(config.repository, pullNumber), headers),
-      fetchJson(buildReviewCommentsApiUrl(config.repository, pullNumber), headers),
-      fetchJson(buildCommitsApiUrl(config.repository, pullNumber), headers)
+      fetchPagedJson(buildReviewsApiUrl(config.repository, pullNumber), headers, 20),
+      fetchPagedJson(buildIssueCommentsApiUrl(config.repository, pullNumber), headers, 20),
+      fetchPagedJson(buildReviewCommentsApiUrl(config.repository, pullNumber), headers, 20),
+      fetchPagedJson(buildCommitsApiUrl(config.repository, pullNumber), headers, 20)
     ]);
 
     const candidate = buildReviewCandidate({
@@ -786,6 +823,8 @@ export {
   buildOpenPullsApiUrl,
   buildRepoPullsPageUrl,
   fetchReviewInboxItems,
+  fetchPagedJson,
+  findNextPageUrl,
   normalizeRepository,
   normalizedConfig,
   parseTimestamp
