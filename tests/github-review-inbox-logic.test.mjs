@@ -10,10 +10,13 @@ import {
   normalizeGithubLogin
 } from "../widgets/shared/githubReviewInboxLogic.js";
 import {
+  buildCacheReviewItems,
   fetchPagedJson,
   findNextPageUrl,
   githubReviewInboxWidget,
+  isReviewInboxSnapshotUnchanged,
   normalizeReviewInboxTab,
+  normalizedConfig,
   splitReviewItemsByTab
 } from "../widgets/githubReviewInbox.js";
 import { widgetRegistry } from "../widgets/index.js";
@@ -245,6 +248,64 @@ test("splitReviewItemsByTab separates own PRs from review-needed PRs", () => {
 
   assert.deepEqual(split.opened.map((item) => item.number), [10]);
   assert.deepEqual(split.needsReview.map((item) => item.number), [11, 12]);
+});
+
+test("isReviewInboxSnapshotUnchanged returns true for identical cached review inbox data", () => {
+  const cfg = normalizedConfig({
+    repository: "https://github.com/owner/repo",
+    githubLogin: "bug95",
+    accessToken: ""
+  });
+  const items = [
+    {
+      id: "1",
+      number: 101,
+      title: "Needs review",
+      htmlUrl: "https://github.com/owner/repo/pull/101",
+      author: "reviewer1",
+      draft: false,
+      reviewRequested: true,
+      reviewerNames: "bug95",
+      teamCount: 0,
+      reason: "NO_REVIEW_YET",
+      reasonLabel: "No review yet",
+      latestCodeUpdateAt: Date.parse("2026-04-09T10:00:00Z"),
+      latestParticipationAt: 0,
+      latestApprovalAt: 0,
+      warning: ""
+    }
+  ];
+
+  assert.equal(
+    isReviewInboxSnapshotUnchanged({
+      cacheRepository: "owner/repo",
+      cacheGithubLogin: "Bug95",
+      cacheTokenFingerprint: "0:0",
+      cacheTokenUserWarning: "",
+      cacheReviewItems: buildCacheReviewItems(items)
+    }, cfg, items, ""),
+    true
+  );
+});
+
+test("isReviewInboxSnapshotUnchanged returns false when warning changes", () => {
+  const cfg = normalizedConfig({
+    repository: "owner/repo",
+    githubLogin: "bug95",
+    accessToken: ""
+  });
+  const items = [];
+
+  assert.equal(
+    isReviewInboxSnapshotUnchanged({
+      cacheRepository: "owner/repo",
+      cacheGithubLogin: "bug95",
+      cacheTokenFingerprint: "0:0",
+      cacheTokenUserWarning: "old warning",
+      cacheReviewItems: []
+    }, cfg, items, "new warning"),
+    false
+  );
 });
 
 test("findNextPageUrl extracts rel next URL from GitHub link header", () => {

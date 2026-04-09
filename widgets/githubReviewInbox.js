@@ -334,6 +334,12 @@ function toCachedItem(entry) {
   return { ...normalized };
 }
 
+function buildCacheReviewItems(items) {
+  return (Array.isArray(items) ? items : [])
+    .map(toCachedItem)
+    .filter(Boolean);
+}
+
 function normalizedConfig(config) {
   const rawRepository = normalizeText(config?.repository);
   return {
@@ -387,6 +393,20 @@ function readCachedSnapshot(rawConfig, cfg) {
     cacheAt,
     tokenUserWarning
   };
+}
+
+function isReviewInboxSnapshotUnchanged(rawConfig, cfg, items, tokenUserWarning) {
+  const currentCacheItems = Array.isArray(rawConfig?.cacheReviewItems)
+    ? rawConfig.cacheReviewItems.map(toCachedItem).filter(Boolean)
+    : [];
+
+  return (
+    normalizeRepository(rawConfig?.cacheRepository) === cfg.repository &&
+    normalizeGithubLogin(rawConfig?.cacheGithubLogin) === cfg.githubLogin &&
+    normalizeText(rawConfig?.cacheTokenFingerprint) === tokenFingerprint(cfg.accessToken) &&
+    normalizeText(rawConfig?.cacheTokenUserWarning) === normalizeText(tokenUserWarning) &&
+    JSON.stringify(currentCacheItems) === JSON.stringify(buildCacheReviewItems(items))
+  );
 }
 
 function normalizeReviewerNames(reviewers) {
@@ -632,13 +652,18 @@ export const githubReviewInboxWidget = {
         return;
       }
 
+      const currentCfg = getConfig();
+      if (isReviewInboxSnapshotUnchanged(currentCfg, cfg, reviewItems, tokenUserWarning)) {
+        return;
+      }
+
       patchConfig({
         cacheRepository: cfg.repository,
         cacheGithubLogin: cfg.githubLogin,
         cacheTokenFingerprint: tokenFingerprint(cfg.accessToken),
         cacheAt: Date.now(),
         cacheTokenUserWarning: tokenUserWarning,
-        cacheReviewItems: reviewItems.map(toCachedItem).filter(Boolean)
+        cacheReviewItems: buildCacheReviewItems(reviewItems)
       }, { mutationKind: "system" });
     }
 
@@ -909,9 +934,11 @@ export const githubReviewInboxWidget = {
 export {
   buildOpenPullsApiUrl,
   buildRepoPullsPageUrl,
+  buildCacheReviewItems,
   fetchReviewInboxItems,
   fetchPagedJson,
   findNextPageUrl,
+  isReviewInboxSnapshotUnchanged,
   normalizeRepository,
   normalizeReviewInboxTab,
   normalizedConfig,
