@@ -6,6 +6,13 @@ import {
 
 const GITHUB_API_BASE = "https://api.github.com";
 const GITHUB_WEB_BASE = "https://github.com";
+const REVIEW_INBOX_TAB_NEEDS_REVIEW = "needsReview";
+const REVIEW_INBOX_TAB_OPENED = "opened";
+
+const REVIEW_INBOX_TABS = [
+  { id: REVIEW_INBOX_TAB_NEEDS_REVIEW, label: "PRs I need to review" },
+  { id: REVIEW_INBOX_TAB_OPENED, label: "PRs I opened" }
+];
 
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
@@ -84,6 +91,28 @@ function repositoryParts(repository) {
   }
   const [owner, repo] = normalized.split("/");
   return { owner, repo };
+}
+
+function normalizeReviewInboxTab(value) {
+  return value === REVIEW_INBOX_TAB_OPENED
+    ? REVIEW_INBOX_TAB_OPENED
+    : REVIEW_INBOX_TAB_NEEDS_REVIEW;
+}
+
+function splitReviewItemsByTab(items, githubLogin) {
+  const needsReview = [];
+  const opened = [];
+  const normalizedLogin = normalizeGithubLogin(githubLogin);
+
+  for (const item of Array.isArray(items) ? items : []) {
+    if (normalizeGithubLogin(item?.author) === normalizedLogin) {
+      opened.push(item);
+    } else {
+      needsReview.push(item);
+    }
+  }
+
+  return { needsReview, opened };
 }
 
 function tokenFingerprint(token) {
@@ -451,7 +480,7 @@ async function fetchReviewInboxItems(config) {
 
   reviewItems.sort((a, b) => b.latestCodeUpdateAt - a.latestCodeUpdateAt);
   return {
-    reviewItems: reviewItems.slice(0, config.maxItems),
+    reviewItems,
     tokenUserWarning
   };
 }
@@ -532,13 +561,36 @@ export const githubReviewInboxWidget = {
     const warning = document.createElement("p");
     warning.className = "github-review-inbox-warning";
 
+    const tabs = document.createElement("div");
+    tabs.className = "github-review-inbox-tabs";
+
+    const tabButtons = new Map();
+    for (const tab of REVIEW_INBOX_TABS) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "github-review-inbox-tab";
+      button.dataset.tab = tab.id;
+      button.addEventListener("click", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        const nextTab = normalizeReviewInboxTab(tab.id);
+        if (nextTab === selectedTab) {
+          return;
+        }
+        selectedTab = nextTab;
+        render();
+      });
+      tabButtons.set(tab.id, button);
+      tabs.append(button);
+    }
+
     const list = document.createElement("ul");
     list.className = "github-pr-list github-review-inbox-list";
 
     const status = document.createElement("p");
     status.className = "github-pr-widget-status github-review-inbox-status";
 
-    shell.append(warning, list, status);
+    shell.append(warning, tabs, list, status);
     container.append(shell);
 
     let loading = false;
@@ -549,6 +601,7 @@ export const githubReviewInboxWidget = {
     let requestSerial = 0;
     let timer = null;
     let tokenUserWarning = "";
+    let selectedTab = REVIEW_INBOX_TAB_NEEDS_REVIEW;
 
     function clearRefreshTimer() {
       if (timer) {
@@ -568,7 +621,7 @@ export const githubReviewInboxWidget = {
       if (!cached) {
         return false;
       }
-      reviewItems = cached.reviewItems.slice(0, cfg.maxItems);
+      reviewItems = cached.reviewItems.slice();
       lastSyncedAt = cached.cacheAt;
       tokenUserWarning = cached.tokenUserWarning;
       return true;
@@ -614,6 +667,7 @@ export const githubReviewInboxWidget = {
 
     function renderStatus() {
       const cfg = normalizedConfig(getConfig());
+      const splitItems = splitReviewItemsByTab(reviewItems, cfg.githubLogin);
       status.classList.toggle("is-error", Boolean(errorMessage));
       if (loading) {
         status.textContent = "Refreshing review inbox...";
@@ -636,7 +690,27 @@ export const githubReviewInboxWidget = {
         return;
       }
       const synced = formatSyncedLabel(lastSyncedAt);
-      status.textContent = `${cfg.repository} · ${reviewItems.length} need review${synced ? ` · Synced ${synced}` : ""}`;
+      status.textContent = `${cfg.repository} · ${splitItems.needsReview.length} review · ${splitItems.opened.length} opened${synced ? ` · Synced ${synced}` : ""}`;
+    }
+
+    function renderTabs() {
+      const cfg = normalizedConfig(getConfig());
+      const splitItems = splitReviewItemsByTab(reviewItems, cfg.githubLogin);
+      const counts = {
+        [REVIEW_INBOX_TAB_NEEDS_REVIEW]: splitItems.needsReview.length,
+        [REVIEW_INBOX_TAB_OPENED]: splitItems.opened.length
+      };
+
+      for (const tab of REVIEW_INBOX_TABS) {
+        const button = tabButtons.get(tab.id);
+        if (!button) {
+          continue;
+        }
+        const isActive = normalizeReviewInboxTab(selectedTab) === tab.id;
+        button.classList.toggle("active", isActive);
+        button.setAttribute("aria-pressed", isActive ? "true" : "false");
+        button.textContent = `${tab.label} (${counts[tab.id] || 0})`;
+      }
     }
 
     function appendBadge(row, text, className = "") {
@@ -649,12 +723,20 @@ export const githubReviewInboxWidget = {
     function renderList() {
       list.replaceChildren();
       const cfg = normalizedConfig(getConfig());
+      const splitItems = splitReviewItemsByTab(reviewItems, cfg.githubLogin);
+      const visibleItems = (
+        normalizeReviewInboxTab(selectedTab) === REVIEW_INBOX_TAB_OPENED
+          ? splitItems.opened
+          : splitItems.needsReview
+      ).slice(0, cfg.maxItems);
 
-      if (!reviewItems.length) {
+      if (!visibleItems.length) {
         const empty = document.createElement("li");
         empty.className = "github-pr-empty github-review-inbox-empty";
         if (loading) {
-          empty.textContent = "Loading review-needed pull requests...";
+          empty.textContent = normalizeReviewInboxTab(selectedTab) === REVIEW_INBOX_TAB_OPENED
+            ? "Loading pull requests you opened..."
+            : "Loading pull requests that need your review...";
         } else if (!cfg.rawRepository) {
           empty.textContent = "Set repository URL in widget settings first.";
         } else if (!cfg.repository) {
@@ -662,15 +744,19 @@ export const githubReviewInboxWidget = {
         } else if (!cfg.githubLogin) {
           empty.textContent = "Set GitHub login in widget settings first.";
         } else if (errorMessage) {
-          empty.textContent = "Review inbox is not available.";
+          empty.textContent = normalizeReviewInboxTab(selectedTab) === REVIEW_INBOX_TAB_OPENED
+            ? "Your pull request inbox is not available."
+            : "Review inbox is not available.";
         } else {
-          empty.textContent = "No pull requests currently need your review.";
+          empty.textContent = normalizeReviewInboxTab(selectedTab) === REVIEW_INBOX_TAB_OPENED
+            ? "No pull requests you opened currently need attention."
+            : "No pull requests currently need your review.";
         }
         list.append(empty);
         return;
       }
 
-      for (const item of reviewItems) {
+      for (const item of visibleItems) {
         const row = document.createElement("li");
         row.className = `github-pr-item github-review-inbox-item${item.draft ? " is-draft" : ""}${item.reviewRequested ? " is-review-requested" : ""}`;
 
@@ -733,6 +819,7 @@ export const githubReviewInboxWidget = {
 
     function render() {
       renderWarning();
+      renderTabs();
       renderStatus();
       renderList();
     }
@@ -826,6 +913,8 @@ export {
   fetchPagedJson,
   findNextPageUrl,
   normalizeRepository,
+  normalizeReviewInboxTab,
   normalizedConfig,
-  parseTimestamp
+  parseTimestamp,
+  splitReviewItemsByTab
 };
