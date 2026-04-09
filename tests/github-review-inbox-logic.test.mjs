@@ -12,7 +12,9 @@ import {
 import {
   fetchPagedJson,
   findNextPageUrl,
-  githubReviewInboxWidget
+  githubReviewInboxWidget,
+  normalizeReviewInboxTab,
+  splitReviewItemsByTab
 } from "../widgets/githubReviewInbox.js";
 import { widgetRegistry } from "../widgets/index.js";
 
@@ -227,6 +229,22 @@ test("github review inbox widget is registered with required settings", () => {
     "refreshMinutes"
   ]);
   assert.equal(githubReviewInboxWidget.title, "GitHub Review Inbox");
+});
+
+test("normalizeReviewInboxTab falls back to needsReview", () => {
+  assert.equal(normalizeReviewInboxTab("opened"), "opened");
+  assert.equal(normalizeReviewInboxTab("anything-else"), "needsReview");
+});
+
+test("splitReviewItemsByTab separates own PRs from review-needed PRs", () => {
+  const split = splitReviewItemsByTab([
+    { number: 10, author: "Bug95", title: "Own PR" },
+    { number: 11, author: "reviewer1", title: "Needs review 1" },
+    { number: 12, author: "reviewer2", title: "Needs review 2" }
+  ], "bug95");
+
+  assert.deepEqual(split.opened.map((item) => item.number), [10]);
+  assert.deepEqual(split.needsReview.map((item) => item.number), [11, 12]);
 });
 
 test("findNextPageUrl extracts rel next URL from GitHub link header", () => {

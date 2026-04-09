@@ -3187,6 +3187,28 @@ body.mode-edit .widget-float-remove:hover {
   display: none;
 }
 
+.github-review-inbox-tabs {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.github-review-inbox-tab {
+  border: 1px solid color-mix(in srgb, var(--line), transparent 22%);
+  border-radius: 999px;
+  padding: 7px 12px;
+  cursor: pointer;
+  color: var(--text);
+  background: color-mix(in srgb, var(--surface), transparent 14%);
+  font: inherit;
+}
+
+.github-review-inbox-tab.active {
+  color: var(--tone-light);
+  background: color-mix(in srgb, var(--primary), var(--tone-light) 6%);
+  border-color: color-mix(in srgb, var(--primary), var(--tone-dark) 20%);
+}
+
 .github-pr-widget-shell {
   min-height: 100%;
   display: flex;
