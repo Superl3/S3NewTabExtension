@@ -13,12 +13,16 @@ import {
 } from "../widgets/shared/githubReviewInboxLogic.js";
 import {
   buildCacheReviewItems,
+  computeReviewInboxAgeSeverity,
   fetchPagedJson,
   findNextPageUrl,
   githubReviewInboxWidget,
   isReviewInboxSnapshotUnchanged,
+  normalizeAgingDays,
   normalizeReviewInboxTab,
   normalizedConfig,
+  resolveAgingThresholds,
+  sortReviewItemsByCreatedAt,
   splitReviewItemsByTab
 } from "../widgets/githubReviewInbox.js";
 import { widgetRegistry } from "../widgets/index.js";
@@ -244,14 +248,48 @@ test("buildReviewCandidate includes own PRs with other-user activity even before
 test("github review inbox widget is registered with required settings", () => {
   assert.equal(widgetRegistry.githubReviewInbox, githubReviewInboxWidget);
   const keys = githubReviewInboxWidget.settingsSchema.map((field) => field.key);
-  assert.deepEqual(keys.slice(0, 5), [
+  assert.deepEqual(keys.slice(0, 7), [
     "repository",
     "githubLogin",
     "accessToken",
     "maxItems",
-    "refreshMinutes"
+    "refreshMinutes",
+    "agingWarnDays",
+    "agingDangerDays"
   ]);
   assert.equal(githubReviewInboxWidget.title, "GitHub Review Inbox");
+});
+
+test("normalizeAgingDays clamps values into supported range", () => {
+  assert.equal(normalizeAgingDays("", 3), 3);
+  assert.equal(normalizeAgingDays(0, 3), 3);
+  assert.equal(normalizeAgingDays(120, 3), 90);
+});
+
+test("resolveAgingThresholds keeps danger above warn", () => {
+  assert.deepEqual(resolveAgingThresholds({ agingWarnDays: 5, agingDangerDays: 3 }), {
+    warnDays: 5,
+    dangerDays: 6
+  });
+});
+
+test("computeReviewInboxAgeSeverity uses configured warn and danger thresholds", () => {
+  const nowMs = Date.parse("2026-04-10T12:00:00Z");
+  const cfg = normalizedConfig({ agingWarnDays: 3, agingDangerDays: 5 });
+
+  assert.equal(computeReviewInboxAgeSeverity(Date.parse("2026-04-06T11:00:00Z"), cfg, nowMs), "warn");
+  assert.equal(computeReviewInboxAgeSeverity(Date.parse("2026-04-04T11:00:00Z"), cfg, nowMs), "danger");
+  assert.equal(computeReviewInboxAgeSeverity(Date.parse("2026-04-08T11:00:00Z"), cfg, nowMs), "");
+});
+
+test("sortReviewItemsByCreatedAt keeps the oldest PR first", () => {
+  const sorted = sortReviewItemsByCreatedAt([
+    { number: 12, createdAt: Date.parse("2026-04-08T12:00:00Z") },
+    { number: 10, createdAt: Date.parse("2026-04-01T12:00:00Z") },
+    { number: 11, createdAt: Date.parse("2026-04-05T12:00:00Z") }
+  ]);
+
+  assert.deepEqual(sorted.map((item) => item.number), [10, 11, 12]);
 });
 
 test("normalizeReviewInboxTab falls back to needsReview", () => {
@@ -339,6 +377,7 @@ test("isReviewInboxSnapshotUnchanged returns true for identical cached review in
       teamCount: 0,
       reason: "NO_REVIEW_YET",
       reasonLabel: "No review yet",
+      createdAt: Date.parse("2026-04-01T10:00:00Z"),
       latestCodeUpdateAt: Date.parse("2026-04-09T10:00:00Z"),
       latestParticipationAt: 0,
       latestApprovalAt: 0,

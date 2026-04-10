@@ -3353,6 +3353,26 @@ body.mode-edit .widget-float-remove:hover {
   opacity: 0.86;
 }
 
+.github-review-inbox-item.is-age-warn:not(.is-swiping):not(.is-swipe-ignoring) .github-review-inbox-swipe-content {
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--warn), var(--line) 26%),
+    0 0 0 1px color-mix(in srgb, var(--warn), transparent 72%);
+}
+
+.github-review-inbox-item.is-age-danger:not(.is-swiping):not(.is-swipe-ignoring) .github-review-inbox-swipe-content {
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, #d94755, var(--line) 18%),
+    0 0 0 1px color-mix(in srgb, #d94755, transparent 70%);
+}
+
+.github-review-inbox-item.is-age-warn:not(.is-age-danger) .github-pr-title {
+  color: color-mix(in srgb, var(--warn), var(--text) 22%);
+}
+
+.github-review-inbox-item.is-age-danger .github-pr-title {
+  color: color-mix(in srgb, #d94755, var(--text) 18%);
+}
+
 .github-pr-link {
   display: block;
   text-decoration: none;

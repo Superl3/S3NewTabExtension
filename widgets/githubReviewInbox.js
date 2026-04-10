@@ -62,6 +62,18 @@ function normalizeRefreshMinutes(value, fallback = 5) {
   return clamp(Math.round(num), 1, 120);
 }
 
+function normalizeAgingDays(value, fallback) {
+  const text = normalizeText(value);
+  if (!text) {
+    return clamp(Math.round(fallback), 1, 90);
+  }
+  const num = Number(text);
+  if (!Number.isFinite(num)) {
+    return clamp(Math.round(fallback), 1, 90);
+  }
+  return clamp(Math.round(num), 1, 90);
+}
+
 function isRepoSegment(value) {
   return /^[A-Za-z0-9_.-]+$/.test(value);
 }
@@ -123,6 +135,50 @@ function splitReviewItemsByTab(items, githubLogin) {
   }
 
   return { needsReview, opened };
+}
+
+function sortReviewItemsByCreatedAt(items) {
+  return (Array.isArray(items) ? items : []).slice().sort((left, right) => {
+    const leftCreatedAt = Math.max(0, Number(left?.createdAt) || 0);
+    const rightCreatedAt = Math.max(0, Number(right?.createdAt) || 0);
+    if (leftCreatedAt !== rightCreatedAt) {
+      if (!leftCreatedAt) {
+        return 1;
+      }
+      if (!rightCreatedAt) {
+        return -1;
+      }
+      return leftCreatedAt - rightCreatedAt;
+    }
+
+    return (Number(left?.number) || 0) - (Number(right?.number) || 0);
+  });
+}
+
+function resolveAgingThresholds(config) {
+  const warnDays = normalizeAgingDays(config?.agingWarnDays, 3);
+  const requestedDangerDays = normalizeAgingDays(config?.agingDangerDays, 5);
+  return {
+    warnDays,
+    dangerDays: Math.max(warnDays + 1, requestedDangerDays)
+  };
+}
+
+function computeReviewInboxAgeSeverity(createdAt, config, nowMs = Date.now()) {
+  const createdTimestamp = Math.max(0, Number(createdAt) || 0);
+  if (!createdTimestamp) {
+    return "";
+  }
+
+  const thresholds = resolveAgingThresholds(config);
+  const ageDays = Math.max(0, nowMs - createdTimestamp) / 86400000;
+  if (ageDays > thresholds.dangerDays) {
+    return "danger";
+  }
+  if (ageDays > thresholds.warnDays) {
+    return "warn";
+  }
+  return "";
 }
 
 function buildReviewInboxIgnoreScopeKey(config, tabId) {
@@ -320,8 +376,8 @@ function buildOpenPullsApiUrl(repository) {
   }
   const params = new URLSearchParams({
     state: "open",
-    sort: "updated",
-    direction: "desc",
+    sort: "created",
+    direction: "asc",
     per_page: "100"
   });
   return `${GITHUB_API_BASE}/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/pulls?${params.toString()}`;
@@ -359,6 +415,7 @@ function normalizeCachedItem(entry) {
     title: normalizeText(entry?.title, "(No title)"),
     htmlUrl: normalizeText(entry?.htmlUrl),
     author: normalizeText(entry?.author, "unknown"),
+    createdAt: Math.max(0, Number(entry?.createdAt) || 0),
     draft: entry?.draft === true,
     reviewRequested: entry?.reviewRequested === true,
     reviewerNames: normalizeText(entry?.reviewerNames),
@@ -388,6 +445,7 @@ function buildCacheReviewItems(items) {
 
 function normalizedConfig(config) {
   const rawRepository = normalizeText(config?.repository);
+  const agingThresholds = resolveAgingThresholds(config);
   return {
     rawRepository,
     repository: normalizeRepository(rawRepository),
@@ -395,6 +453,8 @@ function normalizedConfig(config) {
     accessToken: normalizeText(config?.accessToken),
     maxItems: normalizeMaxItems(config?.maxItems, 20),
     refreshMinutes: normalizeRefreshMinutes(config?.refreshMinutes, 5),
+    agingWarnDays: agingThresholds.warnDays,
+    agingDangerDays: agingThresholds.dangerDays,
     openInNewTab: config?.openInNewTab !== false
   };
 }
@@ -406,6 +466,8 @@ function configSignature(config) {
     tokenFingerprint(config.accessToken),
     config.maxItems,
     config.refreshMinutes,
+    config.agingWarnDays,
+    config.agingDangerDays,
     config.openInNewTab ? 1 : 0
   ].join("|");
 }
@@ -435,7 +497,7 @@ function readCachedSnapshot(rawConfig, cfg) {
   }
 
   return {
-    reviewItems: cachedItems.slice().sort((a, b) => b.latestCodeUpdateAt - a.latestCodeUpdateAt),
+    reviewItems: sortReviewItemsByCreatedAt(cachedItems),
     cacheAt,
     tokenUserWarning
   };
@@ -526,6 +588,7 @@ async function fetchReviewInboxItems(config) {
       title: normalizeText(pull?.title, "(No title)"),
       htmlUrl: normalizeText(pull?.html_url),
       author: normalizeText(pull?.user?.login, "unknown"),
+      createdAt: parseTimestamp(pull?.created_at),
       draft: pull?.draft === true,
       reviewRequested:
         (Array.isArray(pull?.requested_reviewers)
@@ -544,9 +607,9 @@ async function fetchReviewInboxItems(config) {
     });
   }
 
-  reviewItems.sort((a, b) => b.latestCodeUpdateAt - a.latestCodeUpdateAt);
+  const sortedItems = sortReviewItemsByCreatedAt(reviewItems);
   return {
-    reviewItems,
+    reviewItems: sortedItems,
     tokenUserWarning
   };
 }
@@ -560,6 +623,8 @@ export const githubReviewInboxWidget = {
     accessToken: "",
     maxItems: 20,
     refreshMinutes: 5,
+    agingWarnDays: 3,
+    agingDangerDays: 5,
     openInNewTab: true,
     cacheRepository: "",
     cacheGithubLogin: "",
@@ -614,6 +679,22 @@ export const githubReviewInboxWidget = {
       type: "number",
       min: 1,
       max: 120,
+      step: 1
+    },
+    {
+      key: "agingWarnDays",
+      label: "Warn after (days)",
+      type: "number",
+      min: 1,
+      max: 90,
+      step: 1
+    },
+    {
+      key: "agingDangerDays",
+      label: "Danger after (days)",
+      type: "number",
+      min: 2,
+      max: 90,
       step: 1
     },
     { key: "openInNewTab", label: "Open links in new tab", type: "checkbox" }
@@ -967,8 +1048,9 @@ export const githubReviewInboxWidget = {
       }
 
       for (const item of visibleItems) {
+        const ageSeverity = computeReviewInboxAgeSeverity(item.createdAt, cfg);
         const row = document.createElement("li");
-        row.className = `github-pr-item github-review-inbox-item${item.draft ? " is-draft" : ""}${item.reviewRequested ? " is-review-requested" : ""}${item.ignored ? " is-ignored" : ""}`;
+        row.className = `github-pr-item github-review-inbox-item${item.draft ? " is-draft" : ""}${item.reviewRequested ? " is-review-requested" : ""}${item.ignored ? " is-ignored" : ""}${ageSeverity ? ` is-age-${ageSeverity}` : ""}`;
 
         const swipeBackground = document.createElement("div");
         swipeBackground.className = "github-review-inbox-swipe-background";
@@ -1006,10 +1088,11 @@ export const githubReviewInboxWidget = {
 
         const meta = document.createElement("p");
         meta.className = "github-pr-meta github-review-inbox-meta";
+        const openedText = item.createdAt ? ` · Opened ${formatRelativeTimestamp(item.createdAt)}` : "";
         const participationText = item.latestParticipationAt
           ? ` · You last responded ${formatRelativeTimestamp(item.latestParticipationAt)}`
           : "";
-        meta.textContent = `#${item.number} by ${item.author}${participationText}`;
+        meta.textContent = `#${item.number} by ${item.author}${openedText}${participationText}`;
 
         const badges = document.createElement("div");
         badges.className = "github-pr-badges github-review-inbox-badges";
@@ -1240,13 +1323,17 @@ export {
   buildOpenPullsApiUrl,
   buildRepoPullsPageUrl,
   buildCacheReviewItems,
+  computeReviewInboxAgeSeverity,
   fetchReviewInboxItems,
   fetchPagedJson,
   findNextPageUrl,
   isReviewInboxSnapshotUnchanged,
+  normalizeAgingDays,
   normalizeRepository,
   normalizeReviewInboxTab,
   normalizedConfig,
   parseTimestamp,
+  resolveAgingThresholds,
+  sortReviewItemsByCreatedAt,
   splitReviewItemsByTab
 };
