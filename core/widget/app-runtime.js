@@ -59,7 +59,7 @@ export function createAppWidgetRuntime(deps) {
     currentLauncherActivePage: deps.currentLauncherActivePage,
     isLauncherPlaceholderPolicyActive: deps.isLauncherPlaceholderPolicyActive,
     isPlaceholderLauncherPage: deps.isPlaceholderLauncherPage,
-    queuePlaceholderPageDrop: deps.queuePlaceholderPageDrop,
+    commitPlaceholderPageDrop: deps.commitPlaceholderPageDrop,
     clearPendingPlaceholderDrop: deps.clearPendingPlaceholderDrop,
     projectWidgetBoardDropLayout: deps.projectWidgetBoardDropLayout,
     isWidgetDocked: deps.isWidgetDocked,

@@ -3032,6 +3032,10 @@ function materializePendingPlaceholderPage() {
   return launcherPageRuntime.materializePendingPlaceholderPage();
 }
 
+function commitPlaceholderPageDrop(instanceId, payload = {}, placeholderPage = null) {
+  return launcherPageRuntime.commitPlaceholderPageDrop(instanceId, payload, placeholderPage);
+}
+
 function materializeLauncherPlaceholderPage(placeholderPage) {
   return launcherPageRuntime.materializeLauncherPlaceholderPage(placeholderPage);
 }
@@ -3483,7 +3487,7 @@ function applyWidgetDropPlan(instance, plan, payload = {}, { record = true } = {
       queueSave,
       tryContainerWidgetByDrop,
       currentLauncherPageCount,
-      queuePlaceholderPageDrop,
+      commitPlaceholderPageDrop,
       normalizeWidgetPage,
       currentLauncherActivePage,
       isWidgetDocked,
@@ -4392,7 +4396,7 @@ const appWidgetRuntime = createAppWidgetRuntime({
   appendWidgetToContainerOrder,
   normalizeContainerAssignments,
   refreshWidgetsByType,
-  queuePlaceholderPageDrop,
+  commitPlaceholderPageDrop,
   containerUnitLayoutSize,
   closeWidgetModal,
   normalizeDockedWidgetOrders,

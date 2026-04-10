@@ -133,6 +133,32 @@ test("materializePendingPlaceholderPage clears pending when widget is missing", 
   assert.deepEqual(harness.calls.clearPending, [true]);
 });
 
+test("commitPlaceholderPageDrop immediately materializes the placeholder page", () => {
+  const harness = createHarness({
+    projectWidgetBoardDropLayout: (_instance, payload) => ({
+      page: payload.page,
+      layout: { x: 20, y: 30, w: 300, h: 200 },
+      gridLayout: null
+    })
+  });
+  harness.state.instances = [{ id: "w1", page: 0, layout: { x: 0, y: 0, w: 100, h: 80 } }];
+
+  const committed = harness.runtime.commitPlaceholderPageDrop("w1", { clientX: 12, clientY: 34 }, 2);
+
+  assert.equal(committed, true);
+  assert.equal(harness.state.ui.home.pageCount, 3);
+  assert.equal(harness.state.ui.home.activePage, 2);
+  assert.equal(harness.state.instances[0].page, 2);
+  assert.deepEqual(harness.state.instances[0].layout, { x: 20, y: 30, w: 300, h: 200 });
+  assert.equal(harness.launcherPageUiState.pendingPlaceholderDrop, null);
+  assert.equal(harness.launcherPageUiState.virtualPage, null);
+  assert.equal(harness.calls.renderBoardViewport, 1);
+  assert.equal(harness.calls.renderBoard, 1);
+  assert.equal(harness.calls.queueSave, 1);
+  assert.deepEqual(harness.calls.clearPending, [true]);
+  assert.deepEqual(harness.calls.history, ["Create launcher page by drop"]);
+});
+
 test("materializeLauncherPlaceholderPage creates right-side page and saves", () => {
   const harness = createHarness();
   harness.state.instances = [{ id: "w1", page: 0, layout: {} }];

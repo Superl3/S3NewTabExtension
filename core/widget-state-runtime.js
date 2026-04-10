@@ -81,7 +81,7 @@ export function createWidgetStateRuntime(deps) {
 
     const requestedPage = Number.isFinite(Number(payload?.page)) ? Math.floor(Number(payload.page)) : releasePage;
     if (deps.isLauncherPlaceholderPolicyActive() && deps.isPlaceholderLauncherPage(requestedPage, deps.currentLauncherPageCount())) {
-      return deps.queuePlaceholderPageDrop(widgetId, payload, requestedPage);
+      return deps.commitPlaceholderPageDrop(widgetId, payload, requestedPage);
     }
 
     deps.recordHistorySnapshot("Move widget out of folder");
@@ -126,7 +126,7 @@ export function createWidgetStateRuntime(deps) {
 
     const requestedPage = Number.isFinite(Number(payload?.page)) ? Math.floor(Number(payload.page)) : deps.currentLauncherActivePage();
     if (deps.isLauncherPlaceholderPolicyActive() && deps.isPlaceholderLauncherPage(requestedPage, deps.currentLauncherPageCount())) {
-      return deps.queuePlaceholderPageDrop(widgetId, payload, requestedPage);
+      return deps.commitPlaceholderPageDrop(widgetId, payload, requestedPage);
     }
 
     deps.recordHistorySnapshot("Undock widget");
