@@ -7,6 +7,8 @@ import {
   collectLatestUserParticipation,
   deriveLatestCodeUpdateAt,
   deriveLatestOtherActivityAt,
+  hasGithubMention,
+  hasMentionAfterTimestamp,
   normalizeGithubLogin
 } from "../widgets/shared/githubReviewInboxLogic.js";
 import {
@@ -99,12 +101,30 @@ test("classifyReviewNeed re-includes approvals after new code updates", () => {
       hasParticipation: true,
       latestParticipationAt: Date.parse("2026-04-05T09:00:00Z"),
       latestApprovalAt: Date.parse("2026-04-05T09:00:00Z"),
-      latestCodeUpdateAt: Date.parse("2026-04-06T08:00:00Z")
+      latestCodeUpdateAt: Date.parse("2026-04-06T08:00:00Z"),
+      hasApprovedUpdateSignal: true
     }),
     {
       reason: "APPROVED_THEN_UPDATED",
       label: "Approved, then updated",
       included: true
+    }
+  );
+});
+
+test("classifyReviewNeed excludes approval updates without mention signal", () => {
+  assert.deepEqual(
+    classifyReviewNeed({
+      hasParticipation: true,
+      latestParticipationAt: Date.parse("2026-04-05T09:00:00Z"),
+      latestApprovalAt: Date.parse("2026-04-05T09:00:00Z"),
+      latestCodeUpdateAt: Date.parse("2026-04-06T08:00:00Z"),
+      hasApprovedUpdateSignal: false
+    }),
+    {
+      reason: "APPROVED_UPDATED_NO_MENTION",
+      label: "Approved, no mention",
+      included: false
     }
   );
 });
@@ -248,6 +268,56 @@ test("splitReviewItemsByTab separates own PRs from review-needed PRs", () => {
 
   assert.deepEqual(split.opened.map((item) => item.number), [10]);
   assert.deepEqual(split.needsReview.map((item) => item.number), [11, 12]);
+});
+
+test("hasGithubMention matches case-insensitive direct mentions", () => {
+  assert.equal(hasGithubMention("Please take another look, @Bug95", "bug95"), true);
+  assert.equal(hasGithubMention("This references bug95 without mention syntax", "bug95"), false);
+});
+
+test("hasMentionAfterTimestamp ignores self comments and old comments", () => {
+  assert.equal(
+    hasMentionAfterTimestamp({
+      githubLogin: "bug95",
+      sinceTimestamp: Date.parse("2026-04-05T09:00:00Z"),
+      issueComments: [
+        { user: { login: "bug95" }, created_at: "2026-04-06T09:00:00Z", body: "@bug95 self ping" },
+        { user: { login: "reviewer1" }, created_at: "2026-04-04T09:00:00Z", body: "@bug95 old ping" }
+      ],
+      reviewComments: [
+        { user: { login: "reviewer2" }, updated_at: "2026-04-06T11:00:00Z", body: "@Bug95 please re-check" }
+      ]
+    }),
+    true
+  );
+});
+
+test("buildReviewCandidate excludes approved PRs updated without mention", () => {
+  const candidate = buildReviewCandidate({
+    githubLogin: "bug95",
+    pullRequest: { updated_at: "2026-04-08T12:00:00Z" },
+    commits: [{ commit: { author: { date: "2026-04-06T10:00:00Z" }, committer: { date: "2026-04-06T10:00:00Z" } } }],
+    reviews: [{ user: { login: "bug95" }, state: "APPROVED", submitted_at: "2026-04-05T09:00:00Z" }],
+    issueComments: [{ user: { login: "reviewer1" }, created_at: "2026-04-06T11:00:00Z", body: "please update tests" }],
+    reviewComments: []
+  });
+
+  assert.equal(candidate.included, false);
+  assert.equal(candidate.reason, "APPROVED_UPDATED_NO_MENTION");
+});
+
+test("buildReviewCandidate includes approved PRs updated with mention after approval", () => {
+  const candidate = buildReviewCandidate({
+    githubLogin: "bug95",
+    pullRequest: { updated_at: "2026-04-08T12:00:00Z" },
+    commits: [{ commit: { author: { date: "2026-04-06T10:00:00Z" }, committer: { date: "2026-04-06T10:00:00Z" } } }],
+    reviews: [{ user: { login: "bug95" }, state: "APPROVED", submitted_at: "2026-04-05T09:00:00Z" }],
+    issueComments: [{ user: { login: "reviewer1" }, created_at: "2026-04-06T11:00:00Z", body: "@Bug95 please re-review" }],
+    reviewComments: []
+  });
+
+  assert.equal(candidate.included, true);
+  assert.equal(candidate.reason, "APPROVED_THEN_UPDATED");
 });
 
 test("isReviewInboxSnapshotUnchanged returns true for identical cached review inbox data", () => {
