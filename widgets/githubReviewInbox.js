@@ -13,11 +13,11 @@ const GITHUB_API_BASE = "https://api.github.com";
 const GITHUB_WEB_BASE = "https://github.com";
 const REVIEW_INBOX_TAB_NEEDS_REVIEW = "needsReview";
 const REVIEW_INBOX_TAB_OPENED = "opened";
-const REVIEW_INBOX_SWIPE_START_THRESHOLD_PX = 8;
+const REVIEW_INBOX_SWIPE_START_THRESHOLD_PX = 18;
 const REVIEW_INBOX_SWIPE_IGNORE_THRESHOLD_RATIO = 0.42;
 const REVIEW_INBOX_SWIPE_IGNORE_ANIM_MS = 190;
 const REVIEW_INBOX_SWIPE_RESET_ANIM_MS = 170;
-const REVIEW_INBOX_SWIPE_RESET_CLICK_SUPPRESS_MS = 140;
+const REVIEW_INBOX_SWIPE_VERTICAL_TOLERANCE_RATIO = 0.75;
 
 const REVIEW_INBOX_TABS = [
   { id: REVIEW_INBOX_TAB_NEEDS_REVIEW, label: "PRs I need to review" },
@@ -179,6 +179,16 @@ function computeReviewInboxAgeSeverity(createdAt, config, nowMs = Date.now()) {
     return "warn";
   }
   return "";
+}
+
+function shouldStartReviewInboxSwipe(dx, dy, thresholdPx = REVIEW_INBOX_SWIPE_START_THRESHOLD_PX) {
+  if (!Number.isFinite(dx) || !Number.isFinite(dy)) {
+    return false;
+  }
+  if (dx < thresholdPx) {
+    return false;
+  }
+  return Math.abs(dy) <= Math.abs(dx) * REVIEW_INBOX_SWIPE_VERTICAL_TOLERANCE_RATIO;
 }
 
 function buildReviewInboxIgnoreScopeKey(config, tabId) {
@@ -718,6 +728,14 @@ export const githubReviewInboxWidget = {
     ignoredToggle.type = "button";
     ignoredToggle.className = "github-review-inbox-ignored-toggle";
     ignoredToggle.hidden = true;
+    ignoredToggle.setAttribute("aria-label", "Show ignored pull requests");
+    ignoredToggle.title = "Show ignored pull requests";
+
+    const ignoredToggleIcon = document.createElement("span");
+    ignoredToggleIcon.className = "github-review-inbox-ignored-toggle-icon";
+    ignoredToggleIcon.setAttribute("aria-hidden", "true");
+    ignoredToggle.append(ignoredToggleIcon);
+
     ignoredToggle.addEventListener("click", (event) => {
       event.preventDefault();
       event.stopPropagation();
@@ -912,8 +930,22 @@ export const githubReviewInboxWidget = {
         false
       ).ignoredCount;
 
-      ignoredToggle.hidden = !showIgnored && totalIgnored <= 0;
-      ignoredToggle.textContent = showIgnored ? "Hide ignored" : `Show ignored (${totalIgnored})`;
+      if (totalIgnored <= 0) {
+        showIgnored = false;
+        ignoredToggle.hidden = true;
+        ignoredToggle.title = "Show ignored pull requests";
+        ignoredToggle.setAttribute("aria-label", "Show ignored pull requests");
+        ignoredToggle.dataset.count = "0";
+        ignoredToggle.classList.remove("active");
+        return;
+      }
+
+      ignoredToggle.hidden = false;
+      ignoredToggle.title = showIgnored
+        ? "Hide ignored pull requests"
+        : `Show ignored pull requests (${totalIgnored})`;
+      ignoredToggle.setAttribute("aria-label", ignoredToggle.title);
+      ignoredToggle.dataset.count = String(totalIgnored);
       ignoredToggle.classList.toggle("active", showIgnored);
     }
 
@@ -990,8 +1022,15 @@ export const githubReviewInboxWidget = {
         row.releasePointerCapture(event.pointerId);
       }
 
-      if (isCancel || !swipe.dragging) {
-        resetSwipeVisual(row, swipeContent);
+      if (isCancel) {
+        if (swipe.dragging) {
+          resetSwipeVisual(row, swipeContent);
+        }
+        clearActiveSwipe();
+        return;
+      }
+
+      if (!swipe.dragging) {
         clearActiveSwipe();
         return;
       }
@@ -1007,7 +1046,6 @@ export const githubReviewInboxWidget = {
           setIgnoredState(tabId, item, true);
         }, REVIEW_INBOX_SWIPE_IGNORE_ANIM_MS);
       } else {
-        suppressClickUntilMs = Date.now() + REVIEW_INBOX_SWIPE_RESET_CLICK_SUPPRESS_MS;
         resetSwipeVisual(row, swipeContent);
       }
 
@@ -1151,7 +1189,6 @@ export const githubReviewInboxWidget = {
             row.style.setProperty("--github-review-inbox-swipe-x", "0px");
             row.style.setProperty("--github-review-inbox-swipe-progress", "0");
             swipeContent.style.transform = "";
-            row.setPointerCapture(event.pointerId);
             activeSwipe = {
               pointerId: event.pointerId,
               row,
@@ -1189,7 +1226,9 @@ export const githubReviewInboxWidget = {
         if (activeSwipe.row.hasPointerCapture(activeSwipe.pointerId)) {
           activeSwipe.row.releasePointerCapture(activeSwipe.pointerId);
         }
-        resetSwipeVisual(activeSwipe.row, activeSwipe.swipeContent);
+        if (activeSwipe.dragging) {
+          resetSwipeVisual(activeSwipe.row, activeSwipe.swipeContent);
+        }
         clearActiveSwipe();
         return;
       }
@@ -1201,15 +1240,15 @@ export const githubReviewInboxWidget = {
         if (Math.abs(dx) < REVIEW_INBOX_SWIPE_START_THRESHOLD_PX && Math.abs(dy) < REVIEW_INBOX_SWIPE_START_THRESHOLD_PX) {
           return;
         }
-        if (dx <= 0 || Math.abs(dy) > Math.abs(dx)) {
+        if (!shouldStartReviewInboxSwipe(dx, dy)) {
           if (activeSwipe.row.hasPointerCapture(event.pointerId)) {
             activeSwipe.row.releasePointerCapture(event.pointerId);
           }
-          resetSwipeVisual(activeSwipe.row, activeSwipe.swipeContent);
           clearActiveSwipe();
           return;
         }
         activeSwipe.dragging = true;
+        activeSwipe.row.setPointerCapture(event.pointerId);
       }
 
       event.preventDefault();
@@ -1334,6 +1373,7 @@ export {
   normalizedConfig,
   parseTimestamp,
   resolveAgingThresholds,
+  shouldStartReviewInboxSwipe,
   sortReviewItemsByCreatedAt,
   splitReviewItemsByTab
 };

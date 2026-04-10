@@ -3218,18 +3218,61 @@ body.mode-edit .widget-float-remove:hover {
 }
 
 .github-review-inbox-ignored-toggle {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  margin-left: auto;
   border: 1px solid color-mix(in srgb, var(--line), transparent 18%);
   border-radius: 999px;
-  padding: 6px 11px;
+  padding: 0;
   cursor: pointer;
   color: var(--muted);
   background: color-mix(in srgb, var(--widget-effective-surface), transparent 16%);
   font: inherit;
+  flex: 0 0 auto;
 }
 
 .github-review-inbox-ignored-toggle.active {
   color: var(--text);
   border-color: color-mix(in srgb, var(--accent), var(--line) 26%);
+}
+
+.github-review-inbox-ignored-toggle-icon {
+  position: relative;
+  display: inline-block;
+  width: 13px;
+  height: 8px;
+  border: 1.6px solid currentColor;
+  border-radius: 999px;
+  box-sizing: border-box;
+  pointer-events: none;
+}
+
+.github-review-inbox-ignored-toggle-icon::before {
+  content: "";
+  position: absolute;
+  inset: 50% auto auto 50%;
+  width: 3px;
+  height: 3px;
+  border-radius: 999px;
+  background: currentColor;
+  transform: translate(-50%, -50%);
+}
+
+.github-review-inbox-ignored-toggle-icon::after {
+  content: "";
+  position: absolute;
+  left: -2px;
+  top: 3px;
+  width: 16px;
+  height: 1.6px;
+  border-radius: 999px;
+  background: currentColor;
+  transform: rotate(-32deg);
+  transform-origin: center;
 }
 
 .github-pr-widget-shell {

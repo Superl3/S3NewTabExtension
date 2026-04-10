@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
+  shouldSkipModalFieldValueSync,
   shouldRerenderOnModalFieldChange,
   shouldSyncModalFieldOnInput
 } from "../core/widget-modal-fields-render.js";
@@ -19,4 +20,11 @@ test("shouldSyncModalFieldOnInput keeps text-like widget fields live", () => {
   assert.equal(shouldSyncModalFieldOnInput({ type: "select" }), false);
   assert.equal(shouldSyncModalFieldOnInput({ type: "checkbox" }), false);
   assert.equal(shouldSyncModalFieldOnInput({ type: "color" }), false);
+});
+
+test("shouldSkipModalFieldValueSync ignores blank or invalid number input", () => {
+  assert.equal(shouldSkipModalFieldValueSync({ type: "number" }, { value: "", validity: { badInput: false } }), true);
+  assert.equal(shouldSkipModalFieldValueSync({ type: "number" }, { value: "120", validity: { badInput: false } }), false);
+  assert.equal(shouldSkipModalFieldValueSync({ type: "number" }, { value: "abc", validity: { badInput: true } }), true);
+  assert.equal(shouldSkipModalFieldValueSync({ type: "text" }, { value: "" }), false);
 });
