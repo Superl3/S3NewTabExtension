@@ -23,6 +23,10 @@ const REVIEW_REASON_META = {
     label: "Approved, then updated",
     included: true
   },
+  APPROVED_UPDATED_NO_MENTION: {
+    label: "Approved, no mention",
+    included: false
+  },
   REVIEWED_NO_NEW_UPDATES: {
     label: "Already reviewed",
     included: false
@@ -36,6 +40,17 @@ export function normalizeGithubLogin(value) {
 export function parseTimestamp(value) {
   const parsed = Date.parse(value || "");
   return Number.isFinite(parsed) ? parsed : 0;
+}
+
+export function hasGithubMention(text, githubLogin) {
+  const normalizedLogin = normalizeGithubLogin(githubLogin);
+  if (!normalizedLogin) {
+    return false;
+  }
+  const source = String(text || "");
+  const escapedLogin = normalizedLogin.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const mentionPattern = new RegExp(`(^|[^A-Za-z0-9-])@${escapedLogin}(?![A-Za-z0-9-])`, "i");
+  return mentionPattern.test(source);
 }
 
 function maxTimestamp(values = []) {
@@ -172,11 +187,40 @@ export function collectLatestUserParticipation({
   };
 }
 
+export function hasMentionAfterTimestamp({
+  githubLogin,
+  sinceTimestamp = 0,
+  issueComments = [],
+  reviewComments = []
+}) {
+  const targetLogin = normalizeGithubLogin(githubLogin);
+  if (!targetLogin || sinceTimestamp <= 0) {
+    return false;
+  }
+
+  const comments = [
+    ...(Array.isArray(issueComments) ? issueComments : []),
+    ...(Array.isArray(reviewComments) ? reviewComments : [])
+  ];
+
+  return comments.some((comment) => {
+    if (isSameGithubUser(comment?.user?.login, targetLogin)) {
+      return false;
+    }
+    const commentAt = parseTimestamp(comment?.updated_at || comment?.created_at);
+    if (commentAt <= sinceTimestamp) {
+      return false;
+    }
+    return hasGithubMention(comment?.body, targetLogin);
+  });
+}
+
 export function classifyReviewNeed({
   latestCodeUpdateAt = 0,
   hasParticipation = false,
   latestParticipationAt = 0,
-  latestApprovalAt = 0
+  latestApprovalAt = 0,
+  hasApprovedUpdateSignal = false
 }) {
   if (!hasParticipation) {
     return {
@@ -188,12 +232,12 @@ export function classifyReviewNeed({
 
   if (latestCodeUpdateAt > latestParticipationAt) {
     const reason = latestApprovalAt > 0 && latestApprovalAt === latestParticipationAt
-      ? "APPROVED_THEN_UPDATED"
+      ? (hasApprovedUpdateSignal ? "APPROVED_THEN_UPDATED" : "APPROVED_UPDATED_NO_MENTION")
       : "UPDATED_AFTER_YOUR_REVIEW";
     return {
       reason,
       label: REVIEW_REASON_META[reason].label,
-      included: true
+      included: REVIEW_REASON_META[reason].included
     };
   }
 
@@ -237,11 +281,18 @@ export function buildReviewCandidate({
     issueComments,
     reviewComments
   });
+  const hasApprovedUpdateSignal = hasMentionAfterTimestamp({
+    githubLogin,
+    sinceTimestamp: participation.latestApprovalAt,
+    issueComments,
+    reviewComments
+  });
   const baseClassification = classifyReviewNeed({
     latestCodeUpdateAt,
     hasParticipation: participation.hasParticipation,
     latestParticipationAt: participation.latestParticipationAt,
-    latestApprovalAt: participation.latestApprovalAt
+    latestApprovalAt: participation.latestApprovalAt,
+    hasApprovedUpdateSignal
   });
 
   let classification = baseClassification;
@@ -267,6 +318,7 @@ export function buildReviewCandidate({
     latestCodeUpdateAt,
     latestParticipationAt: participation.latestParticipationAt,
     latestApprovalAt: participation.latestApprovalAt,
+    hasApprovedUpdateSignal,
     hasParticipation: participation.hasParticipation,
     reason: classification.reason,
     reasonLabel: classification.label,

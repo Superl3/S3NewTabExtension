@@ -7,16 +7,22 @@ import {
   collectLatestUserParticipation,
   deriveLatestCodeUpdateAt,
   deriveLatestOtherActivityAt,
+  hasGithubMention,
+  hasMentionAfterTimestamp,
   normalizeGithubLogin
 } from "../widgets/shared/githubReviewInboxLogic.js";
 import {
   buildCacheReviewItems,
+  computeReviewInboxAgeSeverity,
   fetchPagedJson,
   findNextPageUrl,
   githubReviewInboxWidget,
   isReviewInboxSnapshotUnchanged,
+  normalizeAgingDays,
   normalizeReviewInboxTab,
   normalizedConfig,
+  resolveAgingThresholds,
+  sortReviewItemsByCreatedAt,
   splitReviewItemsByTab
 } from "../widgets/githubReviewInbox.js";
 import { widgetRegistry } from "../widgets/index.js";
@@ -99,12 +105,30 @@ test("classifyReviewNeed re-includes approvals after new code updates", () => {
       hasParticipation: true,
       latestParticipationAt: Date.parse("2026-04-05T09:00:00Z"),
       latestApprovalAt: Date.parse("2026-04-05T09:00:00Z"),
-      latestCodeUpdateAt: Date.parse("2026-04-06T08:00:00Z")
+      latestCodeUpdateAt: Date.parse("2026-04-06T08:00:00Z"),
+      hasApprovedUpdateSignal: true
     }),
     {
       reason: "APPROVED_THEN_UPDATED",
       label: "Approved, then updated",
       included: true
+    }
+  );
+});
+
+test("classifyReviewNeed excludes approval updates without mention signal", () => {
+  assert.deepEqual(
+    classifyReviewNeed({
+      hasParticipation: true,
+      latestParticipationAt: Date.parse("2026-04-05T09:00:00Z"),
+      latestApprovalAt: Date.parse("2026-04-05T09:00:00Z"),
+      latestCodeUpdateAt: Date.parse("2026-04-06T08:00:00Z"),
+      hasApprovedUpdateSignal: false
+    }),
+    {
+      reason: "APPROVED_UPDATED_NO_MENTION",
+      label: "Approved, no mention",
+      included: false
     }
   );
 });
@@ -224,14 +248,48 @@ test("buildReviewCandidate includes own PRs with other-user activity even before
 test("github review inbox widget is registered with required settings", () => {
   assert.equal(widgetRegistry.githubReviewInbox, githubReviewInboxWidget);
   const keys = githubReviewInboxWidget.settingsSchema.map((field) => field.key);
-  assert.deepEqual(keys.slice(0, 5), [
+  assert.deepEqual(keys.slice(0, 7), [
     "repository",
     "githubLogin",
     "accessToken",
     "maxItems",
-    "refreshMinutes"
+    "refreshMinutes",
+    "agingWarnDays",
+    "agingDangerDays"
   ]);
   assert.equal(githubReviewInboxWidget.title, "GitHub Review Inbox");
+});
+
+test("normalizeAgingDays clamps values into supported range", () => {
+  assert.equal(normalizeAgingDays("", 3), 3);
+  assert.equal(normalizeAgingDays(0, 3), 3);
+  assert.equal(normalizeAgingDays(120, 3), 90);
+});
+
+test("resolveAgingThresholds keeps danger above warn", () => {
+  assert.deepEqual(resolveAgingThresholds({ agingWarnDays: 5, agingDangerDays: 3 }), {
+    warnDays: 5,
+    dangerDays: 6
+  });
+});
+
+test("computeReviewInboxAgeSeverity uses configured warn and danger thresholds", () => {
+  const nowMs = Date.parse("2026-04-10T12:00:00Z");
+  const cfg = normalizedConfig({ agingWarnDays: 3, agingDangerDays: 5 });
+
+  assert.equal(computeReviewInboxAgeSeverity(Date.parse("2026-04-06T11:00:00Z"), cfg, nowMs), "warn");
+  assert.equal(computeReviewInboxAgeSeverity(Date.parse("2026-04-04T11:00:00Z"), cfg, nowMs), "danger");
+  assert.equal(computeReviewInboxAgeSeverity(Date.parse("2026-04-08T11:00:00Z"), cfg, nowMs), "");
+});
+
+test("sortReviewItemsByCreatedAt keeps the oldest PR first", () => {
+  const sorted = sortReviewItemsByCreatedAt([
+    { number: 12, createdAt: Date.parse("2026-04-08T12:00:00Z") },
+    { number: 10, createdAt: Date.parse("2026-04-01T12:00:00Z") },
+    { number: 11, createdAt: Date.parse("2026-04-05T12:00:00Z") }
+  ]);
+
+  assert.deepEqual(sorted.map((item) => item.number), [10, 11, 12]);
 });
 
 test("normalizeReviewInboxTab falls back to needsReview", () => {
@@ -248,6 +306,56 @@ test("splitReviewItemsByTab separates own PRs from review-needed PRs", () => {
 
   assert.deepEqual(split.opened.map((item) => item.number), [10]);
   assert.deepEqual(split.needsReview.map((item) => item.number), [11, 12]);
+});
+
+test("hasGithubMention matches case-insensitive direct mentions", () => {
+  assert.equal(hasGithubMention("Please take another look, @Bug95", "bug95"), true);
+  assert.equal(hasGithubMention("This references bug95 without mention syntax", "bug95"), false);
+});
+
+test("hasMentionAfterTimestamp ignores self comments and old comments", () => {
+  assert.equal(
+    hasMentionAfterTimestamp({
+      githubLogin: "bug95",
+      sinceTimestamp: Date.parse("2026-04-05T09:00:00Z"),
+      issueComments: [
+        { user: { login: "bug95" }, created_at: "2026-04-06T09:00:00Z", body: "@bug95 self ping" },
+        { user: { login: "reviewer1" }, created_at: "2026-04-04T09:00:00Z", body: "@bug95 old ping" }
+      ],
+      reviewComments: [
+        { user: { login: "reviewer2" }, updated_at: "2026-04-06T11:00:00Z", body: "@Bug95 please re-check" }
+      ]
+    }),
+    true
+  );
+});
+
+test("buildReviewCandidate excludes approved PRs updated without mention", () => {
+  const candidate = buildReviewCandidate({
+    githubLogin: "bug95",
+    pullRequest: { updated_at: "2026-04-08T12:00:00Z" },
+    commits: [{ commit: { author: { date: "2026-04-06T10:00:00Z" }, committer: { date: "2026-04-06T10:00:00Z" } } }],
+    reviews: [{ user: { login: "bug95" }, state: "APPROVED", submitted_at: "2026-04-05T09:00:00Z" }],
+    issueComments: [{ user: { login: "reviewer1" }, created_at: "2026-04-06T11:00:00Z", body: "please update tests" }],
+    reviewComments: []
+  });
+
+  assert.equal(candidate.included, false);
+  assert.equal(candidate.reason, "APPROVED_UPDATED_NO_MENTION");
+});
+
+test("buildReviewCandidate includes approved PRs updated with mention after approval", () => {
+  const candidate = buildReviewCandidate({
+    githubLogin: "bug95",
+    pullRequest: { updated_at: "2026-04-08T12:00:00Z" },
+    commits: [{ commit: { author: { date: "2026-04-06T10:00:00Z" }, committer: { date: "2026-04-06T10:00:00Z" } } }],
+    reviews: [{ user: { login: "bug95" }, state: "APPROVED", submitted_at: "2026-04-05T09:00:00Z" }],
+    issueComments: [{ user: { login: "reviewer1" }, created_at: "2026-04-06T11:00:00Z", body: "@Bug95 please re-review" }],
+    reviewComments: []
+  });
+
+  assert.equal(candidate.included, true);
+  assert.equal(candidate.reason, "APPROVED_THEN_UPDATED");
 });
 
 test("isReviewInboxSnapshotUnchanged returns true for identical cached review inbox data", () => {
@@ -269,6 +377,7 @@ test("isReviewInboxSnapshotUnchanged returns true for identical cached review in
       teamCount: 0,
       reason: "NO_REVIEW_YET",
       reasonLabel: "No review yet",
+      createdAt: Date.parse("2026-04-01T10:00:00Z"),
       latestCodeUpdateAt: Date.parse("2026-04-09T10:00:00Z"),
       latestParticipationAt: 0,
       latestApprovalAt: 0,
