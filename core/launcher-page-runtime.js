@@ -249,6 +249,15 @@ export function createLauncherPageRuntime(deps) {
     return true;
   }
 
+  function commitPlaceholderPageDrop(instanceId, payload = {}, placeholderPage = null) {
+    const queued = queuePlaceholderPageDrop(instanceId, payload, placeholderPage);
+    if (!queued) {
+      return false;
+    }
+    materializePendingPlaceholderPage();
+    return true;
+  }
+
   function materializeLauncherPlaceholderPage(placeholderPage) {
     if (!deps.isLauncherPlaceholderPolicyActive()) {
       return false;
@@ -303,6 +312,7 @@ export function createLauncherPageRuntime(deps) {
     deleteLauncherPageAt,
     queuePlaceholderPageDrop,
     materializePendingPlaceholderPage,
+    commitPlaceholderPageDrop,
     materializeLauncherPlaceholderPage
   };
 }

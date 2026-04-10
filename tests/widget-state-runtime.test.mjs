@@ -24,7 +24,7 @@ function createHarness(overrides = {}) {
     renderSettings: 0,
     refreshWidgets: [],
     save: 0,
-    placeholderQueue: [],
+    placeholderCommits: [],
     clearPending: 0,
     normalizeDocked: 0,
     applyLayout: [],
@@ -79,8 +79,8 @@ function createHarness(overrides = {}) {
     currentLauncherActivePage: () => 1,
     isLauncherPlaceholderPolicyActive: () => false,
     isPlaceholderLauncherPage: (page, pageCount) => page < 0 || page >= pageCount,
-    queuePlaceholderPageDrop: (widgetId, payload, page) => {
-      calls.placeholderQueue.push({ widgetId, payload, page });
+    commitPlaceholderPageDrop: (widgetId, payload, page) => {
+      calls.placeholderCommits.push({ widgetId, payload, page });
       return true;
     },
     clearPendingPlaceholderDrop: () => {
@@ -144,7 +144,7 @@ test("setWidgetContainer moves widget into container and updates state", () => {
   assert.equal(harness.calls.save, 1);
 });
 
-test("releaseWidgetFromDockByDrop uses placeholder queue when target page is placeholder", () => {
+test("releaseWidgetFromDockByDrop immediately commits placeholder page drops", () => {
   const harness = createHarness({
     isLauncherPlaceholderPolicyActive: () => true,
     isPlaceholderLauncherPage: () => true
@@ -154,7 +154,26 @@ test("releaseWidgetFromDockByDrop uses placeholder queue when target page is pla
   const released = harness.runtime.releaseWidgetFromDockByDrop("w1", { page: 99, clientX: 10, clientY: 20 });
 
   assert.equal(released, true);
-  assert.equal(harness.calls.placeholderQueue.length, 1);
+  assert.equal(harness.calls.placeholderCommits.length, 1);
+  assert.equal(harness.calls.history.length, 0);
+  assert.equal(harness.calls.renderBoard, 0);
+  assert.equal(harness.calls.save, 0);
+});
+
+test("releaseWidgetFromContainerByDrop immediately commits placeholder page drops", () => {
+  const harness = createHarness({
+    isLauncherPlaceholderPolicyActive: () => true,
+    isPlaceholderLauncherPage: () => true
+  });
+  harness.state.instances = [
+    { id: "w1", type: "note", page: 0, containerId: "c1", layout: { x: 0, y: 0, w: 100, h: 80 } },
+    { id: "c1", type: "container", page: 1, containerId: "" }
+  ];
+
+  const released = harness.runtime.releaseWidgetFromContainerByDrop("w1", { page: 99, clientX: 10, clientY: 20 });
+
+  assert.equal(released, true);
+  assert.equal(harness.calls.placeholderCommits.length, 1);
   assert.equal(harness.calls.history.length, 0);
   assert.equal(harness.calls.renderBoard, 0);
   assert.equal(harness.calls.save, 0);

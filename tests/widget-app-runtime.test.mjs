@@ -234,7 +234,7 @@ function createHarness(overrides = {}) {
     appendWidgetToContainerOrder() {},
     normalizeContainerAssignments() {},
     refreshWidgetsByType() {},
-    queuePlaceholderPageDrop() {
+    commitPlaceholderPageDrop() {
       return false;
     },
     containerUnitLayoutSize: () => ({ w: 1, h: 1 }),
@@ -513,7 +513,7 @@ test("removeWidget can reuse app-facing renderBoard after normalization-sensitiv
   assert.equal(harness.calls.normalizeDockedWidgetOrders.length, 2);
 });
 
-test("releaseWidgetFromDockByDrop preserves placeholder queue wiring through app layer", () => {
+test("releaseWidgetFromDockByDrop preserves placeholder commit wiring through app layer", () => {
   const order = [];
   const harness = createHarness({
     createWidgetStateRuntime(factoryDeps) {
@@ -527,7 +527,7 @@ test("releaseWidgetFromDockByDrop preserves placeholder queue wiring through app
         releaseWidgetFromDockByDrop(widgetId, payload) {
           order.push(["releaseDock", widgetId, payload]);
           if (factoryDeps.isLauncherPlaceholderPolicyActive() && factoryDeps.isPlaceholderLauncherPage(payload.page, factoryDeps.currentLauncherPageCount())) {
-            return factoryDeps.queuePlaceholderPageDrop(widgetId, payload, payload.page);
+            return factoryDeps.commitPlaceholderPageDrop(widgetId, payload, payload.page);
           }
           return false;
         },
@@ -542,18 +542,18 @@ test("releaseWidgetFromDockByDrop preserves placeholder queue wiring through app
     isLauncherPlaceholderPolicyActive: () => true,
     isPlaceholderLauncherPage: (page, pageCount) => page >= pageCount,
     currentLauncherPageCount: () => 3,
-    queuePlaceholderPageDrop(widgetId, payload, page) {
-      order.push(["queuePlaceholder", widgetId, payload, page]);
-      return { queued: true, widgetId, page };
+    commitPlaceholderPageDrop(widgetId, payload, page) {
+      order.push(["commitPlaceholder", widgetId, payload, page]);
+      return { committed: true, widgetId, page };
     }
   });
 
   const result = harness.runtime.releaseWidgetFromDockByDrop("dock-widget", { page: 3, clientX: 50 });
 
-  assert.deepEqual(result, { queued: true, widgetId: "dock-widget", page: 3 });
+  assert.deepEqual(result, { committed: true, widgetId: "dock-widget", page: 3 });
   assert.deepEqual(order, [
     ["releaseDock", "dock-widget", { page: 3, clientX: 50 }],
-    ["queuePlaceholder", "dock-widget", { page: 3, clientX: 50 }, 3]
+    ["commitPlaceholder", "dock-widget", { page: 3, clientX: 50 }, 3]
   ]);
   assert.equal(harness.calls.boardReplaceChildren, 0);
   assert.deepEqual(harness.calls.createWidgetCard, []);
