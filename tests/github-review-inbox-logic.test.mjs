@@ -22,6 +22,7 @@ import {
   normalizeReviewInboxTab,
   normalizedConfig,
   resolveAgingThresholds,
+  shouldStartReviewInboxSwipe,
   sortReviewItemsByCreatedAt,
   splitReviewItemsByTab
 } from "../widgets/githubReviewInbox.js";
@@ -290,6 +291,12 @@ test("sortReviewItemsByCreatedAt keeps the oldest PR first", () => {
   ]);
 
   assert.deepEqual(sorted.map((item) => item.number), [10, 11, 12]);
+});
+
+test("shouldStartReviewInboxSwipe requires deliberate horizontal drag", () => {
+  assert.equal(shouldStartReviewInboxSwipe(10, 1), false);
+  assert.equal(shouldStartReviewInboxSwipe(18, 20), false);
+  assert.equal(shouldStartReviewInboxSwipe(24, 6), true);
 });
 
 test("normalizeReviewInboxTab falls back to needsReview", () => {

@@ -11,6 +11,24 @@ export function shouldSyncModalFieldOnInput(field = {}) {
   );
 }
 
+export function shouldSkipModalFieldValueSync(field = {}, input = null) {
+  if (field?.type !== "number") {
+    return false;
+  }
+  if (!input || typeof input !== "object") {
+    return false;
+  }
+
+  const rawValue = typeof input.value === "string" ? input.value.trim() : String(input.value ?? "").trim();
+  if (!rawValue) {
+    return true;
+  }
+  if (input.validity?.badInput) {
+    return true;
+  }
+  return !Number.isFinite(Number(rawValue));
+}
+
 export function renderWidgetModalFieldsView({
   fields = [],
   currentType = "",
@@ -74,6 +92,9 @@ export function renderWidgetModalFieldsView({
 
     const input = createInputBySchema(field, modalFieldValue(field));
     const syncFieldValue = () => {
+      if (shouldSkipModalFieldValueSync(field, input)) {
+        return;
+      }
       setModalFieldValue(field, readFieldValue(input, field));
       if (shouldRerenderOnModalFieldChange(field)) {
         renderWidgetModal();
