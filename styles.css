@@ -2639,6 +2639,24 @@ body.mode-edit .widget-float-remove:hover {
   color: color-mix(in srgb, var(--widget-effective-accent), var(--text) 30%);
 }
 
+.monday-board-card-header[href] {
+  display: block;
+  text-decoration: none;
+}
+
+.monday-board-card-header[href]:hover,
+.monday-board-card-header[href]:focus-visible {
+  text-decoration: underline;
+}
+
+.monday-board-inline-header {
+  list-style: none;
+}
+
+.monday-board-inline-header .monday-board-card-header {
+  margin: 0;
+}
+
 .monday-board-card-list {
   list-style: none;
   margin: 0;
