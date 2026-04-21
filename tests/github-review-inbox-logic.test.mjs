@@ -22,6 +22,7 @@ import {
   normalizeReviewInboxTab,
   normalizedConfig,
   resolveAgingThresholds,
+  shouldAutoIgnoreReviewInboxItem,
   shouldStartReviewInboxSwipe,
   sortReviewItemsByCreatedAt,
   splitReviewItemsByTab
@@ -297,6 +298,12 @@ test("shouldStartReviewInboxSwipe requires deliberate horizontal drag", () => {
   assert.equal(shouldStartReviewInboxSwipe(10, 1), false);
   assert.equal(shouldStartReviewInboxSwipe(18, 20), false);
   assert.equal(shouldStartReviewInboxSwipe(24, 6), true);
+});
+
+test("shouldAutoIgnoreReviewInboxItem hides non-requested reviews only in needs review tab", () => {
+  assert.equal(shouldAutoIgnoreReviewInboxItem({ reviewRequested: false }, "needsReview"), true);
+  assert.equal(shouldAutoIgnoreReviewInboxItem({ reviewRequested: true }, "needsReview"), false);
+  assert.equal(shouldAutoIgnoreReviewInboxItem({ reviewRequested: false }, "opened"), false);
 });
 
 test("normalizeReviewInboxTab falls back to needsReview", () => {

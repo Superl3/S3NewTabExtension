@@ -204,20 +204,29 @@ function buildReviewInboxItemKey(item) {
   return normalizeText(item?.number);
 }
 
+function shouldAutoIgnoreReviewInboxItem(item, tabId) {
+  return (
+    normalizeReviewInboxTab(tabId) === REVIEW_INBOX_TAB_NEEDS_REVIEW &&
+    item?.reviewRequested !== true
+  );
+}
+
 function decorateReviewItemsForTab(items, config, tabId, showIgnored = false) {
   const scopeKey = buildReviewInboxIgnoreScopeKey(config, tabId);
   const decoratedItems = [];
   let ignoredCount = 0;
 
   for (const item of Array.isArray(items) ? items : []) {
-    const ignored = isIgnoredItem(scopeKey, buildReviewInboxItemKey(item));
+    const autoIgnored = shouldAutoIgnoreReviewInboxItem(item, tabId);
+    const manuallyIgnored = isIgnoredItem(scopeKey, buildReviewInboxItemKey(item));
+    const ignored = autoIgnored || manuallyIgnored;
     if (ignored) {
       ignoredCount += 1;
       if (!showIgnored) {
         continue;
       }
     }
-    decoratedItems.push({ ...item, ignored });
+    decoratedItems.push({ ...item, ignored, autoIgnored, manuallyIgnored });
   }
 
   return {
@@ -1150,14 +1159,14 @@ export const githubReviewInboxWidget = {
         }
 
         if (item.ignored) {
-          appendBadge(badges, "Ignored", "is-ignored");
+          appendBadge(badges, item.autoIgnored ? "Auto ignored" : "Ignored", "is-ignored");
         }
 
         link.append(top, meta, badges);
 
         swipeContent.append(link);
 
-        if (item.ignored) {
+        if (item.ignored && !item.autoIgnored) {
           const ignoredActions = document.createElement("div");
           ignoredActions.className = "github-review-inbox-ignored-actions";
 
@@ -1373,6 +1382,7 @@ export {
   normalizedConfig,
   parseTimestamp,
   resolveAgingThresholds,
+  shouldAutoIgnoreReviewInboxItem,
   shouldStartReviewInboxSwipe,
   sortReviewItemsByCreatedAt,
   splitReviewItemsByTab
