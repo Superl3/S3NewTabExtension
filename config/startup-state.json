@@ -85,10 +85,10 @@
         "id": "clock-1",
         "type": "clock",
         "gridLayout": {
-          "col": 0,
+          "col": 3,
           "row": 0,
           "colSpan": 3,
-          "rowSpan": 2
+          "rowSpan": 1
         }
       },
       {
@@ -100,7 +100,7 @@
         },
         "gridLayout": {
           "col": 3,
-          "row": 0,
+          "row": 1,
           "colSpan": 6,
           "rowSpan": 1
         }
@@ -115,7 +115,7 @@
           "refreshMinutes": 30
         },
         "gridLayout": {
-          "col": 9,
+          "col": 6,
           "row": 0,
           "colSpan": 3,
           "rowSpan": 1
@@ -136,7 +136,7 @@
         },
         "gridLayout": {
           "col": 3,
-          "row": 1,
+          "row": 2,
           "colSpan": 1,
           "rowSpan": 1
         }
@@ -156,7 +156,7 @@
         },
         "gridLayout": {
           "col": 4,
-          "row": 1,
+          "row": 2,
           "colSpan": 1,
           "rowSpan": 1
         }
@@ -176,7 +176,7 @@
         },
         "gridLayout": {
           "col": 5,
-          "row": 1,
+          "row": 2,
           "colSpan": 1,
           "rowSpan": 1
         }
@@ -196,7 +196,7 @@
         },
         "gridLayout": {
           "col": 6,
-          "row": 1,
+          "row": 2,
           "colSpan": 1,
           "rowSpan": 1
         }
@@ -216,7 +216,7 @@
         },
         "gridLayout": {
           "col": 7,
-          "row": 1,
+          "row": 2,
           "colSpan": 1,
           "rowSpan": 1
         }
@@ -236,7 +236,7 @@
         },
         "gridLayout": {
           "col": 8,
-          "row": 1,
+          "row": 2,
           "colSpan": 1,
           "rowSpan": 1
         }
@@ -245,10 +245,10 @@
         "id": "bookmarks-10",
         "type": "bookmarks",
         "gridLayout": {
-          "col": 9,
-          "row": 1,
-          "colSpan": 3,
-          "rowSpan": 4
+          "col": 3,
+          "row": 5,
+          "colSpan": 6,
+          "rowSpan": 3
         }
       },
       {
@@ -256,19 +256,19 @@
         "type": "todo",
         "gridLayout": {
           "col": 0,
-          "row": 2,
-          "colSpan": 4,
-          "rowSpan": 3
+          "row": 3,
+          "colSpan": 3,
+          "rowSpan": 5
         }
       },
       {
         "id": "notes-13",
         "type": "notes",
         "gridLayout": {
-          "col": 4,
-          "row": 2,
-          "colSpan": 5,
-          "rowSpan": 3
+          "col": 9,
+          "row": 3,
+          "colSpan": 3,
+          "rowSpan": 5
         }
       }
     ]

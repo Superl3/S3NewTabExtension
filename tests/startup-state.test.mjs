@@ -189,6 +189,42 @@ test("repository startup screen uses a non-overlapping grid layout", async () =>
     assert.match(shortcut.config?.icon || "", /^https:\/\/www\.google\.com\/s2\/favicons\?sz=128&domain_url=/);
     assert.equal(shortcut.config?.faviconMode, "none");
   }
+  assert.deepEqual(instances.find((instance) => instance.id === "clock-1")?.gridLayout, {
+    col: 3,
+    row: 0,
+    colSpan: 3,
+    rowSpan: 1
+  });
+  assert.deepEqual(instances.find((instance) => instance.id === "weather-3")?.gridLayout, {
+    col: 6,
+    row: 0,
+    colSpan: 3,
+    rowSpan: 1
+  });
+  assert.deepEqual(instances.find((instance) => instance.id === "search-2")?.gridLayout, {
+    col: 3,
+    row: 1,
+    colSpan: 6,
+    rowSpan: 1
+  });
+  assert.deepEqual(instances.find((instance) => instance.id === "todo-12")?.gridLayout, {
+    col: 0,
+    row: 3,
+    colSpan: 3,
+    rowSpan: 5
+  });
+  assert.deepEqual(instances.find((instance) => instance.id === "notes-13")?.gridLayout, {
+    col: 9,
+    row: 3,
+    colSpan: 3,
+    rowSpan: 5
+  });
+  assert.deepEqual(instances.find((instance) => instance.id === "bookmarks-10")?.gridLayout, {
+    col: 3,
+    row: 5,
+    colSpan: 6,
+    rowSpan: 3
+  });
 
   for (const instance of instances.filter((item) => item.dockOrder === undefined || item.dockOrder === null)) {
     const grid = instance.gridLayout || {};
