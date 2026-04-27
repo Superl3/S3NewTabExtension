@@ -62,15 +62,26 @@ function isElementNearViewport(target, windowObj, margin = 240) {
 }
 
 function runAfterCurrentRender(windowObj, callback) {
+  let didRun = false;
+  const runOnce = () => {
+    if (didRun) {
+      return;
+    }
+    didRun = true;
+    callback();
+  };
+
   if (typeof windowObj?.requestAnimationFrame === "function") {
-    windowObj.requestAnimationFrame(callback);
+    windowObj.requestAnimationFrame(runOnce);
+    const timeout = typeof windowObj?.setTimeout === "function" ? windowObj.setTimeout.bind(windowObj) : setTimeout;
+    timeout(runOnce, 120);
     return;
   }
   if (typeof queueMicrotask === "function") {
-    queueMicrotask(callback);
+    queueMicrotask(runOnce);
     return;
   }
-  setTimeout(callback, 0);
+  setTimeout(runOnce, 0);
 }
 
 function createLazyController(definition, context = {}) {
@@ -80,7 +91,6 @@ function createLazyController(definition, context = {}) {
   let pendingRefresh = false;
   let pendingManualRefresh = false;
   let visibilityObserver = null;
-  let visibilityChangeHandler = null;
   const container = context.container;
 
   renderLazyWidgetStatus(container, "Loading widget...");
@@ -88,10 +98,6 @@ function createLazyController(definition, context = {}) {
   const cleanupVisibilityGate = () => {
     visibilityObserver?.disconnect?.();
     visibilityObserver = null;
-    if (visibilityChangeHandler && container?.ownerDocument?.removeEventListener) {
-      container.ownerDocument.removeEventListener("visibilitychange", visibilityChangeHandler);
-    }
-    visibilityChangeHandler = null;
   };
 
   const startLoad = () => {
@@ -136,17 +142,6 @@ function createLazyController(definition, context = {}) {
     const windowObj = documentObj?.defaultView || globalThis;
     const target = resolveLazyWidgetTarget(container);
 
-    if (documentObj?.visibilityState && documentObj.visibilityState !== "visible" && typeof documentObj.addEventListener === "function") {
-      visibilityChangeHandler = () => {
-        if (documentObj.visibilityState === "visible") {
-          cleanupVisibilityGate();
-          waitUntilVisibleThenLoad();
-        }
-      };
-      documentObj.addEventListener("visibilitychange", visibilityChangeHandler);
-      return;
-    }
-
     if (!target || target.nodeType !== 1 || typeof windowObj?.IntersectionObserver !== "function") {
       startLoad();
       return;
@@ -181,6 +176,7 @@ function createLazyController(definition, context = {}) {
         return;
       }
       pendingRefresh = true;
+      startLoad();
     },
     manualRefresh() {
       if (typeof controller?.manualRefresh === "function") {
@@ -188,6 +184,7 @@ function createLazyController(definition, context = {}) {
         return;
       }
       pendingManualRefresh = true;
+      startLoad();
     },
     refreshPosition() {
       controller?.refreshPosition?.();
