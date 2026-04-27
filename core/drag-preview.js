@@ -39,8 +39,17 @@ export function createWidgetDragPreview(instance, options = {}) {
     const pointerY = Number.isFinite(Number(options?.pointerY))
       ? Number(options.pointerY)
       : Number(options?.pointerEvent?.clientY);
-    const offsetX = Number.isFinite(pointerX) ? clamp(pointerX - rect.left, 0, rect.width) : rect.width / 2;
-    const offsetY = Number.isFinite(pointerY) ? clamp(pointerY - rect.top, 0, rect.height) : rect.height / 2;
+    const fallbackToTopLeft = options?.fallbackPointerAnchor === "top-left";
+    const rawOffsetX = Number.isFinite(pointerX) ? pointerX - rect.left : Number.NaN;
+    const rawOffsetY = Number.isFinite(pointerY) ? pointerY - rect.top : Number.NaN;
+    const offsetX =
+      Number.isFinite(rawOffsetX)
+        ? (fallbackToTopLeft && rawOffsetX > rect.width ? 0 : clamp(rawOffsetX, 0, rect.width))
+        : rect.width / 2;
+    const offsetY =
+      Number.isFinite(rawOffsetY)
+        ? (fallbackToTopLeft && rawOffsetY > rect.height ? 0 : clamp(rawOffsetY, 0, rect.height))
+        : rect.height / 2;
 
     preview.dataset.dragOffsetX = String(offsetX);
     preview.dataset.dragOffsetY = String(offsetY);

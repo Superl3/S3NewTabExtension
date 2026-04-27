@@ -73,6 +73,75 @@ test("createWidgetDragPreview uses preview layer above normalized content", () =
   }
 });
 
+test("createWidgetDragPreview keeps long-press pointer misses anchored to top-left", () => {
+  const appended = [];
+  const originalDocument = globalThis.document;
+  const originalHTMLElement = globalThis.HTMLElement;
+
+  class MockHTMLElement {}
+  globalThis.HTMLElement = MockHTMLElement;
+
+  const makeNode = () => {
+    const classNames = new Set();
+    return Object.assign(new MockHTMLElement(), {
+      classList: {
+        add(name) {
+          classNames.add(name);
+        },
+        remove(name) {
+          classNames.delete(name);
+        },
+        has(name) {
+          return classNames.has(name);
+        }
+      },
+      dataset: {},
+      style: {
+        setProperty(name, value) {
+          this[name] = value;
+        }
+      },
+      removeAttribute() {}
+    });
+  };
+
+  const sourceCard = makeNode();
+  sourceCard.getBoundingClientRect = () => ({
+    left: 100,
+    top: 100,
+    width: 80,
+    height: 60
+  });
+
+  globalThis.document = {
+    body: {
+      append(node) {
+        appended.push(node);
+      }
+    }
+  };
+
+  try {
+    const preview = makeNode();
+    sourceCard.cloneNode = () => preview;
+
+    const result = createWidgetDragPreview({ title: "Drag me" }, {
+      sourceCard,
+      pointerX: 260,
+      pointerY: 240,
+      fallbackPointerAnchor: "top-left"
+    });
+
+    assert.equal(result, preview);
+    assert.equal(preview.dataset.dragOffsetX, "0");
+    assert.equal(preview.dataset.dragOffsetY, "0");
+    assert.equal(appended[0], preview);
+  } finally {
+    globalThis.document = originalDocument;
+    globalThis.HTMLElement = originalHTMLElement;
+  }
+});
+
 test("raw content z-index state stays unbounded while display z-index is normalized", () => {
   assert.equal(normalizeRawContentZIndex(999999), 999999);
   assert.equal(resolveCardContentZIndex(999999, 999999), MAX_CARD_Z_INDEX);
