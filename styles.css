@@ -1111,6 +1111,8 @@ body.mode-edit.settings-open .settings-rail-toggle {
 }
 
 .widget-card {
+  --widget-layout-x: 0px;
+  --widget-layout-y: 0px;
   --widget-opacity: 0.85;
   --widget-edge-roundness: 18px;
   --widget-pad-top: 10px;
@@ -1135,24 +1137,25 @@ body.mode-edit.settings-open .settings-rail-toggle {
   contain: layout paint style;
   content-visibility: auto;
   contain-intrinsic-size: 240px 180px;
+  transform: translate3d(var(--widget-layout-x), var(--widget-layout-y), 0);
   backface-visibility: hidden;
 }
 
 @keyframes widget-drag-jiggle {
   0% {
-    transform: translate3d(0, 0, 0) rotate(0deg);
+    transform: translate3d(var(--widget-layout-x), var(--widget-layout-y), 0) rotate(0deg);
   }
   22% {
-    transform: translate3d(0, 0.45px, 0) rotate(-1.2deg);
+    transform: translate3d(var(--widget-layout-x), calc(var(--widget-layout-y) + 0.45px), 0) rotate(-1.2deg);
   }
   50% {
-    transform: translate3d(0, 0.9px, 0) rotate(0deg);
+    transform: translate3d(var(--widget-layout-x), calc(var(--widget-layout-y) + 0.9px), 0) rotate(0deg);
   }
   78% {
-    transform: translate3d(0, 0.45px, 0) rotate(1.2deg);
+    transform: translate3d(var(--widget-layout-x), calc(var(--widget-layout-y) + 0.45px), 0) rotate(1.2deg);
   }
   100% {
-    transform: translate3d(0, 0, 0) rotate(0deg);
+    transform: translate3d(var(--widget-layout-x), var(--widget-layout-y), 0) rotate(0deg);
   }
 }
 

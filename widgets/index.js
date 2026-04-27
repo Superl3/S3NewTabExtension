@@ -33,43 +33,118 @@ function renderLazyWidgetStatus(container, message) {
   container.replaceChildren(status);
 }
 
+function resolveLazyWidgetTarget(container) {
+  return container?.closest?.(".widget-card") || container || null;
+}
+
+function runAfterCurrentRender(windowObj, callback) {
+  if (typeof windowObj?.requestAnimationFrame === "function") {
+    windowObj.requestAnimationFrame(callback);
+    return;
+  }
+  if (typeof queueMicrotask === "function") {
+    queueMicrotask(callback);
+    return;
+  }
+  setTimeout(callback, 0);
+}
+
 function createLazyController(definition, context = {}) {
   let controller = null;
   let destroyed = false;
+  let loadStarted = false;
   let pendingRefresh = false;
   let pendingManualRefresh = false;
+  let visibilityObserver = null;
+  let visibilityChangeHandler = null;
   const container = context.container;
 
   renderLazyWidgetStatus(container, "Loading widget...");
 
-  definition.load()
-    .then((loadedDefinition) => {
-      if (destroyed) {
-        return;
+  const cleanupVisibilityGate = () => {
+    visibilityObserver?.disconnect?.();
+    visibilityObserver = null;
+    if (visibilityChangeHandler && container?.ownerDocument?.removeEventListener) {
+      container.ownerDocument.removeEventListener("visibilitychange", visibilityChangeHandler);
+    }
+    visibilityChangeHandler = null;
+  };
+
+  const startLoad = () => {
+    if (loadStarted || destroyed) {
+      return;
+    }
+    loadStarted = true;
+    cleanupVisibilityGate();
+
+    definition.load()
+      .then((loadedDefinition) => {
+        if (destroyed) {
+          return;
+        }
+        if (container?.replaceChildren) {
+          container.replaceChildren();
+        }
+        controller = loadedDefinition.create?.(context) || {};
+        if (destroyed) {
+          controller?.destroy?.();
+          controller = null;
+          return;
+        }
+        if (pendingManualRefresh && typeof controller.manualRefresh === "function") {
+          controller.manualRefresh();
+        } else if ((pendingManualRefresh || pendingRefresh) && typeof controller.refresh === "function") {
+          controller.refresh();
+        }
+        pendingRefresh = false;
+        pendingManualRefresh = false;
+      })
+      .catch((error) => {
+        console.warn(`Failed to load widget module: ${definition.type}`, error);
+        if (!destroyed) {
+          renderLazyWidgetStatus(container, "Widget failed to load.");
+        }
+      });
+  };
+
+  const waitUntilVisibleThenLoad = () => {
+    const documentObj = container?.ownerDocument || null;
+    const windowObj = documentObj?.defaultView || globalThis;
+    const target = resolveLazyWidgetTarget(container);
+
+    if (documentObj?.visibilityState === "hidden" && typeof documentObj.addEventListener === "function") {
+      visibilityChangeHandler = () => {
+        if (documentObj.visibilityState !== "hidden") {
+          cleanupVisibilityGate();
+          waitUntilVisibleThenLoad();
+        }
+      };
+      documentObj.addEventListener("visibilitychange", visibilityChangeHandler);
+      return;
+    }
+
+    if (!target || target.nodeType !== 1 || typeof windowObj?.IntersectionObserver !== "function") {
+      startLoad();
+      return;
+    }
+
+    visibilityObserver = new windowObj.IntersectionObserver((entries) => {
+      if (entries.some((entry) => entry.isIntersecting || entry.intersectionRatio > 0)) {
+        startLoad();
       }
-      if (container?.replaceChildren) {
-        container.replaceChildren();
-      }
-      controller = loadedDefinition.create?.(context) || {};
-      if (destroyed) {
-        controller?.destroy?.();
-        controller = null;
-        return;
-      }
-      if (pendingManualRefresh && typeof controller.manualRefresh === "function") {
-        controller.manualRefresh();
-      } else if ((pendingManualRefresh || pendingRefresh) && typeof controller.refresh === "function") {
-        controller.refresh();
-      }
-      pendingRefresh = false;
-      pendingManualRefresh = false;
-    })
-    .catch((error) => {
-      console.warn(`Failed to load widget module: ${definition.type}`, error);
-      if (!destroyed) {
-        renderLazyWidgetStatus(container, "Widget failed to load.");
+    }, {
+      root: null,
+      rootMargin: "240px"
+    });
+
+    runAfterCurrentRender(windowObj, () => {
+      if (!destroyed && visibilityObserver) {
+        visibilityObserver.observe(target);
       }
     });
+  };
+
+  waitUntilVisibleThenLoad();
 
   return {
     refresh() {
@@ -86,8 +161,12 @@ function createLazyController(definition, context = {}) {
       }
       pendingManualRefresh = true;
     },
+    refreshPosition() {
+      controller?.refreshPosition?.();
+    },
     destroy() {
       destroyed = true;
+      cleanupVisibilityGate();
       controller?.destroy?.();
       controller = null;
       pendingRefresh = false;

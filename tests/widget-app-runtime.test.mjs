@@ -446,6 +446,37 @@ test("app.js wires board visibility predicates into createAppWidgetRuntime", asy
   assert.match(wiringBlock, /\bsyncZCounterFromState\b/, "expected z-index sync to be passed to app widget runtime");
 });
 
+test("app.js keeps viewport container refresh lightweight", async () => {
+  const source = await fs.readFile(new URL("../app.js", import.meta.url), "utf8");
+  const start = source.indexOf("function renderBoardViewport(");
+  const end = source.indexOf("function setActiveLauncherPage(", start);
+
+  assert.notEqual(start, -1, "expected renderBoardViewport in app.js");
+  assert.notEqual(end, -1, "expected setActiveLauncherPage after renderBoardViewport");
+
+  const renderBoardViewportBlock = source.slice(start, end);
+  assert.match(renderBoardViewportBlock, /refreshContainerPanelPositions\(\)/);
+  assert.doesNotMatch(renderBoardViewportBlock, /refreshWidgetsByType\("container"\)/);
+});
+
+test("app.js positions board cards with transform variables", async () => {
+  const [appSource, styleSource] = await Promise.all([
+    fs.readFile(new URL("../app.js", import.meta.url), "utf8"),
+    fs.readFile(new URL("../styles.css", import.meta.url), "utf8")
+  ]);
+  const start = appSource.indexOf("function applyLayout(");
+  const end = appSource.indexOf("function isGridLayoutMode(", start);
+
+  assert.notEqual(start, -1, "expected applyLayout in app.js");
+  assert.notEqual(end, -1, "expected isGridLayoutMode after applyLayout");
+
+  const applyLayoutBlock = appSource.slice(start, end);
+  assert.match(applyLayoutBlock, /--widget-layout-x/);
+  assert.match(applyLayoutBlock, /--widget-layout-y/);
+  assert.doesNotMatch(applyLayoutBlock, /style\.left = `\$\{Math\.round/);
+  assert.match(styleSource, /transform:\s*translate3d\(var\(--widget-layout-x\), var\(--widget-layout-y\), 0\)/);
+});
+
 test("removeWidget can reuse app-facing renderBoard after normalization-sensitive mutation", () => {
   const order = [];
   const harness = createHarness({
