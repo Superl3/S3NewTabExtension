@@ -252,22 +252,12 @@
         }
       },
       {
-        "id": "aiChat-11",
-        "type": "aiChat",
+        "id": "todo-12",
+        "type": "todo",
         "gridLayout": {
           "col": 0,
           "row": 2,
           "colSpan": 4,
-          "rowSpan": 4
-        }
-      },
-      {
-        "id": "todo-12",
-        "type": "todo",
-        "gridLayout": {
-          "col": 4,
-          "row": 2,
-          "colSpan": 2,
           "rowSpan": 3
         }
       },
@@ -275,9 +265,9 @@
         "id": "notes-13",
         "type": "notes",
         "gridLayout": {
-          "col": 6,
+          "col": 4,
           "row": 2,
-          "colSpan": 3,
+          "colSpan": 5,
           "rowSpan": 3
         }
       }

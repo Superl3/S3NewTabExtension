@@ -181,7 +181,6 @@ test("repository startup screen uses a non-overlapping grid layout", async () =>
       "shortcut",
       "shortcut",
       "bookmarks",
-      "aiChat",
       "todo",
       "notes"
     ]
