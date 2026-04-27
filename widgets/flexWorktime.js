@@ -22,7 +22,6 @@ const FLEX_WORKTIME_CACHE_INDEX_OPTIONS = {
 };
 const FLEX_HOME_TAB_LOAD_TIMEOUT_MS = 20000;
 const DEFAULT_FLEX_WORKTIME_REFRESH_MINUTES = 1;
-const DEFAULT_SOURCE_MODE = "flexHomeScrape";
 const DEFAULT_FLEX_HOME_URL = "https://flex.team/home";
 const FLEX_HOME_ALLOWED_HOSTS = new Set(["flex.team", "www.flex.team"]);
 const FLEX_AUTH_REQUIRED_CODE = "FLEX_AUTH_REQUIRED";
@@ -51,9 +50,6 @@ const FLEX_EXTERNAL_AUTH_PATH_HINT_RE =
   /(?:^|\/)(?:oauth(?:2)?|login|signin|authorize|consent|sso|auth)(?:\/|$)/i;
 const FLEX_AUTH_FLOW_PENDING_MESSAGE =
   "Flex login is still in progress on the opened tab (including Google/OAuth redirects). Finish login there, then return and refresh this widget.";
-
-const SOURCE_MODE_VALUES = new Set(["flexHomeScrape", "api"]);
-const DATE_MODE_VALUES = new Set(["today", "yesterday", "tomorrow", "custom"]);
 
 const NAME_FIELDS = [
   "employeeName",
@@ -182,81 +178,9 @@ function normalizeRefreshMinutes(value, fallback = 10) {
   return clamp(Math.round(num), 1, 720);
 }
 
-function normalizeSourceMode(value, fallback = DEFAULT_SOURCE_MODE) {
-  const mode = normalizeText(value, fallback);
-  return SOURCE_MODE_VALUES.has(mode) ? mode : fallback;
-}
-
-function hasLegacyApiFields(config) {
-  if (!isPlainObject(config)) {
-    return false;
-  }
-
-  return ["apiUrlTemplate", "authHeaderName", "authTokenPrefix", "accessToken", "dateMode", "customDate"]
-    .some((key) => hasOwn(config, key));
-}
-
-function resolveSourceMode(config, fallback = DEFAULT_SOURCE_MODE) {
-  if (isPlainObject(config) && hasOwn(config, "sourceMode")) {
-    const explicitMode = normalizeText(config.sourceMode);
-    if (SOURCE_MODE_VALUES.has(explicitMode)) {
-      return explicitMode;
-    }
-  }
-
-  if (hasLegacyApiFields(config)) {
-    return "api";
-  }
-
-  return fallback;
-}
-
 function normalizeFlexHomeUrl(value, fallback = DEFAULT_FLEX_HOME_URL) {
   const text = normalizeText(value, fallback);
   return text || DEFAULT_FLEX_HOME_URL;
-}
-
-function normalizeDateMode(value, fallback = "today") {
-  const mode = normalizeText(value, fallback).toLowerCase();
-  return DATE_MODE_VALUES.has(mode) ? mode : "today";
-}
-
-function normalizeIsoDate(value) {
-  const text = normalizeText(value);
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(text)) {
-    return "";
-  }
-
-  const year = Number(text.slice(0, 4));
-  const month = Number(text.slice(5, 7));
-  const day = Number(text.slice(8, 10));
-  if (!Number.isInteger(year) || !Number.isInteger(month) || !Number.isInteger(day)) {
-    return "";
-  }
-
-  const date = new Date(year, month - 1, day);
-  if (
-    date.getFullYear() !== year ||
-    date.getMonth() !== month - 1 ||
-    date.getDate() !== day
-  ) {
-    return "";
-  }
-  return text;
-}
-
-function normalizeHeaderName(value, fallback = "Authorization") {
-  const text = normalizeText(value, fallback).replace(/[\r\n]/g, "").trim();
-  return text || fallback;
-}
-
-function tokenFingerprint(token) {
-  const text = normalizeText(token);
-  let checksum = 0;
-  for (let index = 0; index < text.length; index += 1) {
-    checksum = (checksum + text.charCodeAt(index) * (index + 1)) % 1000000007;
-  }
-  return `${text.length}:${checksum}`;
 }
 
 function toLocalDateKey(date) {
@@ -327,12 +251,8 @@ function formatSyncedLabel(timestampMs) {
   });
 }
 
-function sourceModeLabel(value) {
-  return normalizeSourceMode(value, DEFAULT_SOURCE_MODE) === "api" ? "API" : "Flex Home scrape";
-}
-
 function formatSourceError(config, error) {
-  const prefix = sourceModeLabel(config?.sourceMode);
+  const prefix = "Flex Home scrape";
   const message = normalizeErrorMessage(error);
   if (!message) {
     return `${prefix} failed.`;
@@ -345,13 +265,10 @@ function formatSourceError(config, error) {
 
 function configSignature(config) {
   return [
-    resolveSourceMode(config, DEFAULT_SOURCE_MODE),
     normalizeText(config.flexHomeUrl),
     config.openFlexTabIfMissing ? 1 : 0,
-    normalizeText(config.apiUrlTemplate),
-    normalizeText(config.authHeaderName).toLowerCase(),
-    normalizeText(config.authTokenPrefix),
-    tokenFingerprint(config.accessToken)
+    normalizeText(config.detailUrlTemplate),
+    config.openInNewTab ? 1 : 0
   ].join("|");
 }
 
@@ -779,174 +696,18 @@ function normalizeWorktimeRow(entry, index) {
   return row;
 }
 
-function findArrayCandidate(candidate) {
-  if (Array.isArray(candidate)) {
-    return { found: true, items: candidate };
-  }
-  if (!isPlainObject(candidate)) {
-    return { found: false, items: [] };
-  }
-
-  for (const key of ["items", "records", "data"]) {
-    if (Array.isArray(candidate[key])) {
-      return { found: true, items: candidate[key] };
-    }
-  }
-
-  return { found: false, items: [] };
-}
-
-function extractRecords(payload) {
-  const direct = findArrayCandidate(payload);
-  if (direct.found) {
-    return direct.items;
-  }
-
-  if (isPlainObject(payload)) {
-    for (const key of ["items", "records", "data"]) {
-      const nested = findArrayCandidate(payload[key]);
-      if (nested.found) {
-        return nested.items;
-      }
-    }
-
-    for (const value of Object.values(payload)) {
-      if (Array.isArray(value)) {
-        return value;
-      }
-    }
-  }
-
-  return [];
-}
-
-function parseResponseErrorMessage(bodyText, status) {
-  const fallback = normalizeText(bodyText, `Flex worktime request failed: HTTP ${status}`);
-  const payload = tryParseJson(bodyText);
-  if (!isPlainObject(payload)) {
-    return fallback;
-  }
-
-  const message =
-    normalizeText(payload.message) ||
-    normalizeText(payload.error) ||
-    normalizeText(payload.errorMessage) ||
-    normalizeText(payload.detail);
-
-  return message || fallback;
-}
-
-function resolveQueryDate(config) {
-  const mode = normalizeDateMode(config.dateMode, "today");
-  const base = new Date();
-
-  if (mode === "today") {
-    return toLocalDateKey(base);
-  }
-
-  if (mode === "yesterday") {
-    base.setDate(base.getDate() - 1);
-    return toLocalDateKey(base);
-  }
-
-  if (mode === "tomorrow") {
-    base.setDate(base.getDate() + 1);
-    return toLocalDateKey(base);
-  }
-
-  const customDate = normalizeIsoDate(config.customDate);
-  if (!customDate) {
-    throw new Error("Custom date must use YYYY-MM-DD format.");
-  }
-  return customDate;
-}
-
 function resolveQueryDateForSource(config) {
-  if (resolveSourceMode(config, DEFAULT_SOURCE_MODE) === "flexHomeScrape") {
-    return toLocalDateKey(new Date());
-  }
-  return resolveQueryDate(config);
+  return toLocalDateKey(new Date());
 }
 
 function normalizedConfig(config) {
   return {
-    sourceMode: resolveSourceMode(config, DEFAULT_SOURCE_MODE),
     flexHomeUrl: normalizeFlexHomeUrl(config?.flexHomeUrl, DEFAULT_FLEX_HOME_URL),
     openFlexTabIfMissing: config?.openFlexTabIfMissing !== false,
-    apiUrlTemplate: normalizeText(config?.apiUrlTemplate, "https://api.example.com/flex-worktime?date={date}"),
-    authHeaderName: normalizeHeaderName(config?.authHeaderName, "Authorization"),
-    authTokenPrefix: normalizeText(config?.authTokenPrefix, "Bearer"),
-    accessToken: normalizeText(config?.accessToken),
-    dateMode: normalizeDateMode(config?.dateMode, "today"),
-    customDate: normalizeIsoDate(config?.customDate),
     refreshMinutes: normalizeRefreshMinutes(config?.refreshMinutes, DEFAULT_FLEX_WORKTIME_REFRESH_MINUTES),
     detailUrlTemplate: normalizeText(config?.detailUrlTemplate),
     openInNewTab: config?.openInNewTab !== false
   };
-}
-
-function buildApiUrl(config, queryDate) {
-  const template = normalizeText(config.apiUrlTemplate);
-  if (!template) {
-    throw new Error("API URL template is required.");
-  }
-
-  if (!template.includes("{date}")) {
-    throw new Error("API URL template must include {date} placeholder.");
-  }
-
-  const replaced = template.replace(/\{date\}/g, encodeURIComponent(queryDate));
-
-  let parsed;
-  try {
-    parsed = new URL(replaced);
-  } catch {
-    throw new Error("API URL template resolved to an invalid URL.");
-  }
-
-  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
-    throw new Error("API URL template must use http or https.");
-  }
-
-  return parsed.toString();
-}
-
-function buildHeaders(config) {
-  const headers = {
-    Accept: "application/json"
-  };
-
-  const token = normalizeText(config.accessToken);
-  if (!token) {
-    return headers;
-  }
-
-  const headerName = normalizeHeaderName(config.authHeaderName, "Authorization");
-  const prefix = normalizeText(config.authTokenPrefix);
-  headers[headerName] = prefix ? `${prefix} ${token}` : token;
-  return headers;
-}
-
-async function fetchWorktimeRows(config, queryDate) {
-  const apiUrl = buildApiUrl(config, queryDate);
-  const response = await fetch(apiUrl, {
-    method: "GET",
-    headers: buildHeaders(config),
-    cache: "no-store"
-  });
-
-  const responseText = await response.text();
-  if (!response.ok) {
-    throw new Error(parseResponseErrorMessage(responseText, response.status));
-  }
-
-  const payload = tryParseJson(responseText);
-  if (payload === null && normalizeText(responseText)) {
-    throw new Error("Flex worktime response parse failed.");
-  }
-
-  const records = extractRecords(payload);
-  return records.map((entry, index) => normalizeWorktimeRow(entry, index)).filter(Boolean);
 }
 
 function ensureFlexHomeScrapeApis() {
@@ -1599,9 +1360,6 @@ export async function fetchFlexHomeScrapeRows(config, queryDate, scrapeFlowState
 }
 
 async function fetchRowsBySource(config, queryDate, scrapeFlowState = null) {
-  if (resolveSourceMode(config, DEFAULT_SOURCE_MODE) === "api") {
-    return fetchWorktimeRows(config, queryDate);
-  }
   return fetchFlexHomeScrapeRows(config, queryDate, scrapeFlowState);
 }
 
@@ -1686,15 +1444,8 @@ export const flexWorktimeWidget = {
   type: "flexWorktime",
   title: "Flex Worktime",
   defaultConfig: {
-    sourceMode: "flexHomeScrape",
     flexHomeUrl: "https://flex.team/home",
     openFlexTabIfMissing: true,
-    apiUrlTemplate: "https://api.example.com/flex-worktime?date={date}",
-    authHeaderName: "Authorization",
-    authTokenPrefix: "Bearer",
-    accessToken: "",
-    dateMode: "today",
-    customDate: "",
     refreshMinutes: DEFAULT_FLEX_WORKTIME_REFRESH_MINUTES,
     detailUrlTemplate: "",
     openInNewTab: true
@@ -1711,70 +1462,17 @@ export const flexWorktimeWidget = {
   },
   settingsSchema: [
     {
-      key: "sourceMode",
-      label: "Source mode",
-      type: "select",
-      options: [
-        { value: "flexHomeScrape", label: "Flex Home scrape (default)" },
-        { value: "api", label: "API" }
-      ],
-      helpText: "Flex Home scrape reads visible text from your logged-in flex.team/home tab. API mode keeps the previous endpoint flow."
-    },
-    {
       key: "flexHomeUrl",
       label: "Flex Home URL",
       type: "text",
       placeholder: "https://flex.team/home",
-      helpText: "Used only in Flex Home scrape mode."
+      helpText: "Reads the visible summary text from your logged-in flex.team/home tab."
     },
     {
       key: "openFlexTabIfMissing",
       label: "Open Flex tab if missing",
       type: "checkbox",
       helpText: "If enabled, the widget opens Flex Home in a background tab, scrapes, then closes it."
-    },
-    {
-      key: "apiUrlTemplate",
-      label: "API URL template",
-      type: "text",
-      placeholder: "https://api.example.com/flex-worktime?date={date}",
-      helpText: "Used in API mode. Include {date}, for example ...?date={date}."
-    },
-    {
-      key: "authHeaderName",
-      label: "Auth header name",
-      type: "text",
-      placeholder: "Authorization"
-    },
-    {
-      key: "authTokenPrefix",
-      label: "Auth token prefix",
-      type: "text",
-      placeholder: "Bearer"
-    },
-    {
-      key: "accessToken",
-      label: "Access token",
-      type: "password",
-      placeholder: "Token"
-    },
-    {
-      key: "dateMode",
-      label: "Date mode",
-      type: "select",
-      options: [
-        { value: "today", label: "Today" },
-        { value: "yesterday", label: "Yesterday" },
-        { value: "tomorrow", label: "Tomorrow" },
-        { value: "custom", label: "Custom" }
-      ],
-      helpText: "Used in API mode only."
-    },
-    {
-      key: "customDate",
-      label: "Custom date",
-      type: "text",
-      placeholder: "YYYY-MM-DD"
     },
     {
       key: "refreshMinutes",
@@ -1860,7 +1558,8 @@ export const flexWorktimeWidget = {
       }
 
       refreshPausedWhileHidden = false;
-      const delayMs = 60000;
+      const cfg = normalizedConfig(getConfig());
+      const delayMs = cfg.refreshMinutes * 60000;
       timer = setTimeout(() => {
         void loadWorktime();
       }, delayMs);
@@ -2109,6 +1808,8 @@ export const flexWorktimeWidget = {
         try {
           queryDate = resolveQueryDateForSource(cfg);
         } catch (error) {
+          requestSerial += 1;
+          loading = false;
           errorMessage = formatSourceError(cfg, error);
           render();
           scheduleRefresh();
@@ -2118,7 +1819,9 @@ export const flexWorktimeWidget = {
         const nextSig = requestSignature(cfg, queryDate);
         render();
 
-        if (!loading && nextSig !== lastRequestSig) {
+        if (nextSig !== lastRequestSig) {
+          requestSerial += 1;
+          loading = false;
           lastRequestSig = nextSig;
           lastQueryDate = queryDate;
           errorMessage = "";

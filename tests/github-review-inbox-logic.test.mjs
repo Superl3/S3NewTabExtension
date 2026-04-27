@@ -247,8 +247,9 @@ test("buildReviewCandidate includes own PRs with other-user activity even before
   assert.equal(candidate.reason, "OTHER_ACTIVITY_ON_YOUR_PR");
 });
 
-test("github review inbox widget is registered with required settings", () => {
-  assert.equal(widgetRegistry.githubReviewInbox, githubReviewInboxWidget);
+test("github review inbox widget is registered with required settings", async () => {
+  assert.equal(widgetRegistry.githubReviewInbox.type, githubReviewInboxWidget.type);
+  assert.equal(await widgetRegistry.githubReviewInbox.load(), githubReviewInboxWidget);
   const keys = githubReviewInboxWidget.settingsSchema.map((field) => field.key);
   assert.deepEqual(keys.slice(0, 7), [
     "repository",

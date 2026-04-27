@@ -314,7 +314,12 @@ export function createWidgetCardRuntime(deps) {
     });
 
     deps.elements.board.append(card);
-    deps.runtimeMap.set(instance.id, { card, controller });
+    deps.runtimeMap.set(instance.id, {
+      card,
+      controller,
+      instance,
+      type: instance.type
+    });
   }
 
   return {

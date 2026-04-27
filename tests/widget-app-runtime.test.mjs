@@ -330,7 +330,7 @@ test("renderBoard keeps app-facing board composition localized", () => {
   assert.equal(harness.calls.clearContainerDropTargets, 1);
   assert.equal(harness.calls.destroyCalls, 1);
   assert.equal(harness.runtimeMap.size, 0);
-  assert.equal(harness.calls.boardReplaceChildren, 1);
+  assert.equal(harness.calls.boardReplaceChildren, 0);
   assert.deepEqual(harness.calls.syncLauncherPagingState, [{ expandToFitInstances: true }]);
   assert.equal(harness.calls.normalizeDockedWidgetOrders.length, 1);
   assert.equal(harness.calls.syncZCounterFromState, 1);
@@ -427,15 +427,15 @@ test("releaseWidgetFromContainerByDrop can drive board rebuild through app-facin
   assert.deepEqual(harness.calls.createWidgetCard, ["released-board"]);
   assert.equal(harness.calls.clearWidgetDragGuideState, 1);
   assert.equal(harness.calls.clearContainerDropTargets, 1);
-  assert.equal(harness.calls.boardReplaceChildren, 1);
+  assert.equal(harness.calls.boardReplaceChildren, 0);
 });
 
 test("app.js wires board visibility predicates into createAppWidgetRuntime", async () => {
   const source = await fs.readFile(new URL("../app.js", import.meta.url), "utf8");
-  const start = source.indexOf("const appWidgetRuntime = createAppWidgetRuntime({");
+  const start = source.indexOf("const appWidgetRuntimeCapabilities = {");
   const end = source.indexOf("function setWidgetContainer(", start);
 
-  assert.notEqual(start, -1, "expected createAppWidgetRuntime wiring block in app.js");
+  assert.notEqual(start, -1, "expected createAppWidgetRuntime capability wiring block in app.js");
   assert.notEqual(end, -1, "expected app widget runtime wrapper definitions in app.js");
 
   const wiringBlock = source.slice(start, end);
@@ -443,6 +443,7 @@ test("app.js wires board visibility predicates into createAppWidgetRuntime", asy
   assert.match(wiringBlock, /\bisWidgetDocked\b/, "expected isWidgetDocked to be passed to app widget runtime");
   assert.match(wiringBlock, /\bisWidgetInContainer\b/, "expected isWidgetInContainer to be passed to app widget runtime");
   assert.match(wiringBlock, /\bnormalizeDockedWidgetOrders\b/, "expected normalizeDockedWidgetOrders to be passed to app widget runtime");
+  assert.match(wiringBlock, /\bsyncZCounterFromState\b/, "expected z-index sync to be passed to app widget runtime");
 });
 
 test("removeWidget can reuse app-facing renderBoard after normalization-sensitive mutation", () => {
@@ -508,7 +509,7 @@ test("removeWidget can reuse app-facing renderBoard after normalization-sensitiv
     "rendered-board"
   ]);
   assert.deepEqual(harness.calls.createWidgetCard, ["remaining-board"]);
-  assert.equal(harness.calls.boardReplaceChildren, 1);
+  assert.equal(harness.calls.boardReplaceChildren, 0);
   assert.equal(harness.calls.renderSettings, 1);
   assert.equal(harness.calls.normalizeDockedWidgetOrders.length, 2);
 });

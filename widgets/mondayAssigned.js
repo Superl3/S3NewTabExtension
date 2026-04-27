@@ -179,6 +179,74 @@ function resolveMondayUrl(boardSnapshots, accountValue) {
   return resolveMondaySiteUrl(accountValue, candidateUrls);
 }
 
+function resolveBoardDisplayName(snapshot, fallbackBoardId = 0) {
+  const boardId = normalizeBoardId(snapshot?.boardId, fallbackBoardId);
+  return normalizeText(snapshot?.boardName, boardId ? `Board ${boardId}` : "Board");
+}
+
+function createFallbackBoardSnapshot(boardId, fallbackScopeMode, context = null, previousSnapshot = null) {
+  const previousGroups = Array.isArray(previousSnapshot?.boardGroups) ? previousSnapshot.boardGroups : [];
+  const contextGroups = Array.isArray(context?.boardGroups) ? context.boardGroups : previousGroups;
+  const assigneeName =
+    fallbackScopeMode === "all"
+      ? "all tasks"
+      : normalizeText(context?.meName || previousSnapshot?.assigneeName, "me");
+
+  return {
+    boardId,
+    boardName: resolveBoardDisplayName({
+      boardId,
+      boardName: normalizeText(context?.boardName || previousSnapshot?.boardName)
+    }, boardId),
+    boardUrl: normalizeText(context?.boardUrl || previousSnapshot?.boardUrl),
+    assigneeName,
+    scopeMode: fallbackScopeMode === "all" ? "all" : "assigned",
+    boardGroups: contextGroups,
+    issues: []
+  };
+}
+
+function buildBoardHeaderText(snapshot, issueCount, isAllScope) {
+  const displayName = resolveBoardDisplayName(snapshot);
+  if (issueCount > 0) {
+    return `${displayName} (${issueCount} ${isAllScope ? "items" : "assigned"})`;
+  }
+  return `${displayName} (Empty)`;
+}
+
+function isFallbackBoardName(boardName, boardId) {
+  const normalizedId = normalizeBoardId(boardId, 0);
+  if (!normalizedId) {
+    return false;
+  }
+  return normalizeText(boardName) === `Board ${normalizedId}`;
+}
+
+function hasIncompleteBoardMetadata(boardSnapshots) {
+  const snapshots = Array.isArray(boardSnapshots) ? boardSnapshots : [];
+  return snapshots.some((snapshot) => {
+    const boardId = normalizeBoardId(snapshot?.boardId, 0);
+    if (!boardId) {
+      return false;
+    }
+
+    const boardName = normalizeText(snapshot?.boardName);
+    const boardUrl = normalizeText(snapshot?.boardUrl);
+    return !boardName || !boardUrl || isFallbackBoardName(boardName, boardId);
+  });
+}
+
+function openHref(href, openInNewTab, locationRef = window.location, openImpl = window.open) {
+  if (!href) {
+    return;
+  }
+  if (openInNewTab) {
+    openImpl(href, "_blank", "noopener,noreferrer");
+    return;
+  }
+  locationRef.href = href;
+}
+
 const authSessionStorage = createAuthSessionStorage({
   storageKey: MONDAY_AUTH_STORAGE_KEY,
   getStorageArea: () => chrome?.storage?.local,
@@ -1233,15 +1301,31 @@ export const mondayAssignedWidget = {
     function openMondayPage() {
       const cfg = resolveConfig();
       const href = resolveMondayUrl(boardSnapshots, accountLabel);
+      openHref(href, cfg.openInNewTab);
+    }
+
+    function createBoardHeader(snapshot, cfg, issueCount) {
+      const href = normalizeText(snapshot?.boardUrl);
+      const header = document.createElement(href ? "a" : "div");
+      header.className = "monday-board-card-header";
+      header.textContent = buildBoardHeaderText(snapshot, issueCount, snapshot?.scopeMode === "all");
+
       if (!href) {
-        return;
+        return header;
       }
-      const target = cfg.openInNewTab ? "_blank" : "_self";
-      if (target === "_blank") {
-        window.open(href, "_blank", "noopener,noreferrer");
-      } else {
-        window.location.href = href;
-      }
+
+      header.href = href;
+      header.target = cfg.openInNewTab ? "_blank" : "_self";
+      header.rel = "noreferrer";
+      header.addEventListener("click", (event) => {
+        if (!isEditMode?.()) {
+          return;
+        }
+        event.preventDefault();
+        event.stopPropagation();
+        openSettings?.();
+      });
+      return header;
     }
 
     function applyCachedSnapshotIfPresent(rawConfig, cfg) {
@@ -1619,15 +1703,13 @@ export const mondayAssignedWidget = {
       const hasAllScope = visibleSnapshots.some((entry) => entry?.scopeMode === "all");
 
       if (!hasAnyIssues) {
-        if (multiBoard && hasFetched && hasBoardConfig(cfg) && hasActiveConnection(cfg)) {
-          list.classList.add("is-board-cards");
+        if (visibleSnapshots.length && hasFetched && hasBoardConfig(cfg) && hasActiveConnection(cfg)) {
+          list.classList.toggle("is-board-cards", multiBoard);
           for (const snapshot of visibleSnapshots) {
             const card = document.createElement("li");
             card.className = "monday-board-card";
 
-            const cardHeader = document.createElement("div");
-            cardHeader.className = "monday-board-card-header";
-            cardHeader.textContent = `${snapshot.boardName || `Board ${snapshot.boardId}`} (Empty)`;
+            const cardHeader = createBoardHeader(snapshot, cfg, 0);
 
             const emptyText = document.createElement("p");
             emptyText.className = "monday-board-card-empty";
@@ -1670,6 +1752,12 @@ export const mondayAssignedWidget = {
 
       if (!multiBoard) {
         const first = visibleSnapshots[0];
+        if (first) {
+          const boardHeaderRow = document.createElement("li");
+          boardHeaderRow.className = "monday-board-inline-header";
+          boardHeaderRow.append(createBoardHeader(first, cfg, Array.isArray(first?.issues) ? first.issues.length : 0));
+          list.append(boardHeaderRow);
+        }
         const grouped = groupIssuesByGroup(first?.issues || [], first?.boardGroups || []);
         renderGroupedIssues(list, grouped, cfg, `board-${first?.boardId || cfg.boardId}`);
         return;
@@ -1682,11 +1770,7 @@ export const mondayAssignedWidget = {
         const card = document.createElement("li");
         card.className = "monday-board-card";
 
-        const cardHeader = document.createElement("div");
-        cardHeader.className = "monday-board-card-header";
-        cardHeader.textContent = boardIssues.length
-          ? `${snapshot.boardName || `Board ${snapshot.boardId}`} (${boardIssues.length} ${isAllScope ? "items" : "assigned"})`
-          : `${snapshot.boardName || `Board ${snapshot.boardId}`} (Empty)`;
+        const cardHeader = createBoardHeader(snapshot, cfg, boardIssues.length);
 
         if (!boardIssues.length) {
           const emptyText = document.createElement("p");
@@ -1838,14 +1922,19 @@ export const mondayAssignedWidget = {
 
         const snapshots = [];
         const boardWarnings = [];
+        const previousSnapshots = new Map(
+          boardSnapshots.map((entry) => [normalizeBoardId(entry?.boardId, 0), entry])
+        );
         for (let boardIndex = 0; boardIndex < cfg.boardIds.length; boardIndex += 1) {
           const boardId = cfg.boardIds[boardIndex];
           const boardCfg = { ...cfg, boardId };
           const selector = resolveBoardPeopleColumnSelector(cfg, boardIndex);
           const fallbackScopeMode = selector === "*" ? "all" : "assigned";
+          const previousSnapshot = previousSnapshots.get(boardId) || null;
+          let context = null;
 
           try {
-            const context = await fetchContext(boardCfg, accessToken);
+            context = await fetchContext(boardCfg, accessToken);
             const scope = resolveBoardPeopleScope(cfg, boardIndex, context.peopleColumns);
             const statusColumnIds = Array.isArray(context.statusColumnIds)
               ? context.statusColumnIds
@@ -1876,15 +1965,9 @@ export const mondayAssignedWidget = {
             }
 
             boardWarnings.push(`${boardId}: ${normalizeErrorMessage(boardError)}`);
-            snapshots.push({
-              boardId,
-              boardName: `Board ${boardId}`,
-              boardUrl: "",
-              assigneeName: fallbackScopeMode === "all" ? "all tasks" : "me",
-              scopeMode: fallbackScopeMode,
-              boardGroups: [],
-              issues: []
-            });
+            snapshots.push(
+              createFallbackBoardSnapshot(boardId, fallbackScopeMode, context, previousSnapshot)
+            );
           }
         }
 
@@ -1946,8 +2029,12 @@ export const mondayAssignedWidget = {
     installStorageListener();
     void syncStoredSessionForConfig(initialCfg).finally(() => {
       render();
-      if (shouldRunAutoNow()) {
-        void loadIssues({ reason: "auto" });
+      const shouldLoadImmediately =
+        hasBoardConfig(initialCfg) &&
+        hasActiveConnection(initialCfg) &&
+        (!hasFetched || hasIncompleteBoardMetadata(boardSnapshots) || shouldRunAutoNow());
+      if (shouldLoadImmediately) {
+        void loadIssues({ reason: "config" });
       } else {
         scheduleRefresh();
       }
