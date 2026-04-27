@@ -246,7 +246,7 @@
         "type": "bookmarks",
         "gridLayout": {
           "col": 3,
-          "row": 5,
+          "row": 4,
           "colSpan": 6,
           "rowSpan": 3
         }
@@ -258,7 +258,7 @@
           "col": 0,
           "row": 3,
           "colSpan": 3,
-          "rowSpan": 5
+          "rowSpan": 3
         }
       },
       {
@@ -268,7 +268,7 @@
           "col": 9,
           "row": 3,
           "colSpan": 3,
-          "rowSpan": 5
+          "rowSpan": 3
         }
       }
     ]
