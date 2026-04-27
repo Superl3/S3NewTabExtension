@@ -116,21 +116,21 @@ export function startWidgetCardDragSession({
     card.classList.remove("longpress-drag-armed");
   }
 
-  bringWidgetToFront?.(instance.id);
-  card.classList.add("widget-drag-active");
   const previewSession = createDragPreviewSession?.(instance, {
     sourceCard: card,
     pointerEvent: event,
     pointerX: dragStartX,
-    pointerY: dragStartY
+    pointerY: dragStartY,
+    ...(fromLongPress ? { fallbackPointerAnchor: "top-left" } : {})
   });
   if (!previewSession) {
-    card.classList.remove("widget-drag-active");
     return false;
   }
 
-  card.classList.add("widget-drag-origin-hidden");
   const dropSilhouette = createWidgetDropSilhouette?.(card);
+  bringWidgetToFront?.(instance.id);
+  card.classList.add("widget-drag-active");
+  card.classList.add("widget-drag-origin-hidden");
   const hideAndRemoveDropSilhouette = () => {
     setWidgetDropSilhouetteVisible?.(dropSilhouette, false);
     dropSilhouette?.remove?.();

@@ -127,6 +127,106 @@ test("startWidgetCardDragSession removes drag class when preview creation fails"
   assert.equal(card.classList.has("widget-drag-active"), false);
 });
 
+test("startWidgetCardDragSession preserves long-press top-left anchor before active styling", () => {
+  const instance = createBaseInstance();
+  const card = createCard();
+  const windowObj = createEventTarget();
+  let previewOptions = null;
+  let activeDuringPreviewCreation = null;
+  let activeDuringSilhouetteCreation = null;
+  const previewSession = {
+    update() {},
+    getPointerOffset() {
+      return { x: 0, y: 0 };
+    },
+    dispose() {}
+  };
+
+  const started = startWidgetCardDragSession({
+    event: null,
+    target: { closest: () => null },
+    fromLongPress: true,
+    startX: 240,
+    startY: 180,
+    allowUseMode: true,
+    instance,
+    card,
+    isEditMode: () => false,
+    closeBoardContextMenu: () => {},
+    bringWidgetToFront: () => {},
+    createDragPreviewSession: (_instance, options) => {
+      previewOptions = options;
+      activeDuringPreviewCreation = card.classList.has("widget-drag-active");
+      return previewSession;
+    },
+    createWidgetDropSilhouette: () => {
+      activeDuringSilhouetteCreation = card.classList.has("widget-drag-active");
+      return { remove() {} };
+    },
+    setWidgetDropSilhouetteVisible: () => {},
+    setDragDeleteZoneActive: () => {},
+    setLauncherDragPlaceholderPolicy: () => {},
+    updateDragDeleteZoneHover: () => {},
+    createNoneDropPlan: () => ({ kind: "none" }),
+    resolveEdgeDirectionFromPointer: () => 0,
+    getLauncherViewportRect: () => ({ left: 0, right: 1200, top: 0, width: 1200, height: 800 }),
+    syncLauncherPagingState: () => ({ pageCount: 1 }),
+    isLauncherPlaceholderPolicyActive: () => false,
+    isPlaceholderLauncherPage: () => false,
+    currentLauncherPageCount: () => 1,
+    currentLauncherActivePage: () => 0,
+    setLauncherVirtualPage: () => {},
+    setLauncherVirtualPageState: () => {},
+    applyActiveDragPage: () => {},
+    renderBoardViewport: () => {},
+    createDeferredEdgeSwitchScheduler: () => ({
+      schedule() {
+        return false;
+      },
+      reset() {}
+    }),
+    getBoardRect: () => ({ left: 0, top: 0, width: 1200, height: 800 }),
+    evaluateAndRenderWidgetDragIndicators: () => ({ dropPlan: { kind: "none" } }),
+    evaluateFinalWidgetDrop: () => ({
+      finalPayload: { clientX: 240, clientY: 180, page: 0 },
+      finalDropPlan: { kind: "none" }
+    }),
+    resolveDraftPlacementAtPointer: () => ({ x: 0, y: 0 }),
+    patchWidgetLayout: () => false,
+    runtimeMap: new Map(),
+    applyLayout: () => {},
+    isGridLayoutMode: () => false,
+    recordHistorySnapshot: () => {},
+    gridMetrics: () => ({ cellW: 100, cellH: 80, gapX: 10, gapY: 10, marginX: 0, marginY: 0, cols: 4, rows: 4 }),
+    widgetRegistry: {},
+    widgetDefaultGridSize: () => ({ colSpan: 1, rowSpan: 1 }),
+    normalizeGridLayout: (_grid, fallback) => ({ ...fallback }),
+    clamp: (value, min, max) => Math.min(max, Math.max(min, value)),
+    resolveBoundedDragPositionFromDelta: (layout) => layout,
+    cleanupBoardDragSession: () => {},
+    applyWidgetDropPlan: () => false,
+    clearPendingPlaceholderDrop: () => {},
+    normalizeWidgetPage: (page) => page,
+    applyGridLayout: () => {},
+    compactEmptyLauncherPagesForUseMode: () => {},
+    queueSave: () => {},
+    updateBoardBounds: () => {},
+    renderSettings: () => {},
+    resolveSnappedPosition: (x, y) => ({ x, y, changed: false }),
+    snap: 20,
+    windowObj
+  });
+
+  assert.equal(started, true);
+  assert.equal(activeDuringPreviewCreation, false);
+  assert.equal(activeDuringSilhouetteCreation, false);
+  assert.equal(card.classList.has("widget-drag-active"), true);
+  assert.equal(previewOptions.pointerEvent, null);
+  assert.equal(previewOptions.pointerX, 240);
+  assert.equal(previewOptions.pointerY, 180);
+  assert.equal(previewOptions.fallbackPointerAnchor, "top-left");
+});
+
 test("startWidgetCardDragSession runs free drag lifecycle and commits snapped patch", () => {
   const instance = createBaseInstance();
   const card = createCard();

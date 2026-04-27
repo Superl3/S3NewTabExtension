@@ -460,9 +460,10 @@ test("app.js keeps viewport container refresh lightweight", async () => {
 });
 
 test("app.js positions board cards with transform variables", async () => {
-  const [appSource, styleSource] = await Promise.all([
+  const [appSource, styleSource, dragMotionSource] = await Promise.all([
     fs.readFile(new URL("../app.js", import.meta.url), "utf8"),
-    fs.readFile(new URL("../styles.css", import.meta.url), "utf8")
+    fs.readFile(new URL("../styles.css", import.meta.url), "utf8"),
+    fs.readFile(new URL("../widget-drag-motion.css", import.meta.url), "utf8")
   ]);
   const start = appSource.indexOf("function applyLayout(");
   const end = appSource.indexOf("function isGridLayoutMode(", start);
@@ -475,6 +476,11 @@ test("app.js positions board cards with transform variables", async () => {
   assert.match(applyLayoutBlock, /--widget-layout-y/);
   assert.doesNotMatch(applyLayoutBlock, /style\.left = `\$\{Math\.round/);
   assert.match(styleSource, /transform:\s*translate3d\(var\(--widget-layout-x\), var\(--widget-layout-y\), 0\)/);
+  assert.match(
+    dragMotionSource,
+    /transform:\s*translate3d\(var\(--widget-layout-x\), var\(--widget-layout-y\), 0\)/
+  );
+  assert.doesNotMatch(dragMotionSource, /transform:\s*translate3d\(0,\s*0,\s*0\)/);
 });
 
 test("removeWidget can reuse app-facing renderBoard after normalization-sensitive mutation", () => {
