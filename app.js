@@ -2518,6 +2518,15 @@ function refreshWidgetsByType(type) {
   }
 }
 
+function refreshContainerPanelPositions() {
+  for (const instance of state.instances) {
+    if (instance.type !== "container") {
+      continue;
+    }
+    runtime.get(instance.id)?.controller?.refreshPosition?.();
+  }
+}
+
 function populateTypeSelect() {
   elements.widgetTypeSelect.replaceChildren();
   for (const def of widgetList) {
@@ -3691,7 +3700,7 @@ function renderBoardViewport({ dragOffsetX = 0, animate = true, dragging = false
     syncPersistentDock();
   }
 
-  refreshWidgetsByType("container");
+  refreshContainerPanelPositions();
   if (!dragging) {
     renderLauncherPageAffordances();
     syncHomePageAnchorButton();
@@ -3758,8 +3767,10 @@ function removeLauncherPage() {
 }
 
 function applyLayout(card, layout, page = 0) {
-  card.style.left = `${Math.round(layout.x + widgetPageOffsetX(page))}px`;
-  card.style.top = `${Math.round(layout.y)}px`;
+  card.style.left = "0px";
+  card.style.top = "0px";
+  card.style.setProperty("--widget-layout-x", `${Math.round(layout.x + widgetPageOffsetX(page))}px`);
+  card.style.setProperty("--widget-layout-y", `${Math.round(layout.y)}px`);
   card.style.width = `${Math.max(1, Math.round(layout.w))}px`;
   card.style.height = `${Math.max(1, Math.round(layout.h))}px`;
 }

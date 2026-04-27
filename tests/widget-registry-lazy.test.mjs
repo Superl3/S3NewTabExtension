@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import fs from "node:fs/promises";
 
 import { widgetList, widgetRegistry } from "../widgets/index.js";
 
@@ -24,4 +25,12 @@ test("widget registry exposes metadata without eagerly loading widget implementa
     assert.equal(typeof loadedDefinition.create, "function");
     assert.deepEqual(pickMetadata(lazyDefinition), pickMetadata(loadedDefinition));
   }
+});
+
+test("lazy widget controller waits for viewport visibility before loading", async () => {
+  const source = await fs.readFile(new URL("../widgets/index.js", import.meta.url), "utf8");
+
+  assert.match(source, /IntersectionObserver/, "expected widget lazy loading to be viewport-gated");
+  assert.match(source, /visibilityState === "hidden"/, "expected hidden documents to defer widget loading");
+  assert.match(source, /refreshPosition\(\)/, "expected lightweight controller methods to be forwarded");
 });
