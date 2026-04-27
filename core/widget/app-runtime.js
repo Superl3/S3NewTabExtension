@@ -8,7 +8,27 @@ import {
   createWidgetStateRuntime as createWidgetStateRuntimeCore
 } from "../widget-state-runtime.js";
 
-export function createAppWidgetRuntime(deps) {
+function normalizeAppWidgetRuntimeDeps(deps = {}) {
+  const capabilities = deps.capabilities || {};
+  return {
+    ...deps,
+    ...capabilities.lifecycle,
+    ...capabilities.board,
+    ...capabilities.container,
+    ...capabilities.dock,
+    ...capabilities.drag,
+    ...capabilities.layout,
+    ...capabilities.selection,
+    ...capabilities.settings,
+    ...capabilities.persistence,
+    ...capabilities.history,
+    ...capabilities.style,
+    ...capabilities.modal
+  };
+}
+
+export function createAppWidgetRuntime(rawDeps) {
+  const deps = normalizeAppWidgetRuntimeDeps(rawDeps);
   const createWidgetDropSurfaceRuntimeImpl = deps.createWidgetDropSurfaceRuntime || createWidgetDropSurfaceRuntimeCore;
   const createWidgetStateRuntimeImpl = deps.createWidgetStateRuntime || createWidgetStateRuntimeCore;
   const createWidgetCardRuntimeImpl = deps.createWidgetCardRuntime || createWidgetCardRuntimeCore;
@@ -203,22 +223,71 @@ export function createAppWidgetRuntime(deps) {
     return widgetCardRuntime.createWidgetCard(instance);
   }
 
+  function isRenderableBoardWidget(instance) {
+    return (
+      instance?.enabled !== false &&
+      !deps.isWidgetDocked(instance) &&
+      !deps.isWidgetInContainer(instance)
+    );
+  }
+
+  function removeRuntimeEntry(instanceId) {
+    const rt = deps.runtimeMap.get(instanceId);
+    rt?.controller?.destroy?.();
+    rt?.card?.remove?.();
+    deps.runtimeMap.delete(instanceId);
+  }
+
+  function refreshExistingCard(instance, rt) {
+    const title = rt.card?.querySelector?.(".widget-title");
+    if (title) {
+      const def = deps.widgetRegistry?.[instance.type];
+      title.textContent = instance.title || def?.title || "Widget";
+    }
+
+    rt.instance = instance;
+    rt.type = instance.type;
+    deps.applyLayout(rt.card, instance.layout, instance.page);
+    deps.applyCardVisual(rt.card, instance);
+    deps.applyCardStack(rt.card, instance);
+    if (instance.type === "container") {
+      rt.controller?.refresh?.();
+    }
+  }
+
   function renderBoard() {
     const state = deps.getState();
 
     deps.clearWidgetDragGuideState();
     deps.clearContainerDropTargets();
-    for (const rt of deps.runtimeMap.values()) {
-      rt.controller?.destroy?.();
-    }
-    deps.runtimeMap.clear();
-    deps.elements.board.replaceChildren();
     deps.syncLauncherPagingState({ expandToFitInstances: true });
     deps.normalizeDockedWidgetOrders(state.instances);
     deps.syncZCounterFromState();
 
-    for (const instance of state.instances) {
-      if (instance.enabled !== false && !deps.isWidgetDocked(instance) && !deps.isWidgetInContainer(instance)) {
+    const desiredIds = new Set();
+    for (const instance of state.instances || []) {
+      if (isRenderableBoardWidget(instance)) {
+        desiredIds.add(instance.id);
+      }
+    }
+
+    for (const [instanceId, rt] of Array.from(deps.runtimeMap.entries())) {
+      const instance = state.instances?.find((item) => item.id === instanceId);
+      if (!desiredIds.has(instanceId) || !instance || rt.type !== instance.type || rt.instance !== instance) {
+        removeRuntimeEntry(instanceId);
+      }
+    }
+
+    for (const instance of state.instances || []) {
+      if (!desiredIds.has(instance.id)) {
+        continue;
+      }
+
+      const rt = deps.runtimeMap.get(instance.id);
+      if (rt?.card) {
+        refreshExistingCard(instance, rt);
+        deps.elements.board.append(rt.card);
+      } else {
         createWidgetCard(instance);
       }
     }
@@ -227,7 +296,7 @@ export function createAppWidgetRuntime(deps) {
       deps.applyGridLayout({ commitFreeLayout: false, shouldSave: false });
     }
 
-    deps.setSelected(state.selectedWidgetId);
+    deps.setSelected(state.selectedWidgetId, { renderDock: false, renderSettings: false });
     deps.setBodyMode();
     deps.updateBoardBounds();
   }
