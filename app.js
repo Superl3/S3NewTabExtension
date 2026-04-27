@@ -3219,6 +3219,8 @@ function createWidgetDropSilhouette(sourceElement = null, options = {}) {
   const silhouette = document.createElement("div");
   silhouette.className = "widget-drop-silhouette";
   silhouette.style.position = "fixed";
+  silhouette.style.left = "0px";
+  silhouette.style.top = "0px";
   silhouette.style.zIndex = String(DROP_SILHOUETTE_Z_INDEX);
 
   const sourceRect = sourceElement?.getBoundingClientRect?.();
@@ -3271,8 +3273,8 @@ function positionWidgetDropSilhouette(silhouette, layout, page = 0) {
 
   const boardX = Math.round((Number(layout.x) || 0) + widgetPageOffsetX(page));
   const boardY = Math.round(Number(layout.y) || 0);
-  silhouette.style.left = `${Math.round(boardRect.left + boardX)}px`;
-  silhouette.style.top = `${Math.round(boardRect.top + boardY)}px`;
+  silhouette.style.setProperty("--drop-silhouette-x", `${Math.round(boardRect.left + boardX)}px`);
+  silhouette.style.setProperty("--drop-silhouette-y", `${Math.round(boardRect.top + boardY)}px`);
   silhouette.style.width = `${Math.max(1, Math.round(Number(layout.w) || 1))}px`;
   silhouette.style.height = `${Math.max(1, Math.round(Number(layout.h) || 1))}px`;
 }

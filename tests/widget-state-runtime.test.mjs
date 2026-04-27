@@ -204,6 +204,32 @@ test("patchWidgetLayout enforces container unit dimensions and refreshes", () =>
   assert.equal(harness.calls.save, 1);
 });
 
+test("patchWidgetLayout can apply live layout without expensive side effects", () => {
+  const harness = createHarness();
+  harness.state.instances = [{ id: "w1", type: "note", page: 0, layout: { x: 0, y: 0, w: 80, h: 80 } }];
+  harness.runtimeMap.set("w1", {
+    card: { id: "card-w1" },
+    controller: {}
+  });
+
+  const changed = harness.runtime.patchWidgetLayout("w1", { x: 12, y: 14 }, {
+    record: false,
+    touch: false,
+    updateBounds: false,
+    renderSettings: false,
+    save: false
+  });
+
+  assert.equal(changed, true);
+  assert.equal(harness.state.instances[0].layout.x, 12);
+  assert.equal(harness.state.instances[0].layout.y, 14);
+  assert.equal(harness.calls.applyLayout.length, 1);
+  assert.equal(harness.calls.touched, 0);
+  assert.equal(harness.calls.updateBoardBounds, 0);
+  assert.equal(harness.calls.renderSettings, 0);
+  assert.equal(harness.calls.save, 0);
+});
+
 test("removeWidget removes container and clears child container links", () => {
   const harness = createHarness({
     modalState: { open: true, widgetId: "c1" }

@@ -153,6 +153,7 @@ export function createAppWidgetRuntime(rawDeps) {
     applyLayout: deps.applyLayout,
     isGridLayoutMode: deps.isGridLayoutMode,
     recordHistorySnapshot: deps.recordHistorySnapshot,
+    touchUserMutationClock: deps.touchUserMutationClock,
     widgetDefaultGridSize: deps.widgetDefaultGridSize,
     normalizeGridLayout: deps.normalizeGridLayout,
     clamp: deps.clamp,

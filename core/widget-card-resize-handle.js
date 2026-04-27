@@ -15,6 +15,9 @@ export function attachWidgetResizeHandle({
   setLastDragEndAt,
   startFreeResizeSession,
   patchWidgetLayout,
+  touchUserMutationClock,
+  updateBoardBounds,
+  renderSettings,
   getBoardRect,
   snap,
   eventTarget
@@ -42,6 +45,8 @@ export function attachWidgetResizeHandle({
     const startY = event.clientY;
     const startW = instance.layout.w;
     const startH = instance.layout.h;
+    let liveResizeChanged = false;
+    let finalResizeChanged = false;
 
     if (isGridLayoutMode?.()) {
       recordHistorySnapshot?.("Resize widget");
@@ -80,20 +85,39 @@ export function attachWidgetResizeHandle({
       getLayoutPosition: () => ({ x: instance.layout.x, y: instance.layout.y }),
       getBoardRect,
       patchSize: (size, { commit = false } = {}) => {
-        patchWidgetLayout?.(
+        const changed = patchWidgetLayout?.(
           instance.id,
           {
             w: size.w,
             h: size.h
           },
-          commit ? { label: "Resize widget" } : { record: false }
+          commit
+            ? { label: "Resize widget" }
+            : {
+                record: false,
+                touch: false,
+                updateBounds: false,
+                renderSettings: false,
+                save: false
+              }
         );
+        if (commit) {
+          finalResizeChanged = changed === true;
+        } else {
+          liveResizeChanged = liveResizeChanged || changed === true;
+        }
       },
       onComplete: {
         getCurrentWidth: () => instance.layout.w,
         getCurrentHeight: () => instance.layout.h,
         afterCommit: () => {
           setLastDragEndAt?.(Date.now());
+          if (liveResizeChanged && !finalResizeChanged) {
+            touchUserMutationClock?.();
+            updateBoardBounds?.();
+            renderSettings?.();
+            queueSave?.();
+          }
         }
       },
       snap,

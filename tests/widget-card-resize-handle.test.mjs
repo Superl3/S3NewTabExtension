@@ -167,7 +167,13 @@ test("attachWidgetResizeHandle starts free resize session in free mode", () => {
   assert.deepEqual(patchCalls[0], {
     id: "w3",
     patch: { w: 210, h: 160 },
-    options: { record: false }
+    options: {
+      record: false,
+      touch: false,
+      updateBounds: false,
+      renderSettings: false,
+      save: false
+    }
   });
   assert.deepEqual(patchCalls[1], {
     id: "w3",
@@ -177,4 +183,61 @@ test("attachWidgetResizeHandle starts free resize session in free mode", () => {
 
   freeSessionArgs.onComplete.afterCommit();
   assert.equal(typeof lastDragEndAt, "number");
+});
+
+test("attachWidgetResizeHandle flushes deferred live resize effects once", () => {
+  const resizeHandle = createFakeHandle();
+  let freeSessionArgs = null;
+  let touchCalls = 0;
+  let updateBoundsCalls = 0;
+  let renderSettingsCalls = 0;
+  let queueSaveCalls = 0;
+  let patchCallCount = 0;
+
+  attachWidgetResizeHandle({
+    resizeHandle,
+    instance: {
+      id: "w4",
+      type: "note",
+      layout: { x: 15, y: 25, w: 180, h: 140 }
+    },
+    isEditMode: () => true,
+    setSelected: () => {},
+    isGridLayoutMode: () => false,
+    startFreeResizeSession: (args) => {
+      freeSessionArgs = args;
+    },
+    patchWidgetLayout: () => {
+      patchCallCount += 1;
+      return patchCallCount === 1;
+    },
+    touchUserMutationClock: () => {
+      touchCalls += 1;
+    },
+    updateBoardBounds: () => {
+      updateBoundsCalls += 1;
+    },
+    renderSettings: () => {
+      renderSettingsCalls += 1;
+    },
+    queueSave: () => {
+      queueSaveCalls += 1;
+    },
+    getBoardRect: () => ({ left: 0, top: 0, width: 900, height: 600 }),
+    snap: 20,
+    setLastDragEndAt: () => {},
+    eventTarget: {}
+  });
+
+  resizeHandle.trigger("pointerdown", createPointerEvent({ button: 0, clientX: 20, clientY: 30 }));
+
+  assert.equal(typeof freeSessionArgs, "object");
+  freeSessionArgs.patchSize({ w: 210, h: 160 }, { commit: false });
+  freeSessionArgs.patchSize({ w: 210, h: 160 }, { commit: true });
+  freeSessionArgs.onComplete.afterCommit();
+
+  assert.equal(touchCalls, 1);
+  assert.equal(updateBoundsCalls, 1);
+  assert.equal(renderSettingsCalls, 1);
+  assert.equal(queueSaveCalls, 1);
 });
