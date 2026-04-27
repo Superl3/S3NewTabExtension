@@ -78,5 +78,90 @@
   "applyPresets": [
     "compact-grid",
     "focus-surface"
-  ]
+  ],
+  "overrides": {
+    "instances": [
+      {
+        "id": "clock-1",
+        "type": "clock",
+        "gridLayout": {
+          "col": 0,
+          "row": 0,
+          "colSpan": 3,
+          "rowSpan": 2
+        }
+      },
+      {
+        "id": "search-2",
+        "type": "search",
+        "gridLayout": {
+          "col": 3,
+          "row": 0,
+          "colSpan": 6,
+          "rowSpan": 1
+        }
+      },
+      {
+        "id": "shortcut-5",
+        "type": "shortcut",
+        "dockOrder": 0,
+        "gridLayout": {
+          "col": 9,
+          "row": 0,
+          "colSpan": 1,
+          "rowSpan": 1
+        }
+      },
+      {
+        "id": "bookmarks-4",
+        "type": "bookmarks",
+        "gridLayout": {
+          "col": 10,
+          "row": 0,
+          "colSpan": 2,
+          "rowSpan": 4
+        }
+      },
+      {
+        "id": "label-8",
+        "type": "label",
+        "gridLayout": {
+          "col": 3,
+          "row": 1,
+          "colSpan": 6,
+          "rowSpan": 1
+        }
+      },
+      {
+        "id": "aiChat-3",
+        "type": "aiChat",
+        "gridLayout": {
+          "col": 0,
+          "row": 2,
+          "colSpan": 4,
+          "rowSpan": 4
+        }
+      },
+      {
+        "id": "todo-6",
+        "type": "todo",
+        "gridLayout": {
+          "col": 4,
+          "row": 2,
+          "colSpan": 3,
+          "rowSpan": 3
+        }
+      },
+      {
+        "id": "notes-7",
+        "type": "notes",
+        "gridLayout": {
+          "col": 7,
+          "row": 2,
+          "colSpan": 3,
+          "rowSpan": 3
+        }
+      }
+    ]
+  }
 }

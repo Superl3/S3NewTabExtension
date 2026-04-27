@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import fs from "node:fs/promises";
 
 import {
   getStartupStateFromLocation,
@@ -8,6 +9,21 @@ import {
   resolveStartupStateDefault
 } from "../core/startupState.js";
 import { isStateObject, mergeStateObjects } from "../core/state/merge.js";
+
+function gridCells(instance) {
+  const grid = instance.gridLayout || {};
+  const col = Number(grid.col) || 0;
+  const row = Number(grid.row) || 0;
+  const colSpan = Math.max(1, Number(grid.colSpan) || 1);
+  const rowSpan = Math.max(1, Number(grid.rowSpan) || 1);
+  const cells = [];
+  for (let y = row; y < row + rowSpan; y += 1) {
+    for (let x = col; x < col + colSpan; x += 1) {
+      cells.push(`${x}:${y}`);
+    }
+  }
+  return cells;
+}
 
 test("composes startup state v2 defaults, presets, and overrides", () => {
   const raw = {
@@ -139,4 +155,26 @@ test("resolves default state using config loader composition", async () => {
   assert.equal(resolved?.ui?.home?.gridColumns, 10);
   assert.equal(resolved?.ui?.home?.pageCount, 2);
   assert.equal(resolved?.mode, "use");
+});
+
+test("repository startup screen uses a non-overlapping grid layout", async () => {
+  const raw = JSON.parse(await fs.readFile(new URL("../config/startup-state.json", import.meta.url), "utf8"));
+  const composed = resolveComposableStartupState(raw, { isStateObject, mergeStateObjects });
+  const home = composed?.ui?.home;
+  const instances = composed?.instances || [];
+  const occupied = new Map();
+
+  assert.equal(home?.gridColumns, 12);
+  assert.equal(home?.gridRows, 8);
+  assert.deepEqual(
+    instances.map((instance) => instance.type),
+    ["clock", "search", "shortcut", "bookmarks", "label", "aiChat", "todo", "notes"]
+  );
+
+  for (const instance of instances.filter((item) => item.dockOrder === undefined || item.dockOrder === null)) {
+    for (const cell of gridCells(instance)) {
+      assert.equal(occupied.get(cell), undefined, `${instance.id} overlaps ${occupied.get(cell)} at ${cell}`);
+      occupied.set(cell, instance.id);
+    }
+  }
 });
