@@ -37,6 +37,30 @@ function resolveLazyWidgetTarget(container) {
   return container?.closest?.(".widget-card") || container || null;
 }
 
+function isElementNearViewport(target, windowObj, margin = 240) {
+  if (!target || target.nodeType !== 1 || typeof target.getBoundingClientRect !== "function") {
+    return false;
+  }
+
+  const rect = target.getBoundingClientRect();
+  if (!rect) {
+    return false;
+  }
+
+  const width = Number(windowObj?.innerWidth) || Number(target.ownerDocument?.documentElement?.clientWidth) || 0;
+  const height = Number(windowObj?.innerHeight) || Number(target.ownerDocument?.documentElement?.clientHeight) || 0;
+  if (width <= 0 || height <= 0) {
+    return true;
+  }
+
+  return (
+    rect.right >= -margin &&
+    rect.bottom >= -margin &&
+    rect.left <= width + margin &&
+    rect.top <= height + margin
+  );
+}
+
 function runAfterCurrentRender(windowObj, callback) {
   if (typeof windowObj?.requestAnimationFrame === "function") {
     windowObj.requestAnimationFrame(callback);
@@ -112,9 +136,9 @@ function createLazyController(definition, context = {}) {
     const windowObj = documentObj?.defaultView || globalThis;
     const target = resolveLazyWidgetTarget(container);
 
-    if (documentObj?.visibilityState === "hidden" && typeof documentObj.addEventListener === "function") {
+    if (documentObj?.visibilityState && documentObj.visibilityState !== "visible" && typeof documentObj.addEventListener === "function") {
       visibilityChangeHandler = () => {
-        if (documentObj.visibilityState !== "hidden") {
+        if (documentObj.visibilityState === "visible") {
           cleanupVisibilityGate();
           waitUntilVisibleThenLoad();
         }
@@ -138,6 +162,10 @@ function createLazyController(definition, context = {}) {
     });
 
     runAfterCurrentRender(windowObj, () => {
+      if (!destroyed && isElementNearViewport(target, windowObj)) {
+        startLoad();
+        return;
+      }
       if (!destroyed && visibilityObserver) {
         visibilityObserver.observe(target);
       }
