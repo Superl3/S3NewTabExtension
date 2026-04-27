@@ -185,6 +185,10 @@ test("repository startup screen uses a non-overlapping grid layout", async () =>
       "notes"
     ]
   );
+  for (const shortcut of instances.filter((instance) => instance.type === "shortcut")) {
+    assert.match(shortcut.config?.icon || "", /^https:\/\/www\.google\.com\/s2\/favicons\?sz=128&domain_url=/);
+    assert.equal(shortcut.config?.faviconMode, "none");
+  }
 
   for (const instance of instances.filter((item) => item.dockOrder === undefined || item.dockOrder === null)) {
     const grid = instance.gridLayout || {};

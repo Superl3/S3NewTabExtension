@@ -128,7 +128,7 @@
         "config": {
           "label": "Google",
           "url": "https://www.google.com",
-          "icon": "G",
+          "icon": "https://www.google.com/s2/favicons?sz=128&domain_url=https%3A%2F%2Fwww.google.com",
           "faviconMode": "none",
           "openInNewTab": false,
           "useGlobalIconSize": true,
@@ -148,7 +148,7 @@
         "config": {
           "label": "YouTube",
           "url": "https://www.youtube.com",
-          "icon": "YT",
+          "icon": "https://www.google.com/s2/favicons?sz=128&domain_url=https%3A%2F%2Fwww.youtube.com",
           "faviconMode": "none",
           "openInNewTab": false,
           "useGlobalIconSize": true,
@@ -168,7 +168,7 @@
         "config": {
           "label": "GitHub",
           "url": "https://github.com",
-          "icon": "GH",
+          "icon": "https://www.google.com/s2/favicons?sz=128&domain_url=https%3A%2F%2Fgithub.com",
           "faviconMode": "none",
           "openInNewTab": false,
           "useGlobalIconSize": true,
@@ -188,7 +188,7 @@
         "config": {
           "label": "ChatGPT",
           "url": "https://chatgpt.com",
-          "icon": "AI",
+          "icon": "https://www.google.com/s2/favicons?sz=128&domain_url=https%3A%2F%2Fchatgpt.com",
           "faviconMode": "none",
           "openInNewTab": false,
           "useGlobalIconSize": true,
@@ -208,7 +208,7 @@
         "config": {
           "label": "Gmail",
           "url": "https://mail.google.com",
-          "icon": "GM",
+          "icon": "https://www.google.com/s2/favicons?sz=128&domain_url=https%3A%2F%2Fmail.google.com",
           "faviconMode": "none",
           "openInNewTab": false,
           "useGlobalIconSize": true,
@@ -228,7 +228,7 @@
         "config": {
           "label": "Calendar",
           "url": "https://calendar.google.com",
-          "icon": "CAL",
+          "icon": "https://www.google.com/s2/favicons?sz=128&domain_url=https%3A%2F%2Fcalendar.google.com",
           "faviconMode": "none",
           "openInNewTab": false,
           "useGlobalIconSize": true,
