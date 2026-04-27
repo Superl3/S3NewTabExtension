@@ -188,6 +188,8 @@ export function createWidgetStateRuntime(deps) {
 
     if (options.record !== false) {
       deps.recordHistorySnapshot(options.label || "Move widget");
+    } else if (options.touch !== false) {
+      deps.touchUserMutationClock?.();
     }
 
     instance.layout = nextLayout;
@@ -199,9 +201,16 @@ export function createWidgetStateRuntime(deps) {
       }
     }
 
-    deps.updateBoardBounds();
-    deps.renderSettings();
-    deps.queueSave();
+    if (options.updateBounds !== false) {
+      deps.updateBoardBounds();
+    }
+    if (options.renderSettings !== false) {
+      deps.renderSettings();
+    }
+    if (options.save !== false) {
+      deps.queueSave();
+    }
+    return true;
   }
 
   function removeWidget(instanceId) {

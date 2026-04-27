@@ -146,6 +146,8 @@ option,
   object-fit: cover;
   opacity: 0;
   transition: opacity 0.45s ease;
+  will-change: opacity, transform;
+  backface-visibility: hidden;
 }
 
 .bg-image.visible,
@@ -159,7 +161,7 @@ option,
 }
 
 .bg-blur-image {
-  transform: scale(1.06);
+  transform: translateZ(0) scale(1.06);
   filter: none;
 }
 
@@ -523,9 +525,11 @@ body.mode-edit .dock-edit-controls {
   flex: 1;
   min-height: 0;
   overflow: visible;
+  contain: layout style;
   transform: translate3d(var(--board-page-translate-x, 0px), 0, 0);
   transition: transform 0.26s cubic-bezier(0.22, 0.7, 0, 1);
   will-change: transform;
+  backface-visibility: hidden;
   touch-action: pan-y pinch-zoom;
 }
 
@@ -712,6 +716,10 @@ body.mode-edit .launcher-page-remove-btn,
   block-size: calc(var(--dock-icon-size) + var(--dock-padding) * 2);
   box-shadow: 0 10px 24px var(--shadow-edge);
   transition: opacity 0.22s ease, transform 0.22s ease, box-shadow 0.22s ease;
+  will-change: transform, opacity;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  contain: layout paint style;
 }
 
 .persistent-dock[data-position="top"] .persistent-dock-body,
@@ -1124,6 +1132,10 @@ body.mode-edit.settings-open .settings-rail-toggle {
   -webkit-backdrop-filter: blur(var(--widget-backdrop-blur, 12px));
   overflow: hidden;
   transition: box-shadow 0.2s ease;
+  contain: layout paint style;
+  content-visibility: auto;
+  contain-intrinsic-size: 240px 180px;
+  backface-visibility: hidden;
 }
 
 @keyframes widget-drag-jiggle {
@@ -1858,6 +1870,9 @@ body.mode-edit .widget-folder-item-card .widget-head {
 }
 
 .widget-drop-silhouette {
+  --drop-silhouette-x: 0px;
+  --drop-silhouette-y: 0px;
+  --drop-silhouette-scale: 0.985;
   position: absolute;
   z-index: 8990;
   pointer-events: none;
@@ -1868,8 +1883,11 @@ body.mode-edit .widget-folder-item-card .widget-head {
     inset 0 0 0 1px color-mix(in srgb, var(--primary), transparent 74%),
     0 14px 28px var(--shadow-edge);
   opacity: 0;
-  transform: scale(0.985);
+  transform: translate3d(var(--drop-silhouette-x), var(--drop-silhouette-y), 0) scale(var(--drop-silhouette-scale));
   transition: opacity 0.14s ease, transform 0.16s cubic-bezier(0.22, 0.7, 0, 1);
+  will-change: transform, opacity;
+  contain: layout paint style;
+  backface-visibility: hidden;
 }
 
 .is-drop-guide-active {
@@ -1911,10 +1929,12 @@ body.mode-edit .widget-folder-item-card .widget-head {
 
 .widget-drop-silhouette.is-visible {
   opacity: 1;
-  transform: scale(1);
+  --drop-silhouette-scale: 1;
 }
 
 .widget-drag-preview {
+  --drag-preview-x: 0px;
+  --drag-preview-y: 0px;
   position: fixed;
   z-index: 9000;
   pointer-events: none;
@@ -1933,15 +1953,24 @@ body.mode-edit .widget-folder-item-card .widget-head {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  transform: translate3d(var(--drag-preview-x), var(--drag-preview-y), 0);
+  will-change: transform;
+  contain: layout paint style;
+  backface-visibility: hidden;
 }
 
 .widget-drag-preview-card {
+  --drag-preview-x: 0px;
+  --drag-preview-y: 0px;
   position: fixed;
   z-index: 9000;
   pointer-events: none;
   margin: 0;
-  transform: translateZ(0) scale(1.02);
+  transform: translate3d(var(--drag-preview-x), var(--drag-preview-y), 0) scale(1.02);
   transform-origin: top left;
+  will-change: transform;
+  contain: layout paint style;
+  backface-visibility: hidden;
   box-shadow:
     0 0 0 2px color-mix(in srgb, var(--accent), var(--tone-light) 24%),
     0 18px 34px var(--shadow-strong);
@@ -1957,11 +1986,7 @@ body.mode-edit .widget-folder-item-card .widget-head {
 @media (prefers-reduced-motion: reduce) {
   .widget-drop-silhouette {
     transition: none;
-    transform: none;
-  }
-
-  .widget-drop-silhouette.is-visible {
-    transform: none;
+    --drop-silhouette-scale: 1;
   }
 }
 

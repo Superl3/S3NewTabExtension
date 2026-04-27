@@ -255,7 +255,13 @@ test("startWidgetCardDragSession runs free drag lifecycle and commits snapped pa
     {
       widgetId: "w1",
       patch: { x: 30, y: 40 },
-      options: { record: false }
+      options: {
+        record: false,
+        touch: false,
+        updateBounds: false,
+        renderSettings: false,
+        save: false
+      }
     },
     {
       widgetId: "w1",
@@ -263,6 +269,122 @@ test("startWidgetCardDragSession runs free drag lifecycle and commits snapped pa
       options: { label: "Move widget" }
     }
   ]);
+});
+
+test("startWidgetCardDragSession flushes deferred live drag effects once", () => {
+  const instance = createBaseInstance();
+  const card = createCard();
+  const windowObj = createEventTarget();
+  const previewSession = {
+    update() {},
+    getPointerOffset() {
+      return { x: 10, y: 10 };
+    },
+    dispose() {}
+  };
+
+  let touchCalls = 0;
+  let updateBoundsCalls = 0;
+  let renderSettingsCalls = 0;
+  let queueSaveCalls = 0;
+  let recordCalls = 0;
+
+  const started = startWidgetCardDragSession({
+    event: createPointerEvent({ button: 0, clientX: 10, clientY: 20, target: {} }),
+    target: { closest: () => null },
+    instance,
+    card,
+    isEditMode: () => true,
+    setSelected: () => {},
+    closeBoardContextMenu: () => {},
+    bringWidgetToFront: () => {},
+    createDragPreviewSession: () => previewSession,
+    createWidgetDropSilhouette: () => ({ remove() {} }),
+    setWidgetDropSilhouetteVisible: () => {},
+    setDragDeleteZoneActive: () => {},
+    setLauncherDragPlaceholderPolicy: () => {},
+    updateDragDeleteZoneHover: () => {},
+    createNoneDropPlan: () => ({ kind: "none" }),
+    resolveEdgeDirectionFromPointer: () => 0,
+    getLauncherViewportRect: () => ({ left: 0, right: 1200, top: 0, width: 1200, height: 800 }),
+    syncLauncherPagingState: () => ({ pageCount: 1 }),
+    isLauncherPlaceholderPolicyActive: () => false,
+    isPlaceholderLauncherPage: () => false,
+    currentLauncherPageCount: () => 1,
+    currentLauncherActivePage: () => 0,
+    setLauncherVirtualPage: () => {},
+    setLauncherVirtualPageState: () => {},
+    applyActiveDragPage: () => {},
+    renderBoardViewport: () => {},
+    createDeferredEdgeSwitchScheduler: () => ({
+      schedule() {
+        return false;
+      },
+      reset() {}
+    }),
+    getBoardRect: () => ({ left: 0, top: 0, width: 1200, height: 800 }),
+    evaluateAndRenderWidgetDragIndicators: () => ({ dropPlan: { kind: "none" } }),
+    evaluateFinalWidgetDrop: () => ({
+      finalPayload: { clientX: 40, clientY: 50, page: 0 },
+      finalDropPlan: { kind: "none" }
+    }),
+    resolveDraftPlacementAtPointer: () => ({ x: 30, y: 40 }),
+    patchWidgetLayout: (_widgetId, patch) => {
+      instance.layout = {
+        ...instance.layout,
+        ...patch
+      };
+      return true;
+    },
+    runtimeMap: new Map(),
+    applyLayout: () => {},
+    isGridLayoutMode: () => false,
+    recordHistorySnapshot: () => {
+      recordCalls += 1;
+    },
+    gridMetrics: () => ({ cellW: 100, cellH: 80, gapX: 10, gapY: 10, marginX: 0, marginY: 0, cols: 4, rows: 4 }),
+    widgetRegistry: {},
+    widgetDefaultGridSize: () => ({ colSpan: 1, rowSpan: 1 }),
+    normalizeGridLayout: (_grid, fallback) => ({ ...fallback }),
+    clamp: (value, min, max) => Math.min(max, Math.max(min, value)),
+    resolveBoundedDragPositionFromDelta: () => ({ x: 30, y: 40 }),
+    cleanupBoardDragSession: ({ resetPendingPageSwitch, hideAndRemoveDropSilhouette, previewSession: session }) => {
+      resetPendingPageSwitch?.();
+      hideAndRemoveDropSilhouette?.();
+      session?.dispose?.();
+    },
+    applyWidgetDropPlan: () => false,
+    clearPendingPlaceholderDrop: () => {},
+    normalizeWidgetPage: (page) => page,
+    applyGridLayout: () => {},
+    compactEmptyLauncherPagesForUseMode: () => {},
+    queueSave: () => {
+      queueSaveCalls += 1;
+    },
+    touchUserMutationClock: () => {
+      touchCalls += 1;
+    },
+    updateBoardBounds: () => {
+      updateBoundsCalls += 1;
+    },
+    renderSettings: () => {
+      renderSettingsCalls += 1;
+    },
+    resolveSnappedPosition: (x, y) => ({ x, y, changed: false }),
+    snap: 20,
+    windowObj
+  });
+
+  assert.equal(started, true);
+
+  windowObj.firstListener("pointermove")(createPointerEvent({ clientX: 35, clientY: 45 }));
+  windowObj.firstListener("pointerup")(createPointerEvent({ clientX: 35, clientY: 45 }));
+
+  assert.equal(recordCalls, 0);
+  assert.equal(touchCalls, 1);
+  assert.equal(updateBoundsCalls, 1);
+  assert.equal(renderSettingsCalls, 1);
+  assert.equal(queueSaveCalls, 1);
 });
 
 test("startWidgetCardDragSession runs grid drag fallback commit when no drop plan applied", () => {

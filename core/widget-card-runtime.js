@@ -216,6 +216,7 @@ export function createWidgetCardRuntime(deps) {
         applyGridLayout: deps.applyGridLayout,
         compactEmptyLauncherPagesForUseMode: deps.compactEmptyLauncherPagesForUseMode,
         queueSave: deps.queueSave,
+        touchUserMutationClock: deps.touchUserMutationClock,
         updateBoardBounds: deps.updateBoardBounds,
         renderSettings: deps.renderSettings,
         resolveSnappedPosition: deps.resolveSnappedPosition,
@@ -308,6 +309,9 @@ export function createWidgetCardRuntime(deps) {
       setLastDragEndAt: deps.setLastDragEndAt,
       startFreeResizeSession: deps.startFreeResizeSession,
       patchWidgetLayout: deps.patchWidgetLayout,
+      touchUserMutationClock: deps.touchUserMutationClock,
+      updateBoardBounds: deps.updateBoardBounds,
+      renderSettings: deps.renderSettings,
       getBoardRect: () => deps.elements.board.getBoundingClientRect(),
       snap: deps.snap,
       eventTarget: deps.windowObj
