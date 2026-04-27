@@ -42,6 +42,7 @@ import {
   normalizeDockVisibility,
   normalizeHomeLayout
 } from "./core/home-layout.js";
+import { groupWidgetDefinitionsByCategory } from "./core/widget-type-categories.js";
 import {
   clamp,
   cloneLayout,
@@ -2529,11 +2530,16 @@ function refreshContainerPanelPositions() {
 
 function populateTypeSelect() {
   elements.widgetTypeSelect.replaceChildren();
-  for (const def of widgetList) {
-    const option = document.createElement("option");
-    option.value = def.type;
-    option.textContent = `${def.title} (${def.type})`;
-    elements.widgetTypeSelect.append(option);
+  for (const group of groupWidgetDefinitionsByCategory(widgetList)) {
+    const optgroup = document.createElement("optgroup");
+    optgroup.label = group.label;
+    for (const def of group.widgets) {
+      const option = document.createElement("option");
+      option.value = def.type;
+      option.textContent = def.title;
+      optgroup.append(option);
+    }
+    elements.widgetTypeSelect.append(optgroup);
   }
 }
 
