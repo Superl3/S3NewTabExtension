@@ -26,8 +26,8 @@
         "marginHorizontal": "medium",
         "marginVertical": "medium",
         "itemGap": "narrow",
-        "pageCount": 2,
-        "dockEnabled": true,
+        "pageCount": 1,
+        "dockEnabled": false,
         "dockShape": "raised",
         "dockVisibility": "always",
         "dockPosition": "bottom",
@@ -94,6 +94,10 @@
       {
         "id": "search-2",
         "type": "search",
+        "config": {
+          "provider": "google",
+          "placeholder": "Search the web"
+        },
         "gridLayout": {
           "col": 3,
           "row": 0,
@@ -102,38 +106,153 @@
         }
       },
       {
-        "id": "shortcut-5",
-        "type": "shortcut",
-        "dockOrder": 0,
+        "id": "weather-3",
+        "type": "weather",
+        "config": {
+          "locationQuery": "Seoul",
+          "temperatureUnit": "celsius",
+          "detailMode": "simple",
+          "refreshMinutes": 30
+        },
         "gridLayout": {
           "col": 9,
           "row": 0,
+          "colSpan": 3,
+          "rowSpan": 1
+        }
+      },
+      {
+        "id": "shortcut-google-4",
+        "type": "shortcut",
+        "title": "Google",
+        "config": {
+          "label": "Google",
+          "url": "https://www.google.com",
+          "icon": "G",
+          "faviconMode": "none",
+          "openInNewTab": false,
+          "useGlobalIconSize": true,
+          "iconSizePercent": 100
+        },
+        "gridLayout": {
+          "col": 3,
+          "row": 1,
           "colSpan": 1,
           "rowSpan": 1
         }
       },
       {
-        "id": "bookmarks-4",
-        "type": "bookmarks",
+        "id": "shortcut-youtube-5",
+        "type": "shortcut",
+        "title": "YouTube",
+        "config": {
+          "label": "YouTube",
+          "url": "https://www.youtube.com",
+          "icon": "YT",
+          "faviconMode": "none",
+          "openInNewTab": false,
+          "useGlobalIconSize": true,
+          "iconSizePercent": 100
+        },
         "gridLayout": {
-          "col": 10,
-          "row": 0,
-          "colSpan": 2,
-          "rowSpan": 4
-        }
-      },
-      {
-        "id": "label-8",
-        "type": "label",
-        "gridLayout": {
-          "col": 3,
+          "col": 4,
           "row": 1,
-          "colSpan": 6,
+          "colSpan": 1,
           "rowSpan": 1
         }
       },
       {
-        "id": "aiChat-3",
+        "id": "shortcut-github-6",
+        "type": "shortcut",
+        "title": "GitHub",
+        "config": {
+          "label": "GitHub",
+          "url": "https://github.com",
+          "icon": "GH",
+          "faviconMode": "none",
+          "openInNewTab": false,
+          "useGlobalIconSize": true,
+          "iconSizePercent": 100
+        },
+        "gridLayout": {
+          "col": 5,
+          "row": 1,
+          "colSpan": 1,
+          "rowSpan": 1
+        }
+      },
+      {
+        "id": "shortcut-chatgpt-7",
+        "type": "shortcut",
+        "title": "ChatGPT",
+        "config": {
+          "label": "ChatGPT",
+          "url": "https://chatgpt.com",
+          "icon": "AI",
+          "faviconMode": "none",
+          "openInNewTab": false,
+          "useGlobalIconSize": true,
+          "iconSizePercent": 100
+        },
+        "gridLayout": {
+          "col": 6,
+          "row": 1,
+          "colSpan": 1,
+          "rowSpan": 1
+        }
+      },
+      {
+        "id": "shortcut-gmail-8",
+        "type": "shortcut",
+        "title": "Gmail",
+        "config": {
+          "label": "Gmail",
+          "url": "https://mail.google.com",
+          "icon": "GM",
+          "faviconMode": "none",
+          "openInNewTab": false,
+          "useGlobalIconSize": true,
+          "iconSizePercent": 100
+        },
+        "gridLayout": {
+          "col": 7,
+          "row": 1,
+          "colSpan": 1,
+          "rowSpan": 1
+        }
+      },
+      {
+        "id": "shortcut-calendar-9",
+        "type": "shortcut",
+        "title": "Calendar",
+        "config": {
+          "label": "Calendar",
+          "url": "https://calendar.google.com",
+          "icon": "CAL",
+          "faviconMode": "none",
+          "openInNewTab": false,
+          "useGlobalIconSize": true,
+          "iconSizePercent": 100
+        },
+        "gridLayout": {
+          "col": 8,
+          "row": 1,
+          "colSpan": 1,
+          "rowSpan": 1
+        }
+      },
+      {
+        "id": "bookmarks-10",
+        "type": "bookmarks",
+        "gridLayout": {
+          "col": 9,
+          "row": 1,
+          "colSpan": 3,
+          "rowSpan": 4
+        }
+      },
+      {
+        "id": "aiChat-11",
         "type": "aiChat",
         "gridLayout": {
           "col": 0,
@@ -143,20 +262,20 @@
         }
       },
       {
-        "id": "todo-6",
+        "id": "todo-12",
         "type": "todo",
         "gridLayout": {
           "col": 4,
           "row": 2,
-          "colSpan": 3,
+          "colSpan": 2,
           "rowSpan": 3
         }
       },
       {
-        "id": "notes-7",
+        "id": "notes-13",
         "type": "notes",
         "gridLayout": {
-          "col": 7,
+          "col": 6,
           "row": 2,
           "colSpan": 3,
           "rowSpan": 3
