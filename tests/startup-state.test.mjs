@@ -166,12 +166,31 @@ test("repository startup screen uses a non-overlapping grid layout", async () =>
 
   assert.equal(home?.gridColumns, 12);
   assert.equal(home?.gridRows, 8);
+  assert.equal(home?.pageCount, 1);
+  assert.equal(home?.dockEnabled, false);
   assert.deepEqual(
     instances.map((instance) => instance.type),
-    ["clock", "search", "shortcut", "bookmarks", "label", "aiChat", "todo", "notes"]
+    [
+      "clock",
+      "search",
+      "weather",
+      "shortcut",
+      "shortcut",
+      "shortcut",
+      "shortcut",
+      "shortcut",
+      "shortcut",
+      "bookmarks",
+      "aiChat",
+      "todo",
+      "notes"
+    ]
   );
 
   for (const instance of instances.filter((item) => item.dockOrder === undefined || item.dockOrder === null)) {
+    const grid = instance.gridLayout || {};
+    assert.ok(Number(grid.col) + Number(grid.colSpan) <= home.gridColumns, `${instance.id} exceeds grid columns`);
+    assert.ok(Number(grid.row) + Number(grid.rowSpan) <= home.gridRows, `${instance.id} exceeds grid rows`);
     for (const cell of gridCells(instance)) {
       assert.equal(occupied.get(cell), undefined, `${instance.id} overlaps ${occupied.get(cell)} at ${cell}`);
       occupied.set(cell, instance.id);
