@@ -211,17 +211,17 @@ test("repository startup screen uses a non-overlapping grid layout", async () =>
     col: 0,
     row: 3,
     colSpan: 3,
-    rowSpan: 5
+    rowSpan: 3
   });
   assert.deepEqual(instances.find((instance) => instance.id === "notes-13")?.gridLayout, {
     col: 9,
     row: 3,
     colSpan: 3,
-    rowSpan: 5
+    rowSpan: 3
   });
   assert.deepEqual(instances.find((instance) => instance.id === "bookmarks-10")?.gridLayout, {
     col: 3,
-    row: 5,
+    row: 4,
     colSpan: 6,
     rowSpan: 3
   });
