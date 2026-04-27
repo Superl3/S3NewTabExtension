@@ -181,6 +181,7 @@ function createLazyController(definition, context = {}) {
         return;
       }
       pendingRefresh = true;
+      startLoad();
     },
     manualRefresh() {
       if (typeof controller?.manualRefresh === "function") {
@@ -188,6 +189,7 @@ function createLazyController(definition, context = {}) {
         return;
       }
       pendingManualRefresh = true;
+      startLoad();
     },
     refreshPosition() {
       controller?.refreshPosition?.();
