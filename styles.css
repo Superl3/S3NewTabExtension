@@ -1125,15 +1125,18 @@ body.mode-edit.settings-open .settings-rail-toggle {
   --widget-effective-accent: var(--widget-custom-accent, var(--widget-theme-accent, var(--accent)));
   --widget-effective-surface: var(--widget-custom-surface, var(--widget-theme-surface, var(--surface)));
   position: absolute;
-  border: 1px solid color-mix(in srgb, var(--line), transparent 20%);
+  isolation: isolate;
+  border: 1px solid color-mix(in srgb, var(--line), transparent 28%);
   border-radius: var(--widget-edge-roundness, 12px);
   background: transparent;
   color: var(--widget-effective-text);
-  box-shadow: var(--shadow);
+  box-shadow:
+    0 14px 34px color-mix(in srgb, var(--shadow-edge), transparent 18%),
+    0 2px 8px color-mix(in srgb, var(--shadow-soft), transparent 18%);
   backdrop-filter: blur(var(--widget-backdrop-blur, 12px));
   -webkit-backdrop-filter: blur(var(--widget-backdrop-blur, 12px));
   overflow: hidden;
-  transition: box-shadow 0.2s ease;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
   contain: layout paint style;
   content-visibility: auto;
   contain-intrinsic-size: 240px 180px;
@@ -1222,10 +1225,24 @@ body.mode-edit.settings-open .settings-rail-toggle {
   position: absolute;
   inset: 0;
   border-radius: inherit;
-  background: var(--widget-effective-surface);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--tone-light), transparent 78%) 0%, transparent 42%),
+    color-mix(in srgb, var(--widget-effective-surface), var(--tone-light) 4%);
   opacity: var(--widget-opacity);
   pointer-events: none;
   z-index: 0;
+}
+
+.widget-card::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  border-radius: inherit;
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--tone-light), transparent 48%),
+    inset 0 -1px 0 color-mix(in srgb, var(--tone-dark), transparent 92%);
 }
 
 .widget-shell {
@@ -1238,7 +1255,10 @@ body.mode-edit.settings-open .settings-rail-toggle {
 }
 
 .widget-card.selected {
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--primary), var(--tone-light) 24%), var(--shadow);
+  border-color: color-mix(in srgb, var(--primary), var(--line) 48%);
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--primary), transparent 64%),
+    0 16px 34px color-mix(in srgb, var(--shadow-edge), transparent 14%);
 }
 
 .widget-card.surface-transparent {
@@ -1247,6 +1267,10 @@ body.mode-edit.settings-open .settings-rail-toggle {
 }
 
 .widget-card.surface-transparent::before {
+  opacity: 0;
+}
+
+.widget-card.surface-transparent::after {
   opacity: 0;
 }
 
@@ -1264,8 +1288,9 @@ body.mode-edit.settings-open .settings-rail-toggle {
   justify-content: space-between;
   min-height: 42px;
   padding: 7px 10px;
-  border-bottom: 1px solid color-mix(in srgb, var(--line), transparent 22%);
-  background: transparent;
+  border-bottom: 1px solid color-mix(in srgb, var(--line), transparent 34%);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--widget-effective-surface), var(--tone-light) 18%), transparent 100%);
 }
 
 body.mode-edit .drag-handle {
@@ -1273,8 +1298,9 @@ body.mode-edit .drag-handle {
 }
 
 .widget-title {
-  font-weight: 650;
+  font-weight: 700;
   font-size: 0.95em;
+  letter-spacing: 0;
   min-width: 0;
   flex: 1;
   text-align: var(--widget-title-align, center);
@@ -2343,7 +2369,7 @@ body.mode-edit .widget-float-remove:hover {
   min-height: 100%;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
 }
 
 .codex-usage-toolbar {
@@ -2351,6 +2377,7 @@ body.mode-edit .widget-float-remove:hover {
   align-items: center;
   justify-content: flex-end;
   gap: 8px;
+  min-height: 30px;
 }
 
 .codex-usage-status {
@@ -2379,8 +2406,11 @@ body.mode-edit .widget-float-remove:hover {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  padding: 5px 8px;
+  border-radius: 999px;
+  padding: 5px 9px;
+  background: color-mix(in srgb, var(--widget-effective-surface), transparent 18%);
   font-size: 0.82em;
+  font-weight: 650;
 }
 
 .codex-usage-btn .icon {
@@ -2395,7 +2425,7 @@ body.mode-edit .widget-float-remove:hover {
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
 }
 
 .codex-usage-metrics {
@@ -2407,27 +2437,35 @@ body.mode-edit .widget-float-remove:hover {
 .codex-usage-metric-item,
 .codex-usage-line-item,
 .codex-usage-empty {
-  border: 1px solid color-mix(in srgb, var(--line), transparent 55%);
-  border-radius: 12px;
-  background: color-mix(in srgb, var(--widget-effective-surface), transparent 36%);
-  padding: 8px 10px;
+  border: 1px solid color-mix(in srgb, var(--line), transparent 44%);
+  border-radius: 8px;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--tone-light), transparent 88%), transparent 100%),
+    color-mix(in srgb, var(--widget-effective-surface), transparent 34%);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--tone-light), transparent 62%);
+  padding: 9px 10px;
 }
 
 .codex-usage-metric-item {
+  --codex-usage-percent: 0%;
+  position: relative;
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   grid-template-areas:
     "label value"
+    "bar bar"
     "details details";
-  gap: 8px;
+  gap: 7px;
   align-items: center;
+  overflow: hidden;
 }
 
 .codex-usage-metric-label {
   grid-area: label;
   min-width: 0;
-  color: var(--muted);
-  font-size: 0.84em;
+  color: color-mix(in srgb, var(--widget-effective-text), var(--muted) 42%);
+  font-size: 0.82em;
+  font-weight: 650;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -2435,18 +2473,58 @@ body.mode-edit .widget-float-remove:hover {
 
 .codex-usage-metric-value {
   grid-area: value;
-  font-weight: 640;
-  font-size: 0.92em;
+  color: color-mix(in srgb, var(--widget-effective-accent), var(--text) 16%);
+  font-weight: 760;
+  font-size: 0.96em;
+}
+
+.codex-usage-metric-bar {
+  grid-area: bar;
+  width: 100%;
+  height: 6px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--line), var(--widget-effective-surface) 42%);
+}
+
+.codex-usage-metric-bar-fill {
+  display: block;
+  width: var(--codex-usage-percent);
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--widget-effective-accent), var(--tone-light) 22%),
+    color-mix(in srgb, var(--primary), var(--widget-effective-accent) 42%)
+  );
+  box-shadow: 0 0 10px color-mix(in srgb, var(--widget-effective-accent), transparent 74%);
+}
+
+.codex-usage-metric-item[data-usage-state="medium"] .codex-usage-metric-bar-fill {
+  background: linear-gradient(90deg, #d5a233, color-mix(in srgb, var(--widget-effective-accent), #d5a233 52%));
+}
+
+.codex-usage-metric-item[data-usage-state="high"] .codex-usage-metric-bar-fill {
+  background: linear-gradient(90deg, #d45b43, color-mix(in srgb, var(--warn), var(--widget-effective-accent) 28%));
+}
+
+.codex-usage-metric-item.is-missing {
+  opacity: 0.72;
+}
+
+.codex-usage-metric-item.is-missing .codex-usage-metric-value {
+  color: var(--muted);
+  font-weight: 650;
 }
 
 .codex-usage-metric-details {
   grid-area: details;
   display: flex;
-  justify-content: flex-end;
+  justify-content: flex-start;
   align-items: center;
   gap: 8px;
   color: color-mix(in srgb, var(--text), var(--muted) 42%);
-  font-size: 0.8em;
+  font-size: 0.78em;
 }
 
 .codex-usage-metric-reset {
@@ -2459,6 +2537,7 @@ body.mode-edit .widget-float-remove:hover {
 .codex-usage-empty {
   color: color-mix(in srgb, var(--text), var(--muted) 35%);
   font-size: 0.82em;
+  line-height: 1.38;
 }
 
 .codex-usage-lines {
@@ -2504,18 +2583,23 @@ body.mode-edit .widget-float-remove:hover {
 
 .gmail-mail-empty {
   margin: 0;
-  border: 1px dashed color-mix(in srgb, var(--line), transparent 50%);
-  border-radius: 14px;
+  border: 1px dashed color-mix(in srgb, var(--line), transparent 42%);
+  border-radius: 8px;
   padding: 12px;
-  color: var(--muted);
-  background: color-mix(in srgb, var(--widget-effective-surface), transparent 30%);
+  color: color-mix(in srgb, var(--muted), var(--widget-effective-text) 14%);
+  background: color-mix(in srgb, var(--widget-effective-surface), transparent 34%);
+  line-height: 1.38;
 }
 
 .gmail-mail-item {
-  border: 1px solid color-mix(in srgb, var(--line), transparent 55%);
-  border-radius: 14px;
-  background: color-mix(in srgb, var(--widget-effective-surface), transparent 40%);
+  border: 1px solid color-mix(in srgb, var(--line), transparent 44%);
+  border-radius: 8px;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--tone-light), transparent 90%), transparent 100%),
+    color-mix(in srgb, var(--widget-effective-surface), transparent 38%);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--tone-light), transparent 66%);
   transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+  overflow: hidden;
 }
 
 .gmail-mail-item.is-unread {
@@ -2530,8 +2614,9 @@ body.mode-edit .widget-float-remove:hover {
   padding: 9px 10px;
 }
 
-.gmail-mail-link:hover {
-  background: color-mix(in srgb, var(--widget-effective-surface), transparent 4%);
+.gmail-mail-link:hover,
+.gmail-mail-link:focus-visible {
+  background: color-mix(in srgb, var(--widget-effective-surface), transparent 10%);
 }
 
 .gmail-mail-top {
@@ -2546,7 +2631,7 @@ body.mode-edit .widget-float-remove:hover {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-weight: 650;
+  font-weight: 700;
 }
 
 .gmail-mail-date {
@@ -2854,9 +2939,11 @@ body.mode-edit .widget-float-remove:hover {
 }
 
 .calendar-month-panel {
-  border: 1px solid color-mix(in srgb, var(--line), transparent 55%);
-  border-radius: 16px;
-  background: color-mix(in srgb, var(--widget-effective-surface), transparent 40%);
+  border: 1px solid color-mix(in srgb, var(--line), transparent 44%);
+  border-radius: 8px;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--tone-light), transparent 90%), transparent 100%),
+    color-mix(in srgb, var(--widget-effective-surface), transparent 38%);
   padding: 8px;
   display: flex;
   flex-direction: column;
@@ -2958,18 +3045,23 @@ body.mode-edit .widget-float-remove:hover {
 
 .calendar-event-empty {
   margin: 0;
-  border: 1px dashed color-mix(in srgb, var(--line), transparent 50%);
-  border-radius: 14px;
+  border: 1px dashed color-mix(in srgb, var(--line), transparent 42%);
+  border-radius: 8px;
   padding: 12px;
-  color: var(--muted);
-  background: color-mix(in srgb, var(--widget-effective-surface), transparent 30%);
+  color: color-mix(in srgb, var(--muted), var(--widget-effective-text) 14%);
+  background: color-mix(in srgb, var(--widget-effective-surface), transparent 34%);
+  line-height: 1.38;
 }
 
 .calendar-event-item {
-  border: 1px solid color-mix(in srgb, var(--line), transparent 55%);
-  border-radius: 14px;
-  background: color-mix(in srgb, var(--widget-effective-surface), transparent 40%);
+  border: 1px solid color-mix(in srgb, var(--line), transparent 44%);
+  border-radius: 8px;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--tone-light), transparent 90%), transparent 100%),
+    color-mix(in srgb, var(--widget-effective-surface), transparent 38%);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--tone-light), transparent 66%);
   transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+  overflow: hidden;
 }
 
 .calendar-event-link {
@@ -2979,8 +3071,9 @@ body.mode-edit .widget-float-remove:hover {
   padding: 9px 10px;
 }
 
-.calendar-event-link:hover {
-  background: color-mix(in srgb, var(--widget-effective-surface), transparent 4%);
+.calendar-event-link:hover,
+.calendar-event-link:focus-visible {
+  background: color-mix(in srgb, var(--widget-effective-surface), transparent 10%);
 }
 
 .calendar-event-top {
@@ -2995,7 +3088,7 @@ body.mode-edit .widget-float-remove:hover {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-weight: 650;
+  font-weight: 700;
 }
 
 .calendar-event-time {
@@ -3080,18 +3173,23 @@ body.mode-edit .widget-float-remove:hover {
 
 .rss-feed-empty {
   margin: 0;
-  border: 1px dashed color-mix(in srgb, var(--line), transparent 50%);
-  border-radius: 14px;
+  border: 1px dashed color-mix(in srgb, var(--line), transparent 42%);
+  border-radius: 8px;
   padding: 12px;
-  color: var(--muted);
-  background: color-mix(in srgb, var(--widget-effective-surface), transparent 30%);
+  color: color-mix(in srgb, var(--muted), var(--widget-effective-text) 14%);
+  background: color-mix(in srgb, var(--widget-effective-surface), transparent 34%);
+  line-height: 1.38;
 }
 
 .rss-feed-item {
-  border: 1px solid color-mix(in srgb, var(--line), transparent 55%);
-  border-radius: 14px;
-  background: color-mix(in srgb, var(--widget-effective-surface), transparent 40%);
+  border: 1px solid color-mix(in srgb, var(--line), transparent 44%);
+  border-radius: 8px;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--tone-light), transparent 90%), transparent 100%),
+    color-mix(in srgb, var(--widget-effective-surface), transparent 38%);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--tone-light), transparent 66%);
   transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+  overflow: hidden;
 }
 
 .rss-feed-link {
@@ -3101,8 +3199,9 @@ body.mode-edit .widget-float-remove:hover {
   padding: 9px 10px;
 }
 
-.rss-feed-link:hover {
-  background: color-mix(in srgb, var(--widget-effective-surface), transparent 4%);
+.rss-feed-link:hover,
+.rss-feed-link:focus-visible {
+  background: color-mix(in srgb, var(--widget-effective-surface), transparent 10%);
 }
 
 .rss-feed-top {
@@ -3117,7 +3216,7 @@ body.mode-edit .widget-float-remove:hover {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-weight: 650;
+  font-weight: 700;
 }
 
 .rss-feed-date {
@@ -3146,11 +3245,13 @@ body.mode-edit .widget-float-remove:hover {
   display: grid;
   align-content: start;
   gap: 8px;
-  border: 1px solid color-mix(in srgb, var(--line), transparent 55%);
-  border-radius: 16px;
+  border: 1px solid color-mix(in srgb, var(--line), transparent 44%);
+  border-radius: 8px;
   padding: 10px;
   padding-right: 44px;
-  background: transparent;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--tone-light), transparent 92%), transparent 100%),
+    color-mix(in srgb, var(--widget-effective-surface), transparent 48%);
 }
 
 .weather-refresh-btn {
@@ -3406,11 +3507,12 @@ body.mode-edit .widget-float-remove:hover {
 
 .github-pr-empty {
   margin: 0;
-  border: 1px dashed color-mix(in srgb, var(--line), transparent 50%);
-  border-radius: 14px;
+  border: 1px dashed color-mix(in srgb, var(--line), transparent 42%);
+  border-radius: 8px;
   padding: 12px;
-  color: var(--muted);
-  background: color-mix(in srgb, var(--widget-effective-surface), transparent 30%);
+  color: color-mix(in srgb, var(--muted), var(--widget-effective-text) 14%);
+  background: color-mix(in srgb, var(--widget-effective-surface), transparent 34%);
+  line-height: 1.38;
 }
 
 .github-pr-item {
@@ -3418,9 +3520,12 @@ body.mode-edit .widget-float-remove:hover {
   --github-review-inbox-swipe-progress: 0;
   position: relative;
   isolation: isolate;
-  border: 1px solid color-mix(in srgb, var(--line), transparent 55%);
-  border-radius: 14px;
-  background: color-mix(in srgb, var(--widget-effective-surface), transparent 40%);
+  border: 1px solid color-mix(in srgb, var(--line), transparent 44%);
+  border-radius: 8px;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--tone-light), transparent 90%), transparent 100%),
+    color-mix(in srgb, var(--widget-effective-surface), transparent 38%);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--tone-light), transparent 66%);
   transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
   overflow: hidden;
   touch-action: pan-y;
@@ -3482,6 +3587,7 @@ body.mode-edit .widget-float-remove:hover {
 .github-review-inbox-item.is-swipe-returning {
   border-color: transparent;
   background: transparent;
+  box-shadow: none;
 }
 
 .github-review-inbox-item.is-ignored {
@@ -3516,8 +3622,9 @@ body.mode-edit .widget-float-remove:hover {
   padding: 9px 10px;
 }
 
-.github-pr-link:hover {
-  background: color-mix(in srgb, var(--widget-effective-surface), transparent 4%);
+.github-pr-link:hover,
+.github-pr-link:focus-visible {
+  background: color-mix(in srgb, var(--widget-effective-surface), transparent 10%);
 }
 
 .github-pr-top {
@@ -3532,7 +3639,7 @@ body.mode-edit .widget-float-remove:hover {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-weight: 650;
+  font-weight: 700;
 }
 
 .github-pr-updated {
@@ -3694,9 +3801,12 @@ body.mode-edit .widget-float-remove:hover {
   text-align: left;
   margin: 0;
   padding: 10px 12px;
-  border: 1px solid color-mix(in srgb, var(--line), transparent 55%);
-  border-radius: 14px;
-  background: color-mix(in srgb, var(--widget-effective-surface), transparent 40%);
+  border: 1px solid color-mix(in srgb, var(--line), transparent 44%);
+  border-radius: 8px;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--tone-light), transparent 90%), transparent 100%),
+    color-mix(in srgb, var(--widget-effective-surface), transparent 38%);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--tone-light), transparent 66%);
   transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s cubic-bezier(0.2, 0.8, 0.2, 1);
   position: relative;
 }
@@ -3956,9 +4066,12 @@ body.mode-edit .widget-float-remove:hover {
 .bookmark-grid-card {
   width: 100%;
   min-height: 76px;
-  border: 1px solid color-mix(in srgb, var(--line), transparent 55%);
-  border-radius: 14px;
-  background: color-mix(in srgb, var(--widget-effective-surface), transparent 40%);
+  border: 1px solid color-mix(in srgb, var(--line), transparent 44%);
+  border-radius: 8px;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--tone-light), transparent 90%), transparent 100%),
+    color-mix(in srgb, var(--widget-effective-surface), transparent 38%);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--tone-light), transparent 66%);
   transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
   color: inherit;
   text-decoration: none;
@@ -4005,9 +4118,12 @@ body.mode-edit .widget-float-remove:hover {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  border: 1px solid color-mix(in srgb, var(--line), transparent 55%);
-  border-radius: 14px;
-  background: color-mix(in srgb, var(--widget-effective-surface), transparent 40%);
+  border: 1px solid color-mix(in srgb, var(--line), transparent 44%);
+  border-radius: 8px;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--tone-light), transparent 90%), transparent 100%),
+    color-mix(in srgb, var(--widget-effective-surface), transparent 38%);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--tone-light), transparent 66%);
   transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
   overflow: hidden;
   touch-action: pan-y;
@@ -4053,6 +4169,7 @@ body.mode-edit .widget-float-remove:hover {
 .todo-item.is-swipe-returning {
   border-color: transparent;
   background: transparent;
+  box-shadow: none;
 }
 
 .todo-item.is-completing {

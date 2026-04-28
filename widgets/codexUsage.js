@@ -82,6 +82,20 @@ function extractPercent(text) {
   return match ? normalizeText(match[0]) : "";
 }
 
+function parseUsagePercent(value) {
+  const match = normalizeText(value).match(/\d{1,3}(?:\.\d+)?\s*%/);
+  if (!match) {
+    return null;
+  }
+
+  const parsed = Number.parseFloat(match[0].replace(/\s*%/, ""));
+  if (!Number.isFinite(parsed)) {
+    return null;
+  }
+
+  return Math.max(0, Math.min(100, parsed));
+}
+
 function extractStatus(text) {
   const value = normalizeText(text);
   if (!value) {
@@ -392,7 +406,7 @@ export const codexUsageWidget = {
       if (!snapshot?.metrics?.length) {
         const empty = document.createElement("li");
         empty.className = "codex-usage-empty";
-        empty.textContent = "GPT / GPT-Spark 주간 사용량 항목을 찾지 못했습니다.";
+        empty.textContent = "No Codex usage metrics captured yet.";
         metricList.append(empty);
         return;
       }
@@ -405,13 +419,34 @@ export const codexUsageWidget = {
         const item = document.createElement("li");
         item.className = "codex-usage-metric-item";
 
+        const usagePercent = parseUsagePercent(metric?.percent || metric?.value);
+        if (usagePercent === null) {
+          item.classList.add("is-missing");
+        } else {
+          item.style.setProperty("--codex-usage-percent", `${usagePercent}%`);
+          if (usagePercent >= 85) {
+            item.dataset.usageState = "high";
+          } else if (usagePercent >= 60) {
+            item.dataset.usageState = "medium";
+          } else {
+            item.dataset.usageState = "low";
+          }
+        }
+
         const label = document.createElement("span");
         label.className = "codex-usage-metric-label";
         label.textContent = slot.title;
 
         const value = document.createElement("span");
         value.className = "codex-usage-metric-value";
-        value.textContent = metric?.percent || "";
+        value.textContent = metric?.percent || "Pending";
+
+        const bar = document.createElement("span");
+        bar.className = "codex-usage-metric-bar";
+
+        const barFill = document.createElement("span");
+        barFill.className = "codex-usage-metric-bar-fill";
+        bar.append(barFill);
 
         const details = document.createElement("span");
         details.className = "codex-usage-metric-details";
@@ -427,7 +462,7 @@ export const codexUsageWidget = {
 
         details.append(resetChip);
 
-        item.append(label, value, details);
+        item.append(label, value, bar, details);
         metricList.append(item);
       }
     }
