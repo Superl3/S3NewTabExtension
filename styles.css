@@ -2431,8 +2431,14 @@ body.mode-edit .widget-float-remove:hover {
   min-height: 0;
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  grid-auto-rows: minmax(0, 1fr);
-  overflow: auto;
+  grid-template-rows: repeat(2, minmax(max-content, 1fr));
+  grid-auto-rows: minmax(max-content, 1fr);
+  align-content: stretch;
+  overflow: hidden auto;
+}
+
+.codex-usage-metrics.is-empty {
+  grid-template-rows: minmax(max-content, 1fr);
 }
 
 .codex-usage-lines {
@@ -2459,15 +2465,28 @@ body.mode-edit .widget-float-remove:hover {
   grid-template-columns: minmax(0, 1fr) auto;
   grid-template-areas:
     "label value"
-    "bar bar"
-    "details details";
+    "bar bar";
+  grid-template-rows: auto auto;
   gap: 7px;
   align-items: center;
+  align-content: space-between;
   overflow: hidden;
+  min-height: 0;
+}
+
+.codex-usage-metric-item.has-details {
+  grid-template-areas:
+    "label value"
+    "bar bar"
+    "details details";
+  grid-template-rows: auto auto auto;
 }
 
 .codex-usage-empty {
   grid-column: 1 / -1;
+  align-self: stretch;
+  display: flex;
+  align-items: center;
 }
 
 .codex-usage-metric-label {
@@ -2529,12 +2548,17 @@ body.mode-edit .widget-float-remove:hover {
 
 .codex-usage-metric-details {
   grid-area: details;
-  display: flex;
+  display: none;
   justify-content: flex-start;
   align-items: center;
   gap: 8px;
   color: color-mix(in srgb, var(--text), var(--muted) 42%);
   font-size: 0.78em;
+  min-width: 0;
+}
+
+.codex-usage-metric-item.has-details .codex-usage-metric-details {
+  display: flex;
 }
 
 .codex-usage-metric-reset {
