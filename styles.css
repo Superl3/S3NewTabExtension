@@ -2840,6 +2840,9 @@ body.mode-edit .widget-float-remove:hover {
 .monday-meeting-empty,
 .monday-issue-empty {
   margin: 0;
+  min-width: 0;
+  width: 100%;
+  max-width: 100%;
   border: 1px dashed color-mix(in srgb, var(--line), transparent 42%);
   border-radius: 8px;
   padding: 12px;
@@ -2874,9 +2877,11 @@ body.mode-edit .widget-float-remove:hover {
   list-style: none;
   margin: 0;
   padding: 0;
+  width: 100%;
   display: grid;
   flex: 1 1 auto;
   min-height: 0;
+  min-width: 0;
   gap: 6px;
   grid-auto-rows: minmax(max-content, 1fr);
   align-content: stretch;
@@ -2890,7 +2895,10 @@ body.mode-edit .widget-float-remove:hover {
 .monday-board-card {
   list-style: none;
   min-height: 0;
+  min-width: 0;
   height: 100%;
+  width: 100%;
+  max-width: 100%;
   border: 1px solid var(--monday-card-border);
   border-radius: 8px;
   padding: 9px 10px;
@@ -2901,6 +2909,7 @@ body.mode-edit .widget-float-remove:hover {
 
 .monday-board-card-header {
   margin: 0 0 8px;
+  min-width: 0;
   overflow: hidden;
   font-size: 0.78em;
   font-weight: 700;
@@ -2924,7 +2933,10 @@ body.mode-edit .widget-float-remove:hover {
 .monday-board-inline-header {
   list-style: none;
   min-height: 0;
+  min-width: 0;
   height: 100%;
+  width: 100%;
+  max-width: 100%;
   display: flex;
   align-items: stretch;
 }
@@ -2945,6 +2957,8 @@ body.mode-edit .widget-float-remove:hover {
   list-style: none;
   margin: 0;
   padding: 0;
+  min-width: 0;
+  width: 100%;
   display: grid;
   gap: 6px;
 }
@@ -2952,12 +2966,18 @@ body.mode-edit .widget-float-remove:hover {
 .monday-group-section {
   list-style: none;
   min-height: 0;
+  min-width: 0;
   height: 100%;
+  width: 100%;
+  max-width: 100%;
 }
 
 .monday-group-details {
   min-height: 0;
+  min-width: 0;
   height: 100%;
+  width: 100%;
+  max-width: 100%;
   border: 1px solid var(--monday-card-border);
   border-radius: 8px;
   background: var(--monday-card-background);
@@ -2974,6 +2994,8 @@ body.mode-edit .widget-float-remove:hover {
   list-style: none;
   margin: 0;
   padding: 0 6px 7px;
+  min-width: 0;
+  width: 100%;
   display: grid;
   gap: 5px;
 }
@@ -2986,6 +3008,9 @@ body.mode-edit .widget-float-remove:hover {
 
 .monday-group-heading {
   margin: 0;
+  display: block;
+  min-width: 0;
+  list-style: none;
   padding: 8px 10px;
   font-size: 0.84em;
   font-weight: 700;
@@ -2997,13 +3022,20 @@ body.mode-edit .widget-float-remove:hover {
   white-space: nowrap;
 }
 
+.monday-group-heading::-webkit-details-marker {
+  display: none;
+}
+
 .monday-group-item {
   margin: 0;
   padding: 0;
+  min-width: 0;
 }
 
 .monday-group-link {
   display: block;
+  width: 100%;
+  max-width: 100%;
   text-decoration: none;
   color: inherit;
   padding: 7px 8px;
@@ -3023,7 +3055,10 @@ body.mode-edit .widget-float-remove:hover {
 
 .monday-issue-item {
   min-height: 0;
+  min-width: 0;
   height: 100%;
+  width: 100%;
+  max-width: 100%;
   border: 1px solid color-mix(in srgb, var(--line), transparent 55%);
   border-radius: 8px;
   background: var(--monday-card-background);
@@ -3033,6 +3068,7 @@ body.mode-edit .widget-float-remove:hover {
 
 .monday-issue-link {
   min-height: 100%;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   justify-content: center;
