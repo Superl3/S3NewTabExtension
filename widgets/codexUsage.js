@@ -412,7 +412,10 @@ export const codexUsageWidget = {
 
     function renderMetrics() {
       metricList.replaceChildren();
-      if (!snapshot?.metrics?.length) {
+      const hasMetrics = Boolean(snapshot?.metrics?.length);
+      metricList.classList.toggle("is-empty", !hasMetrics);
+
+      if (!hasMetrics) {
         const empty = document.createElement("li");
         empty.className = "codex-usage-empty";
         empty.textContent = "No Codex usage metrics captured yet.";
@@ -465,9 +468,7 @@ export const codexUsageWidget = {
         const resetText = normalizeText(metric?.resetAt);
         resetChip.textContent = resetText;
 
-        if (!resetText) {
-          details.style.display = "none";
-        }
+        item.classList.toggle("has-details", Boolean(resetText));
 
         details.append(resetChip);
 
