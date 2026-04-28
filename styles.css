@@ -2578,10 +2578,12 @@ body.mode-edit .widget-float-remove:hover {
   min-height: 100%;
 }
 
+.monday-widget-shell,
 .monday-meeting-panel {
+  min-height: 100%;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
 }
 
 .monday-meeting-link,
@@ -2590,33 +2592,78 @@ body.mode-edit .widget-float-remove:hover {
 .monday-meeting-link:active {
   display: block;
   border: 1px solid color-mix(in srgb, var(--line), transparent 24%);
-  border-radius: 10px;
-  background: color-mix(in srgb, var(--widget-effective-surface), transparent 10%);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--widget-effective-surface), transparent 14%);
   text-decoration: none;
   color: inherit;
-  padding: 8px 10px;
+  padding: 9px 10px;
   font-family: inherit;
   font-size: inherit;
   font-weight: inherit;
   font-style: inherit;
-  line-height: inherit;
+  line-height: 1.35;
+  transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
 }
 
-.monday-meeting-link:hover {
-  background: color-mix(in srgb, var(--widget-effective-surface), transparent 4%);
+.monday-meeting-link:hover,
+.monday-meeting-link:focus-visible {
+  border-color: color-mix(in srgb, var(--widget-effective-accent), var(--line) 52%);
+  background: color-mix(in srgb, var(--widget-effective-surface), transparent 6%);
 }
 
 .monday-meeting-board {
-  margin: 0 0 4px;
-  font-size: 0.78em;
-  color: color-mix(in srgb, var(--widget-effective-accent), var(--muted) 38%);
+  margin: 0 0 5px;
+  overflow: hidden;
+  color: color-mix(in srgb, var(--widget-effective-accent), var(--muted) 30%);
+  font-size: 0.76em;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
 }
 
-.monday-widget-shell {
-  min-height: 100%;
+.monday-meeting-top {
   display: flex;
-  flex-direction: column;
-  gap: 6px;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.monday-meeting-title {
+  min-width: 0;
+  overflow: hidden;
+  font-size: 0.98em;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.monday-meeting-updated {
+  flex: 0 0 auto;
+  color: var(--muted);
+  font-size: 0.76em;
+}
+
+.monday-meeting-note {
+  margin: 5px 0 0;
+  color: color-mix(in srgb, var(--widget-effective-accent), var(--muted) 38%);
+  display: -webkit-box;
+  overflow: hidden;
+  font-size: 0.88em;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+
+.monday-meeting-empty,
+.monday-issue-empty {
+  margin: 0;
+  border: 1px dashed color-mix(in srgb, var(--line), transparent 42%);
+  border-radius: 8px;
+  padding: 12px;
+  background: color-mix(in srgb, var(--widget-effective-surface), transparent 34%);
+  color: color-mix(in srgb, var(--muted), var(--widget-effective-text) 14%);
+  font-size: 0.86em;
+  line-height: 1.38;
 }
 
 .monday-widget-status {
@@ -2644,27 +2691,30 @@ body.mode-edit .widget-float-remove:hover {
   flex: 1 1 auto;
   min-height: 0;
   flex-direction: column;
-  gap: 3px;
+  gap: 5px;
   overflow: auto;
 }
 
 .monday-issue-list.is-board-cards {
-  gap: 6px;
+  gap: 8px;
 }
 
 .monday-board-card {
   list-style: none;
   border: 1px solid color-mix(in srgb, var(--line), transparent 22%);
-  border-radius: 10px;
-  padding: 8px;
-  background: color-mix(in srgb, var(--widget-effective-surface), transparent 8%);
+  border-radius: 8px;
+  padding: 8px 9px;
+  background: color-mix(in srgb, var(--widget-effective-surface), transparent 12%);
 }
 
 .monday-board-card-header {
-  margin: 0 0 6px;
-  font-size: 0.88em;
+  margin: 0 0 7px;
+  overflow: hidden;
+  font-size: 0.86em;
   font-weight: 700;
   color: color-mix(in srgb, var(--widget-effective-accent), var(--text) 30%);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .monday-board-card-header[href] {
@@ -2674,6 +2724,7 @@ body.mode-edit .widget-float-remove:hover {
 
 .monday-board-card-header[href]:hover,
 .monday-board-card-header[href]:focus-visible {
+  color: color-mix(in srgb, var(--widget-effective-accent), var(--text) 12%);
   text-decoration: underline;
 }
 
@@ -2682,7 +2733,7 @@ body.mode-edit .widget-float-remove:hover {
 }
 
 .monday-board-inline-header .monday-board-card-header {
-  margin: 0;
+  margin: 0 0 2px;
 }
 
 .monday-board-card-list {
@@ -2700,22 +2751,14 @@ body.mode-edit .widget-float-remove:hover {
   font-size: 0.84em;
 }
 
-.monday-issue-empty {
-  margin: 0;
-  border: 1px dashed color-mix(in srgb, var(--line), transparent 50%);
-  border-radius: 14px;
-  padding: 12px;
-  color: var(--muted);
-  background: color-mix(in srgb, var(--widget-effective-surface), transparent 30%);
-}
-
 .monday-group-heading {
   margin: 0;
-  padding: 2px 2px 2px 4px;
-  font-size: 0.98em;
+  padding: 3px 2px 3px 4px;
+  font-size: 0.9em;
   font-weight: 700;
-  letter-spacing: 0.02em;
+  letter-spacing: 0;
   color: color-mix(in srgb, var(--widget-effective-accent), var(--text) 28%);
+  cursor: pointer;
 }
 
 .monday-group-item {
@@ -2724,18 +2767,23 @@ body.mode-edit .widget-float-remove:hover {
 }
 
 .monday-group-link {
-  display: inline-block;
+  display: block;
   text-decoration: none;
   color: inherit;
-  padding: 2px 0 2px 10px;
-  font-size: 1.05em;
+  padding: 4px 6px 4px 14px;
+  border-radius: 6px;
+  font-size: 0.95em;
   line-height: 1.35;
 }
 
+.monday-group-link:hover,
+.monday-group-link:focus-visible {
+  background: color-mix(in srgb, var(--widget-effective-surface), transparent 10%);
+}
 
 .monday-issue-item {
   border: 1px solid color-mix(in srgb, var(--line), transparent 55%);
-  border-radius: 14px;
+  border-radius: 8px;
   background: color-mix(in srgb, var(--widget-effective-surface), transparent 40%);
   transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
 }
@@ -2744,9 +2792,8 @@ body.mode-edit .widget-float-remove:hover {
   display: block;
   text-decoration: none;
   color: inherit;
-  padding: 9px 10px;
+  padding: 8px 10px;
 }
-
 
 .monday-issue-top {
   display: flex;
@@ -2760,7 +2807,7 @@ body.mode-edit .widget-float-remove:hover {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-weight: 650;
+  font-weight: 700;
 }
 
 .monday-issue-updated {
@@ -2770,8 +2817,8 @@ body.mode-edit .widget-float-remove:hover {
 }
 
 .monday-issue-group {
-  margin: 4px 0 0;
-  font-size: 0.8em;
+  margin: 5px 0 0;
+  font-size: 0.78em;
   color: color-mix(in srgb, var(--widget-effective-accent), var(--muted) 45%);
   overflow: hidden;
   text-overflow: ellipsis;
