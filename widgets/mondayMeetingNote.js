@@ -1307,7 +1307,7 @@ export const mondayMeetingNoteWidget = {
         } else if (!hasMeetingNoteColumnConfig(cfg)) {
           panel.append(makeEmptyMessage("Set Meeting note column selector(s) in widget settings."));
         } else if (errorMessage) {
-          panel.append(makeEmptyMessage("Meeting note is not available."));
+          panel.append(makeEmptyMessage(`Meeting note is not available: ${errorMessage}`));
         } else {
           panel.append(makeEmptyMessage("No latest item found for configured boards."));
         }
