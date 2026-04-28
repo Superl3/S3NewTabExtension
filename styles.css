@@ -2423,15 +2423,21 @@ body.mode-edit .widget-float-remove:hover {
   list-style: none;
   margin: 0;
   padding: 0;
-  display: flex;
-  flex-direction: column;
   gap: 8px;
 }
 
 .codex-usage-metrics {
   flex: 1 1 auto;
   min-height: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-auto-rows: minmax(0, 1fr);
   overflow: auto;
+}
+
+.codex-usage-lines {
+  display: flex;
+  flex-direction: column;
 }
 
 .codex-usage-metric-item,
@@ -2458,6 +2464,10 @@ body.mode-edit .widget-float-remove:hover {
   gap: 7px;
   align-items: center;
   overflow: hidden;
+}
+
+.codex-usage-empty {
+  grid-column: 1 / -1;
 }
 
 .codex-usage-metric-label {

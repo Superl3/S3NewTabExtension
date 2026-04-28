@@ -5,12 +5,13 @@ const CHATGPT_TAB_MATCH = "https://chatgpt.com/*";
 const CODEX_USAGE_STORAGE_KEY = "s3newtab-codex-usage-snapshot-v1";
 const CODEX_USAGE_CAPTURE_MESSAGE_TYPE = "S3_CODEX_USAGE_CAPTURE";
 const CODEX_USAGE_PATH = "/codex/settings/usage";
-const DEFAULT_MODEL_NAME = "GPT-5.3-Codex";
+const CODEX_MODEL_NAME = "Codex";
+const CODEX_SPARK_MODEL_NAME = "Codex-Spark";
 const SLOT_DEFINITIONS = [
-  { key: "codex-5h", model: DEFAULT_MODEL_NAME, period: "fiveHours", title: "GPT-5.3-Codex · 5시간" },
-  { key: "codex-weekly", model: DEFAULT_MODEL_NAME, period: "weekly", title: "GPT-5.3-Codex · 주간" },
-  { key: "spark-5h", model: "GPT-5.3-Codex-Spark", period: "fiveHours", title: "GPT-5.3-Codex-Spark · 5시간" },
-  { key: "spark-weekly", model: "GPT-5.3-Codex-Spark", period: "weekly", title: "GPT-5.3-Codex-Spark · 주간" }
+  { key: "codex-5h", period: "fiveHours", title: "Codex · 5시간" },
+  { key: "codex-weekly", period: "weekly", title: "Codex · 주간" },
+  { key: "spark-5h", period: "fiveHours", title: "Codex-Spark · 5시간" },
+  { key: "spark-weekly", period: "weekly", title: "Codex-Spark · 주간" }
 ];
 
 function normalizeText(value, fallback = "") {
@@ -28,13 +29,27 @@ function normalizeErrorMessage(error, fallback = "Unknown error") {
   return normalizeText(error?.message, fallback);
 }
 
+function normalizeCodexModelName(value, fallback = "") {
+  const text = normalizeText(value);
+  if (!text) {
+    return fallback;
+  }
+  if (/codex/i.test(text) && /spark/i.test(text)) {
+    return CODEX_SPARK_MODEL_NAME;
+  }
+  if (/codex/i.test(text)) {
+    return CODEX_MODEL_NAME;
+  }
+  return fallback;
+}
+
 function normalizeMetric(entry) {
   const label = normalizeText(entry?.label);
   const value = normalizeText(entry?.value);
   if (!label && !value) {
     return null;
   }
-  const model = normalizeText(entry?.model, inferModelFromLabel(label));
+  const model = normalizeCodexModelName(entry?.model, inferModelFromLabel(label));
   const period = normalizePeriod(entry?.period, inferPeriodFromLabel(label));
   const percent = normalizeText(entry?.percent, extractPercent(value));
   const status = normalizeText(entry?.status, extractStatus(value));
@@ -65,11 +80,7 @@ function normalizePeriod(value, fallback = "fiveHours") {
 }
 
 function inferModelFromLabel(label) {
-  const text = normalizeText(label);
-  if (/spark/i.test(text)) {
-    return "GPT-5.3-Codex-Spark";
-  }
-  return DEFAULT_MODEL_NAME;
+  return normalizeCodexModelName(label);
 }
 
 function inferPeriodFromLabel(label) {
@@ -134,15 +145,13 @@ function isTargetUsageMetric(metric) {
   if (!metric) {
     return false;
   }
-  const model = normalizeText(metric.model, inferModelFromLabel(metric.label));
-  return /codex/i.test(model);
+  return Boolean(normalizeCodexModelName(metric.model, inferModelFromLabel(metric.label)));
 }
 
 function canonicalMetricSlotKey(metric) {
-  const model = normalizeText(metric?.model, inferModelFromLabel(metric?.label)).toLowerCase();
+  const model = normalizeCodexModelName(metric?.model, inferModelFromLabel(metric?.label));
   const period = normalizePeriod(metric?.period, inferPeriodFromLabel(metric?.label));
-  const isSpark = model.includes("spark");
-  if (isSpark) {
+  if (model === CODEX_SPARK_MODEL_NAME) {
     return period === "weekly" ? "spark-weekly" : "spark-5h";
   }
   return period === "weekly" ? "codex-weekly" : "codex-5h";
