@@ -1345,6 +1345,7 @@ body.mode-edit .drag-handle {
 .widget-content-slot {
   width: 100%;
   min-height: 0;
+  min-width: 0;
 }
 
 .widget-card[data-content-fill="true"] .widget-body {
@@ -1373,8 +1374,10 @@ body.mode-edit .drag-handle {
 .widget-card[data-content-fill="true"] .widget-content-slot {
   flex: 1 1 auto;
   display: flex;
+  flex-direction: column;
   height: 100%;
   min-height: 0;
+  overflow: hidden;
 }
 
 
@@ -1386,6 +1389,21 @@ body.mode-edit .drag-handle {
   width: 100%;
   min-width: 0;
   text-align: inherit;
+}
+
+.widget-card[data-widget-type="todo"] .widget-content-slot,
+.widget-card[data-widget-type="bookmarks"] .widget-content-slot {
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+}
+
+.widget-card[data-widget-type="todo"] .widget-content-slot > .search-form,
+.widget-card[data-widget-type="bookmarks"] .bookmark-nav,
+.widget-card[data-widget-type="bookmarks"] .bookmark-editor {
+  flex: 0 0 auto;
 }
 
 .widget-card[data-content-fill="true"][data-widget-type="gmail"] .widget-content-slot,
@@ -2359,17 +2377,24 @@ body.mode-edit .widget-float-remove:hover {
 
 .gmail-widget {
   min-height: 100%;
+  height: 100%;
+  min-width: 0;
 }
 
 .codex-usage-widget {
   min-height: 100%;
+  height: 100%;
+  min-width: 0;
 }
 
 .codex-usage-shell {
   min-height: 100%;
+  height: 100%;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   gap: 10px;
+  overflow: hidden;
 }
 
 .codex-usage-toolbar {
@@ -2581,9 +2606,12 @@ body.mode-edit .widget-float-remove:hover {
 
 .gmail-widget-shell {
   min-height: 100%;
+  height: 100%;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   gap: 6px;
+  overflow: hidden;
 }
 
 .gmail-widget-status {
@@ -2607,12 +2635,13 @@ body.mode-edit .widget-float-remove:hover {
   list-style: none;
   margin: 0;
   padding: 0;
-  display: flex;
+  display: grid;
   flex: 1 1 auto;
   min-height: 0;
-  flex-direction: column;
   gap: 6px;
-  overflow: auto;
+  grid-auto-rows: minmax(max-content, 1fr);
+  align-content: stretch;
+  overflow: hidden auto;
 }
 
 .gmail-mail-empty {
@@ -2623,9 +2652,15 @@ body.mode-edit .widget-float-remove:hover {
   color: color-mix(in srgb, var(--muted), var(--widget-effective-text) 14%);
   background: color-mix(in srgb, var(--widget-effective-surface), transparent 34%);
   line-height: 1.38;
+  min-height: 0;
+  height: 100%;
+  display: flex;
+  align-items: center;
 }
 
 .gmail-mail-item {
+  min-height: 0;
+  height: 100%;
   border: 1px solid color-mix(in srgb, var(--line), transparent 44%);
   border-radius: 8px;
   background:
@@ -2642,7 +2677,10 @@ body.mode-edit .widget-float-remove:hover {
 }
 
 .gmail-mail-link {
-  display: block;
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
   text-decoration: none;
   color: inherit;
   padding: 9px 10px;
@@ -2693,26 +2731,52 @@ body.mode-edit .widget-float-remove:hover {
   overflow: hidden;
 }
 
-.monday-widget {
+.monday-widget,
+.monday-meeting-widget {
   min-height: 100%;
+  height: 100%;
+  min-width: 0;
+  --monday-card-border: color-mix(in srgb, var(--line), transparent 44%);
+  --monday-card-background:
+    linear-gradient(180deg, color-mix(in srgb, var(--tone-light), transparent 90%), transparent 100%),
+    color-mix(in srgb, var(--widget-effective-surface), transparent 38%);
+  --monday-card-shadow: inset 0 1px 0 color-mix(in srgb, var(--tone-light), transparent 66%);
+  --monday-card-hover: color-mix(in srgb, var(--widget-effective-surface), transparent 25%);
 }
 
 .monday-widget-shell,
+.monday-meeting-widget-shell,
 .monday-meeting-panel {
-  min-height: 100%;
+  min-height: 0;
+  height: 100%;
+  min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
+  overflow: hidden;
+}
+
+.monday-meeting-panel {
+  flex: 1 1 auto;
+  display: grid;
+  grid-auto-rows: minmax(max-content, 1fr);
+  align-content: stretch;
+  overflow: hidden auto;
 }
 
 .monday-meeting-link,
 .monday-meeting-link:hover,
 .monday-meeting-link:visited,
 .monday-meeting-link:active {
-  display: block;
-  border: 1px solid color-mix(in srgb, var(--line), transparent 24%);
+  min-height: 0;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  border: 1px solid var(--monday-card-border);
   border-radius: 8px;
-  background: color-mix(in srgb, var(--widget-effective-surface), transparent 14%);
+  background: var(--monday-card-background);
+  box-shadow: var(--monday-card-shadow);
   text-decoration: none;
   color: inherit;
   padding: 9px 10px;
@@ -2727,7 +2791,7 @@ body.mode-edit .widget-float-remove:hover {
 .monday-meeting-link:hover,
 .monday-meeting-link:focus-visible {
   border-color: color-mix(in srgb, var(--widget-effective-accent), var(--line) 52%);
-  background: color-mix(in srgb, var(--widget-effective-surface), transparent 6%);
+  background: var(--monday-card-hover);
 }
 
 .monday-meeting-board {
@@ -2783,6 +2847,10 @@ body.mode-edit .widget-float-remove:hover {
   color: color-mix(in srgb, var(--muted), var(--widget-effective-text) 14%);
   font-size: 0.86em;
   line-height: 1.38;
+  min-height: 0;
+  height: 100%;
+  display: flex;
+  align-items: center;
 }
 
 .monday-widget-status {
@@ -2806,12 +2874,13 @@ body.mode-edit .widget-float-remove:hover {
   list-style: none;
   margin: 0;
   padding: 0;
-  display: flex;
+  display: grid;
   flex: 1 1 auto;
   min-height: 0;
-  flex-direction: column;
-  gap: 5px;
-  overflow: auto;
+  gap: 6px;
+  grid-auto-rows: minmax(max-content, 1fr);
+  align-content: stretch;
+  overflow: hidden auto;
 }
 
 .monday-issue-list.is-board-cards {
@@ -2820,19 +2889,24 @@ body.mode-edit .widget-float-remove:hover {
 
 .monday-board-card {
   list-style: none;
-  border: 1px solid color-mix(in srgb, var(--line), transparent 22%);
+  min-height: 0;
+  height: 100%;
+  border: 1px solid var(--monday-card-border);
   border-radius: 8px;
-  padding: 8px 9px;
-  background: color-mix(in srgb, var(--widget-effective-surface), transparent 12%);
+  padding: 9px 10px;
+  background: var(--monday-card-background);
+  box-shadow: var(--monday-card-shadow);
+  overflow: hidden;
 }
 
 .monday-board-card-header {
-  margin: 0 0 7px;
+  margin: 0 0 8px;
   overflow: hidden;
-  font-size: 0.86em;
+  font-size: 0.78em;
   font-weight: 700;
   color: color-mix(in srgb, var(--widget-effective-accent), var(--text) 30%);
   text-overflow: ellipsis;
+  text-transform: uppercase;
   white-space: nowrap;
 }
 
@@ -2849,19 +2923,59 @@ body.mode-edit .widget-float-remove:hover {
 
 .monday-board-inline-header {
   list-style: none;
+  min-height: 0;
+  height: 100%;
+  display: flex;
+  align-items: stretch;
 }
 
 .monday-board-inline-header .monday-board-card-header {
-  margin: 0 0 2px;
+  width: 100%;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  border: 1px solid var(--monday-card-border);
+  border-radius: 8px;
+  padding: 9px 10px;
+  background: var(--monday-card-background);
+  box-shadow: var(--monday-card-shadow);
 }
 
 .monday-board-card-list {
   list-style: none;
   margin: 0;
   padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
+  display: grid;
+  gap: 6px;
+}
+
+.monday-group-section {
+  list-style: none;
+  min-height: 0;
+  height: 100%;
+}
+
+.monday-group-details {
+  min-height: 0;
+  height: 100%;
+  border: 1px solid var(--monday-card-border);
+  border-radius: 8px;
+  background: var(--monday-card-background);
+  box-shadow: var(--monday-card-shadow);
+  overflow: hidden;
+}
+
+.monday-board-card .monday-group-details {
+  background: color-mix(in srgb, var(--widget-effective-surface), transparent 52%);
+  box-shadow: none;
+}
+
+.monday-group-items {
+  list-style: none;
+  margin: 0;
+  padding: 0 6px 7px;
+  display: grid;
+  gap: 5px;
 }
 
 .monday-board-card-empty {
@@ -2872,12 +2986,15 @@ body.mode-edit .widget-float-remove:hover {
 
 .monday-group-heading {
   margin: 0;
-  padding: 3px 2px 3px 4px;
-  font-size: 0.9em;
+  padding: 8px 10px;
+  font-size: 0.84em;
   font-weight: 700;
   letter-spacing: 0;
   color: color-mix(in srgb, var(--widget-effective-accent), var(--text) 28%);
   cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .monday-group-item {
@@ -2889,10 +3006,14 @@ body.mode-edit .widget-float-remove:hover {
   display: block;
   text-decoration: none;
   color: inherit;
-  padding: 4px 6px 4px 14px;
+  padding: 7px 8px;
   border-radius: 6px;
-  font-size: 0.95em;
+  font-size: 0.9em;
   line-height: 1.35;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .monday-group-link:hover,
@@ -2901,17 +3022,23 @@ body.mode-edit .widget-float-remove:hover {
 }
 
 .monday-issue-item {
+  min-height: 0;
+  height: 100%;
   border: 1px solid color-mix(in srgb, var(--line), transparent 55%);
   border-radius: 8px;
-  background: color-mix(in srgb, var(--widget-effective-surface), transparent 40%);
+  background: var(--monday-card-background);
+  box-shadow: var(--monday-card-shadow);
   transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
 }
 
 .monday-issue-link {
-  display: block;
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
   text-decoration: none;
   color: inherit;
-  padding: 8px 10px;
+  padding: 9px 10px;
 }
 
 .monday-issue-top {
@@ -2946,13 +3073,18 @@ body.mode-edit .widget-float-remove:hover {
 
 .calendar-widget {
   min-height: 100%;
+  height: 100%;
+  min-width: 0;
 }
 
 .calendar-widget-shell {
   min-height: 100%;
+  height: 100%;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   gap: 8px;
+  overflow: hidden;
 }
 
 .calendar-widget-status {
@@ -2982,6 +3114,7 @@ body.mode-edit .widget-float-remove:hover {
   display: flex;
   flex-direction: column;
   gap: 6px;
+  flex: 0 0 auto;
 }
 
 .calendar-month-head {
@@ -3069,12 +3202,13 @@ body.mode-edit .widget-float-remove:hover {
   list-style: none;
   margin: 0;
   padding: 0;
-  display: flex;
+  display: grid;
   flex: 1 1 auto;
   min-height: 0;
-  flex-direction: column;
   gap: 6px;
-  overflow: auto;
+  grid-auto-rows: minmax(max-content, 1fr);
+  align-content: stretch;
+  overflow: hidden auto;
 }
 
 .calendar-event-empty {
@@ -3085,9 +3219,15 @@ body.mode-edit .widget-float-remove:hover {
   color: color-mix(in srgb, var(--muted), var(--widget-effective-text) 14%);
   background: color-mix(in srgb, var(--widget-effective-surface), transparent 34%);
   line-height: 1.38;
+  min-height: 0;
+  height: 100%;
+  display: flex;
+  align-items: center;
 }
 
 .calendar-event-item {
+  min-height: 0;
+  height: 100%;
   border: 1px solid color-mix(in srgb, var(--line), transparent 44%);
   border-radius: 8px;
   background:
@@ -3099,7 +3239,10 @@ body.mode-edit .widget-float-remove:hover {
 }
 
 .calendar-event-link {
-  display: block;
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
   text-decoration: none;
   color: inherit;
   padding: 9px 10px;
@@ -3148,13 +3291,18 @@ body.mode-edit .widget-float-remove:hover {
 
 .rss-widget {
   min-height: 100%;
+  height: 100%;
+  min-width: 0;
 }
 
 .rss-widget-shell {
   min-height: 100%;
+  height: 100%;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   gap: 8px;
+  overflow: hidden;
 }
 
 .rss-widget-toolbar {
@@ -3197,12 +3345,13 @@ body.mode-edit .widget-float-remove:hover {
   list-style: none;
   margin: 0;
   padding: 0;
-  display: flex;
+  display: grid;
   flex: 1 1 auto;
   min-height: 0;
-  flex-direction: column;
   gap: 6px;
-  overflow: auto;
+  grid-auto-rows: minmax(max-content, 1fr);
+  align-content: stretch;
+  overflow: hidden auto;
 }
 
 .rss-feed-empty {
@@ -3213,9 +3362,15 @@ body.mode-edit .widget-float-remove:hover {
   color: color-mix(in srgb, var(--muted), var(--widget-effective-text) 14%);
   background: color-mix(in srgb, var(--widget-effective-surface), transparent 34%);
   line-height: 1.38;
+  min-height: 0;
+  height: 100%;
+  display: flex;
+  align-items: center;
 }
 
 .rss-feed-item {
+  min-height: 0;
+  height: 100%;
   border: 1px solid color-mix(in srgb, var(--line), transparent 44%);
   border-radius: 8px;
   background:
@@ -3227,7 +3382,10 @@ body.mode-edit .widget-float-remove:hover {
 }
 
 .rss-feed-link {
-  display: block;
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
   text-decoration: none;
   color: inherit;
   padding: 9px 10px;
@@ -3271,13 +3429,17 @@ body.mode-edit .widget-float-remove:hover {
 
 .weather-widget {
   min-height: 100%;
+  height: 100%;
+  min-width: 0;
 }
 
 .weather-widget-shell {
   position: relative;
-  min-height: 100%;
+  min-height: 0;
+  height: 100%;
+  min-width: 0;
   display: grid;
-  align-content: start;
+  align-content: stretch;
   gap: 8px;
   border: 1px solid color-mix(in srgb, var(--line), transparent 44%);
   border-radius: 8px;
@@ -3286,6 +3448,7 @@ body.mode-edit .widget-float-remove:hover {
   background:
     linear-gradient(180deg, color-mix(in srgb, var(--tone-light), transparent 92%), transparent 100%),
     color-mix(in srgb, var(--widget-effective-surface), transparent 48%);
+  overflow: hidden;
 }
 
 .weather-refresh-btn {
@@ -3309,6 +3472,7 @@ body.mode-edit .widget-float-remove:hover {
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   align-items: center;
   gap: 10px;
+  min-height: 0;
 }
 
 .weather-temperature-col {
@@ -3370,6 +3534,7 @@ body.mode-edit .widget-float-remove:hover {
   display: none;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 6px;
+  align-self: end;
 }
 
 .weather-mode-advanced .weather-meta {
@@ -3403,6 +3568,8 @@ body.mode-edit .widget-float-remove:hover {
 
 .github-pr-widget {
   min-height: 100%;
+  height: 100%;
+  min-width: 0;
 }
 
 .github-review-inbox-warning {
@@ -3505,9 +3672,12 @@ body.mode-edit .widget-float-remove:hover {
 
 .github-pr-widget-shell {
   min-height: 100%;
+  height: 100%;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   gap: 6px;
+  overflow: hidden;
 }
 
 .github-pr-widget-status {
@@ -3531,12 +3701,13 @@ body.mode-edit .widget-float-remove:hover {
   list-style: none;
   margin: 0;
   padding: 0;
-  display: flex;
+  display: grid;
   flex: 1 1 auto;
   min-height: 0;
-  flex-direction: column;
   gap: 6px;
-  overflow: auto;
+  grid-auto-rows: minmax(max-content, 1fr);
+  align-content: stretch;
+  overflow: hidden auto;
 }
 
 .github-pr-empty {
@@ -3547,6 +3718,10 @@ body.mode-edit .widget-float-remove:hover {
   color: color-mix(in srgb, var(--muted), var(--widget-effective-text) 14%);
   background: color-mix(in srgb, var(--widget-effective-surface), transparent 34%);
   line-height: 1.38;
+  min-height: 0;
+  height: 100%;
+  display: flex;
+  align-items: center;
 }
 
 .github-pr-item {
@@ -3554,6 +3729,8 @@ body.mode-edit .widget-float-remove:hover {
   --github-review-inbox-swipe-progress: 0;
   position: relative;
   isolation: isolate;
+  min-height: 0;
+  height: 100%;
   border: 1px solid color-mix(in srgb, var(--line), transparent 44%);
   border-radius: 8px;
   background:
@@ -3592,6 +3769,7 @@ body.mode-edit .widget-float-remove:hover {
 .github-review-inbox-swipe-content {
   position: relative;
   z-index: 1;
+  min-height: 100%;
   border-radius: inherit;
   background: color-mix(in srgb, var(--widget-effective-surface), transparent 12%);
   box-shadow: inset 0 0 0 1px transparent;
@@ -3650,7 +3828,10 @@ body.mode-edit .widget-float-remove:hover {
 }
 
 .github-pr-link {
-  display: block;
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
   text-decoration: none;
   color: inherit;
   padding: 9px 10px;
@@ -3759,16 +3940,21 @@ body.mode-edit .widget-float-remove:hover {
 
 .flex-worktime-widget {
   min-height: 100%;
+  height: 100%;
+  min-width: 0;
 }
 
 .flex-worktime-shell {
   position: relative;
-  min-height: 100%;
+  min-height: 0;
+  height: 100%;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   gap: 4px;
   padding: 4px;
   background: transparent;
+  overflow: hidden;
 }
 
 .flex-worktime-shell:focus-visible {
@@ -3815,22 +4001,28 @@ body.mode-edit .widget-float-remove:hover {
   list-style: none;
   margin: 0;
   padding: 0;
-  display: flex;
-  flex-direction: column;
+  display: grid;
   gap: 8px;
   flex: 1 1 auto;
   min-height: 0;
+  grid-auto-rows: minmax(max-content, 1fr);
+  align-content: stretch;
+  overflow: hidden auto;
 }
 
 .flex-worktime-row {
   margin: 0;
   padding: 0;
+  min-height: 0;
+  height: 100%;
 }
 
 .flex-worktime-entry {
   width: 100%;
+  min-height: 100%;
   display: flex;
   flex-direction: column;
+  justify-content: center;
   gap: 8px;
   text-align: left;
   margin: 0;
@@ -4019,17 +4211,21 @@ body.mode-edit .widget-float-remove:hover {
 }
 
 .todo-list {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  flex: 1 1 auto;
+  min-height: 0;
   gap: 6px;
-  margin-top: 8px;
+  margin-top: 0;
+  grid-auto-rows: minmax(max-content, 1fr);
+  align-content: stretch;
+  overflow: hidden auto;
 }
 
 .bookmark-nav {
   display: flex;
   align-items: center;
   gap: 6px;
-  margin-bottom: 8px;
+  margin-bottom: 0;
 }
 
 .bookmark-nav-path {
@@ -4082,13 +4278,19 @@ body.mode-edit .widget-float-remove:hover {
   --bookmarks-font-scale: 1;
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(128px, 1fr));
+  grid-auto-rows: minmax(76px, 1fr);
+  flex: 1 1 auto;
+  min-height: 0;
+  align-content: stretch;
   gap: 8px;
   font-size: calc(1em * var(--bookmarks-font-scale));
+  overflow: hidden auto;
 }
 
 .bookmark-grid-cell {
   position: relative;
   min-height: 76px;
+  height: 100%;
 }
 
 .bookmark-grid-cell .bookmark-edit-btn {
@@ -4099,7 +4301,8 @@ body.mode-edit .widget-float-remove:hover {
 
 .bookmark-grid-card {
   width: 100%;
-  min-height: 76px;
+  min-height: 100%;
+  height: 100%;
   border: 1px solid color-mix(in srgb, var(--line), transparent 44%);
   border-radius: 8px;
   background:
@@ -4152,6 +4355,8 @@ body.mode-edit .widget-float-remove:hover {
   display: flex;
   flex-direction: column;
   gap: 6px;
+  min-height: 0;
+  height: 100%;
   border: 1px solid color-mix(in srgb, var(--line), transparent 44%);
   border-radius: 8px;
   background:
@@ -4166,8 +4371,10 @@ body.mode-edit .widget-float-remove:hover {
 .todo-swipe-content {
   position: relative;
   z-index: 1;
+  min-height: 100%;
   display: flex;
   flex-direction: column;
+  justify-content: center;
   gap: 6px;
   padding: 9px 10px;
   border-radius: inherit;
