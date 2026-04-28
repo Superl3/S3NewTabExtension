@@ -554,6 +554,19 @@ function extractUrlsFromText(rawValue) {
   return matches.map((entry) => entry.replace(/[),.;]+$/g, ""));
 }
 
+function tryParseJson(value) {
+  const text = normalizeText(value);
+  if (!text) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(text);
+  } catch {
+    return null;
+  }
+}
+
 function collectNestedStringValues(value, output, depth = 0) {
   if (depth > 4 || output.length > 120) {
     return;

@@ -310,3 +310,40 @@ test("mondayMeetingNote fallback scan can include newer items in later groups", 
   assert.ok(limit > latestIndex, "fallback scan limit must reach later-group items");
   assert.equal(latest?.id, "latest-in-separate-group");
 });
+
+test("mondayMeetingNote extracts doc id from JSON column values", async () => {
+  const { extractMeetingNote } = await loadWidgetInternals(
+    "widgets/mondayMeetingNote.js",
+    ["extractMeetingNote"],
+    {
+      createAuthSessionStorage: () => ({
+        load: async () => null,
+        save: async () => {},
+        clear: async () => {}
+      })
+    }
+  );
+
+  const extracted = extractMeetingNote(
+    {
+      url: "https://workspace.monday.com/boards/123/pulses/456",
+      column_values: [
+        {
+          id: "monday_doc",
+          text: "",
+          value: JSON.stringify({
+            linkedPulseId: 456,
+            doc_id: 987654321
+          })
+        }
+      ]
+    },
+    ["monday_doc"],
+    "monday Doc"
+  );
+
+  assert.equal(
+    extracted.docUrl,
+    "https://workspace.monday.com/boards/123/pulses/456?doc_id=987654321"
+  );
+});
