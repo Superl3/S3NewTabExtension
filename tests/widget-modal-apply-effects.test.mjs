@@ -31,8 +31,11 @@ test("refreshWidgetRuntimeAfterModalApply refreshes runtime card when mounted", 
       querySelector: () => titleNode
     },
     controller: {
+      manualRefresh: () => {
+        titleNode.refreshed = "manual";
+      },
       refresh: () => {
-        titleNode.refreshed = true;
+        titleNode.refreshed = "refresh";
       }
     }
   };
@@ -56,9 +59,42 @@ test("refreshWidgetRuntimeAfterModalApply refreshes runtime card when mounted", 
   );
 
   assert.equal(titleNode.textContent, "Widget");
-  assert.equal(titleNode.refreshed, true);
+  assert.equal(titleNode.refreshed, "manual");
   assert.equal(calls[0][0], "layout");
   assert.equal(calls[1][0], "visual");
+});
+
+test("refreshWidgetRuntimeAfterModalApply falls back to refresh when manualRefresh is unavailable", () => {
+  const titleNode = { textContent: "" };
+  const runtime = {
+    card: {
+      querySelector: () => titleNode
+    },
+    controller: {
+      refresh: () => {
+        titleNode.refreshed = "refresh";
+      }
+    }
+  };
+
+  refreshWidgetRuntimeAfterModalApply(
+    {
+      id: "w-refresh-only",
+      title: "Widget",
+      layout: { x: 1, y: 2, w: 3, h: 4 },
+      page: 2
+    },
+    "Fallback",
+    {
+      runtimeMap: new Map([["w-refresh-only", runtime]]),
+      applyLayout: () => {},
+      applyCardVisual: () => {},
+      refreshWidgetsByType: () => {},
+      isWidgetInContainer: () => false
+    }
+  );
+
+  assert.equal(titleNode.refreshed, "refresh");
 });
 
 test("refreshWidgetRuntimeAfterModalApply refreshes containers for unmounted contained widget", () => {

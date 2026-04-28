@@ -52,7 +52,11 @@ export function refreshWidgetRuntimeAfterModalApply(instance, defTitle = "", dep
     }
     call(applyLayout, runtime.card, instance.layout, instance.page);
     call(applyCardVisual, runtime.card, instance);
-    runtime.controller?.refresh?.();
+    if (typeof runtime.controller?.manualRefresh === "function") {
+      runtime.controller.manualRefresh();
+    } else {
+      runtime.controller?.refresh?.();
+    }
     return;
   }
 

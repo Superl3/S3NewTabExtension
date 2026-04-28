@@ -26,8 +26,8 @@
         "marginHorizontal": "medium",
         "marginVertical": "medium",
         "itemGap": "narrow",
-        "pageCount": 2,
-        "dockEnabled": true,
+        "pageCount": 1,
+        "dockEnabled": false,
         "dockShape": "raised",
         "dockVisibility": "always",
         "dockPosition": "bottom",
@@ -78,5 +78,199 @@
   "applyPresets": [
     "compact-grid",
     "focus-surface"
-  ]
+  ],
+  "overrides": {
+    "instances": [
+      {
+        "id": "clock-1",
+        "type": "clock",
+        "gridLayout": {
+          "col": 3,
+          "row": 0,
+          "colSpan": 3,
+          "rowSpan": 1
+        }
+      },
+      {
+        "id": "search-2",
+        "type": "search",
+        "config": {
+          "provider": "google",
+          "placeholder": "Search the web"
+        },
+        "gridLayout": {
+          "col": 3,
+          "row": 1,
+          "colSpan": 6,
+          "rowSpan": 1
+        }
+      },
+      {
+        "id": "weather-3",
+        "type": "weather",
+        "config": {
+          "locationQuery": "Seoul",
+          "temperatureUnit": "celsius",
+          "detailMode": "simple",
+          "refreshMinutes": 30
+        },
+        "gridLayout": {
+          "col": 6,
+          "row": 0,
+          "colSpan": 3,
+          "rowSpan": 1
+        }
+      },
+      {
+        "id": "shortcut-google-4",
+        "type": "shortcut",
+        "title": "Google",
+        "config": {
+          "label": "Google",
+          "url": "https://www.google.com",
+          "icon": "https://www.google.com/s2/favicons?sz=128&domain_url=https%3A%2F%2Fwww.google.com",
+          "faviconMode": "none",
+          "openInNewTab": false,
+          "useGlobalIconSize": true,
+          "iconSizePercent": 100
+        },
+        "gridLayout": {
+          "col": 3,
+          "row": 2,
+          "colSpan": 1,
+          "rowSpan": 1
+        }
+      },
+      {
+        "id": "shortcut-youtube-5",
+        "type": "shortcut",
+        "title": "YouTube",
+        "config": {
+          "label": "YouTube",
+          "url": "https://www.youtube.com",
+          "icon": "https://www.google.com/s2/favicons?sz=128&domain_url=https%3A%2F%2Fwww.youtube.com",
+          "faviconMode": "none",
+          "openInNewTab": false,
+          "useGlobalIconSize": true,
+          "iconSizePercent": 100
+        },
+        "gridLayout": {
+          "col": 4,
+          "row": 2,
+          "colSpan": 1,
+          "rowSpan": 1
+        }
+      },
+      {
+        "id": "shortcut-github-6",
+        "type": "shortcut",
+        "title": "GitHub",
+        "config": {
+          "label": "GitHub",
+          "url": "https://github.com",
+          "icon": "https://www.google.com/s2/favicons?sz=128&domain_url=https%3A%2F%2Fgithub.com",
+          "faviconMode": "none",
+          "openInNewTab": false,
+          "useGlobalIconSize": true,
+          "iconSizePercent": 100
+        },
+        "gridLayout": {
+          "col": 5,
+          "row": 2,
+          "colSpan": 1,
+          "rowSpan": 1
+        }
+      },
+      {
+        "id": "shortcut-chatgpt-7",
+        "type": "shortcut",
+        "title": "ChatGPT",
+        "config": {
+          "label": "ChatGPT",
+          "url": "https://chatgpt.com",
+          "icon": "https://www.google.com/s2/favicons?sz=128&domain_url=https%3A%2F%2Fchatgpt.com",
+          "faviconMode": "none",
+          "openInNewTab": false,
+          "useGlobalIconSize": true,
+          "iconSizePercent": 100
+        },
+        "gridLayout": {
+          "col": 6,
+          "row": 2,
+          "colSpan": 1,
+          "rowSpan": 1
+        }
+      },
+      {
+        "id": "shortcut-gmail-8",
+        "type": "shortcut",
+        "title": "Gmail",
+        "config": {
+          "label": "Gmail",
+          "url": "https://mail.google.com",
+          "icon": "https://www.google.com/s2/favicons?sz=128&domain_url=https%3A%2F%2Fmail.google.com",
+          "faviconMode": "none",
+          "openInNewTab": false,
+          "useGlobalIconSize": true,
+          "iconSizePercent": 100
+        },
+        "gridLayout": {
+          "col": 7,
+          "row": 2,
+          "colSpan": 1,
+          "rowSpan": 1
+        }
+      },
+      {
+        "id": "shortcut-calendar-9",
+        "type": "shortcut",
+        "title": "Calendar",
+        "config": {
+          "label": "Calendar",
+          "url": "https://calendar.google.com",
+          "icon": "https://www.google.com/s2/favicons?sz=128&domain_url=https%3A%2F%2Fcalendar.google.com",
+          "faviconMode": "none",
+          "openInNewTab": false,
+          "useGlobalIconSize": true,
+          "iconSizePercent": 100
+        },
+        "gridLayout": {
+          "col": 8,
+          "row": 2,
+          "colSpan": 1,
+          "rowSpan": 1
+        }
+      },
+      {
+        "id": "bookmarks-10",
+        "type": "bookmarks",
+        "gridLayout": {
+          "col": 3,
+          "row": 4,
+          "colSpan": 6,
+          "rowSpan": 3
+        }
+      },
+      {
+        "id": "todo-12",
+        "type": "todo",
+        "gridLayout": {
+          "col": 0,
+          "row": 3,
+          "colSpan": 3,
+          "rowSpan": 3
+        }
+      },
+      {
+        "id": "notes-13",
+        "type": "notes",
+        "gridLayout": {
+          "col": 9,
+          "row": 3,
+          "colSpan": 3,
+          "rowSpan": 3
+        }
+      }
+    ]
+  }
 }

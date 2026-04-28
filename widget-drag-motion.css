@@ -1,31 +1,32 @@
 .widget-card {
   --widget-drag-jiggle-x: 1px;
   --widget-drag-jiggle-y: 1.1px;
+  --widget-drag-jiggle-y-soft: 0.5px;
 }
 
 @keyframes widget-drag-jiggle {
   0% {
-    transform: translate3d(0, 0, 0);
+    transform: translate3d(var(--widget-layout-x), var(--widget-layout-y), 0);
   }
   22% {
     transform: translate3d(
-      calc(var(--widget-drag-jiggle-x) * -1),
-      calc(var(--widget-drag-jiggle-y) * 0.45),
+      calc(var(--widget-layout-x) - var(--widget-drag-jiggle-x)),
+      calc(var(--widget-layout-y) + var(--widget-drag-jiggle-y-soft)),
       0
     );
   }
   50% {
-    transform: translate3d(0, var(--widget-drag-jiggle-y), 0);
+    transform: translate3d(var(--widget-layout-x), calc(var(--widget-layout-y) + var(--widget-drag-jiggle-y)), 0);
   }
   78% {
     transform: translate3d(
-      var(--widget-drag-jiggle-x),
-      calc(var(--widget-drag-jiggle-y) * 0.45),
+      calc(var(--widget-layout-x) + var(--widget-drag-jiggle-x)),
+      calc(var(--widget-layout-y) + var(--widget-drag-jiggle-y-soft)),
       0
     );
   }
   100% {
-    transform: translate3d(0, 0, 0);
+    transform: translate3d(var(--widget-layout-x), var(--widget-layout-y), 0);
   }
 }
 

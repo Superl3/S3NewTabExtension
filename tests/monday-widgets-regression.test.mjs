@@ -100,6 +100,181 @@ test("mondayAssigned keeps per-board people selectors isolated", async () => {
   assert.equal(resolveBoardPeopleColumnSelector(singleSelectorCfg, 5), "owner");
 });
 
+test("mondayAssigned fallback snapshot preserves known board metadata for empty boards", async () => {
+  const { createFallbackBoardSnapshot } = await loadWidgetInternals(
+    "widgets/mondayAssigned.js",
+    ["createFallbackBoardSnapshot"],
+    {
+      normalizeBoardId: (value, fallback = 0) => {
+        const num = Number(value);
+        return Number.isFinite(num) && num > 0 ? Math.trunc(num) : fallback;
+      },
+      normalizeSharedConnectorUrl: (value) => String(value || "").trim(),
+      createAuthSessionStorage: () => ({
+        load: async () => null,
+        save: async () => {},
+        clear: async () => {}
+      })
+    }
+  );
+
+  const snapshot = createFallbackBoardSnapshot(
+    321,
+    "assigned",
+    {
+      boardName: "Platform Board",
+      boardUrl: "https://workspace.monday.com/boards/321",
+      boardGroups: [{ id: "topics", title: "Topics" }],
+      meName: "OpenCode"
+    },
+    {
+      boardName: "Old Name",
+      boardUrl: "https://workspace.monday.com/boards/old",
+      boardGroups: [{ id: "old", title: "Old" }],
+      assigneeName: "Someone"
+    }
+  );
+
+  assert.equal(snapshot.boardId, 321);
+  assert.equal(snapshot.boardName, "Platform Board");
+  assert.equal(snapshot.boardUrl, "https://workspace.monday.com/boards/321");
+  assert.equal(Array.isArray(snapshot.boardGroups), true);
+  assert.equal(snapshot.boardGroups.length, 1);
+  assert.equal(snapshot.boardGroups[0]?.id, "topics");
+  assert.equal(snapshot.boardGroups[0]?.title, "Topics");
+  assert.equal(snapshot.assigneeName, "OpenCode");
+  assert.equal(snapshot.scopeMode, "assigned");
+  assert.equal(Array.isArray(snapshot.issues), true);
+  assert.equal(snapshot.issues.length, 0);
+});
+
+test("mondayAssigned fallback snapshot reuses previous board metadata when refresh fails early", async () => {
+  const { createFallbackBoardSnapshot } = await loadWidgetInternals(
+    "widgets/mondayAssigned.js",
+    ["createFallbackBoardSnapshot"],
+    {
+      normalizeBoardId: (value, fallback = 0) => {
+        const num = Number(value);
+        return Number.isFinite(num) && num > 0 ? Math.trunc(num) : fallback;
+      },
+      normalizeSharedConnectorUrl: (value) => String(value || "").trim(),
+      createAuthSessionStorage: () => ({
+        load: async () => null,
+        save: async () => {},
+        clear: async () => {}
+      })
+    }
+  );
+
+  const snapshot = createFallbackBoardSnapshot(
+    654,
+    "all",
+    null,
+    {
+      boardName: "Roadmap Board",
+      boardUrl: "https://workspace.monday.com/boards/654",
+      boardGroups: [{ id: "done", title: "Done" }],
+      assigneeName: "me"
+    }
+  );
+
+  assert.equal(snapshot.boardName, "Roadmap Board");
+  assert.equal(snapshot.boardUrl, "https://workspace.monday.com/boards/654");
+  assert.equal(snapshot.scopeMode, "all");
+  assert.equal(snapshot.assigneeName, "all tasks");
+  assert.equal(snapshot.boardGroups.length, 1);
+});
+
+test("mondayAssigned header text uses board names for empty boards", async () => {
+  const { buildBoardHeaderText } = await loadWidgetInternals(
+    "widgets/mondayAssigned.js",
+    ["buildBoardHeaderText"],
+    {
+      normalizeBoardId: (value, fallback = 0) => {
+        const num = Number(value);
+        return Number.isFinite(num) && num > 0 ? Math.trunc(num) : fallback;
+      },
+      normalizeSharedConnectorUrl: (value) => String(value || "").trim(),
+      createAuthSessionStorage: () => ({
+        load: async () => null,
+        save: async () => {},
+        clear: async () => {}
+      })
+    }
+  );
+
+  assert.equal(
+    buildBoardHeaderText({ boardId: 88, boardName: "Design Board" }, 0, false),
+    "Design Board (Empty)"
+  );
+  assert.equal(
+    buildBoardHeaderText({ boardId: 88, boardName: "Design Board" }, 4, false),
+    "Design Board (4 assigned)"
+  );
+});
+
+test("mondayAssigned detects incomplete cached board metadata from legacy fallback names", async () => {
+  const { hasIncompleteBoardMetadata } = await loadWidgetInternals(
+    "widgets/mondayAssigned.js",
+    ["hasIncompleteBoardMetadata"],
+    {
+      normalizeBoardId: (value, fallback = 0) => {
+        const num = Number(value);
+        return Number.isFinite(num) && num > 0 ? Math.trunc(num) : fallback;
+      },
+      normalizeSharedConnectorUrl: (value) => String(value || "").trim(),
+      createAuthSessionStorage: () => ({
+        load: async () => null,
+        save: async () => {},
+        clear: async () => {}
+      })
+    }
+  );
+
+  assert.equal(
+    hasIncompleteBoardMetadata([
+      { boardId: 42, boardName: "Board 42", boardUrl: "https://workspace.monday.com/boards/42" }
+    ]),
+    true
+  );
+  assert.equal(
+    hasIncompleteBoardMetadata([
+      { boardId: 42, boardName: "Platform Board", boardUrl: "https://workspace.monday.com/boards/42" }
+    ]),
+    false
+  );
+});
+
+test("mondayAssigned openHref follows widget tab setting for board navigation", async () => {
+  const { openHref } = await loadWidgetInternals(
+    "widgets/mondayAssigned.js",
+    ["openHref"],
+    {
+      normalizeSharedConnectorUrl: (value) => String(value || "").trim(),
+      createAuthSessionStorage: () => ({
+        load: async () => null,
+        save: async () => {},
+        clear: async () => {}
+      }),
+      window: {
+        location: { href: "https://initial.example.com/" },
+        open: () => {}
+      }
+    }
+  );
+
+  const locationRef = { href: "https://initial.example.com/" };
+  const opened = [];
+  const openImpl = (...args) => opened.push(args);
+
+  openHref("https://workspace.monday.com/boards/11", true, locationRef, openImpl);
+  assert.deepEqual(opened, [["https://workspace.monday.com/boards/11", "_blank", "noopener,noreferrer"]]);
+  assert.equal(locationRef.href, "https://initial.example.com/");
+
+  openHref("https://workspace.monday.com/boards/12", false, locationRef, openImpl);
+  assert.equal(locationRef.href, "https://workspace.monday.com/boards/12");
+});
+
 test("mondayMeetingNote fallback scan can include newer items in later groups", async () => {
   const { buildFallbackLatestQuery, pickLatestItem } = await loadWidgetInternals(
     "widgets/mondayMeetingNote.js",
@@ -134,4 +309,41 @@ test("mondayMeetingNote fallback scan can include newer items in later groups", 
 
   assert.ok(limit > latestIndex, "fallback scan limit must reach later-group items");
   assert.equal(latest?.id, "latest-in-separate-group");
+});
+
+test("mondayMeetingNote extracts doc id from JSON column values", async () => {
+  const { extractMeetingNote } = await loadWidgetInternals(
+    "widgets/mondayMeetingNote.js",
+    ["extractMeetingNote"],
+    {
+      createAuthSessionStorage: () => ({
+        load: async () => null,
+        save: async () => {},
+        clear: async () => {}
+      })
+    }
+  );
+
+  const extracted = extractMeetingNote(
+    {
+      url: "https://workspace.monday.com/boards/123/pulses/456",
+      column_values: [
+        {
+          id: "monday_doc",
+          text: "",
+          value: JSON.stringify({
+            linkedPulseId: 456,
+            doc_id: 987654321
+          })
+        }
+      ]
+    },
+    ["monday_doc"],
+    "monday Doc"
+  );
+
+  assert.equal(
+    extracted.docUrl,
+    "https://workspace.monday.com/boards/123/pulses/456?doc_id=987654321"
+  );
 });

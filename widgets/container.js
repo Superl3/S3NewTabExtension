@@ -969,6 +969,16 @@ export const containerWidget = {
 
     return {
       refresh: render,
+      refreshPosition() {
+        const folder = getCurrentFolder();
+        if (!folder) {
+          return;
+        }
+        const cfg = normalizeFolderConfig(getConfig());
+        if (cfg.expanded) {
+          positionPanel(folder, cfg);
+        }
+      },
       destroy() {
         document.removeEventListener("click", handleDocumentClick, true);
         destroyEmbeddedChildren();

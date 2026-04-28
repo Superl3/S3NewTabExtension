@@ -75,6 +75,7 @@ export function startWidgetCardDragSession({
   applyGridLayout,
   compactEmptyLauncherPagesForUseMode,
   queueSave,
+  touchUserMutationClock,
   updateBoardBounds,
   renderSettings,
   resolveSnappedPosition,
@@ -115,21 +116,21 @@ export function startWidgetCardDragSession({
     card.classList.remove("longpress-drag-armed");
   }
 
-  bringWidgetToFront?.(instance.id);
-  card.classList.add("widget-drag-active");
   const previewSession = createDragPreviewSession?.(instance, {
     sourceCard: card,
     pointerEvent: event,
     pointerX: dragStartX,
-    pointerY: dragStartY
+    pointerY: dragStartY,
+    ...(fromLongPress ? { fallbackPointerAnchor: "top-left" } : {})
   });
   if (!previewSession) {
-    card.classList.remove("widget-drag-active");
     return false;
   }
 
-  card.classList.add("widget-drag-origin-hidden");
   const dropSilhouette = createWidgetDropSilhouette?.(card);
+  bringWidgetToFront?.(instance.id);
+  card.classList.add("widget-drag-active");
+  card.classList.add("widget-drag-origin-hidden");
   const hideAndRemoveDropSilhouette = () => {
     setWidgetDropSilhouetteVisible?.(dropSilhouette, false);
     dropSilhouette?.remove?.();
@@ -154,6 +155,25 @@ export function startWidgetCardDragSession({
   let lastPointerX = dragStartX;
   let lastPointerY = dragStartY;
   const boardRect = getBoardRect?.() || null;
+  let liveLayoutChanged = false;
+  const liveLayoutPatchOptions = {
+    record: false,
+    touch: false,
+    updateBounds: false,
+    renderSettings: false,
+    save: false
+  };
+
+  const commitLiveLayoutEffects = () => {
+    if (!liveLayoutChanged) {
+      return;
+    }
+    touchUserMutationClock?.();
+    updateBoardBounds?.();
+    renderSettings?.();
+    queueSave?.();
+    liveLayoutChanged = false;
+  };
 
   const commitPageSwitch = (direction, moveEvent, onSwitched = null) => {
     if (!direction) {
@@ -270,14 +290,15 @@ export function startWidgetCardDragSession({
       return;
     }
     if (commit) {
-      patchWidgetLayout?.(
+      const changed = patchWidgetLayout?.(
         instance.id,
         {
           x: nextPlacement.x,
           y: nextPlacement.y
         },
-        { record: false }
+        liveLayoutPatchOptions
       );
+      liveLayoutChanged = liveLayoutChanged || changed === true;
       const rt = runtimeMap?.get?.(instance.id);
       if (rt?.card) {
         applyLayout?.(rt.card, instance.layout, instance.page);
@@ -407,14 +428,15 @@ export function startWidgetCardDragSession({
 
     const bounded = resolveBoundedDragPositionFromDelta?.(instance.layout, dx, dy, boardRect) || instance.layout;
 
-    patchWidgetLayout?.(
+    const changed = patchWidgetLayout?.(
       instance.id,
       {
         x: bounded.x,
         y: bounded.y
       },
-      { record: false }
+      liveLayoutPatchOptions
     );
+    liveLayoutChanged = liveLayoutChanged || changed === true;
 
     const direction = edgeDirectionFromPointer(moveEvent.clientX);
     schedulePageSwitch(direction, moveEvent, () => {
@@ -470,7 +492,10 @@ export function startWidgetCardDragSession({
       updateBoardBounds?.();
       renderSettings?.();
       queueSave?.();
+      return;
     }
+
+    commitLiveLayoutEffects();
   };
 
   windowObj.addEventListener("pointermove", move);

@@ -23,13 +23,15 @@ export function createWidgetDragPreview(instance, options = {}) {
     preview.classList.add("widget-drag-preview-card");
     preview.removeAttribute("aria-current");
     preview.removeAttribute("tabindex");
-    preview.style.left = `${Math.round(rect.left)}px`;
-    preview.style.top = `${Math.round(rect.top)}px`;
+    preview.style.left = "0px";
+    preview.style.top = "0px";
     preview.style.width = `${Math.max(1, Math.round(rect.width))}px`;
     preview.style.height = `${Math.max(1, Math.round(rect.height))}px`;
     preview.style.position = "fixed";
     preview.style.zIndex = String(DRAG_PREVIEW_Z_INDEX);
     preview.style.pointerEvents = "none";
+    preview.style.setProperty("--drag-preview-x", `${Math.round(rect.left)}px`);
+    preview.style.setProperty("--drag-preview-y", `${Math.round(rect.top)}px`);
 
     const pointerX = Number.isFinite(Number(options?.pointerX))
       ? Number(options.pointerX)
@@ -37,8 +39,17 @@ export function createWidgetDragPreview(instance, options = {}) {
     const pointerY = Number.isFinite(Number(options?.pointerY))
       ? Number(options.pointerY)
       : Number(options?.pointerEvent?.clientY);
-    const offsetX = Number.isFinite(pointerX) ? clamp(pointerX - rect.left, 0, rect.width) : rect.width / 2;
-    const offsetY = Number.isFinite(pointerY) ? clamp(pointerY - rect.top, 0, rect.height) : rect.height / 2;
+    const fallbackToTopLeft = options?.fallbackPointerAnchor === "top-left";
+    const rawOffsetX = Number.isFinite(pointerX) ? pointerX - rect.left : Number.NaN;
+    const rawOffsetY = Number.isFinite(pointerY) ? pointerY - rect.top : Number.NaN;
+    const offsetX =
+      Number.isFinite(rawOffsetX)
+        ? (fallbackToTopLeft && rawOffsetX > rect.width ? 0 : clamp(rawOffsetX, 0, rect.width))
+        : rect.width / 2;
+    const offsetY =
+      Number.isFinite(rawOffsetY)
+        ? (fallbackToTopLeft && rawOffsetY > rect.height ? 0 : clamp(rawOffsetY, 0, rect.height))
+        : rect.height / 2;
 
     preview.dataset.dragOffsetX = String(offsetX);
     preview.dataset.dragOffsetY = String(offsetY);
@@ -53,8 +64,15 @@ export function createWidgetDragPreview(instance, options = {}) {
   preview.style.position = "fixed";
   preview.style.zIndex = String(DRAG_PREVIEW_Z_INDEX);
   preview.style.pointerEvents = "none";
+  preview.style.left = "0px";
+  preview.style.top = "0px";
   document.body.append(preview);
   return preview;
+}
+
+function setDragPreviewPosition(preview, x, y) {
+  preview.style.setProperty("--drag-preview-x", `${Math.round(x)}px`);
+  preview.style.setProperty("--drag-preview-y", `${Math.round(y)}px`);
 }
 
 export function positionWidgetDragPreview(preview, clientX, clientY) {
@@ -67,12 +85,10 @@ export function positionWidgetDragPreview(preview, clientX, clientY) {
   const offsetX = Number(preview.dataset.dragOffsetX);
   const offsetY = Number(preview.dataset.dragOffsetY);
   if (Number.isFinite(offsetX) && Number.isFinite(offsetY)) {
-    preview.style.left = `${Math.round(clientX - offsetX)}px`;
-    preview.style.top = `${Math.round(clientY - offsetY)}px`;
+    setDragPreviewPosition(preview, clientX - offsetX, clientY - offsetY);
     return;
   }
-  preview.style.left = `${Math.round(clientX + 14)}px`;
-  preview.style.top = `${Math.round(clientY + 14)}px`;
+  setDragPreviewPosition(preview, clientX + 14, clientY + 14);
 }
 
 export function createDragPreviewSession(instance, options = {}) {

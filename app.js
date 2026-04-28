@@ -42,6 +42,7 @@ import {
   normalizeDockVisibility,
   normalizeHomeLayout
 } from "./core/home-layout.js";
+import { groupWidgetDefinitionsByCategory } from "./core/widget-type-categories.js";
 import {
   clamp,
   cloneLayout,
@@ -2486,7 +2487,11 @@ const {
 
 function refreshAllWidgets() {
   for (const rt of runtime.values()) {
-    rt.controller?.refresh?.();
+    if (typeof rt.controller?.manualRefresh === "function") {
+      rt.controller.manualRefresh();
+    } else {
+      rt.controller?.refresh?.();
+    }
   }
 }
 
@@ -2505,17 +2510,36 @@ function refreshWidgetsByType(type) {
     if (instance.type !== type) {
       continue;
     }
-    runtime.get(instance.id)?.controller?.refresh?.();
+    const controller = runtime.get(instance.id)?.controller;
+    if (typeof controller?.manualRefresh === "function") {
+      controller.manualRefresh();
+    } else {
+      controller?.refresh?.();
+    }
+  }
+}
+
+function refreshContainerPanelPositions() {
+  for (const instance of state.instances) {
+    if (instance.type !== "container") {
+      continue;
+    }
+    runtime.get(instance.id)?.controller?.refreshPosition?.();
   }
 }
 
 function populateTypeSelect() {
   elements.widgetTypeSelect.replaceChildren();
-  for (const def of widgetList) {
-    const option = document.createElement("option");
-    option.value = def.type;
-    option.textContent = `${def.title} (${def.type})`;
-    elements.widgetTypeSelect.append(option);
+  for (const group of groupWidgetDefinitionsByCategory(widgetList)) {
+    const optgroup = document.createElement("optgroup");
+    optgroup.label = group.label;
+    for (const def of group.widgets) {
+      const option = document.createElement("option");
+      option.value = def.type;
+      option.textContent = def.title;
+      optgroup.append(option);
+    }
+    elements.widgetTypeSelect.append(optgroup);
   }
 }
 
@@ -3032,6 +3056,10 @@ function materializePendingPlaceholderPage() {
   return launcherPageRuntime.materializePendingPlaceholderPage();
 }
 
+function commitPlaceholderPageDrop(instanceId, payload = {}, placeholderPage = null) {
+  return launcherPageRuntime.commitPlaceholderPageDrop(instanceId, payload, placeholderPage);
+}
+
 function materializeLauncherPlaceholderPage(placeholderPage) {
   return launcherPageRuntime.materializeLauncherPlaceholderPage(placeholderPage);
 }
@@ -3206,6 +3234,8 @@ function createWidgetDropSilhouette(sourceElement = null, options = {}) {
   const silhouette = document.createElement("div");
   silhouette.className = "widget-drop-silhouette";
   silhouette.style.position = "fixed";
+  silhouette.style.left = "0px";
+  silhouette.style.top = "0px";
   silhouette.style.zIndex = String(DROP_SILHOUETTE_Z_INDEX);
 
   const sourceRect = sourceElement?.getBoundingClientRect?.();
@@ -3258,8 +3288,8 @@ function positionWidgetDropSilhouette(silhouette, layout, page = 0) {
 
   const boardX = Math.round((Number(layout.x) || 0) + widgetPageOffsetX(page));
   const boardY = Math.round(Number(layout.y) || 0);
-  silhouette.style.left = `${Math.round(boardRect.left + boardX)}px`;
-  silhouette.style.top = `${Math.round(boardRect.top + boardY)}px`;
+  silhouette.style.setProperty("--drop-silhouette-x", `${Math.round(boardRect.left + boardX)}px`);
+  silhouette.style.setProperty("--drop-silhouette-y", `${Math.round(boardRect.top + boardY)}px`);
   silhouette.style.width = `${Math.max(1, Math.round(Number(layout.w) || 1))}px`;
   silhouette.style.height = `${Math.max(1, Math.round(Number(layout.h) || 1))}px`;
 }
@@ -3483,7 +3513,7 @@ function applyWidgetDropPlan(instance, plan, payload = {}, { record = true } = {
       queueSave,
       tryContainerWidgetByDrop,
       currentLauncherPageCount,
-      queuePlaceholderPageDrop,
+      commitPlaceholderPageDrop,
       normalizeWidgetPage,
       currentLauncherActivePage,
       isWidgetDocked,
@@ -3676,7 +3706,7 @@ function renderBoardViewport({ dragOffsetX = 0, animate = true, dragging = false
     syncPersistentDock();
   }
 
-  refreshWidgetsByType("container");
+  refreshContainerPanelPositions();
   if (!dragging) {
     renderLauncherPageAffordances();
     syncHomePageAnchorButton();
@@ -3743,8 +3773,10 @@ function removeLauncherPage() {
 }
 
 function applyLayout(card, layout, page = 0) {
-  card.style.left = `${Math.round(layout.x + widgetPageOffsetX(page))}px`;
-  card.style.top = `${Math.round(layout.y)}px`;
+  card.style.left = "0px";
+  card.style.top = "0px";
+  card.style.setProperty("--widget-layout-x", `${Math.round(layout.x + widgetPageOffsetX(page))}px`);
+  card.style.setProperty("--widget-layout-y", `${Math.round(layout.y)}px`);
   card.style.width = `${Math.max(1, Math.round(layout.w))}px`;
   card.style.height = `${Math.max(1, Math.round(layout.h))}px`;
 }
@@ -3841,20 +3873,28 @@ function instanceById(instanceId) {
   return state.instances.find((item) => item.id === instanceId) || null;
 }
 
-function setSelected(instanceId) {
+function setSelected(instanceId, options = {}) {
+  const { renderDock = true, renderSettings: shouldRenderSettings = true } = options;
+  const previousSelectedId = state.selectedWidgetId || "";
   if (instanceId) {
     bringWidgetToFront(instanceId);
   }
   state.selectedWidgetId = instanceId || "";
   const selectedInstance = instanceId ? instanceById(instanceId) : null;
+  let dockActiveChanged = false;
   if (selectedInstance && isWidgetDocked(selectedInstance)) {
+    dockActiveChanged = dockUiState.activeId !== selectedInstance.id;
     setDockActiveId(selectedInstance.id, { rerender: false });
   }
   for (const [id, rt] of runtime.entries()) {
     rt.card.classList.toggle("selected", id === state.selectedWidgetId);
   }
-  renderDockWidgets();
-  renderSettings();
+  if (renderDock && dockActiveChanged) {
+    renderDockWidgets();
+  }
+  if (shouldRenderSettings && previousSelectedId !== state.selectedWidgetId && runtimeSettingsPanelOpen) {
+    renderSettings();
+  }
 }
 
 function patchTheme(patch) {
@@ -4278,127 +4318,154 @@ const containerDropRuntime = createContainerDropRuntime({
   containerDropGuideSlotRect
 });
 
+const appWidgetRuntimeCapabilities = {
+  lifecycle: {
+    buildWidgetControllerContext,
+    renderBoard,
+    queueSave,
+    syncZCounterFromState,
+    windowObj: window
+  },
+  board: {
+    renderBoardViewport,
+    setActiveLauncherPage,
+    currentLauncherActivePage,
+    currentLauncherPageCount,
+    getLauncherViewportRect,
+    syncLauncherPagingState,
+    isLauncherPlaceholderPolicyActive,
+    isPlaceholderLauncherPage,
+    setLauncherVirtualPage,
+    setLauncherVirtualPageState: (value) => {
+      launcherPageUiState.virtualPage = value;
+    },
+    clearPendingPlaceholderDrop,
+    normalizeWidgetPage,
+    compactEmptyLauncherPagesForUseMode,
+    updateBoardBounds,
+    commitPlaceholderPageDrop,
+    isBoardWidgetInstance,
+    setBodyMode
+  },
+  container: {
+    setWidgetContainer,
+    releaseWidgetFromContainerByDrop,
+    reorderWidgetInContainerByIndex,
+    resolveContainerInsertIndexFromPointer,
+    tryContainerWidgetByDrop,
+    containerDropTargetAtPoint,
+    registerContainerDropTarget,
+    unregisterContainerDropTarget,
+    clearContainerDropTargets,
+    normalizeContainerId,
+    isWidgetInContainer,
+    canPlaceWidgetInContainer,
+    appendWidgetToContainerOrder,
+    normalizeContainerAssignments,
+    containerUnitLayoutSize
+  },
+  dock: {
+    tryDockWidgetByDrop,
+    isWidgetDocked,
+    isDockDropPoint,
+    isDockEligibleWidget,
+    resolveDockDropSlotIndex,
+    moveWidgetToDockSlot,
+    normalizeDockedWidgetOrders,
+    renderDockWidgets
+  },
+  drag: {
+    createWidgetDropSilhouette,
+    projectWidgetBoardDropLayout,
+    updateCrossSurfaceDropIndicators,
+    createDragPreviewSession,
+    createWidgetDragPreview,
+    positionWidgetDragPreview,
+    updateWidgetDragGuideAtPointer,
+    clearWidgetDragGuideState,
+    startWidgetCardDragSession,
+    setWidgetDropSilhouetteVisible,
+    setDragDeleteZoneActive,
+    setLauncherDragPlaceholderPolicy,
+    updateDragDeleteZoneHover,
+    createNoneDropPlan,
+    resolveEdgeDirectionFromPointer: resolveEdgeDirectionFromPointerCore,
+    createDeferredEdgeSwitchScheduler: createDeferredEdgeSwitchSchedulerCore,
+    evaluateAndRenderWidgetDragIndicators,
+    evaluateFinalWidgetDrop,
+    resolveDraftPlacementAtPointer,
+    resolveBoundedDragPositionFromDelta,
+    cleanupBoardDragSession,
+    applyWidgetDropPlan,
+    createLongPressDragController: createLongPressDragControllerCore,
+    widgetLongPressState,
+    longPressDelayMs: LONG_PRESS_DRAG_DELAY_MS,
+    shortcutDelayMs: SHORTCUT_LONG_PRESS_DRAG_DELAY_MS,
+    baseMoveTolerance: LONG_PRESS_DRAG_MOVE_TOLERANCE,
+    startWidgetPaddingDragSession,
+    setLastDragEndAt: (value) => {
+      lastDragEndAt = value;
+    },
+    getLastDragEndAt: () => lastDragEndAt
+  },
+  layout: {
+    gridMetrics,
+    patchWidgetLayout,
+    applyLayout,
+    isGridLayoutMode,
+    widgetDefaultGridSize,
+    normalizeGridLayout,
+    clamp,
+    applyGridLayout,
+    resolveSnappedPosition,
+    snap: SNAP,
+    widgetPaddingFallback,
+    resolveWidgetPadding,
+    normalizeContentPadding,
+    projectContentPaddingFromDrag,
+    hasContentPaddingChanged
+  },
+  selection: {
+    instanceById,
+    setSelected,
+    bringWidgetToFront
+  },
+  settings: {
+    patchWidgetConfig,
+    openWidgetModal,
+    attachWidgetTypeActions,
+    attachWidgetCardClickBehavior,
+    attachWidgetCardInteractionEvents,
+    openWidgetTitleRenameModal,
+    attachWidgetResizeHandle,
+    startGridResizeSession,
+    startFreeResizeSession,
+    renderSettings,
+    refreshWidgetsByType
+  },
+  persistence: {
+    touchUserMutationClock
+  },
+  history: {
+    recordHistorySnapshot
+  },
+  style: {
+    applyCardVisual,
+    applyCardStack
+  },
+  modal: {
+    modalState,
+    closeBoardContextMenu,
+    closeWidgetModal
+  }
+};
+
 const appWidgetRuntime = createAppWidgetRuntime({
   getState: () => state,
   widgetRegistry,
   elements,
   runtimeMap: runtime,
-  buildWidgetControllerContext,
-  gridMetrics,
-  patchWidgetConfig,
-  setWidgetContainer,
-  releaseWidgetFromContainerByDrop,
-  reorderWidgetInContainerByIndex,
-  createWidgetDropSilhouette,
-  resolveContainerInsertIndexFromPointer,
-  tryContainerWidgetByDrop,
-  tryDockWidgetByDrop,
-  projectWidgetBoardDropLayout,
-  updateCrossSurfaceDropIndicators,
-  renderBoardViewport,
-  setActiveLauncherPage,
-  currentLauncherActivePage,
-  currentLauncherPageCount,
-  registerContainerDropTarget,
-  unregisterContainerDropTarget,
-  createDragPreviewSession,
-  createWidgetDragPreview,
-  positionWidgetDragPreview,
-  updateWidgetDragGuideAtPointer,
-  clearWidgetDragGuideState,
-  clearContainerDropTargets,
-  renderBoard,
-  queueSave,
-  instanceById,
-  setSelected,
-  openWidgetModal,
-  removeWidget,
-  attachWidgetTypeActions,
-  attachWidgetCardClickBehavior,
-  startWidgetCardDragSession,
-  closeBoardContextMenu,
-  bringWidgetToFront,
-  setWidgetDropSilhouetteVisible,
-  setDragDeleteZoneActive,
-  setLauncherDragPlaceholderPolicy,
-  updateDragDeleteZoneHover,
-  createNoneDropPlan,
-  resolveEdgeDirectionFromPointer: resolveEdgeDirectionFromPointerCore,
-  getLauncherViewportRect,
-  syncLauncherPagingState,
-  isLauncherPlaceholderPolicyActive,
-  isPlaceholderLauncherPage,
-  setLauncherVirtualPage,
-  setLauncherVirtualPageState: (value) => {
-    launcherPageUiState.virtualPage = value;
-  },
-  createDeferredEdgeSwitchScheduler: createDeferredEdgeSwitchSchedulerCore,
-  evaluateAndRenderWidgetDragIndicators,
-  evaluateFinalWidgetDrop,
-  resolveDraftPlacementAtPointer,
-  patchWidgetLayout,
-  applyLayout,
-  isGridLayoutMode,
-  recordHistorySnapshot,
-  widgetDefaultGridSize,
-  normalizeGridLayout,
-  clamp,
-  resolveBoundedDragPositionFromDelta,
-  cleanupBoardDragSession,
-  applyWidgetDropPlan,
-  clearPendingPlaceholderDrop,
-  normalizeWidgetPage,
-  applyGridLayout,
-  compactEmptyLauncherPagesForUseMode,
-  updateBoardBounds,
-  renderSettings,
-  resolveSnappedPosition,
-  snap: SNAP,
-  windowObj: window,
-  createLongPressDragController: createLongPressDragControllerCore,
-  widgetLongPressState,
-  longPressDelayMs: LONG_PRESS_DRAG_DELAY_MS,
-  shortcutDelayMs: SHORTCUT_LONG_PRESS_DRAG_DELAY_MS,
-  baseMoveTolerance: LONG_PRESS_DRAG_MOVE_TOLERANCE,
-  startWidgetPaddingDragSession,
-  widgetPaddingFallback,
-  resolveWidgetPadding,
-  normalizeContentPadding,
-  projectContentPaddingFromDrag,
-  hasContentPaddingChanged,
-  modalState,
-  setLastDragEndAt: (value) => {
-    lastDragEndAt = value;
-  },
-  attachWidgetCardInteractionEvents,
-  openWidgetTitleRenameModal,
-  attachWidgetResizeHandle,
-  startGridResizeSession,
-  startFreeResizeSession,
-  applyCardVisual,
-  applyCardStack,
-  getLastDragEndAt: () => lastDragEndAt,
-  containerDropTargetAtPoint,
-  normalizeContainerId,
-  isBoardWidgetInstance,
-  isWidgetDocked,
-  isWidgetInContainer,
-  isDockDropPoint,
-  isDockEligibleWidget,
-  resolveDockDropSlotIndex,
-  touchUserMutationClock,
-  moveWidgetToDockSlot,
-  canPlaceWidgetInContainer,
-  appendWidgetToContainerOrder,
-  normalizeContainerAssignments,
-  refreshWidgetsByType,
-  queuePlaceholderPageDrop,
-  containerUnitLayoutSize,
-  closeWidgetModal,
-  normalizeDockedWidgetOrders,
-  renderDockWidgets,
-  syncZCounterFromState,
-  setBodyMode
+  capabilities: appWidgetRuntimeCapabilities
 });
 
 function setWidgetContainer(instanceId, containerId, options = {}) {

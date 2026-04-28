@@ -105,7 +105,7 @@ test("applyWidgetDropPlanByKind forwards placeholder page drops", () => {
     { record: true },
     {
       currentLauncherPageCount: () => 3,
-      queuePlaceholderPageDrop: (widgetId, payload, placeholderPage) => {
+      commitPlaceholderPageDrop: (widgetId, payload, placeholderPage) => {
         calls.push({ widgetId, payload, placeholderPage });
         return true;
       }

@@ -146,6 +146,8 @@ option,
   object-fit: cover;
   opacity: 0;
   transition: opacity 0.45s ease;
+  will-change: opacity, transform;
+  backface-visibility: hidden;
 }
 
 .bg-image.visible,
@@ -159,7 +161,7 @@ option,
 }
 
 .bg-blur-image {
-  transform: scale(1.06);
+  transform: translateZ(0) scale(1.06);
   filter: none;
 }
 
@@ -523,9 +525,11 @@ body.mode-edit .dock-edit-controls {
   flex: 1;
   min-height: 0;
   overflow: visible;
+  contain: layout style;
   transform: translate3d(var(--board-page-translate-x, 0px), 0, 0);
   transition: transform 0.26s cubic-bezier(0.22, 0.7, 0, 1);
   will-change: transform;
+  backface-visibility: hidden;
   touch-action: pan-y pinch-zoom;
 }
 
@@ -712,6 +716,10 @@ body.mode-edit .launcher-page-remove-btn,
   block-size: calc(var(--dock-icon-size) + var(--dock-padding) * 2);
   box-shadow: 0 10px 24px var(--shadow-edge);
   transition: opacity 0.22s ease, transform 0.22s ease, box-shadow 0.22s ease;
+  will-change: transform, opacity;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  contain: layout paint style;
 }
 
 .persistent-dock[data-position="top"] .persistent-dock-body,
@@ -1103,6 +1111,8 @@ body.mode-edit.settings-open .settings-rail-toggle {
 }
 
 .widget-card {
+  --widget-layout-x: 0px;
+  --widget-layout-y: 0px;
   --widget-opacity: 0.85;
   --widget-edge-roundness: 18px;
   --widget-pad-top: 10px;
@@ -1124,23 +1134,28 @@ body.mode-edit.settings-open .settings-rail-toggle {
   -webkit-backdrop-filter: blur(var(--widget-backdrop-blur, 12px));
   overflow: hidden;
   transition: box-shadow 0.2s ease;
+  contain: layout paint style;
+  content-visibility: auto;
+  contain-intrinsic-size: 240px 180px;
+  transform: translate3d(var(--widget-layout-x), var(--widget-layout-y), 0);
+  backface-visibility: hidden;
 }
 
 @keyframes widget-drag-jiggle {
   0% {
-    transform: translate3d(0, 0, 0) rotate(0deg);
+    transform: translate3d(var(--widget-layout-x), var(--widget-layout-y), 0) rotate(0deg);
   }
   22% {
-    transform: translate3d(0, 0.45px, 0) rotate(-1.2deg);
+    transform: translate3d(var(--widget-layout-x), calc(var(--widget-layout-y) + 0.45px), 0) rotate(-1.2deg);
   }
   50% {
-    transform: translate3d(0, 0.9px, 0) rotate(0deg);
+    transform: translate3d(var(--widget-layout-x), calc(var(--widget-layout-y) + 0.9px), 0) rotate(0deg);
   }
   78% {
-    transform: translate3d(0, 0.45px, 0) rotate(1.2deg);
+    transform: translate3d(var(--widget-layout-x), calc(var(--widget-layout-y) + 0.45px), 0) rotate(1.2deg);
   }
   100% {
-    transform: translate3d(0, 0, 0) rotate(0deg);
+    transform: translate3d(var(--widget-layout-x), var(--widget-layout-y), 0) rotate(0deg);
   }
 }
 
@@ -1858,6 +1873,9 @@ body.mode-edit .widget-folder-item-card .widget-head {
 }
 
 .widget-drop-silhouette {
+  --drop-silhouette-x: 0px;
+  --drop-silhouette-y: 0px;
+  --drop-silhouette-scale: 0.985;
   position: absolute;
   z-index: 8990;
   pointer-events: none;
@@ -1868,8 +1886,11 @@ body.mode-edit .widget-folder-item-card .widget-head {
     inset 0 0 0 1px color-mix(in srgb, var(--primary), transparent 74%),
     0 14px 28px var(--shadow-edge);
   opacity: 0;
-  transform: scale(0.985);
+  transform: translate3d(var(--drop-silhouette-x), var(--drop-silhouette-y), 0) scale(var(--drop-silhouette-scale));
   transition: opacity 0.14s ease, transform 0.16s cubic-bezier(0.22, 0.7, 0, 1);
+  will-change: transform, opacity;
+  contain: layout paint style;
+  backface-visibility: hidden;
 }
 
 .is-drop-guide-active {
@@ -1911,10 +1932,12 @@ body.mode-edit .widget-folder-item-card .widget-head {
 
 .widget-drop-silhouette.is-visible {
   opacity: 1;
-  transform: scale(1);
+  --drop-silhouette-scale: 1;
 }
 
 .widget-drag-preview {
+  --drag-preview-x: 0px;
+  --drag-preview-y: 0px;
   position: fixed;
   z-index: 9000;
   pointer-events: none;
@@ -1933,15 +1956,24 @@ body.mode-edit .widget-folder-item-card .widget-head {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  transform: translate3d(var(--drag-preview-x), var(--drag-preview-y), 0);
+  will-change: transform;
+  contain: layout paint style;
+  backface-visibility: hidden;
 }
 
 .widget-drag-preview-card {
+  --drag-preview-x: 0px;
+  --drag-preview-y: 0px;
   position: fixed;
   z-index: 9000;
   pointer-events: none;
   margin: 0;
-  transform: translateZ(0) scale(1.02);
+  transform: translate3d(var(--drag-preview-x), var(--drag-preview-y), 0) scale(1.02);
   transform-origin: top left;
+  will-change: transform;
+  contain: layout paint style;
+  backface-visibility: hidden;
   box-shadow:
     0 0 0 2px color-mix(in srgb, var(--accent), var(--tone-light) 24%),
     0 18px 34px var(--shadow-strong);
@@ -1957,11 +1989,7 @@ body.mode-edit .widget-folder-item-card .widget-head {
 @media (prefers-reduced-motion: reduce) {
   .widget-drop-silhouette {
     transition: none;
-    transform: none;
-  }
-
-  .widget-drop-silhouette.is-visible {
-    transform: none;
+    --drop-silhouette-scale: 1;
   }
 }
 
@@ -2637,6 +2665,24 @@ body.mode-edit .widget-float-remove:hover {
   font-size: 0.88em;
   font-weight: 700;
   color: color-mix(in srgb, var(--widget-effective-accent), var(--text) 30%);
+}
+
+.monday-board-card-header[href] {
+  display: block;
+  text-decoration: none;
+}
+
+.monday-board-card-header[href]:hover,
+.monday-board-card-header[href]:focus-visible {
+  text-decoration: underline;
+}
+
+.monday-board-inline-header {
+  list-style: none;
+}
+
+.monday-board-inline-header .monday-board-card-header {
+  margin: 0;
 }
 
 .monday-board-card-list {
@@ -3685,6 +3731,78 @@ body.mode-edit .widget-float-remove:hover {
 
 .flex-worktime-sync.is-success {
   color: color-mix(in srgb, var(--widget-effective-accent), var(--text) 35%);
+}
+
+.flex-worktime-timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+  margin-top: 2px;
+}
+
+.flex-worktime-timeline-caption {
+  font-size: 0.72em;
+  color: color-mix(in srgb, var(--widget-effective-text), var(--muted) 42%);
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.flex-worktime-timeline-track {
+  position: relative;
+  width: 100%;
+  height: 16px;
+  border-radius: 999px;
+  overflow: hidden;
+  background:
+    linear-gradient(to right, color-mix(in srgb, var(--line), transparent 62%) 1px, transparent 1px) 0 0 / 25% 100%,
+    color-mix(in srgb, var(--widget-effective-surface), black 8%);
+  border: 1px solid color-mix(in srgb, var(--line), var(--widget-effective-text) 12%);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, black, transparent 88%);
+}
+
+.flex-worktime-timeline-tick {
+  position: absolute;
+  top: -1px;
+  bottom: -1px;
+  width: 1px;
+  background: color-mix(in srgb, var(--line), transparent 44%);
+  pointer-events: none;
+  z-index: 2;
+}
+
+.flex-worktime-timeline-segment {
+  position: absolute;
+  top: 1px;
+  bottom: 1px;
+  border-radius: 999px;
+  z-index: 1;
+  min-width: 2px;
+}
+
+.flex-worktime-timeline-segment.is-work {
+  background: linear-gradient(90deg, #57d692, #34b56f);
+}
+
+.flex-worktime-timeline-segment.is-break {
+  background: linear-gradient(90deg, #7fdcff, #4db9f0);
+}
+
+.flex-worktime-timeline-segment.is-active {
+  box-shadow: 0 0 0 1px color-mix(in srgb, white, transparent 50%) inset, 0 0 10px color-mix(in srgb, white, transparent 82%);
+}
+
+.flex-worktime-timeline-labels {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.flex-worktime-timeline-label {
+  font-size: 0.74em;
+  color: color-mix(in srgb, var(--widget-effective-text), var(--muted) 36%);
+  white-space: nowrap;
 }
 
 @media (max-width: 520px) {

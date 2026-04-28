@@ -52,7 +52,7 @@ export function applyWidgetDropPlanByKind(
       ? Math.floor(Number(plan.space.board.internalPlaceholderPage))
       : internalPlaceholderFromPlaceholderEdge(edge, pageCount);
     return Boolean(
-      deps.queuePlaceholderPageDrop?.(
+      deps.commitPlaceholderPageDrop?.(
         instance.id,
         {
           ...payload,

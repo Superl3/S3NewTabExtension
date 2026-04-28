@@ -63,17 +63,24 @@
 
 ## Flex Worktime 위젯
 
-- 데이터 소스 모드는 `flexHomeScrape`(기본값) / `api` 두 가지를 지원합니다.
-- 기본 `flexHomeScrape` 모드는 `https://flex.team/home` 페이지의 실제 화면 텍스트(예: `근무중 1시간 23분`)를 읽어 1개 요약 행으로 표시합니다.
-- 스크랩 모드 전제 조건: 브라우저에 Flex 로그인 세션이 있어야 하며, 해당 페이지에서 근무 상태/시간 텍스트가 렌더링되어야 합니다.
-- 스크랩 모드 동작: 현재 창 활성 탭 우선, 같은 창의 다른 탭, 전체 창 순서로 Flex Home 탭을 찾고, 없으면 `Open Flex tab if missing`이 켜진 경우 백그라운드 탭을 열어 로딩 후 추출하고 자동으로 닫습니다.
+- 기존 안정 동작용 요약 위젯입니다.
+- `https://flex.team/home`의 현재 상태/누적 시간 텍스트만 읽어 표시합니다.
+- `Open Flex tab if missing`이 켜져 있으면 필요한 경우 Flex Home 탭을 백그라운드로 열어 읽고 닫습니다.
+- 기본 동작은 `refreshMinutes` 간격 자동 갱신 + 우측 상단 수동 새로고침입니다.
+- `detail URL template`이 설정되면 항목 클릭 시 상세 페이지로 이동합니다. 비어 있으면 클릭이 비활성화됩니다.
+
+## Flex Worktime History 위젯
+
+- 실험적인 이력/타임라인 위젯입니다.
+- `https://flex.team/time-tracking/my-work-record`를 사용해 상태/누적 근무시간/휴게 타임라인 복원을 시도합니다.
+- 스크랩 모드 전제 조건: 브라우저에 Flex 로그인 세션이 있어야 하며, 해당 페이지에서 근무 이력 UI가 렌더링되어야 합니다.
+- 현재 창 활성 탭 우선, 같은 창의 다른 탭, 전체 창 순서로 Flex Work Record 탭을 찾고, 없으면 `Open Flex tab if missing`이 켜진 경우 백그라운드 탭을 열어 재사용합니다.
 - 자동으로 연 임시 Flex 탭에서 로그인 흐름이 감지되면(`/auth/login`, Google/OAuth 리다이렉트 포함) 탭을 닫지 않고 유지하며 전경으로 전환하고, 로그인 완료 전까지 같은 탭을 재사용합니다.
-- 로그인 완료 후 새 탭 페이지로 돌아와 Flex Worktime 위젯을 새로고침하세요.
-- `Open Flex tab if missing`이 꺼져 있으면 기존 Flex Home 탭이 없을 때 명확한 오류를 표시합니다.
-- 스크랩 로직은 단일 CSS 셀렉터에 의존하지 않고 한국어 상태 키워드 + 시간 정규식(`\d+시간\s*\d+분|\d+시간|\d+분`) 조합으로 휴리스틱 추출합니다. Flex UI/문구 변경 시 실패할 수 있습니다.
-- `api` 모드는 기존 방식 그대로 유지됩니다. `API URL template`에 `{date}`를 포함해야 하며, `Auth header name`, `Auth token prefix`, `Access token`, `Date mode`, `Custom date` 설정이 적용됩니다.
-- 마이그레이션 참고: 기존 API 연동 사용자는 업데이트 후 위젯 설정에서 `Source mode`가 `API`로 잡혀 있는지 한 번 확인하세요(구형 설정에서 `sourceMode`가 없으면 API 관련 필드 존재 시 런타임에서 자동으로 `API`로 해석).
-- 기본 동작은 `refreshMinutes` 간격 자동 갱신 + 우측 상단 수동 새로고침입니다. 캐시는 날짜/설정/소스 모드 조합 기준으로 `localStorage`에 저장됩니다.
+- 로그인 완료 후 새 탭 페이지로 돌아와 위젯을 새로고침하세요.
+- `Open Flex tab if missing`이 꺼져 있으면 기존 Flex Work Record 탭이 없을 때 명확한 오류를 표시합니다.
+- 스크랩 로직은 날짜 행과 hover/tooltip 데이터 복원에 의존합니다. Flex UI 구조가 크게 바뀌면 위젯이 `Sync failed` 상태로 보일 수 있습니다.
+- `Date mode`/`Custom date`는 `my-work-record`에서 조회할 날짜를 직접 바꿉니다.
+- 기본 동작은 `refreshMinutes` 간격 자동 갱신 + 우측 상단 수동 새로고침입니다. 캐시는 날짜/설정 조합 기준으로 `localStorage`에 저장됩니다.
 - `detail URL template`이 설정되면 항목 클릭 시 상세 페이지로 이동합니다. 비어 있으면 클릭이 비활성화됩니다.
 
 ## Codex Usage 위젯

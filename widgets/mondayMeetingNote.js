@@ -554,6 +554,19 @@ function extractUrlsFromText(rawValue) {
   return matches.map((entry) => entry.replace(/[),.;]+$/g, ""));
 }
 
+function tryParseJson(value) {
+  const text = normalizeText(value);
+  if (!text) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(text);
+  } catch {
+    return null;
+  }
+}
+
 function collectNestedStringValues(value, output, depth = 0) {
   if (depth > 4 || output.length > 120) {
     return;
@@ -1294,7 +1307,7 @@ export const mondayMeetingNoteWidget = {
         } else if (!hasMeetingNoteColumnConfig(cfg)) {
           panel.append(makeEmptyMessage("Set Meeting note column selector(s) in widget settings."));
         } else if (errorMessage) {
-          panel.append(makeEmptyMessage("Meeting note is not available."));
+          panel.append(makeEmptyMessage(`Meeting note is not available: ${errorMessage}`));
         } else {
           panel.append(makeEmptyMessage("No latest item found for configured boards."));
         }

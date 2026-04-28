@@ -81,7 +81,7 @@ export function createWidgetStateRuntime(deps) {
 
     const requestedPage = Number.isFinite(Number(payload?.page)) ? Math.floor(Number(payload.page)) : releasePage;
     if (deps.isLauncherPlaceholderPolicyActive() && deps.isPlaceholderLauncherPage(requestedPage, deps.currentLauncherPageCount())) {
-      return deps.queuePlaceholderPageDrop(widgetId, payload, requestedPage);
+      return deps.commitPlaceholderPageDrop(widgetId, payload, requestedPage);
     }
 
     deps.recordHistorySnapshot("Move widget out of folder");
@@ -126,7 +126,7 @@ export function createWidgetStateRuntime(deps) {
 
     const requestedPage = Number.isFinite(Number(payload?.page)) ? Math.floor(Number(payload.page)) : deps.currentLauncherActivePage();
     if (deps.isLauncherPlaceholderPolicyActive() && deps.isPlaceholderLauncherPage(requestedPage, deps.currentLauncherPageCount())) {
-      return deps.queuePlaceholderPageDrop(widgetId, payload, requestedPage);
+      return deps.commitPlaceholderPageDrop(widgetId, payload, requestedPage);
     }
 
     deps.recordHistorySnapshot("Undock widget");
@@ -188,6 +188,8 @@ export function createWidgetStateRuntime(deps) {
 
     if (options.record !== false) {
       deps.recordHistorySnapshot(options.label || "Move widget");
+    } else if (options.touch !== false) {
+      deps.touchUserMutationClock?.();
     }
 
     instance.layout = nextLayout;
@@ -199,9 +201,16 @@ export function createWidgetStateRuntime(deps) {
       }
     }
 
-    deps.updateBoardBounds();
-    deps.renderSettings();
-    deps.queueSave();
+    if (options.updateBounds !== false) {
+      deps.updateBoardBounds();
+    }
+    if (options.renderSettings !== false) {
+      deps.renderSettings();
+    }
+    if (options.save !== false) {
+      deps.queueSave();
+    }
+    return true;
   }
 
   function removeWidget(instanceId) {

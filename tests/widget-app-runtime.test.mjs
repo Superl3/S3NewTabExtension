@@ -234,7 +234,7 @@ function createHarness(overrides = {}) {
     appendWidgetToContainerOrder() {},
     normalizeContainerAssignments() {},
     refreshWidgetsByType() {},
-    queuePlaceholderPageDrop() {
+    commitPlaceholderPageDrop() {
       return false;
     },
     containerUnitLayoutSize: () => ({ w: 1, h: 1 }),
@@ -330,7 +330,7 @@ test("renderBoard keeps app-facing board composition localized", () => {
   assert.equal(harness.calls.clearContainerDropTargets, 1);
   assert.equal(harness.calls.destroyCalls, 1);
   assert.equal(harness.runtimeMap.size, 0);
-  assert.equal(harness.calls.boardReplaceChildren, 1);
+  assert.equal(harness.calls.boardReplaceChildren, 0);
   assert.deepEqual(harness.calls.syncLauncherPagingState, [{ expandToFitInstances: true }]);
   assert.equal(harness.calls.normalizeDockedWidgetOrders.length, 1);
   assert.equal(harness.calls.syncZCounterFromState, 1);
@@ -427,15 +427,15 @@ test("releaseWidgetFromContainerByDrop can drive board rebuild through app-facin
   assert.deepEqual(harness.calls.createWidgetCard, ["released-board"]);
   assert.equal(harness.calls.clearWidgetDragGuideState, 1);
   assert.equal(harness.calls.clearContainerDropTargets, 1);
-  assert.equal(harness.calls.boardReplaceChildren, 1);
+  assert.equal(harness.calls.boardReplaceChildren, 0);
 });
 
 test("app.js wires board visibility predicates into createAppWidgetRuntime", async () => {
   const source = await fs.readFile(new URL("../app.js", import.meta.url), "utf8");
-  const start = source.indexOf("const appWidgetRuntime = createAppWidgetRuntime({");
+  const start = source.indexOf("const appWidgetRuntimeCapabilities = {");
   const end = source.indexOf("function setWidgetContainer(", start);
 
-  assert.notEqual(start, -1, "expected createAppWidgetRuntime wiring block in app.js");
+  assert.notEqual(start, -1, "expected createAppWidgetRuntime capability wiring block in app.js");
   assert.notEqual(end, -1, "expected app widget runtime wrapper definitions in app.js");
 
   const wiringBlock = source.slice(start, end);
@@ -443,6 +443,44 @@ test("app.js wires board visibility predicates into createAppWidgetRuntime", asy
   assert.match(wiringBlock, /\bisWidgetDocked\b/, "expected isWidgetDocked to be passed to app widget runtime");
   assert.match(wiringBlock, /\bisWidgetInContainer\b/, "expected isWidgetInContainer to be passed to app widget runtime");
   assert.match(wiringBlock, /\bnormalizeDockedWidgetOrders\b/, "expected normalizeDockedWidgetOrders to be passed to app widget runtime");
+  assert.match(wiringBlock, /\bsyncZCounterFromState\b/, "expected z-index sync to be passed to app widget runtime");
+});
+
+test("app.js keeps viewport container refresh lightweight", async () => {
+  const source = await fs.readFile(new URL("../app.js", import.meta.url), "utf8");
+  const start = source.indexOf("function renderBoardViewport(");
+  const end = source.indexOf("function setActiveLauncherPage(", start);
+
+  assert.notEqual(start, -1, "expected renderBoardViewport in app.js");
+  assert.notEqual(end, -1, "expected setActiveLauncherPage after renderBoardViewport");
+
+  const renderBoardViewportBlock = source.slice(start, end);
+  assert.match(renderBoardViewportBlock, /refreshContainerPanelPositions\(\)/);
+  assert.doesNotMatch(renderBoardViewportBlock, /refreshWidgetsByType\("container"\)/);
+});
+
+test("app.js positions board cards with transform variables", async () => {
+  const [appSource, styleSource, dragMotionSource] = await Promise.all([
+    fs.readFile(new URL("../app.js", import.meta.url), "utf8"),
+    fs.readFile(new URL("../styles.css", import.meta.url), "utf8"),
+    fs.readFile(new URL("../widget-drag-motion.css", import.meta.url), "utf8")
+  ]);
+  const start = appSource.indexOf("function applyLayout(");
+  const end = appSource.indexOf("function isGridLayoutMode(", start);
+
+  assert.notEqual(start, -1, "expected applyLayout in app.js");
+  assert.notEqual(end, -1, "expected isGridLayoutMode after applyLayout");
+
+  const applyLayoutBlock = appSource.slice(start, end);
+  assert.match(applyLayoutBlock, /--widget-layout-x/);
+  assert.match(applyLayoutBlock, /--widget-layout-y/);
+  assert.doesNotMatch(applyLayoutBlock, /style\.left = `\$\{Math\.round/);
+  assert.match(styleSource, /transform:\s*translate3d\(var\(--widget-layout-x\), var\(--widget-layout-y\), 0\)/);
+  assert.match(
+    dragMotionSource,
+    /transform:\s*translate3d\(var\(--widget-layout-x\), var\(--widget-layout-y\), 0\)/
+  );
+  assert.doesNotMatch(dragMotionSource, /transform:\s*translate3d\(0,\s*0,\s*0\)/);
 });
 
 test("removeWidget can reuse app-facing renderBoard after normalization-sensitive mutation", () => {
@@ -508,12 +546,12 @@ test("removeWidget can reuse app-facing renderBoard after normalization-sensitiv
     "rendered-board"
   ]);
   assert.deepEqual(harness.calls.createWidgetCard, ["remaining-board"]);
-  assert.equal(harness.calls.boardReplaceChildren, 1);
+  assert.equal(harness.calls.boardReplaceChildren, 0);
   assert.equal(harness.calls.renderSettings, 1);
   assert.equal(harness.calls.normalizeDockedWidgetOrders.length, 2);
 });
 
-test("releaseWidgetFromDockByDrop preserves placeholder queue wiring through app layer", () => {
+test("releaseWidgetFromDockByDrop preserves placeholder commit wiring through app layer", () => {
   const order = [];
   const harness = createHarness({
     createWidgetStateRuntime(factoryDeps) {
@@ -527,7 +565,7 @@ test("releaseWidgetFromDockByDrop preserves placeholder queue wiring through app
         releaseWidgetFromDockByDrop(widgetId, payload) {
           order.push(["releaseDock", widgetId, payload]);
           if (factoryDeps.isLauncherPlaceholderPolicyActive() && factoryDeps.isPlaceholderLauncherPage(payload.page, factoryDeps.currentLauncherPageCount())) {
-            return factoryDeps.queuePlaceholderPageDrop(widgetId, payload, payload.page);
+            return factoryDeps.commitPlaceholderPageDrop(widgetId, payload, payload.page);
           }
           return false;
         },
@@ -542,18 +580,18 @@ test("releaseWidgetFromDockByDrop preserves placeholder queue wiring through app
     isLauncherPlaceholderPolicyActive: () => true,
     isPlaceholderLauncherPage: (page, pageCount) => page >= pageCount,
     currentLauncherPageCount: () => 3,
-    queuePlaceholderPageDrop(widgetId, payload, page) {
-      order.push(["queuePlaceholder", widgetId, payload, page]);
-      return { queued: true, widgetId, page };
+    commitPlaceholderPageDrop(widgetId, payload, page) {
+      order.push(["commitPlaceholder", widgetId, payload, page]);
+      return { committed: true, widgetId, page };
     }
   });
 
   const result = harness.runtime.releaseWidgetFromDockByDrop("dock-widget", { page: 3, clientX: 50 });
 
-  assert.deepEqual(result, { queued: true, widgetId: "dock-widget", page: 3 });
+  assert.deepEqual(result, { committed: true, widgetId: "dock-widget", page: 3 });
   assert.deepEqual(order, [
     ["releaseDock", "dock-widget", { page: 3, clientX: 50 }],
-    ["queuePlaceholder", "dock-widget", { page: 3, clientX: 50 }, 3]
+    ["commitPlaceholder", "dock-widget", { page: 3, clientX: 50 }, 3]
   ]);
   assert.equal(harness.calls.boardReplaceChildren, 0);
   assert.deepEqual(harness.calls.createWidgetCard, []);
