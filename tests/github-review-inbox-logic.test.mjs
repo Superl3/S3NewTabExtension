@@ -13,21 +13,47 @@ import {
 } from "../widgets/shared/githubReviewInboxLogic.js";
 import {
   buildCacheReviewItems,
+  buildReviewInboxReadItemKey,
+  buildReviewInboxReadScopeKey,
   computeReviewInboxAgeSeverity,
   fetchPagedJson,
   findNextPageUrl,
   githubReviewInboxWidget,
+  isReviewInboxItemRead,
   isReviewInboxSnapshotUnchanged,
   normalizeAgingDays,
   normalizeReviewInboxTab,
   normalizedConfig,
+  readReviewInboxReadSnapshot,
   resolveAgingThresholds,
+  setReviewInboxItemRead,
   shouldAutoIgnoreReviewInboxItem,
   shouldStartReviewInboxSwipe,
   sortReviewItemsByCreatedAt,
   splitReviewItemsByTab
 } from "../widgets/githubReviewInbox.js";
 import { widgetRegistry } from "../widgets/index.js";
+
+function createMemoryStorage() {
+  const map = new Map();
+  return {
+    get length() {
+      return map.size;
+    },
+    key(index) {
+      return Array.from(map.keys())[index] || null;
+    },
+    getItem(key) {
+      return map.has(key) ? map.get(key) : null;
+    },
+    setItem(key, value) {
+      map.set(String(key), String(value));
+    },
+    removeItem(key) {
+      map.delete(String(key));
+    }
+  };
+}
 
 test("normalizeGithubLogin trims @ and lowercases", () => {
   assert.equal(normalizeGithubLogin(" @Bug95 "), "bug95");
@@ -321,6 +347,53 @@ test("splitReviewItemsByTab separates own PRs from review-needed PRs", () => {
 
   assert.deepEqual(split.opened.map((item) => item.number), [10]);
   assert.deepEqual(split.needsReview.map((item) => item.number), [11, 12]);
+});
+
+test("review inbox read state is scoped by repository login and item update signature", () => {
+  const storage = createMemoryStorage();
+  const cfg = normalizedConfig({
+    repository: "https://github.com/owner/repo",
+    githubLogin: "Bug95"
+  });
+  const item = {
+    number: 101,
+    latestCodeUpdateAt: Date.parse("2026-04-09T10:00:00Z"),
+    latestParticipationAt: 0,
+    reason: "NO_REVIEW_YET",
+    reviewRequested: true
+  };
+
+  assert.equal(buildReviewInboxReadScopeKey(cfg), "githubReviewInboxRead::owner/repo::bug95");
+  assert.equal(
+    buildReviewInboxReadItemKey(item),
+    `101|${Date.parse("2026-04-09T10:00:00Z")}|0|NO_REVIEW_YET|requested`
+  );
+  assert.equal(isReviewInboxItemRead(cfg, item, storage), false);
+  assert.equal(setReviewInboxItemRead(cfg, item, true, storage), true);
+  assert.equal(isReviewInboxItemRead(cfg, item, storage), true);
+  assert.equal(isReviewInboxItemRead({ ...cfg, githubLogin: "other" }, item, storage), false);
+  assert.equal(isReviewInboxItemRead(cfg, { ...item, latestCodeUpdateAt: item.latestCodeUpdateAt + 1000 }, storage), false);
+});
+
+test("review inbox read state can be removed and prunes empty scopes", () => {
+  const storage = createMemoryStorage();
+  const cfg = normalizedConfig({
+    repository: "owner/repo",
+    githubLogin: "bug95"
+  });
+  const item = {
+    number: 101,
+    latestCodeUpdateAt: 10,
+    latestParticipationAt: 0,
+    reason: "NO_REVIEW_YET",
+    reviewRequested: false
+  };
+
+  setReviewInboxItemRead(cfg, item, true, storage);
+  assert.equal(isReviewInboxItemRead(cfg, item, storage), true);
+  assert.equal(setReviewInboxItemRead(cfg, item, false, storage), true);
+  assert.equal(isReviewInboxItemRead(cfg, item, storage), false);
+  assert.deepEqual(readReviewInboxReadSnapshot(storage), {});
 });
 
 test("hasGithubMention matches case-insensitive direct mentions", () => {

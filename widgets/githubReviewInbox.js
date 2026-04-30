@@ -8,6 +8,12 @@ import {
   isIgnoredItem,
   setIgnoredItem
 } from "./shared/ignoredItems.js";
+import {
+  hasScopedItem,
+  readScopedItemSnapshot,
+  setScopedItem,
+  writeScopedItemSnapshot
+} from "./shared/scopedItemStorage.js";
 
 const GITHUB_API_BASE = "https://api.github.com";
 const GITHUB_WEB_BASE = "https://github.com";
@@ -18,6 +24,7 @@ const REVIEW_INBOX_SWIPE_IGNORE_THRESHOLD_RATIO = 0.42;
 const REVIEW_INBOX_SWIPE_IGNORE_ANIM_MS = 190;
 const REVIEW_INBOX_SWIPE_RESET_ANIM_MS = 170;
 const REVIEW_INBOX_SWIPE_VERTICAL_TOLERANCE_RATIO = 0.75;
+const REVIEW_INBOX_READ_ITEMS_STORAGE_KEY = "s3:github-review-inbox-read-items:v1";
 
 const REVIEW_INBOX_TABS = [
   { id: REVIEW_INBOX_TAB_NEEDS_REVIEW, label: "PRs I need to review" },
@@ -204,6 +211,55 @@ function buildReviewInboxItemKey(item) {
   return normalizeText(item?.number);
 }
 
+function readReviewInboxReadSnapshot(storage = undefined) {
+  return readScopedItemSnapshot(REVIEW_INBOX_READ_ITEMS_STORAGE_KEY, storage);
+}
+
+function writeReviewInboxReadSnapshot(snapshot, storage = undefined) {
+  return writeScopedItemSnapshot(REVIEW_INBOX_READ_ITEMS_STORAGE_KEY, snapshot, storage);
+}
+
+function buildReviewInboxReadScopeKey(config) {
+  return buildIgnoredScopeKey([
+    "githubReviewInboxRead",
+    normalizeRepository(config?.repository),
+    normalizeGithubLogin(config?.githubLogin)
+  ]);
+}
+
+function buildReviewInboxReadItemKey(item) {
+  const number = normalizeText(item?.number);
+  if (!number) {
+    return "";
+  }
+
+  return [
+    number,
+    Math.max(0, Number(item?.latestCodeUpdateAt) || 0),
+    Math.max(0, Number(item?.latestParticipationAt) || 0),
+    normalizeText(item?.reason),
+    item?.reviewRequested === true ? "requested" : "not-requested"
+  ].join("|");
+}
+
+function isReviewInboxItemRead(config, item, storage = undefined) {
+  const scopeKey = buildReviewInboxReadScopeKey(config);
+  const itemKey = buildReviewInboxReadItemKey(item);
+  if (!scopeKey || !itemKey) {
+    return false;
+  }
+  return hasScopedItem(REVIEW_INBOX_READ_ITEMS_STORAGE_KEY, scopeKey, itemKey, storage);
+}
+
+function setReviewInboxItemRead(config, item, read = true, storage = undefined) {
+  const scopeKey = buildReviewInboxReadScopeKey(config);
+  const itemKey = buildReviewInboxReadItemKey(item);
+  if (!scopeKey || !itemKey) {
+    return false;
+  }
+  return setScopedItem(REVIEW_INBOX_READ_ITEMS_STORAGE_KEY, scopeKey, itemKey, read, storage);
+}
+
 function shouldAutoIgnoreReviewInboxItem(item, tabId) {
   return (
     normalizeReviewInboxTab(tabId) === REVIEW_INBOX_TAB_NEEDS_REVIEW &&
@@ -213,6 +269,8 @@ function shouldAutoIgnoreReviewInboxItem(item, tabId) {
 
 function decorateReviewItemsForTab(items, config, tabId, showIgnored = false) {
   const scopeKey = buildReviewInboxIgnoreScopeKey(config, tabId);
+  const readScopeKey = buildReviewInboxReadScopeKey(config);
+  const readKeys = new Set(readReviewInboxReadSnapshot()[readScopeKey] || []);
   const decoratedItems = [];
   let ignoredCount = 0;
 
@@ -226,7 +284,13 @@ function decorateReviewItemsForTab(items, config, tabId, showIgnored = false) {
         continue;
       }
     }
-    decoratedItems.push({ ...item, ignored, autoIgnored, manuallyIgnored });
+    decoratedItems.push({
+      ...item,
+      ignored,
+      autoIgnored,
+      manuallyIgnored,
+      read: readKeys.has(buildReviewInboxReadItemKey(item))
+    });
   }
 
   return {
@@ -234,6 +298,13 @@ function decorateReviewItemsForTab(items, config, tabId, showIgnored = false) {
     ignoredCount,
     scopeKey
   };
+}
+
+function countUnreadReviewItems(...tabDataList) {
+  return tabDataList.reduce((total, tabData) => {
+    const items = Array.isArray(tabData?.items) ? tabData.items : [];
+    return total + items.filter((item) => !item.ignored && !item.read).length;
+  }, 0);
 }
 
 function tokenFingerprint(token) {
@@ -869,6 +940,7 @@ export const githubReviewInboxWidget = {
       const needsReviewData = decorateReviewItemsForTab(splitItems.needsReview, cfg, REVIEW_INBOX_TAB_NEEDS_REVIEW, showIgnored);
       const openedData = decorateReviewItemsForTab(splitItems.opened, cfg, REVIEW_INBOX_TAB_OPENED, showIgnored);
       const hiddenIgnoredCount = showIgnored ? 0 : needsReviewData.ignoredCount + openedData.ignoredCount;
+      const unreadCount = countUnreadReviewItems(needsReviewData, openedData);
       status.classList.toggle("is-error", Boolean(errorMessage));
       if (loading) {
         status.textContent = "Refreshing review inbox...";
@@ -891,7 +963,7 @@ export const githubReviewInboxWidget = {
         return;
       }
       const synced = formatSyncedLabel(lastSyncedAt);
-      status.textContent = `${cfg.repository} · ${needsReviewData.items.length} review · ${openedData.items.length} opened${hiddenIgnoredCount ? ` · ${hiddenIgnoredCount} ignored` : ""}${synced ? ` · Synced ${synced}` : ""}`;
+      status.textContent = `${cfg.repository} · ${needsReviewData.items.length} review · ${openedData.items.length} opened${unreadCount ? ` · ${unreadCount} new` : ""}${hiddenIgnoredCount ? ` · ${hiddenIgnoredCount} ignored` : ""}${synced ? ` · Synced ${synced}` : ""}`;
     }
 
     function renderTabs() {
@@ -979,6 +1051,18 @@ export const githubReviewInboxWidget = {
       if (changed) {
         render();
       }
+    }
+
+    function setReadState(item) {
+      const cfg = normalizedConfig(getConfig());
+      const changed = setReviewInboxItemRead(cfg, item, true);
+      if (!changed) {
+        return;
+      }
+      item.read = true;
+      setTimeout(() => {
+        render();
+      }, 0);
     }
 
     function resetSwipeVisual(row, swipeContent) {
@@ -1097,7 +1181,7 @@ export const githubReviewInboxWidget = {
       for (const item of visibleItems) {
         const ageSeverity = computeReviewInboxAgeSeverity(item.createdAt, cfg);
         const row = document.createElement("li");
-        row.className = `github-pr-item github-review-inbox-item${item.draft ? " is-draft" : ""}${item.reviewRequested ? " is-review-requested" : ""}${item.ignored ? " is-ignored" : ""}${ageSeverity ? ` is-age-${ageSeverity}` : ""}`;
+        row.className = `github-pr-item github-review-inbox-item${item.draft ? " is-draft" : ""}${item.reviewRequested ? " is-review-requested" : ""}${item.ignored ? " is-ignored" : ""}${item.read ? " is-read" : " is-unread"}${ageSeverity ? ` is-age-${ageSeverity}` : ""}`;
 
         const swipeBackground = document.createElement("div");
         swipeBackground.className = "github-review-inbox-swipe-background";
@@ -1112,7 +1196,11 @@ export const githubReviewInboxWidget = {
         link.target = cfg.openInNewTab ? "_blank" : "_self";
         link.rel = "noreferrer";
         link.addEventListener("click", (event) => {
+          if (event.defaultPrevented) {
+            return;
+          }
           if (!isEditMode?.()) {
+            setReadState(item);
             return;
           }
           event.preventDefault();
@@ -1143,6 +1231,9 @@ export const githubReviewInboxWidget = {
 
         const badges = document.createElement("div");
         badges.className = "github-pr-badges github-review-inbox-badges";
+        if (!item.ignored && !item.read) {
+          appendBadge(badges, "New", "is-new");
+        }
         appendBadge(badges, item.reasonLabel, "is-reason");
 
         if (item.reviewRequested) {
@@ -1371,19 +1462,26 @@ export {
   buildOpenPullsApiUrl,
   buildRepoPullsPageUrl,
   buildCacheReviewItems,
+  buildReviewInboxReadItemKey,
+  buildReviewInboxReadScopeKey,
   computeReviewInboxAgeSeverity,
   fetchReviewInboxItems,
   fetchPagedJson,
   findNextPageUrl,
+  isReviewInboxItemRead,
   isReviewInboxSnapshotUnchanged,
   normalizeAgingDays,
   normalizeRepository,
   normalizeReviewInboxTab,
   normalizedConfig,
   parseTimestamp,
+  readReviewInboxReadSnapshot,
+  REVIEW_INBOX_READ_ITEMS_STORAGE_KEY,
   resolveAgingThresholds,
+  setReviewInboxItemRead,
   shouldAutoIgnoreReviewInboxItem,
   shouldStartReviewInboxSwipe,
   sortReviewItemsByCreatedAt,
-  splitReviewItemsByTab
+  splitReviewItemsByTab,
+  writeReviewInboxReadSnapshot
 };
