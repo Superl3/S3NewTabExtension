@@ -3783,6 +3783,16 @@ body.mode-edit .widget-float-remove:hover {
   box-shadow: inset 2px 0 0 color-mix(in srgb, var(--widget-effective-accent), transparent 18%);
 }
 
+.github-review-inbox-item.is-unread:not(.is-ignored) {
+  border-color: color-mix(in srgb, var(--widget-effective-accent), var(--line) 36%);
+}
+
+.github-review-inbox-item.is-unread:not(.is-ignored):not(.is-swiping):not(.is-swipe-ignoring) .github-review-inbox-swipe-content {
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--widget-effective-accent), transparent 88%), transparent 58%),
+    color-mix(in srgb, var(--widget-effective-surface), transparent 10%);
+}
+
 .github-review-inbox-swipe-background {
   position: absolute;
   inset: 0;
@@ -3934,6 +3944,13 @@ body.mode-edit .widget-float-remove:hover {
 .github-pr-badge.is-review {
   border-color: color-mix(in srgb, var(--widget-effective-accent), var(--line) 32%);
   color: color-mix(in srgb, var(--widget-effective-accent), var(--text) 28%);
+}
+
+.github-pr-badge.is-new {
+  border-color: color-mix(in srgb, var(--widget-effective-accent), var(--line) 26%);
+  color: color-mix(in srgb, var(--widget-effective-accent), var(--text) 14%);
+  background: color-mix(in srgb, var(--widget-effective-accent), transparent 86%);
+  font-weight: 700;
 }
 
 .github-pr-badge.is-draft {
