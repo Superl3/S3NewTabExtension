@@ -1,3 +1,11 @@
+function snapToHalfGridTrack(value) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) {
+    return 0;
+  }
+  return Math.round(numeric * 2) / 2;
+}
+
 export function projectWidgetBoardDropLayoutRuntime(instance, payload = {}, { pageFallback = null } = {}, deps) {
   const viewportRect = deps.getLauncherViewportRect();
   const board = deps.elements.board;
@@ -38,8 +46,16 @@ export function projectWidgetBoardDropLayoutRuntime(instance, payload = {}, { pa
     const localX = deps.clamp(pointerX - viewportRect.left - anchorOffsetX, 0, Math.max(0, boardWidth - spanWidth));
     const localY = deps.clamp(pointerY - viewportRect.top - anchorOffsetY, 0, Math.max(0, boardHeight - spanHeight));
 
-    grid.col = deps.clamp(Math.round((localX - metrics.marginX) / stepX), 0, Math.max(0, metrics.cols - grid.colSpan));
-    grid.row = deps.clamp(Math.round((localY - metrics.marginY) / stepY), 0, Math.max(0, metrics.rows - grid.rowSpan));
+    grid.col = deps.clamp(
+      snapToHalfGridTrack((localX - metrics.marginX) / stepX),
+      0,
+      Math.max(0, metrics.cols - grid.colSpan)
+    );
+    grid.row = deps.clamp(
+      snapToHalfGridTrack((localY - metrics.marginY) / stepY),
+      0,
+      Math.max(0, metrics.rows - grid.rowSpan)
+    );
 
     return {
       page,

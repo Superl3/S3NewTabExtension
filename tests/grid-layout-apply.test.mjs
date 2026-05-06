@@ -138,3 +138,60 @@ test("applyGridLayoutRuntime updates layout and saves when requested", () => {
   assert.deepEqual(viewportCalls, [{ animate: false, dragging: false, dragOffsetX: 0 }]);
   assert.equal(queued, 1);
 });
+
+test("applyGridLayoutRuntime applies half-track grid positions", () => {
+  const instance = {
+    id: "w-half",
+    type: "note",
+    enabled: true,
+    page: 0,
+    layout: { x: 0, y: 0, w: 0, h: 0 },
+    gridLayout: { col: 1.5, row: 0.5, colSpan: 2, rowSpan: 1 }
+  };
+
+  applyGridLayoutRuntime(
+    {},
+    {
+      getState: () => ({ instances: [instance], ui: { home: { pageCount: 1 } } }),
+      isGridLayoutMode: () => true,
+      syncLauncherPagingState: () => {},
+      captureFreeLayouts: () => {},
+      isWidgetDocked: () => false,
+      isWidgetInContainer: () => false,
+      renderBoardViewport: () => {},
+      gridMetrics: () => ({
+        cols: 4,
+        rows: 3,
+        marginX: 30,
+        marginY: 40,
+        cellW: 100,
+        cellH: 80,
+        gapX: 10,
+        gapY: 20
+      }),
+      normalizeWidgetPage: () => 0,
+      widgetRegistry: {
+        note: {}
+      },
+      widgetDefaultGridSize: () => ({ colSpan: 2, rowSpan: 1 }),
+      normalizeGridLayout: (value, fallback) => ({ ...fallback, ...(value || {}) }),
+      clamp: (value, min, max) => Math.min(max, Math.max(min, value)),
+      runtimeMap: new Map(),
+      applyLayout: () => {},
+      queueSave: () => {}
+    }
+  );
+
+  assert.deepEqual(instance.gridLayout, {
+    col: 1.5,
+    row: 0.5,
+    colSpan: 2,
+    rowSpan: 1
+  });
+  assert.deepEqual(instance.layout, {
+    x: 195,
+    y: 90,
+    w: 210,
+    h: 80
+  });
+});
