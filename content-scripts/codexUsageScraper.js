@@ -35,15 +35,22 @@ function normalizePeriod(raw) {
   return "fiveHours";
 }
 
+function getQuotaHeaderRegex(flags = "i") {
+  return new RegExp(
+    "(?:((?:GPT[\\w.-]*(?:\\s+Codex)?|Codex)(?:[\\s-]*Spark)?)\\s+)?" +
+      "((?:5\\s*(?:시간|hours?|h))|(?:주간|weekly))\\s*" +
+      "(?:사용\\s*한도|usage\\s*limit)",
+    flags
+  );
+}
+
 function parseQuotaHeader(line) {
   const text = normalizeText(line);
   if (!text) {
     return null;
   }
 
-  const match = text.match(
-    /(?:(GPT[\w.-]*Codex[\w.-]*|GPT[\w.-]*[\s-]+Codex(?:[\s-]*Spark)?|Codex(?:[\s-]*Spark)?)\s+)?((?:5\s*(?:시간|hours?|h))|(?:주간|weekly))\s*(?:사용\s*한도|usage\s*limit)/i
-  );
+  const match = text.match(getQuotaHeaderRegex());
   if (!match) {
     return null;
   }
@@ -66,6 +73,30 @@ function parseQuotaHeader(line) {
     matchedText: normalizeText(match[0]),
     trailingText: normalizeText(text.slice((match.index || 0) + match[0].length))
   };
+}
+
+function splitLineAroundQuotaHeaders(line) {
+  const text = normalizeText(line);
+  if (!text) {
+    return [];
+  }
+
+  const matches = Array.from(text.matchAll(getQuotaHeaderRegex("gi")));
+  if (matches.length <= 1) {
+    return [text];
+  }
+
+  const segments = [];
+  for (let index = 0; index < matches.length; index += 1) {
+    const start = matches[index].index || 0;
+    const end = index + 1 < matches.length ? matches[index + 1].index || text.length : text.length;
+    const segment = normalizeText(text.slice(start, end));
+    if (segment) {
+      segments.push(segment);
+    }
+  }
+
+  return segments;
 }
 
 function pickPercent(line) {
@@ -91,13 +122,23 @@ function pickStatus(line) {
   return "";
 }
 
+function stripUsageValueTokens(line) {
+  return normalizeText(
+    line
+      .replace(/\d{1,3}(?:\.\d+)?\s*%/g, " ")
+      .replace(/남음|사용됨/g, " ")
+      .replace(/\b(?:remaining|used)\b/gi, " ")
+      .replace(/[·•|]+/g, " ")
+  );
+}
+
 function pickResetAt(line) {
   const text = normalizeText(line);
   if (!text) {
     return "";
   }
   if (text.includes("초기화") || text.includes("갱신") || /reset|resets|next/i.test(text)) {
-    return text;
+    return stripUsageValueTokens(text) || text;
   }
   return "";
 }
@@ -116,10 +157,16 @@ function readMainLines() {
   const lines = [];
   for (const rawLine of rawText.split(/\n+/)) {
     const line = normalizeText(rawLine);
-    if (!line || line.length > 180) {
+    if (!line) {
       continue;
     }
-    lines.push(line);
+    const segments = splitLineAroundQuotaHeaders(line);
+    for (const segment of segments) {
+      if (!segment || (segment.length > 500 && !parseQuotaHeader(segment))) {
+        continue;
+      }
+      lines.push(segment.slice(0, 500));
+    }
   }
   return lines;
 }
