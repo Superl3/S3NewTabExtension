@@ -90,3 +90,25 @@ test("findFirstAvailableBoardGridSlot clamps requested span to grid bounds", () 
     colSpan: 4
   });
 });
+
+test("findFirstAvailableBoardGridSlot treats half-track widgets as overlapping both cells", () => {
+  const slot = findFirstAvailableBoardGridSlot(0, 1, 1, {
+    ...baseDeps,
+    isGridLayoutMode: () => true,
+    instances: [
+      {
+        type: "weather",
+        page: 0,
+        enabled: true,
+        gridLayout: { col: 0.5, row: 0, colSpan: 1, rowSpan: 1 }
+      }
+    ]
+  });
+
+  assert.deepEqual(slot, {
+    row: 0,
+    col: 2,
+    rowSpan: 1,
+    colSpan: 1
+  });
+});

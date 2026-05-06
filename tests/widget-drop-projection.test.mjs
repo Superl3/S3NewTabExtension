@@ -108,3 +108,36 @@ test("projectWidgetBoardDropLayoutRuntime projects grid layout with spans", () =
     h: 80
   });
 });
+
+test("projectWidgetBoardDropLayoutRuntime snaps grid drops to half tracks", () => {
+  const instance = {
+    type: "note",
+    layout: { w: 300, h: 200 },
+    gridLayout: null
+  };
+
+  const projection = projectWidgetBoardDropLayoutRuntime(
+    instance,
+    {
+      page: 3,
+      clientX: 398,
+      clientY: 185
+    },
+    {},
+    createBaseDeps({ isGridLayoutMode: () => true })
+  );
+
+  assert.equal(projection.page, 3);
+  assert.deepEqual(projection.gridLayout, {
+    col: 1.5,
+    row: 0.5,
+    colSpan: 2,
+    rowSpan: 1
+  });
+  assert.deepEqual(projection.layout, {
+    x: 195,
+    y: 90,
+    w: 210,
+    h: 80
+  });
+});

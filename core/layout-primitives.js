@@ -2,6 +2,7 @@ import { clamp } from "./utils/number.js";
 
 const GRID_MAX_COLUMNS_FALLBACK = 16;
 const GRID_MAX_ROWS_FALLBACK = 16;
+const GRID_TRACK_POSITION_STEP = 0.5;
 
 export { clamp };
 
@@ -60,6 +61,14 @@ export function normalizeContainerExpandedRows(
   return clamp(Math.round(num), 1, maxRows);
 }
 
+export function normalizeGridTrackPosition(value, fallback = 0) {
+  const numeric = Number(value);
+  const fallbackNumeric = Number(fallback);
+  const source = Number.isFinite(numeric) ? numeric : Number.isFinite(fallbackNumeric) ? fallbackNumeric : 0;
+  const stepped = Math.round(source / GRID_TRACK_POSITION_STEP) * GRID_TRACK_POSITION_STEP;
+  return Math.max(0, stepped);
+}
+
 export function normalizeGridLayout(layout, fallback) {
   const rawCol = Number(layout?.col);
   const rawRow = Number(layout?.row);
@@ -71,8 +80,8 @@ export function normalizeGridLayout(layout, fallback) {
   const fallbackRowSpan = Number(fallback?.rowSpan) || 1;
 
   return {
-    col: Math.max(0, Math.floor(Number.isFinite(rawCol) ? rawCol : fallbackCol)),
-    row: Math.max(0, Math.floor(Number.isFinite(rawRow) ? rawRow : fallbackRow)),
+    col: normalizeGridTrackPosition(rawCol, fallbackCol),
+    row: normalizeGridTrackPosition(rawRow, fallbackRow),
     colSpan: Math.max(1, Math.floor(Number.isFinite(rawColSpan) ? rawColSpan : fallbackColSpan)),
     rowSpan: Math.max(1, Math.floor(Number.isFinite(rawRowSpan) ? rawRowSpan : fallbackRowSpan))
   };

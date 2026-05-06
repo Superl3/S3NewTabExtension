@@ -8,6 +8,7 @@ import {
   normalizeContainerExpandedCols,
   normalizeContainerExpandedRows,
   normalizeGridLayout,
+  normalizeGridTrackPosition,
   widgetDefaultGridSize
 } from "../core/layout-primitives.js";
 
@@ -49,5 +50,14 @@ test("normalizeGridLayout applies numeric fallback", () => {
   assert.deepEqual(
     normalizeGridLayout({}, { col: 1, row: 2, colSpan: 3, rowSpan: 4 }),
     { col: 1, row: 2, colSpan: 3, rowSpan: 4 }
+  );
+});
+
+test("normalizeGridLayout preserves half-track positions", () => {
+  assert.equal(normalizeGridTrackPosition(1.24), 1);
+  assert.equal(normalizeGridTrackPosition(1.26), 1.5);
+  assert.deepEqual(
+    normalizeGridLayout({ col: 1.5, row: 0.5, colSpan: 2, rowSpan: 1 }, { col: 0, row: 0, colSpan: 1, rowSpan: 1 }),
+    { col: 1.5, row: 0.5, colSpan: 2, rowSpan: 1 }
   );
 });
