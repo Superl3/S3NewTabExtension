@@ -1,7 +1,8 @@
 const CODEX_USAGE_STORAGE_KEY = "s3newtab-codex-usage-snapshot-v1";
 const CODEX_USAGE_CAPTURE_MESSAGE_TYPE = "S3_CODEX_USAGE_CAPTURE";
 const CODEX_USAGE_PATH = "/codex/settings/usage";
-const DEFAULT_MODEL_NAME = "GPT-5.3-Codex";
+const CODEX_MODEL_NAME = "Codex";
+const CODEX_SPARK_MODEL_NAME = "Codex-Spark";
 
 function normalizeText(value, fallback = "") {
   const text = String(value || "").replace(/\s+/g, " ").trim();
@@ -12,9 +13,18 @@ function matchesUsagePath(pathname) {
   return normalizeText(pathname).startsWith(CODEX_USAGE_PATH);
 }
 
-function normalizeModelName(raw) {
+function normalizeModelName(raw, fallback = CODEX_MODEL_NAME) {
   const model = normalizeText(raw);
-  return model || DEFAULT_MODEL_NAME;
+  if (!model) {
+    return fallback;
+  }
+  if (/codex/i.test(model) && /spark/i.test(model)) {
+    return CODEX_SPARK_MODEL_NAME;
+  }
+  if (/codex/i.test(model)) {
+    return CODEX_MODEL_NAME;
+  }
+  return fallback;
 }
 
 function normalizePeriod(raw) {
@@ -32,13 +42,21 @@ function parseQuotaHeader(line) {
   }
 
   const match = text.match(
-    /(?:(GPT[\w.-]*(?:-Spark)?)\s+)?((?:5\s*(?:시간|hours?|h))|(?:주간|weekly))\s*(?:사용\s*한도|usage\s*limit)/i
+    /(?:(GPT[\w.-]*Codex[\w.-]*|GPT[\w.-]*[\s-]+Codex(?:[\s-]*Spark)?|Codex(?:[\s-]*Spark)?)\s+)?((?:5\s*(?:시간|hours?|h))|(?:주간|weekly))\s*(?:사용\s*한도|usage\s*limit)/i
   );
   if (!match) {
     return null;
   }
 
-  const model = normalizeModelName(match[1]);
+  const prefix = normalizeText(text.slice(0, match.index || 0));
+  if (!match[1] && /\bGPT[\w.-]*$/i.test(prefix)) {
+    return null;
+  }
+
+  const model = normalizeModelName(match[1], match[1] ? "" : CODEX_MODEL_NAME);
+  if (!model) {
+    return null;
+  }
   const period = normalizePeriod(match[2]);
 
   return {
@@ -211,7 +229,7 @@ function buildSnapshot() {
     title: normalizeText(document.title, "Codex Usage"),
     metrics,
     lines,
-    parserVersion: 4
+    parserVersion: 5
   };
 }
 

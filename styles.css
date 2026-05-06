@@ -1125,15 +1125,18 @@ body.mode-edit.settings-open .settings-rail-toggle {
   --widget-effective-accent: var(--widget-custom-accent, var(--widget-theme-accent, var(--accent)));
   --widget-effective-surface: var(--widget-custom-surface, var(--widget-theme-surface, var(--surface)));
   position: absolute;
-  border: 1px solid color-mix(in srgb, var(--line), transparent 20%);
+  isolation: isolate;
+  border: 1px solid color-mix(in srgb, var(--line), transparent 28%);
   border-radius: var(--widget-edge-roundness, 12px);
   background: transparent;
   color: var(--widget-effective-text);
-  box-shadow: var(--shadow);
+  box-shadow:
+    0 14px 34px color-mix(in srgb, var(--shadow-edge), transparent 18%),
+    0 2px 8px color-mix(in srgb, var(--shadow-soft), transparent 18%);
   backdrop-filter: blur(var(--widget-backdrop-blur, 12px));
   -webkit-backdrop-filter: blur(var(--widget-backdrop-blur, 12px));
   overflow: hidden;
-  transition: box-shadow 0.2s ease;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
   contain: layout paint style;
   content-visibility: auto;
   contain-intrinsic-size: 240px 180px;
@@ -1222,10 +1225,24 @@ body.mode-edit.settings-open .settings-rail-toggle {
   position: absolute;
   inset: 0;
   border-radius: inherit;
-  background: var(--widget-effective-surface);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--tone-light), transparent 78%) 0%, transparent 42%),
+    color-mix(in srgb, var(--widget-effective-surface), var(--tone-light) 4%);
   opacity: var(--widget-opacity);
   pointer-events: none;
   z-index: 0;
+}
+
+.widget-card::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  border-radius: inherit;
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--tone-light), transparent 48%),
+    inset 0 -1px 0 color-mix(in srgb, var(--tone-dark), transparent 92%);
 }
 
 .widget-shell {
@@ -1238,7 +1255,10 @@ body.mode-edit.settings-open .settings-rail-toggle {
 }
 
 .widget-card.selected {
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--primary), var(--tone-light) 24%), var(--shadow);
+  border-color: color-mix(in srgb, var(--primary), var(--line) 48%);
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--primary), transparent 64%),
+    0 16px 34px color-mix(in srgb, var(--shadow-edge), transparent 14%);
 }
 
 .widget-card.surface-transparent {
@@ -1247,6 +1267,10 @@ body.mode-edit.settings-open .settings-rail-toggle {
 }
 
 .widget-card.surface-transparent::before {
+  opacity: 0;
+}
+
+.widget-card.surface-transparent::after {
   opacity: 0;
 }
 
@@ -1264,8 +1288,9 @@ body.mode-edit.settings-open .settings-rail-toggle {
   justify-content: space-between;
   min-height: 42px;
   padding: 7px 10px;
-  border-bottom: 1px solid color-mix(in srgb, var(--line), transparent 22%);
-  background: transparent;
+  border-bottom: 1px solid color-mix(in srgb, var(--line), transparent 34%);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--widget-effective-surface), var(--tone-light) 18%), transparent 100%);
 }
 
 body.mode-edit .drag-handle {
@@ -1273,8 +1298,9 @@ body.mode-edit .drag-handle {
 }
 
 .widget-title {
-  font-weight: 650;
+  font-weight: 700;
   font-size: 0.95em;
+  letter-spacing: 0;
   min-width: 0;
   flex: 1;
   text-align: var(--widget-title-align, center);
@@ -1319,6 +1345,7 @@ body.mode-edit .drag-handle {
 .widget-content-slot {
   width: 100%;
   min-height: 0;
+  min-width: 0;
 }
 
 .widget-card[data-content-fill="true"] .widget-body {
@@ -1347,8 +1374,10 @@ body.mode-edit .drag-handle {
 .widget-card[data-content-fill="true"] .widget-content-slot {
   flex: 1 1 auto;
   display: flex;
+  flex-direction: column;
   height: 100%;
   min-height: 0;
+  overflow: hidden;
 }
 
 
@@ -1360,6 +1389,21 @@ body.mode-edit .drag-handle {
   width: 100%;
   min-width: 0;
   text-align: inherit;
+}
+
+.widget-card[data-widget-type="todo"] .widget-content-slot,
+.widget-card[data-widget-type="bookmarks"] .widget-content-slot {
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+}
+
+.widget-card[data-widget-type="todo"] .widget-content-slot > .search-form,
+.widget-card[data-widget-type="bookmarks"] .bookmark-nav,
+.widget-card[data-widget-type="bookmarks"] .bookmark-editor {
+  flex: 0 0 auto;
 }
 
 .widget-card[data-content-fill="true"][data-widget-type="gmail"] .widget-content-slot,
@@ -2333,17 +2377,24 @@ body.mode-edit .widget-float-remove:hover {
 
 .gmail-widget {
   min-height: 100%;
+  height: 100%;
+  min-width: 0;
 }
 
 .codex-usage-widget {
   min-height: 100%;
+  height: 100%;
+  min-width: 0;
 }
 
 .codex-usage-shell {
   min-height: 100%;
+  height: 100%;
+  min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
+  overflow: hidden;
 }
 
 .codex-usage-toolbar {
@@ -2351,6 +2402,7 @@ body.mode-edit .widget-float-remove:hover {
   align-items: center;
   justify-content: flex-end;
   gap: 8px;
+  min-height: 30px;
 }
 
 .codex-usage-status {
@@ -2379,8 +2431,11 @@ body.mode-edit .widget-float-remove:hover {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  padding: 5px 8px;
+  border-radius: 999px;
+  padding: 5px 9px;
+  background: color-mix(in srgb, var(--widget-effective-surface), transparent 18%);
   font-size: 0.82em;
+  font-weight: 650;
 }
 
 .codex-usage-btn .icon {
@@ -2393,41 +2448,78 @@ body.mode-edit .widget-float-remove:hover {
   list-style: none;
   margin: 0;
   padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
+  gap: 8px;
 }
 
 .codex-usage-metrics {
   flex: 1 1 auto;
   min-height: 0;
-  overflow: auto;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-rows: repeat(2, minmax(max-content, 1fr));
+  grid-auto-rows: minmax(max-content, 1fr);
+  align-content: stretch;
+  overflow: hidden auto;
+}
+
+.codex-usage-metrics.is-empty {
+  grid-template-rows: minmax(max-content, 1fr);
+}
+
+.codex-usage-lines {
+  display: flex;
+  flex-direction: column;
 }
 
 .codex-usage-metric-item,
 .codex-usage-line-item,
 .codex-usage-empty {
-  border: 1px solid color-mix(in srgb, var(--line), transparent 55%);
-  border-radius: 12px;
-  background: color-mix(in srgb, var(--widget-effective-surface), transparent 36%);
-  padding: 8px 10px;
+  border: 1px solid color-mix(in srgb, var(--line), transparent 44%);
+  border-radius: 8px;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--tone-light), transparent 88%), transparent 100%),
+    color-mix(in srgb, var(--widget-effective-surface), transparent 34%);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--tone-light), transparent 62%);
+  padding: 9px 10px;
 }
 
 .codex-usage-metric-item {
+  --codex-usage-percent: 0%;
+  position: relative;
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   grid-template-areas:
     "label value"
+    "bar bar";
+  grid-template-rows: auto auto;
+  gap: 7px;
+  align-items: center;
+  align-content: space-between;
+  overflow: hidden;
+  min-height: 0;
+}
+
+.codex-usage-metric-item.has-details {
+  grid-template-areas:
+    "label value"
+    "bar bar"
     "details details";
-  gap: 8px;
+  grid-template-rows: auto auto auto;
+}
+
+.codex-usage-empty {
+  grid-column: 1 / -1;
+  align-self: stretch;
+  display: flex;
   align-items: center;
 }
 
 .codex-usage-metric-label {
   grid-area: label;
   min-width: 0;
-  color: var(--muted);
-  font-size: 0.84em;
+  color: color-mix(in srgb, var(--widget-effective-text), var(--muted) 42%);
+  font-size: 0.82em;
+  font-weight: 650;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -2435,18 +2527,63 @@ body.mode-edit .widget-float-remove:hover {
 
 .codex-usage-metric-value {
   grid-area: value;
-  font-weight: 640;
-  font-size: 0.92em;
+  color: color-mix(in srgb, var(--widget-effective-accent), var(--text) 16%);
+  font-weight: 760;
+  font-size: 0.96em;
+}
+
+.codex-usage-metric-bar {
+  grid-area: bar;
+  width: 100%;
+  height: 6px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--line), var(--widget-effective-surface) 42%);
+}
+
+.codex-usage-metric-bar-fill {
+  display: block;
+  width: var(--codex-usage-percent);
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--widget-effective-accent), var(--tone-light) 22%),
+    color-mix(in srgb, var(--primary), var(--widget-effective-accent) 42%)
+  );
+  box-shadow: 0 0 10px color-mix(in srgb, var(--widget-effective-accent), transparent 74%);
+}
+
+.codex-usage-metric-item[data-usage-state="medium"] .codex-usage-metric-bar-fill {
+  background: linear-gradient(90deg, #d5a233, color-mix(in srgb, var(--widget-effective-accent), #d5a233 52%));
+}
+
+.codex-usage-metric-item[data-usage-state="high"] .codex-usage-metric-bar-fill {
+  background: linear-gradient(90deg, #d45b43, color-mix(in srgb, var(--warn), var(--widget-effective-accent) 28%));
+}
+
+.codex-usage-metric-item.is-missing {
+  opacity: 0.72;
+}
+
+.codex-usage-metric-item.is-missing .codex-usage-metric-value {
+  color: var(--muted);
+  font-weight: 650;
 }
 
 .codex-usage-metric-details {
   grid-area: details;
-  display: flex;
-  justify-content: flex-end;
+  display: none;
+  justify-content: flex-start;
   align-items: center;
   gap: 8px;
   color: color-mix(in srgb, var(--text), var(--muted) 42%);
-  font-size: 0.8em;
+  font-size: 0.78em;
+  min-width: 0;
+}
+
+.codex-usage-metric-item.has-details .codex-usage-metric-details {
+  display: flex;
 }
 
 .codex-usage-metric-reset {
@@ -2459,6 +2596,7 @@ body.mode-edit .widget-float-remove:hover {
 .codex-usage-empty {
   color: color-mix(in srgb, var(--text), var(--muted) 35%);
   font-size: 0.82em;
+  line-height: 1.38;
 }
 
 .codex-usage-lines {
@@ -2468,9 +2606,12 @@ body.mode-edit .widget-float-remove:hover {
 
 .gmail-widget-shell {
   min-height: 100%;
+  height: 100%;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   gap: 6px;
+  overflow: hidden;
 }
 
 .gmail-widget-status {
@@ -2494,28 +2635,40 @@ body.mode-edit .widget-float-remove:hover {
   list-style: none;
   margin: 0;
   padding: 0;
-  display: flex;
+  display: grid;
   flex: 1 1 auto;
   min-height: 0;
-  flex-direction: column;
   gap: 6px;
-  overflow: auto;
+  grid-auto-rows: minmax(max-content, 1fr);
+  align-content: stretch;
+  overflow: hidden auto;
 }
 
 .gmail-mail-empty {
   margin: 0;
-  border: 1px dashed color-mix(in srgb, var(--line), transparent 50%);
-  border-radius: 14px;
+  border: 1px dashed color-mix(in srgb, var(--line), transparent 42%);
+  border-radius: 8px;
   padding: 12px;
-  color: var(--muted);
-  background: color-mix(in srgb, var(--widget-effective-surface), transparent 30%);
+  color: color-mix(in srgb, var(--muted), var(--widget-effective-text) 14%);
+  background: color-mix(in srgb, var(--widget-effective-surface), transparent 34%);
+  line-height: 1.38;
+  min-height: 0;
+  height: 100%;
+  display: flex;
+  align-items: center;
 }
 
 .gmail-mail-item {
-  border: 1px solid color-mix(in srgb, var(--line), transparent 55%);
-  border-radius: 14px;
-  background: color-mix(in srgb, var(--widget-effective-surface), transparent 40%);
+  min-height: 0;
+  height: 100%;
+  border: 1px solid color-mix(in srgb, var(--line), transparent 44%);
+  border-radius: 8px;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--tone-light), transparent 90%), transparent 100%),
+    color-mix(in srgb, var(--widget-effective-surface), transparent 38%);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--tone-light), transparent 66%);
   transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+  overflow: hidden;
 }
 
 .gmail-mail-item.is-unread {
@@ -2524,14 +2677,18 @@ body.mode-edit .widget-float-remove:hover {
 }
 
 .gmail-mail-link {
-  display: block;
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
   text-decoration: none;
   color: inherit;
   padding: 9px 10px;
 }
 
-.gmail-mail-link:hover {
-  background: color-mix(in srgb, var(--widget-effective-surface), transparent 4%);
+.gmail-mail-link:hover,
+.gmail-mail-link:focus-visible {
+  background: color-mix(in srgb, var(--widget-effective-surface), transparent 10%);
 }
 
 .gmail-mail-top {
@@ -2546,7 +2703,7 @@ body.mode-edit .widget-float-remove:hover {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-weight: 650;
+  font-weight: 700;
 }
 
 .gmail-mail-date {
@@ -2574,49 +2731,129 @@ body.mode-edit .widget-float-remove:hover {
   overflow: hidden;
 }
 
-.monday-widget {
+.monday-widget,
+.monday-meeting-widget {
   min-height: 100%;
+  height: 100%;
+  min-width: 0;
+  --monday-card-border: color-mix(in srgb, var(--line), transparent 44%);
+  --monday-card-background:
+    linear-gradient(180deg, color-mix(in srgb, var(--tone-light), transparent 90%), transparent 100%),
+    color-mix(in srgb, var(--widget-effective-surface), transparent 38%);
+  --monday-card-shadow: inset 0 1px 0 color-mix(in srgb, var(--tone-light), transparent 66%);
+  --monday-card-hover: color-mix(in srgb, var(--widget-effective-surface), transparent 25%);
 }
 
+.monday-widget-shell,
+.monday-meeting-widget-shell,
 .monday-meeting-panel {
+  min-height: 0;
+  height: 100%;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   gap: 8px;
+  overflow: hidden;
+}
+
+.monday-meeting-panel {
+  flex: 1 1 auto;
+  display: grid;
+  grid-auto-rows: minmax(max-content, 1fr);
+  align-content: stretch;
+  overflow: hidden auto;
 }
 
 .monday-meeting-link,
 .monday-meeting-link:hover,
 .monday-meeting-link:visited,
 .monday-meeting-link:active {
-  display: block;
-  border: 1px solid color-mix(in srgb, var(--line), transparent 24%);
-  border-radius: 10px;
-  background: color-mix(in srgb, var(--widget-effective-surface), transparent 10%);
+  min-height: 0;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  border: 1px solid var(--monday-card-border);
+  border-radius: 8px;
+  background: var(--monday-card-background);
+  box-shadow: var(--monday-card-shadow);
   text-decoration: none;
   color: inherit;
-  padding: 8px 10px;
+  padding: 9px 10px;
   font-family: inherit;
   font-size: inherit;
   font-weight: inherit;
   font-style: inherit;
-  line-height: inherit;
+  line-height: 1.35;
+  transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
 }
 
-.monday-meeting-link:hover {
-  background: color-mix(in srgb, var(--widget-effective-surface), transparent 4%);
+.monday-meeting-link:hover,
+.monday-meeting-link:focus-visible {
+  border-color: color-mix(in srgb, var(--widget-effective-accent), var(--line) 52%);
+  background: var(--monday-card-hover);
 }
 
 .monday-meeting-board {
-  margin: 0 0 4px;
-  font-size: 0.78em;
-  color: color-mix(in srgb, var(--widget-effective-accent), var(--muted) 38%);
+  margin: 0 0 5px;
+  overflow: hidden;
+  color: color-mix(in srgb, var(--widget-effective-accent), var(--muted) 30%);
+  font-size: 0.76em;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
 }
 
-.monday-widget-shell {
-  min-height: 100%;
+.monday-meeting-top {
   display: flex;
-  flex-direction: column;
-  gap: 6px;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.monday-meeting-title {
+  min-width: 0;
+  overflow: hidden;
+  font-size: 0.98em;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.monday-meeting-updated {
+  flex: 0 0 auto;
+  color: var(--muted);
+  font-size: 0.76em;
+}
+
+.monday-meeting-note {
+  margin: 5px 0 0;
+  color: color-mix(in srgb, var(--widget-effective-accent), var(--muted) 38%);
+  display: -webkit-box;
+  overflow: hidden;
+  font-size: 0.88em;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+
+.monday-meeting-empty,
+.monday-issue-empty {
+  margin: 0;
+  min-width: 0;
+  width: 100%;
+  max-width: 100%;
+  border: 1px dashed color-mix(in srgb, var(--line), transparent 42%);
+  border-radius: 8px;
+  padding: 12px;
+  background: color-mix(in srgb, var(--widget-effective-surface), transparent 34%);
+  color: color-mix(in srgb, var(--muted), var(--widget-effective-text) 14%);
+  font-size: 0.86em;
+  line-height: 1.38;
+  min-height: 0;
+  height: 100%;
+  display: flex;
+  align-items: center;
 }
 
 .monday-widget-status {
@@ -2640,31 +2877,46 @@ body.mode-edit .widget-float-remove:hover {
   list-style: none;
   margin: 0;
   padding: 0;
-  display: flex;
+  width: 100%;
+  display: grid;
   flex: 1 1 auto;
   min-height: 0;
-  flex-direction: column;
-  gap: 3px;
-  overflow: auto;
+  min-width: 0;
+  gap: 6px;
+  grid-auto-rows: minmax(max-content, 1fr);
+  align-content: stretch;
+  overflow: hidden auto;
 }
 
 .monday-issue-list.is-board-cards {
-  gap: 6px;
+  gap: 8px;
 }
 
 .monday-board-card {
   list-style: none;
-  border: 1px solid color-mix(in srgb, var(--line), transparent 22%);
-  border-radius: 10px;
-  padding: 8px;
-  background: color-mix(in srgb, var(--widget-effective-surface), transparent 8%);
+  min-height: 0;
+  min-width: 0;
+  height: 100%;
+  width: 100%;
+  max-width: 100%;
+  border: 1px solid var(--monday-card-border);
+  border-radius: 8px;
+  padding: 9px 10px;
+  background: var(--monday-card-background);
+  box-shadow: var(--monday-card-shadow);
+  overflow: hidden;
 }
 
 .monday-board-card-header {
-  margin: 0 0 6px;
-  font-size: 0.88em;
+  margin: 0 0 8px;
+  min-width: 0;
+  overflow: hidden;
+  font-size: 0.78em;
   font-weight: 700;
   color: color-mix(in srgb, var(--widget-effective-accent), var(--text) 30%);
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
 }
 
 .monday-board-card-header[href] {
@@ -2674,24 +2926,78 @@ body.mode-edit .widget-float-remove:hover {
 
 .monday-board-card-header[href]:hover,
 .monday-board-card-header[href]:focus-visible {
+  color: color-mix(in srgb, var(--widget-effective-accent), var(--text) 12%);
   text-decoration: underline;
 }
 
 .monday-board-inline-header {
   list-style: none;
+  min-height: 0;
+  min-width: 0;
+  height: 100%;
+  width: 100%;
+  max-width: 100%;
+  display: flex;
+  align-items: stretch;
 }
 
 .monday-board-inline-header .monday-board-card-header {
+  width: 100%;
   margin: 0;
+  display: flex;
+  align-items: center;
+  border: 1px solid var(--monday-card-border);
+  border-radius: 8px;
+  padding: 9px 10px;
+  background: var(--monday-card-background);
+  box-shadow: var(--monday-card-shadow);
 }
 
 .monday-board-card-list {
   list-style: none;
   margin: 0;
   padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
+  min-width: 0;
+  width: 100%;
+  display: grid;
+  gap: 6px;
+}
+
+.monday-group-section {
+  list-style: none;
+  min-height: 0;
+  min-width: 0;
+  height: 100%;
+  width: 100%;
+  max-width: 100%;
+}
+
+.monday-group-details {
+  min-height: 0;
+  min-width: 0;
+  height: 100%;
+  width: 100%;
+  max-width: 100%;
+  border: 1px solid var(--monday-card-border);
+  border-radius: 8px;
+  background: var(--monday-card-background);
+  box-shadow: var(--monday-card-shadow);
+  overflow: hidden;
+}
+
+.monday-board-card .monday-group-details {
+  background: color-mix(in srgb, var(--widget-effective-surface), transparent 52%);
+  box-shadow: none;
+}
+
+.monday-group-items {
+  list-style: none;
+  margin: 0;
+  padding: 0 6px 7px;
+  min-width: 0;
+  width: 100%;
+  display: grid;
+  gap: 5px;
 }
 
 .monday-board-card-empty {
@@ -2700,53 +3006,76 @@ body.mode-edit .widget-float-remove:hover {
   font-size: 0.84em;
 }
 
-.monday-issue-empty {
-  margin: 0;
-  border: 1px dashed color-mix(in srgb, var(--line), transparent 50%);
-  border-radius: 14px;
-  padding: 12px;
-  color: var(--muted);
-  background: color-mix(in srgb, var(--widget-effective-surface), transparent 30%);
-}
-
 .monday-group-heading {
   margin: 0;
-  padding: 2px 2px 2px 4px;
-  font-size: 0.98em;
+  display: block;
+  min-width: 0;
+  list-style: none;
+  padding: 8px 10px;
+  font-size: 0.84em;
   font-weight: 700;
-  letter-spacing: 0.02em;
+  letter-spacing: 0;
   color: color-mix(in srgb, var(--widget-effective-accent), var(--text) 28%);
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.monday-group-heading::-webkit-details-marker {
+  display: none;
 }
 
 .monday-group-item {
   margin: 0;
   padding: 0;
+  min-width: 0;
 }
 
 .monday-group-link {
-  display: inline-block;
+  display: block;
+  width: 100%;
+  max-width: 100%;
   text-decoration: none;
   color: inherit;
-  padding: 2px 0 2px 10px;
-  font-size: 1.05em;
+  padding: 7px 8px;
+  border-radius: 6px;
+  font-size: 0.9em;
   line-height: 1.35;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
+.monday-group-link:hover,
+.monday-group-link:focus-visible {
+  background: color-mix(in srgb, var(--widget-effective-surface), transparent 10%);
+}
 
 .monday-issue-item {
+  min-height: 0;
+  min-width: 0;
+  height: 100%;
+  width: 100%;
+  max-width: 100%;
   border: 1px solid color-mix(in srgb, var(--line), transparent 55%);
-  border-radius: 14px;
-  background: color-mix(in srgb, var(--widget-effective-surface), transparent 40%);
+  border-radius: 8px;
+  background: var(--monday-card-background);
+  box-shadow: var(--monday-card-shadow);
   transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
 }
 
 .monday-issue-link {
-  display: block;
+  min-height: 100%;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
   text-decoration: none;
   color: inherit;
   padding: 9px 10px;
 }
-
 
 .monday-issue-top {
   display: flex;
@@ -2760,7 +3089,7 @@ body.mode-edit .widget-float-remove:hover {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-weight: 650;
+  font-weight: 700;
 }
 
 .monday-issue-updated {
@@ -2770,8 +3099,8 @@ body.mode-edit .widget-float-remove:hover {
 }
 
 .monday-issue-group {
-  margin: 4px 0 0;
-  font-size: 0.8em;
+  margin: 5px 0 0;
+  font-size: 0.78em;
   color: color-mix(in srgb, var(--widget-effective-accent), var(--muted) 45%);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -2780,13 +3109,18 @@ body.mode-edit .widget-float-remove:hover {
 
 .calendar-widget {
   min-height: 100%;
+  height: 100%;
+  min-width: 0;
 }
 
 .calendar-widget-shell {
   min-height: 100%;
+  height: 100%;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   gap: 8px;
+  overflow: hidden;
 }
 
 .calendar-widget-status {
@@ -2807,13 +3141,16 @@ body.mode-edit .widget-float-remove:hover {
 }
 
 .calendar-month-panel {
-  border: 1px solid color-mix(in srgb, var(--line), transparent 55%);
-  border-radius: 16px;
-  background: color-mix(in srgb, var(--widget-effective-surface), transparent 40%);
+  border: 1px solid color-mix(in srgb, var(--line), transparent 44%);
+  border-radius: 8px;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--tone-light), transparent 90%), transparent 100%),
+    color-mix(in srgb, var(--widget-effective-surface), transparent 38%);
   padding: 8px;
   display: flex;
   flex-direction: column;
   gap: 6px;
+  flex: 0 0 auto;
 }
 
 .calendar-month-head {
@@ -2901,39 +3238,55 @@ body.mode-edit .widget-float-remove:hover {
   list-style: none;
   margin: 0;
   padding: 0;
-  display: flex;
+  display: grid;
   flex: 1 1 auto;
   min-height: 0;
-  flex-direction: column;
   gap: 6px;
-  overflow: auto;
+  grid-auto-rows: minmax(max-content, 1fr);
+  align-content: stretch;
+  overflow: hidden auto;
 }
 
 .calendar-event-empty {
   margin: 0;
-  border: 1px dashed color-mix(in srgb, var(--line), transparent 50%);
-  border-radius: 14px;
+  border: 1px dashed color-mix(in srgb, var(--line), transparent 42%);
+  border-radius: 8px;
   padding: 12px;
-  color: var(--muted);
-  background: color-mix(in srgb, var(--widget-effective-surface), transparent 30%);
+  color: color-mix(in srgb, var(--muted), var(--widget-effective-text) 14%);
+  background: color-mix(in srgb, var(--widget-effective-surface), transparent 34%);
+  line-height: 1.38;
+  min-height: 0;
+  height: 100%;
+  display: flex;
+  align-items: center;
 }
 
 .calendar-event-item {
-  border: 1px solid color-mix(in srgb, var(--line), transparent 55%);
-  border-radius: 14px;
-  background: color-mix(in srgb, var(--widget-effective-surface), transparent 40%);
+  min-height: 0;
+  height: 100%;
+  border: 1px solid color-mix(in srgb, var(--line), transparent 44%);
+  border-radius: 8px;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--tone-light), transparent 90%), transparent 100%),
+    color-mix(in srgb, var(--widget-effective-surface), transparent 38%);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--tone-light), transparent 66%);
   transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+  overflow: hidden;
 }
 
 .calendar-event-link {
-  display: block;
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
   text-decoration: none;
   color: inherit;
   padding: 9px 10px;
 }
 
-.calendar-event-link:hover {
-  background: color-mix(in srgb, var(--widget-effective-surface), transparent 4%);
+.calendar-event-link:hover,
+.calendar-event-link:focus-visible {
+  background: color-mix(in srgb, var(--widget-effective-surface), transparent 10%);
 }
 
 .calendar-event-top {
@@ -2948,7 +3301,7 @@ body.mode-edit .widget-float-remove:hover {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-weight: 650;
+  font-weight: 700;
 }
 
 .calendar-event-time {
@@ -2974,13 +3327,18 @@ body.mode-edit .widget-float-remove:hover {
 
 .rss-widget {
   min-height: 100%;
+  height: 100%;
+  min-width: 0;
 }
 
 .rss-widget-shell {
   min-height: 100%;
+  height: 100%;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   gap: 8px;
+  overflow: hidden;
 }
 
 .rss-widget-toolbar {
@@ -3023,39 +3381,55 @@ body.mode-edit .widget-float-remove:hover {
   list-style: none;
   margin: 0;
   padding: 0;
-  display: flex;
+  display: grid;
   flex: 1 1 auto;
   min-height: 0;
-  flex-direction: column;
   gap: 6px;
-  overflow: auto;
+  grid-auto-rows: minmax(max-content, 1fr);
+  align-content: stretch;
+  overflow: hidden auto;
 }
 
 .rss-feed-empty {
   margin: 0;
-  border: 1px dashed color-mix(in srgb, var(--line), transparent 50%);
-  border-radius: 14px;
+  border: 1px dashed color-mix(in srgb, var(--line), transparent 42%);
+  border-radius: 8px;
   padding: 12px;
-  color: var(--muted);
-  background: color-mix(in srgb, var(--widget-effective-surface), transparent 30%);
+  color: color-mix(in srgb, var(--muted), var(--widget-effective-text) 14%);
+  background: color-mix(in srgb, var(--widget-effective-surface), transparent 34%);
+  line-height: 1.38;
+  min-height: 0;
+  height: 100%;
+  display: flex;
+  align-items: center;
 }
 
 .rss-feed-item {
-  border: 1px solid color-mix(in srgb, var(--line), transparent 55%);
-  border-radius: 14px;
-  background: color-mix(in srgb, var(--widget-effective-surface), transparent 40%);
+  min-height: 0;
+  height: 100%;
+  border: 1px solid color-mix(in srgb, var(--line), transparent 44%);
+  border-radius: 8px;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--tone-light), transparent 90%), transparent 100%),
+    color-mix(in srgb, var(--widget-effective-surface), transparent 38%);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--tone-light), transparent 66%);
   transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+  overflow: hidden;
 }
 
 .rss-feed-link {
-  display: block;
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
   text-decoration: none;
   color: inherit;
   padding: 9px 10px;
 }
 
-.rss-feed-link:hover {
-  background: color-mix(in srgb, var(--widget-effective-surface), transparent 4%);
+.rss-feed-link:hover,
+.rss-feed-link:focus-visible {
+  background: color-mix(in srgb, var(--widget-effective-surface), transparent 10%);
 }
 
 .rss-feed-top {
@@ -3070,7 +3444,7 @@ body.mode-edit .widget-float-remove:hover {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-weight: 650;
+  font-weight: 700;
 }
 
 .rss-feed-date {
@@ -3091,19 +3465,26 @@ body.mode-edit .widget-float-remove:hover {
 
 .weather-widget {
   min-height: 100%;
+  height: 100%;
+  min-width: 0;
 }
 
 .weather-widget-shell {
   position: relative;
-  min-height: 100%;
+  min-height: 0;
+  height: 100%;
+  min-width: 0;
   display: grid;
-  align-content: start;
+  align-content: stretch;
   gap: 8px;
-  border: 1px solid color-mix(in srgb, var(--line), transparent 55%);
-  border-radius: 16px;
+  border: 1px solid color-mix(in srgb, var(--line), transparent 44%);
+  border-radius: 8px;
   padding: 10px;
   padding-right: 44px;
-  background: transparent;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--tone-light), transparent 92%), transparent 100%),
+    color-mix(in srgb, var(--widget-effective-surface), transparent 48%);
+  overflow: hidden;
 }
 
 .weather-refresh-btn {
@@ -3127,6 +3508,7 @@ body.mode-edit .widget-float-remove:hover {
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   align-items: center;
   gap: 10px;
+  min-height: 0;
 }
 
 .weather-temperature-col {
@@ -3188,6 +3570,7 @@ body.mode-edit .widget-float-remove:hover {
   display: none;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 6px;
+  align-self: end;
 }
 
 .weather-mode-advanced .weather-meta {
@@ -3221,6 +3604,8 @@ body.mode-edit .widget-float-remove:hover {
 
 .github-pr-widget {
   min-height: 100%;
+  height: 100%;
+  min-width: 0;
 }
 
 .github-review-inbox-warning {
@@ -3323,9 +3708,12 @@ body.mode-edit .widget-float-remove:hover {
 
 .github-pr-widget-shell {
   min-height: 100%;
+  height: 100%;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   gap: 6px;
+  overflow: hidden;
 }
 
 .github-pr-widget-status {
@@ -3349,21 +3737,27 @@ body.mode-edit .widget-float-remove:hover {
   list-style: none;
   margin: 0;
   padding: 0;
-  display: flex;
+  display: grid;
   flex: 1 1 auto;
   min-height: 0;
-  flex-direction: column;
   gap: 6px;
-  overflow: auto;
+  grid-auto-rows: minmax(max-content, 1fr);
+  align-content: stretch;
+  overflow: hidden auto;
 }
 
 .github-pr-empty {
   margin: 0;
-  border: 1px dashed color-mix(in srgb, var(--line), transparent 50%);
-  border-radius: 14px;
+  border: 1px dashed color-mix(in srgb, var(--line), transparent 42%);
+  border-radius: 8px;
   padding: 12px;
-  color: var(--muted);
-  background: color-mix(in srgb, var(--widget-effective-surface), transparent 30%);
+  color: color-mix(in srgb, var(--muted), var(--widget-effective-text) 14%);
+  background: color-mix(in srgb, var(--widget-effective-surface), transparent 34%);
+  line-height: 1.38;
+  min-height: 0;
+  height: 100%;
+  display: flex;
+  align-items: center;
 }
 
 .github-pr-item {
@@ -3371,9 +3765,14 @@ body.mode-edit .widget-float-remove:hover {
   --github-review-inbox-swipe-progress: 0;
   position: relative;
   isolation: isolate;
-  border: 1px solid color-mix(in srgb, var(--line), transparent 55%);
-  border-radius: 14px;
-  background: color-mix(in srgb, var(--widget-effective-surface), transparent 40%);
+  min-height: 0;
+  height: 100%;
+  border: 1px solid color-mix(in srgb, var(--line), transparent 44%);
+  border-radius: 8px;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--tone-light), transparent 90%), transparent 100%),
+    color-mix(in srgb, var(--widget-effective-surface), transparent 38%);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--tone-light), transparent 66%);
   transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
   overflow: hidden;
   touch-action: pan-y;
@@ -3382,6 +3781,16 @@ body.mode-edit .widget-float-remove:hover {
 .github-pr-item.is-review-requested {
   border-color: color-mix(in srgb, var(--widget-effective-accent), var(--line) 48%);
   box-shadow: inset 2px 0 0 color-mix(in srgb, var(--widget-effective-accent), transparent 18%);
+}
+
+.github-review-inbox-item.is-unread:not(.is-ignored) {
+  border-color: color-mix(in srgb, var(--widget-effective-accent), var(--line) 36%);
+}
+
+.github-review-inbox-item.is-unread:not(.is-ignored):not(.is-swiping):not(.is-swipe-ignoring) .github-review-inbox-swipe-content {
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--widget-effective-accent), transparent 88%), transparent 58%),
+    color-mix(in srgb, var(--widget-effective-surface), transparent 10%);
 }
 
 .github-review-inbox-swipe-background {
@@ -3406,6 +3815,7 @@ body.mode-edit .widget-float-remove:hover {
 .github-review-inbox-swipe-content {
   position: relative;
   z-index: 1;
+  min-height: 100%;
   border-radius: inherit;
   background: color-mix(in srgb, var(--widget-effective-surface), transparent 12%);
   box-shadow: inset 0 0 0 1px transparent;
@@ -3435,6 +3845,7 @@ body.mode-edit .widget-float-remove:hover {
 .github-review-inbox-item.is-swipe-returning {
   border-color: transparent;
   background: transparent;
+  box-shadow: none;
 }
 
 .github-review-inbox-item.is-ignored {
@@ -3463,14 +3874,18 @@ body.mode-edit .widget-float-remove:hover {
 }
 
 .github-pr-link {
-  display: block;
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
   text-decoration: none;
   color: inherit;
   padding: 9px 10px;
 }
 
-.github-pr-link:hover {
-  background: color-mix(in srgb, var(--widget-effective-surface), transparent 4%);
+.github-pr-link:hover,
+.github-pr-link:focus-visible {
+  background: color-mix(in srgb, var(--widget-effective-surface), transparent 10%);
 }
 
 .github-pr-top {
@@ -3485,7 +3900,7 @@ body.mode-edit .widget-float-remove:hover {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-weight: 650;
+  font-weight: 700;
 }
 
 .github-pr-updated {
@@ -3531,6 +3946,13 @@ body.mode-edit .widget-float-remove:hover {
   color: color-mix(in srgb, var(--widget-effective-accent), var(--text) 28%);
 }
 
+.github-pr-badge.is-new {
+  border-color: color-mix(in srgb, var(--widget-effective-accent), var(--line) 26%);
+  color: color-mix(in srgb, var(--widget-effective-accent), var(--text) 14%);
+  background: color-mix(in srgb, var(--widget-effective-accent), transparent 86%);
+  font-weight: 700;
+}
+
 .github-pr-badge.is-draft {
   border-color: color-mix(in srgb, var(--warn), var(--line) 44%);
   color: color-mix(in srgb, var(--warn), var(--text) 24%);
@@ -3571,16 +3993,21 @@ body.mode-edit .widget-float-remove:hover {
 
 .flex-worktime-widget {
   min-height: 100%;
+  height: 100%;
+  min-width: 0;
 }
 
 .flex-worktime-shell {
   position: relative;
-  min-height: 100%;
+  min-height: 0;
+  height: 100%;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   gap: 4px;
   padding: 4px;
   background: transparent;
+  overflow: hidden;
 }
 
 .flex-worktime-shell:focus-visible {
@@ -3627,29 +4054,38 @@ body.mode-edit .widget-float-remove:hover {
   list-style: none;
   margin: 0;
   padding: 0;
-  display: flex;
-  flex-direction: column;
+  display: grid;
   gap: 8px;
   flex: 1 1 auto;
   min-height: 0;
+  grid-auto-rows: minmax(max-content, 1fr);
+  align-content: stretch;
+  overflow: hidden auto;
 }
 
 .flex-worktime-row {
   margin: 0;
   padding: 0;
+  min-height: 0;
+  height: 100%;
 }
 
 .flex-worktime-entry {
   width: 100%;
+  min-height: 100%;
   display: flex;
   flex-direction: column;
+  justify-content: center;
   gap: 8px;
   text-align: left;
   margin: 0;
   padding: 10px 12px;
-  border: 1px solid color-mix(in srgb, var(--line), transparent 55%);
-  border-radius: 14px;
-  background: color-mix(in srgb, var(--widget-effective-surface), transparent 40%);
+  border: 1px solid color-mix(in srgb, var(--line), transparent 44%);
+  border-radius: 8px;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--tone-light), transparent 90%), transparent 100%),
+    color-mix(in srgb, var(--widget-effective-surface), transparent 38%);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--tone-light), transparent 66%);
   transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s cubic-bezier(0.2, 0.8, 0.2, 1);
   position: relative;
 }
@@ -3828,17 +4264,21 @@ body.mode-edit .widget-float-remove:hover {
 }
 
 .todo-list {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  flex: 1 1 auto;
+  min-height: 0;
   gap: 6px;
-  margin-top: 8px;
+  margin-top: 0;
+  grid-auto-rows: minmax(max-content, 1fr);
+  align-content: stretch;
+  overflow: hidden auto;
 }
 
 .bookmark-nav {
   display: flex;
   align-items: center;
   gap: 6px;
-  margin-bottom: 8px;
+  margin-bottom: 0;
 }
 
 .bookmark-nav-path {
@@ -3891,13 +4331,19 @@ body.mode-edit .widget-float-remove:hover {
   --bookmarks-font-scale: 1;
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(128px, 1fr));
+  grid-auto-rows: minmax(76px, 1fr);
+  flex: 1 1 auto;
+  min-height: 0;
+  align-content: stretch;
   gap: 8px;
   font-size: calc(1em * var(--bookmarks-font-scale));
+  overflow: hidden auto;
 }
 
 .bookmark-grid-cell {
   position: relative;
   min-height: 76px;
+  height: 100%;
 }
 
 .bookmark-grid-cell .bookmark-edit-btn {
@@ -3908,10 +4354,14 @@ body.mode-edit .widget-float-remove:hover {
 
 .bookmark-grid-card {
   width: 100%;
-  min-height: 76px;
-  border: 1px solid color-mix(in srgb, var(--line), transparent 55%);
-  border-radius: 14px;
-  background: color-mix(in srgb, var(--widget-effective-surface), transparent 40%);
+  min-height: 100%;
+  height: 100%;
+  border: 1px solid color-mix(in srgb, var(--line), transparent 44%);
+  border-radius: 8px;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--tone-light), transparent 90%), transparent 100%),
+    color-mix(in srgb, var(--widget-effective-surface), transparent 38%);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--tone-light), transparent 66%);
   transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
   color: inherit;
   text-decoration: none;
@@ -3958,9 +4408,14 @@ body.mode-edit .widget-float-remove:hover {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  border: 1px solid color-mix(in srgb, var(--line), transparent 55%);
-  border-radius: 14px;
-  background: color-mix(in srgb, var(--widget-effective-surface), transparent 40%);
+  min-height: 0;
+  height: 100%;
+  border: 1px solid color-mix(in srgb, var(--line), transparent 44%);
+  border-radius: 8px;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--tone-light), transparent 90%), transparent 100%),
+    color-mix(in srgb, var(--widget-effective-surface), transparent 38%);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--tone-light), transparent 66%);
   transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
   overflow: hidden;
   touch-action: pan-y;
@@ -3969,8 +4424,10 @@ body.mode-edit .widget-float-remove:hover {
 .todo-swipe-content {
   position: relative;
   z-index: 1;
+  min-height: 100%;
   display: flex;
   flex-direction: column;
+  justify-content: center;
   gap: 6px;
   padding: 9px 10px;
   border-radius: inherit;
@@ -4006,6 +4463,7 @@ body.mode-edit .widget-float-remove:hover {
 .todo-item.is-swipe-returning {
   border-color: transparent;
   background: transparent;
+  box-shadow: none;
 }
 
 .todo-item.is-completing {
