@@ -127,6 +127,16 @@ function extractStatus(text) {
   return "";
 }
 
+function stripUsageValueTokens(text) {
+  return normalizeText(
+    text
+      .replace(/\d{1,3}(?:\.\d+)?\s*%/g, " ")
+      .replace(/남음|사용됨/g, " ")
+      .replace(/\b(?:remaining|used)\b/gi, " ")
+      .replace(/[·•|]+/g, " ")
+  );
+}
+
 function extractReset(text) {
   const value = normalizeText(text);
   if (!value) {
@@ -138,7 +148,9 @@ function extractReset(text) {
       return part;
     }
   }
-  return value.includes("초기화") || value.includes("갱신") || /reset|resets|next/i.test(value) ? value : "";
+  return value.includes("초기화") || value.includes("갱신") || /reset|resets|next/i.test(value)
+    ? stripUsageValueTokens(value) || value
+    : "";
 }
 
 function isTargetUsageMetric(metric) {

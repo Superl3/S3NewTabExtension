@@ -125,6 +125,14 @@ test("scraper accepts versioned and unversioned codex model headers", async () =
     trailingText: ""
   });
 
+  assert.deepEqual(plain(parseQuotaHeader("GPT-5.3-Codex Spark 5시간 사용 한도")), {
+    model: "Codex-Spark",
+    period: "fiveHours",
+    label: "Codex-Spark 5시간 사용 한도",
+    matchedText: "GPT-5.3-Codex Spark 5시간 사용 한도",
+    trailingText: ""
+  });
+
   assert.deepEqual(plain(parseQuotaHeader("Codex-Spark weekly usage limit")), {
     model: "Codex-Spark",
     period: "weekly",
@@ -134,4 +142,30 @@ test("scraper accepts versioned and unversioned codex model headers", async () =
   });
 
   assert.equal(parseQuotaHeader("GPT-4.1 weekly usage limit"), null);
+});
+
+test("scraper extracts all codex usage slots from collapsed page text", async () => {
+  const context = await loadScraperInternals();
+  const collapsedText = [
+    "ChatGPT settings navigation account billing usage page text that should not block parsing",
+    "5시간 사용 한도 18% 남음 오후 6:30 초기화",
+    "주간 사용 한도 44% 남음 2026. 4. 3. 오전 10:55 초기화",
+    "GPT-5.3-Codex-Spark 5시간 사용 한도 7% 남음 오후 7:00 초기화",
+    "GPT-5.3-Codex Spark 주간 사용 한도 91% 남음 다음 주 초기화"
+  ].join(" ");
+
+  context.document.querySelector = () => null;
+  context.document.body = { innerText: collapsedText };
+
+  const lines = context.readMainLines();
+  assert.equal(lines.length, 4);
+
+  const items = context.extractQuotaItems(lines);
+  assert.equal(items.length, 4);
+
+  const slotMap = buildCodexSlotMapForContractTest(items);
+  assert.equal(slotMap.get("codex-5h")?.percent, "18%");
+  assert.equal(slotMap.get("codex-weekly")?.resetAt, "2026. 4. 3. 오전 10:55 초기화");
+  assert.equal(slotMap.get("spark-5h")?.percent, "7%");
+  assert.equal(slotMap.get("spark-weekly")?.percent, "91%");
 });
