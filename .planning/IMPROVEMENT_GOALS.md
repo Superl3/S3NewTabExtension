@@ -33,6 +33,7 @@ These are the first issues that a strict paid user would likely call out:
 6. Fixed: GitHub PR, GitHub Review Inbox, Monday, AI Chat, and RSS setup/degraded states no longer use terse `Set ... first`, raw `Request failed: ${error.message}`, `Unknown error`, or `Failed to fetch` style user-facing copy.
 7. Fixed: Monday auth widgets now guard browser extension API access through a shared seam so local/demo Connect flows do not expose raw `chrome is not defined` failures.
 8. Watchlist: broader onboarding copy remains a P2 candidate, but no current P0/P1 blocks the loop.
+9. Fixed: fallback first launch now uses a 12x8 non-overlapping default grid layout and leaves room for the default Add Widget flow. A strict buyer can add the default Clock widget, apply its settings, and keep it after reload without hitting the previous "no empty space" dead end.
 
 ### Step 1 Evidence Log
 
@@ -51,6 +52,11 @@ These are the first issues that a strict paid user would likely call out:
 - 2026-05-11: Step 2 internal loop added `widgets/shared/chromeApi.js` and moved AI/Monday auth widgets to the shared Chrome API seam.
 - 2026-05-11: `npm test` passed with 553 tests after Step 2 and Step 1 regression.
 - 2026-05-11: Browser smoke on `http://127.0.0.1:8768/newtab.html` confirmed default startup and setup-widget degraded states have no current-page console errors, no raw chrome failure, and no old terse setup copy.
+- 2026-05-11: Re-ran Step 1 buyer exploration and found a fallback first-launch P1: Add Widget -> default Clock -> OK could close the modal but fail with "빈 공간이 없어 위젯을 추가하지 못했습니다" because fallback default widgets were packed into a 4x3 layout.
+- 2026-05-11: Fixed fallback default layout assignment with a shared 12x8 non-overlapping grid policy and buyer-gate contract coverage proving fallback widgets fit and leave room for a default Add Widget probe.
+- 2026-05-11: Browser smoke on `http://127.0.0.1:8774/newtab.html` confirmed fallback default first launch had 7 widgets, Add Widget -> default Clock -> settings OK increased to 8 widgets, reload preserved 8 widgets, Add modal Cancel closed, widget settings OK closed, no visible `Widget failed to load.`, and no current-page console errors for widget load, raw chrome access, or persistence.
+- 2026-05-11: Browser smoke with account-backed/setup widgets confirmed GitHub PR, GitHub Review Inbox, RSS, Monday, and AI Chat degraded states rendered without forbidden raw setup/error copy and without current-page widget/chrome/persistence console failures.
+- 2026-05-11: `npm test` passed with 556 tests after the fallback Add Widget fix and Step 2 review cleanup.
 
 ### Buyer Acceptance Criteria
 

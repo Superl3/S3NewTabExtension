@@ -2,7 +2,13 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 
-import { FALLBACK_DEFAULT_WIDGET_TYPES } from "../core/default-widget-order.js";
+import {
+  FALLBACK_DEFAULT_GRID,
+  FALLBACK_DEFAULT_WIDGET_TYPES,
+  assignFallbackDefaultGridLayouts
+} from "../core/default-widget-order.js";
+import { widgetDefaultGridSize } from "../core/layout-primitives.js";
+import { widgetRegistry } from "../widgets/index.js";
 
 test("fallback default widgets exclude setup-heavy and placeholder-only widgets", async () => {
   assert.deepEqual(FALLBACK_DEFAULT_WIDGET_TYPES, [
@@ -16,6 +22,35 @@ test("fallback default widgets exclude setup-heavy and placeholder-only widgets"
   ]);
   assert.equal(FALLBACK_DEFAULT_WIDGET_TYPES.includes("aiChat"), false);
   assert.equal(FALLBACK_DEFAULT_WIDGET_TYPES.includes("label"), false);
+});
+
+test("fallback default widgets fit first launch and leave room for Add Widget", async () => {
+  const layouts = assignFallbackDefaultGridLayouts(FALLBACK_DEFAULT_WIDGET_TYPES, {
+    widgetRegistry,
+    widgetDefaultGridSize
+  });
+  const occupied = new Set();
+
+  for (const item of layouts) {
+    const { page, gridLayout } = item;
+    assert.equal(page, 0, `${item.type} should fit on the first fallback page`);
+    assert.ok(gridLayout.col + gridLayout.colSpan <= FALLBACK_DEFAULT_GRID.columns);
+    assert.ok(gridLayout.row + gridLayout.rowSpan <= FALLBACK_DEFAULT_GRID.rows);
+
+    for (let y = gridLayout.row; y < gridLayout.row + gridLayout.rowSpan; y += 1) {
+      for (let x = gridLayout.col; x < gridLayout.col + gridLayout.colSpan; x += 1) {
+        const key = `${page}:${x}:${y}`;
+        assert.equal(occupied.has(key), false, `${item.type} overlaps fallback cell ${key}`);
+        occupied.add(key);
+      }
+    }
+  }
+
+  const addProbeLayouts = assignFallbackDefaultGridLayouts([...FALLBACK_DEFAULT_WIDGET_TYPES, "clock"], {
+    widgetRegistry,
+    widgetDefaultGridSize
+  });
+  assert.equal(addProbeLayouts.at(-1)?.page, 0);
 });
 
 test("AI Chat degraded setup copy is actionable and chrome access is guarded", async () => {
