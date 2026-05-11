@@ -56,6 +56,21 @@ test("recordHistorySnapshot enforces history limit", () => {
   assert.equal(harness.undoState.undoStack.length, 2);
 });
 
+test("recordHistorySnapshot still marks duplicate snapshots as user mutations", () => {
+  const harness = createHarness();
+  harness.undoState.undoStack.push({
+    label: "Existing",
+    snapshot: { seq: 1 },
+    fingerprint: JSON.stringify({ seq: 1 })
+  });
+  harness.calls.touch = 0;
+
+  harness.runtime.recordHistorySnapshot("Duplicate");
+
+  assert.equal(harness.undoState.undoStack.length, 1);
+  assert.equal(harness.calls.touch, 1);
+});
+
 test("undoLastChange restores previous snapshot and pushes redo", () => {
   const harness = createHarness();
   harness.undoState.undoStack.push({ label: "A", snapshot: { seq: 1 }, fingerprint: "1" });
