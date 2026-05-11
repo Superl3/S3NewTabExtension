@@ -25,6 +25,7 @@ function createField({ tagName = "INPUT", type = "text", disabled = false, readO
 test("isPendingEditableField only matches text-like editable fields", () => {
   assert.equal(isPendingEditableField(createField({ type: "text" })), true);
   assert.equal(isPendingEditableField(createField({ tagName: "TEXTAREA" })), true);
+  assert.equal(isPendingEditableField(createField({ tagName: "SELECT" })), true);
   assert.equal(isPendingEditableField(createField({ type: "checkbox" })), false);
   assert.equal(isPendingEditableField(createField({ type: "file" })), false);
   assert.equal(isPendingEditableField(createField({ type: "text", readOnly: true })), false);
@@ -46,6 +47,7 @@ test("commitPendingEditableState commits active field by default", () => {
 test("commitPendingEditableState can commit descendant text inputs", () => {
   const activeElement = createField({ type: "text" });
   const descendant = createField({ tagName: "TEXTAREA" });
+  const select = createField({ tagName: "SELECT" });
   const ignored = createField({ type: "checkbox" });
   const root = {
     activeElement,
@@ -53,12 +55,13 @@ test("commitPendingEditableState can commit descendant text inputs", () => {
       return true;
     },
     querySelectorAll() {
-      return [activeElement, descendant, ignored];
+      return [activeElement, descendant, select, ignored];
     }
   };
 
-  assert.equal(commitPendingEditableState(root, { includeDescendants: true }), 2);
+  assert.equal(commitPendingEditableState(root, { includeDescendants: true }), 3);
   assert.deepEqual(activeElement.events, ["change"]);
   assert.deepEqual(descendant.events, ["change"]);
+  assert.deepEqual(select.events, ["change"]);
   assert.deepEqual(ignored.events, []);
 });

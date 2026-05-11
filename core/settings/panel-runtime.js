@@ -68,6 +68,9 @@ export function createSettingsPanelRuntime({
     const nextOpen = !Boolean(getOpen?.());
     setOpen?.(nextOpen);
     syncSettingsPanelVisibility();
+    if (nextOpen) {
+      renderSettings?.();
+    }
     return nextOpen;
   }
 
