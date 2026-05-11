@@ -57,9 +57,9 @@ Stopped at: ROADMAP.md/STATE.md 작성 및 REQUIREMENTS traceability 정합화 �
 Resume file: None
 ## Active /goal State
 
-Current focus: Step 2 - strict senior developer gate.
+Current focus: Step 1 - strict 30 USD buyer gate.
 
-Status: Step 1 and Step 2 are satisfied for the current improvement pass. Future loops should restart at Step 1 if new paid-buyer P0/P1 issues are found.
+Status: current loop iteration passed. The next iteration must restart at Step 1 if new paid-buyer findings appear.
 
 Latest `/goal` findings:
 
@@ -68,5 +68,8 @@ Latest `/goal` findings:
 - Fixed: AI Chat unavailable copy now points to connector/access-token setup instead of a terse required-field error.
 - Verified: startup-state first launch shows named shortcuts, search, weather, TODO, notes, and bookmarks degraded copy without current-page console errors.
 - Improved internally: fallback default widget order now lives in `core/default-widget-order.js` and is tested directly instead of through brittle source inspection.
+- Fixed: account-backed/setup widget degraded states now use actionable setup copy instead of terse `Set ... first`, raw request failures, `Unknown error`, or `Failed to fetch`.
+- Improved internally: auth widgets use `widgets/shared/chromeApi.js` for browser API access.
+- Verified: `npm test` passed with 553 tests and browser smoke passed after returning from Step 2 to Step 1.
 
 ---

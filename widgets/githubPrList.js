@@ -11,16 +11,17 @@ function normalizeText(value, fallback = "") {
 }
 
 function normalizeErrorMessage(error) {
+  const fallback = "GitHub pull requests are not available. Check the repository setting and try again.";
   if (!error) {
-    return "Unknown error";
+    return fallback;
   }
   if (typeof error === "string") {
-    return normalizeText(error, "Unknown error");
+    return normalizeText(error, fallback);
   }
   if (typeof error.message === "string") {
-    return normalizeText(error.message, "Unknown error");
+    return normalizeText(error.message, fallback);
   }
-  return "Unknown error";
+  return fallback;
 }
 
 function normalizeMaxItems(value, fallback = 20) {
@@ -520,7 +521,7 @@ export const githubPrListWidget = {
       } else if (errorMessage) {
         status.textContent = errorMessage;
       } else if (!cfg.repository) {
-        status.textContent = "Set repository (owner/repo).";
+        status.textContent = "Add repository (owner/repo) in settings.";
       } else {
         const synced = formatSyncedLabel(lastSyncedAt);
         status.textContent = `${cfg.repository} \u00b7 ${pullItems.length} open${synced ? ` \u00b7 Synced ${synced}` : ""}`;
@@ -544,9 +545,9 @@ export const githubPrListWidget = {
         if (loading) {
           empty.textContent = "Loading pull requests...";
         } else if (!cfg.repository) {
-          empty.textContent = "Set repository in widget settings first.";
+          empty.textContent = "Add a repository in widget settings to load pull requests.";
         } else if (errorMessage) {
-          empty.textContent = "Pull requests are not available.";
+          empty.textContent = "Pull requests are not available. Check the repository setting and try again.";
         } else {
           empty.textContent = "No open pull requests.";
         }

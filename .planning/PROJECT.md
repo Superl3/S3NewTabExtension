@@ -79,6 +79,6 @@ Improve the product through two strict sequential gates:
 1. **Step 1: strict 30 USD buyer ego** - find and fix the issues a demanding paid consumer would criticize first. This includes first launch, default widgets, setup friction, degraded states, copy, polish, persistence, and common edit flows.
 2. **Step 2: strict senior developer ego** - only after Step 1 is satisfied, improve internal implementation quality through bounded refactors, stronger platform seams, clearer modules, and tests that protect behavior.
 
-Current pass status: Step 1 and Step 2 are marked satisfied in `.planning/IMPROVEMENT_GOALS.md`. Any future loop must restart at Step 1 if a new paid-buyer P0/P1 issue is found.
+Current loop status: current iteration passed. Future iterations still start at Step 1. Step 2 is allowed only when the active Step 1 pass has no unresolved paid-buyer P0/P1 findings. After any Step 2 change, return to Step 1 for regression confirmation.
 
 ---

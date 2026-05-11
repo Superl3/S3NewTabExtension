@@ -26,16 +26,20 @@ function normalizeRefreshMinutes(value, fallback = 15) {
 }
 
 function normalizeErrorMessage(error) {
+  const fallback = "Feed is not available. Check the feed URL and try again.";
   if (!error) {
-    return "Unknown error";
+    return fallback;
   }
-  if (typeof error === "string") {
-    return normalizeText(error, "Unknown error");
+  const message = typeof error === "string" ? error : typeof error.message === "string" ? error.message : "";
+  const text = normalizeText(message, fallback);
+  const lower = text.toLowerCase();
+  if (lower.includes("failed to fetch") || lower.includes("network")) {
+    return "Feed is not reachable. Check the feed URL or browser network access.";
   }
-  if (typeof error.message === "string") {
-    return normalizeText(error.message, "Unknown error");
+  if (lower.includes("parse")) {
+    return "Feed could not be read. Check that the URL points to an RSS or Atom feed.";
   }
-  return "Unknown error";
+  return text;
 }
 
 function normalizeSafeUrl(value, fallback = DEFAULT_FEED_URL) {
@@ -409,7 +413,7 @@ export const rssWidget = {
         const cfg = normalizedConfig(getConfig());
         const fetchUrl = asFetchUrl(cfg.feedUrl);
         if (!fetchUrl) {
-          throw new Error("Feed URL is required.");
+          throw new Error("Add a feed URL in widget settings before refreshing.");
         }
 
         const response = await fetch(fetchUrl, {

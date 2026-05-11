@@ -9,8 +9,8 @@ This document defines the improvement loop for S3 New Tab Extension. It is inten
 
 | Step | Gate | Status | Reason |
 | --- | --- | --- | --- |
-| 1 | Strict 30 USD buyer ego | Satisfied for this pass | First launch, fallback defaults, local/demo API degradation, AI Chat no-setup copy, tests, and browser smoke have passing evidence. |
-| 2 | Strict senior developer ego | Satisfied for this pass | Completed a bounded internal quality loop by moving fallback default widget policy into a pure shared module and testing that contract directly. |
+| 1 | Strict 30 USD buyer ego | Current iteration satisfied | No unresolved paid-user P0/P1 remains after setup/degraded-state copy fixes, browser API guards, tests, and browser smoke. Next iteration must restart here if new findings appear. |
+| 2 | Strict senior developer ego | Current iteration satisfied | Added a bounded shared Chrome API seam for auth widgets, updated tests, then returned to Step 1 for regression smoke. |
 
 ## Step 1: Strict 30 USD Buyer Ego
 
@@ -29,9 +29,10 @@ These are the first issues that a strict paid user would likely call out:
    - `storage.js` dashboard state persistence
 3. Fixed: fallback code defaults no longer put setup-heavy `AI Chat` or placeholder `Label` widgets on first launch if `config/startup-state.json` cannot be loaded.
 4. Fixed: AI Chat no-setup copy now tells the user to add a connector URL or access token in settings instead of showing a terse required-field error.
-5. Verified: configured startup-state first launch renders immediate-value widgets and named shortcuts without `AI Chat`, placeholder `Your Label`, `Widget failed to load.`, or current-page console errors.
-6. Deferred P2: account-backed widgets still need a broader copy/polish pass, but they are no longer part of the default paid first impression.
-7. Deferred P2: a deeper guided setup story would improve premium onboarding, but no remaining P0/P1 first-launch blocker is open in this pass.
+5. Verified in prior iteration: configured startup-state first launch renders immediate-value widgets and named shortcuts without `AI Chat`, placeholder `Your Label`, `Widget failed to load.`, or current-page console errors.
+6. Fixed: GitHub PR, GitHub Review Inbox, Monday, AI Chat, and RSS setup/degraded states no longer use terse `Set ... first`, raw `Request failed: ${error.message}`, `Unknown error`, or `Failed to fetch` style user-facing copy.
+7. Fixed: Monday auth widgets now guard browser extension API access through a shared seam so local/demo Connect flows do not expose raw `chrome is not defined` failures.
+8. Watchlist: broader onboarding copy remains a P2 candidate, but no current P0/P1 blocks the loop.
 
 ### Step 1 Evidence Log
 
@@ -45,6 +46,11 @@ These are the first issues that a strict paid user would likely call out:
 - 2026-05-11: Browser smoke on `http://127.0.0.1:8767/newtab.html?startup-state=config/startup-state.json` confirmed named shortcuts, search, weather, TODO, notes, and bookmarks degraded copy with no current-page console errors and no visible `AI Chat`, `Your Label`, or `Widget failed to load.`.
 - 2026-05-11: `npm test` passed with 549 tests after Step 1 and Step 2 changes.
 - 2026-05-11: Step 2 internal loop extracted fallback default widget order into `core/default-widget-order.js` so app code and tests share a stable pure policy contract instead of source-string inspection.
+- 2026-05-11: Re-opened the goal as an active loop instead of a one-time satisfied document state.
+- 2026-05-11: Fixed account-backed/setup widget degraded copy for GitHub PRs, GitHub Review Inbox, Monday Assigned Issues, Monday Meeting Note, AI Chat, and RSS.
+- 2026-05-11: Step 2 internal loop added `widgets/shared/chromeApi.js` and moved AI/Monday auth widgets to the shared Chrome API seam.
+- 2026-05-11: `npm test` passed with 553 tests after Step 2 and Step 1 regression.
+- 2026-05-11: Browser smoke on `http://127.0.0.1:8768/newtab.html` confirmed default startup and setup-widget degraded states have no current-page console errors, no raw chrome failure, and no old terse setup copy.
 
 ### Buyer Acceptance Criteria
 
