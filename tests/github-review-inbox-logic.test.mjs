@@ -13,7 +13,7 @@ import {
 } from "../widgets/shared/githubReviewInboxLogic.js";
 import {
   buildCacheReviewItems,
-  buildReviewInboxOpenPrLabel,
+  buildReviewInboxOpenPullsLabel,
   buildReviewInboxReadItemKey,
   buildReviewInboxReadScopeKey,
   computeReviewInboxAgeSeverity,
@@ -397,9 +397,8 @@ test("review inbox read state can be removed and prunes empty scopes", () => {
   assert.deepEqual(readReviewInboxReadSnapshot(storage), {});
 });
 
-test("review inbox open PR button label includes the pull request number", () => {
-  assert.equal(buildReviewInboxOpenPrLabel({ number: 101 }), "Open PR #101");
-  assert.equal(buildReviewInboxOpenPrLabel({}), "Open pull request");
+test("review inbox open PR button targets the repository pull request list", () => {
+  assert.equal(buildReviewInboxOpenPullsLabel(), "Open repository pull requests");
 });
 
 test("hasGithubMention matches case-insensitive direct mentions", () => {
