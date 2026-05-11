@@ -1491,7 +1491,7 @@ export const flexWorktimeWidget = {
     { key: "openInNewTab", label: "Open detail in new tab", type: "checkbox" }
   ],
   create({ container, getConfig, isEditMode, openSettings }) {
-    container.classList.add("flex-worktime-widget");
+    container.classList.add("flex-worktime-widget", "flex-worktime-compact");
 
     const shell = document.createElement("div");
     shell.className = "flex-worktime-shell";
@@ -1644,6 +1644,8 @@ export const flexWorktimeWidget = {
       const detailHref = primaryRow ? resolveDetailUrl(config, queryDate, primaryRow) : "";
       const clickable = Boolean(detailHref);
       const syncState = resolveSyncState();
+      container.setAttribute("data-sync-tone", syncState.tone);
+      shell.title = syncState.tooltip;
 
       const rowItem = document.createElement("li");
       rowItem.className = "flex-worktime-row";
@@ -1667,39 +1669,12 @@ export const flexWorktimeWidget = {
         });
       }
 
-      // Top line: duration and status
-      const topLine = document.createElement("div");
-      topLine.style.display = "flex";
-      topLine.style.justifyContent = "space-between";
-      topLine.style.alignItems = "baseline";
-      topLine.style.width = "100%";
-
       const duration = document.createElement("p");
       duration.className = "flex-worktime-duration";
       duration.textContent = normalizeText(primaryRow?.durationLabel, "--");
+      duration.title = syncState.tooltip;
 
-      const statusLabel = normalizeText(primaryRow?.status);
-      if (statusLabel) {
-        const statusText = document.createElement("span");
-        statusText.className = "flex-worktime-row-status";
-        statusText.textContent = statusLabel;
-        statusText.title = statusLabel;
-        statusText.setAttribute("aria-label", `Status ${statusLabel}`);
-        topLine.append(duration, statusText);
-      } else {
-        topLine.append(duration);
-      }
-
-      // Sync text on its own line, aligned to the right
-      const syncText = document.createElement("span");
-      syncText.className = `flex-worktime-sync is-${syncState.tone}`;
-      syncText.textContent = syncState.label;
-      syncText.title = syncState.tooltip;
-      syncText.style.alignSelf = "flex-end";
-      syncText.style.width = "100%";
-      syncText.style.textAlign = "right";
-
-      entry.append(topLine, syncText);
+      entry.append(duration);
       rowItem.append(entry);
       list.append(rowItem);
     }
