@@ -22,6 +22,9 @@ async function loadWidgetInternals(relativePath, exportedNames, injected = {}) {
     setTimeout,
     clearTimeout,
     chrome: {},
+    getChromeIdentity: () => null,
+    getChromeStorageChanges: () => null,
+    getChromeStorageLocal: () => null,
     ...injected
   };
 

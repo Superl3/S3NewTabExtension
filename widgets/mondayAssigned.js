@@ -11,6 +11,7 @@ import {
   hasAuthSessionStorageChange,
   resolveActiveAuthSession
 } from "./shared/authSessionStorage.js";
+import { getChromeIdentity, getChromeStorageChanges, getChromeStorageLocal } from "./shared/chromeApi.js";
 import {
   normalizeBoardId,
   normalizeBoardIds,
@@ -249,7 +250,7 @@ function openHref(href, openInNewTab, locationRef = window.location, openImpl = 
 
 const authSessionStorage = createAuthSessionStorage({
   storageKey: MONDAY_AUTH_STORAGE_KEY,
-  getStorageArea: () => chrome?.storage?.local,
+  getStorageArea: getChromeStorageLocal,
   normalizeConnectorUrl
 });
 
@@ -1471,7 +1472,8 @@ export const mondayAssignedWidget = {
     }
 
     function installStorageListener() {
-      if (storageListener || !chrome?.storage?.onChanged?.addListener) {
+      const storageChanges = getChromeStorageChanges();
+      if (storageListener || !storageChanges?.addListener) {
         return;
       }
 
@@ -1495,21 +1497,22 @@ export const mondayAssignedWidget = {
         });
       };
 
-      chrome.storage.onChanged.addListener(storageListener);
+      storageChanges.addListener(storageListener);
     }
 
     function removeStorageListener() {
-      if (!storageListener || !chrome?.storage?.onChanged?.removeListener) {
+      const storageChanges = getChromeStorageChanges();
+      if (!storageListener || !storageChanges?.removeListener) {
         return;
       }
-      chrome.storage.onChanged.removeListener(storageListener);
+      storageChanges.removeListener(storageListener);
       storageListener = null;
     }
 
     async function connectAccount() {
       const cfg = resolveConfig();
       if (!hasConnectorConfig(cfg)) {
-        errorMessage = "Set auth connector URL in widget settings first.";
+        errorMessage = "Add a connector URL or Monday access token in settings before connecting.";
         render();
         return;
       }
@@ -1532,11 +1535,12 @@ export const mondayAssignedWidget = {
           }
         }
 
-        if (!token && chrome.identity?.launchWebAuthFlow && chrome.identity?.getRedirectURL) {
+        const identityApi = getChromeIdentity();
+        if (!token && identityApi?.launchWebAuthFlow && identityApi?.getRedirectURL) {
           const state = createAuthState();
-          const redirectUri = chrome.identity.getRedirectURL("monday-auth");
+          const redirectUri = identityApi.getRedirectURL("monday-auth");
           const startUrl = buildAuthConnectorStartUrl(cfg.connectorUrl, redirectUri, state, "monday");
-          const callbackUrl = await chrome.identity.launchWebAuthFlow({
+          const callbackUrl = await identityApi.launchWebAuthFlow({
             url: startUrl,
             interactive: true
           });
@@ -1560,7 +1564,7 @@ export const mondayAssignedWidget = {
         if (!token) {
           throw new Error(
             tokenRelayFailureMessage ||
-              "Unable to obtain Monday connector token. Try Connect again."
+              "Unable to obtain Monday connector token. Check the connector URL or add a Monday access token in settings."
           );
         }
 
@@ -1728,13 +1732,13 @@ export const mondayAssignedWidget = {
           empty.textContent = hasAllScope ? "Loading board issues..." : "Loading assigned issues...";
         } else if (!hasConnectorConfig(cfg)) {
           empty.textContent =
-            "Set auth connector URL in widget settings to enable Monday connection.";
+            "Add a connector URL or Monday access token in settings to enable Monday connection.";
         } else if (!hasActiveConnection(cfg)) {
           empty.textContent = hasAllScope
             ? "Connect Monday account to load board issues."
             : "Connect Monday account to load assigned issues.";
         } else if (!hasBoardConfig(cfg)) {
-          empty.textContent = "Set Board ID(s) in widget settings. Use numeric IDs from /boards/<id>.";
+          empty.textContent = "Add Board ID(s) in widget settings. Use numeric IDs from /boards/<id>.";
         } else if (errorMessage) {
           empty.textContent = hasAllScope ? "Board issue list is not available." : "Assigned issue list is not available.";
         } else if (!hasFetched) {
@@ -1803,7 +1807,7 @@ export const mondayAssignedWidget = {
       } else if (errorMessage) {
         text = errorMessage;
       } else if (!hasConnectorConfig(cfg)) {
-        text = "Set auth connector URL";
+        text = "Add Monday connection settings";
       } else if (!hasActiveConnection(cfg)) {
         text = "Monday not connected";
       } else if (!hasBoardConfig(cfg)) {
@@ -1902,13 +1906,13 @@ export const mondayAssignedWidget = {
       try {
         const cfg = resolveConfig();
         if (!hasConnectorConfig(cfg)) {
-          throw new Error("Set auth connector URL first.");
+          throw new Error("Add a connector URL or Monday access token in settings before syncing.");
         }
         if (!hasActiveConnection(cfg)) {
           throw new Error("Connect Monday account first.");
         }
         if (!hasBoardConfig(cfg)) {
-          throw new Error("Set Board ID(s) first. Use numeric IDs from /boards/<id>.");
+          throw new Error("Add Board ID(s) in settings before syncing. Use numeric IDs from /boards/<id>.");
         }
 
         if (reason === "auto") {

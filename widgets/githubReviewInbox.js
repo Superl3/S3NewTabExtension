@@ -41,16 +41,17 @@ function normalizeText(value, fallback = "") {
 }
 
 function normalizeErrorMessage(error) {
+  const fallback = "GitHub review inbox is not available. Check repository and login settings.";
   if (!error) {
-    return "Unknown error";
+    return fallback;
   }
   if (typeof error === "string") {
-    return normalizeText(error, "Unknown error");
+    return normalizeText(error, fallback);
   }
   if (typeof error.message === "string") {
-    return normalizeText(error.message, "Unknown error");
+    return normalizeText(error.message, fallback);
   }
-  return "Unknown error";
+  return fallback;
 }
 
 function normalizeMaxItems(value, fallback = 20) {
@@ -971,7 +972,7 @@ export const githubReviewInboxWidget = {
         return;
       }
       if (!cfg.rawRepository) {
-        status.textContent = "Set repository URL.";
+        status.textContent = "Add repository URL in settings.";
         return;
       }
       if (!cfg.repository) {
@@ -979,7 +980,7 @@ export const githubReviewInboxWidget = {
         return;
       }
       if (!cfg.githubLogin) {
-        status.textContent = "Set GitHub login.";
+        status.textContent = "Add GitHub login in settings.";
         return;
       }
       const synced = formatSyncedLabel(lastSyncedAt);
@@ -1180,15 +1181,15 @@ export const githubReviewInboxWidget = {
             ? "Loading pull requests you opened..."
             : "Loading pull requests that need your review...";
         } else if (!cfg.rawRepository) {
-          empty.textContent = "Set repository URL in widget settings first.";
+          empty.textContent = "Add a repository URL in widget settings to load review requests.";
         } else if (!cfg.repository) {
           empty.textContent = "Repository URL is malformed.";
         } else if (!cfg.githubLogin) {
-          empty.textContent = "Set GitHub login in widget settings first.";
+          empty.textContent = "Add your GitHub login in widget settings to match review requests.";
         } else if (errorMessage) {
           empty.textContent = normalizeReviewInboxTab(selectedTab) === REVIEW_INBOX_TAB_OPENED
-            ? "Your pull request inbox is not available."
-            : "Review inbox is not available.";
+            ? "Your pull request inbox is not available. Check the repository and login settings."
+            : "Review inbox is not available. Check the repository and login settings.";
         } else {
           empty.textContent = normalizeReviewInboxTab(selectedTab) === REVIEW_INBOX_TAB_OPENED
             ? "No pull requests you opened currently need attention."

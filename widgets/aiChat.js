@@ -8,6 +8,7 @@ import {
   parseAuthFlowResult
 } from "./shared/authConnector.js";
 import { createAuthSessionStorage } from "./shared/authSessionStorage.js";
+import { getChromeIdentity, getChromeStorageLocal } from "./shared/chromeApi.js";
 
 function toMessage(role, content) {
   return { role, content, ts: Date.now() };
@@ -113,7 +114,7 @@ function normalizeConnectorUrl(value, fallback = LOCAL_AUTH_CONNECTOR_URL) {
 
 const authSessionStorage = createAuthSessionStorage({
   storageKey: AI_CHAT_AUTH_STORAGE_KEY,
-  getStorageArea: () => globalThis.chrome?.storage?.local,
+  getStorageArea: getChromeStorageLocal,
   normalizeConnectorUrl
 });
 
@@ -399,7 +400,7 @@ export const aiChatWidget = {
           }
         }
 
-        const identityApi = globalThis.chrome?.identity;
+        const identityApi = getChromeIdentity();
         if (!token && connectorUrl && identityApi?.launchWebAuthFlow && identityApi?.getRedirectURL) {
           const state = createAuthState();
           const redirectUri = identityApi.getRedirectURL("ai-chat-auth");
@@ -511,7 +512,7 @@ export const aiChatWidget = {
       appendUserMessage(text);
 
       if (!endpoint) {
-        appendAssistantMessage("Endpoint is required.");
+        appendAssistantMessage("Add an endpoint in settings before sending messages.");
         return;
       }
 
@@ -535,7 +536,7 @@ export const aiChatWidget = {
 
         appendAssistantMessage(reply);
       } catch (error) {
-        appendAssistantMessage(`Request failed: ${error.message}`);
+        appendAssistantMessage("Request failed. Check the endpoint, model, and access token in settings, then try again.");
       }
     }
 

@@ -11,6 +11,7 @@ import {
   hasAuthSessionStorageChange,
   resolveActiveAuthSession
 } from "./shared/authSessionStorage.js";
+import { getChromeIdentity, getChromeStorageChanges, getChromeStorageLocal } from "./shared/chromeApi.js";
 import {
   normalizeBoardId,
   normalizeBoardIds,
@@ -76,7 +77,7 @@ function isAuthCancelledMessage(message) {
 
 const authSessionStorage = createAuthSessionStorage({
   storageKey: MONDAY_AUTH_STORAGE_KEY,
-  getStorageArea: () => chrome?.storage?.local,
+  getStorageArea: getChromeStorageLocal,
   normalizeConnectorUrl
 });
 
@@ -1299,15 +1300,15 @@ export const mondayMeetingNoteWidget = {
         if (loading) {
           panel.append(makeEmptyMessage("Loading latest meeting note..."));
         } else if (!hasConnectorConfig(cfg)) {
-          panel.append(makeEmptyMessage("Set auth connector URL in widget settings to enable Monday connection."));
+          panel.append(makeEmptyMessage("Add a connector URL or Monday access token in settings to enable Monday connection."));
         } else if (!hasActiveConnection(cfg)) {
           panel.append(makeEmptyMessage("Connect Monday account to load latest meeting note."));
         } else if (!hasBoardConfig(cfg)) {
-          panel.append(makeEmptyMessage("Set Board ID(s) in widget settings. Use numeric IDs from /boards/<id>."));
+          panel.append(makeEmptyMessage("Add Board ID(s) in widget settings. Use numeric IDs from /boards/<id>."));
         } else if (!hasMeetingNoteColumnConfig(cfg)) {
-          panel.append(makeEmptyMessage("Set Meeting note column selector(s) in widget settings."));
+          panel.append(makeEmptyMessage("Add meeting note column selector(s) in widget settings."));
         } else if (errorMessage) {
-          panel.append(makeEmptyMessage(`Meeting note is not available: ${errorMessage}`));
+          panel.append(makeEmptyMessage("Meeting note is not available. Check Monday settings and try again."));
         } else {
           panel.append(makeEmptyMessage("No latest item found for configured boards."));
         }
@@ -1368,7 +1369,7 @@ export const mondayMeetingNoteWidget = {
     async function connectAccount() {
       const cfg = resolveConfig();
       if (!hasConnectorConfig(cfg)) {
-        errorMessage = "Set auth connector URL in widget settings first.";
+        errorMessage = "Add a connector URL or Monday access token in settings before connecting.";
         render();
         return;
       }
@@ -1392,11 +1393,12 @@ export const mondayMeetingNoteWidget = {
           }
         }
 
-        if (!token && chrome.identity?.launchWebAuthFlow && chrome.identity?.getRedirectURL) {
+        const identityApi = getChromeIdentity();
+        if (!token && identityApi?.launchWebAuthFlow && identityApi?.getRedirectURL) {
           const state = createAuthState();
-          const redirectUri = chrome.identity.getRedirectURL("monday-auth");
+          const redirectUri = identityApi.getRedirectURL("monday-auth");
           const startUrl = buildAuthConnectorStartUrl(cfg.connectorUrl, redirectUri, state, "monday");
-          const callbackUrl = await chrome.identity.launchWebAuthFlow({
+          const callbackUrl = await identityApi.launchWebAuthFlow({
             url: startUrl,
             interactive: true
           });
@@ -1420,7 +1422,7 @@ export const mondayMeetingNoteWidget = {
         if (!token) {
           throw new Error(
             tokenRelayFailureMessage ||
-              "Unable to obtain Monday connector token. Try Connect again."
+              "Unable to obtain Monday connector token. Check the connector URL or add a Monday access token in settings."
           );
         }
 
@@ -1485,13 +1487,13 @@ export const mondayMeetingNoteWidget = {
       try {
         const cfg = resolveConfig();
         if (!hasConnectorConfig(cfg)) {
-          throw new Error("Set auth connector URL first.");
+          throw new Error("Add a connector URL or Monday access token in settings before syncing.");
         }
         if (!hasBoardConfig(cfg)) {
-          throw new Error("Set Board ID(s) first. Use numeric IDs from /boards/<id>.");
+          throw new Error("Add Board ID(s) in settings before syncing. Use numeric IDs from /boards/<id>.");
         }
         if (!hasMeetingNoteColumnConfig(cfg)) {
-          throw new Error("Set Meeting note column selector(s) first.");
+          throw new Error("Add meeting note column selector(s) in settings before syncing.");
         }
 
         if (reason === "auto") {
@@ -1561,7 +1563,8 @@ export const mondayMeetingNoteWidget = {
     }
 
     function installStorageListener() {
-      if (storageListener || !chrome?.storage?.onChanged?.addListener) {
+      const storageChanges = getChromeStorageChanges();
+      if (storageListener || !storageChanges?.addListener) {
         return;
       }
 
@@ -1585,14 +1588,15 @@ export const mondayMeetingNoteWidget = {
         });
       };
 
-      chrome.storage.onChanged.addListener(storageListener);
+      storageChanges.addListener(storageListener);
     }
 
     function removeStorageListener() {
-      if (!storageListener || !chrome?.storage?.onChanged?.removeListener) {
+      const storageChanges = getChromeStorageChanges();
+      if (!storageListener || !storageChanges?.removeListener) {
         return;
       }
-      chrome.storage.onChanged.removeListener(storageListener);
+      storageChanges.removeListener(storageListener);
       storageListener = null;
     }
 

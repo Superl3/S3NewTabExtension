@@ -62,6 +62,6 @@
 - [x] **Step 1: Strict 30 USD Buyer Gate** - eliminate paid-user refund pressure from first launch, default configuration, setup states, modal/edit basics, degraded browser/API states, and visible polish issues.
 - [x] **Step 2: Strict Senior Developer Gate** - after Step 1 passes, improve implementation quality through bounded internal refactors, stronger platform wrappers, normalized error handling, and smoke/unit coverage for product contracts.
 
-**Gate rule:** Step 2 must not start until Step 1 is marked `Satisfied` with evidence in `.planning/IMPROVEMENT_GOALS.md`. Current pass has satisfied both gates; future loops restart at Step 1 for new paid-buyer P0/P1 findings.
+**Gate rule:** Step 2 must not start until the current Step 1 iteration has no unresolved paid-buyer P0/P1 findings. After any Step 2 change, return to Step 1 for regression confirmation before considering the iteration complete. Current iteration is complete; future iterations restart at Step 1.
 
 ---
