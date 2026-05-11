@@ -27,6 +27,10 @@ let shortcutFaviconCache = {};
 let shortcutFaviconCacheLoaded = false;
 let shortcutFaviconCacheLoadPromise = null;
 
+function chromeStorageLocal() {
+  return globalThis.chrome?.storage?.local || null;
+}
+
 function isUrlIcon(value) {
   return (
     value.startsWith("http://") ||
@@ -69,7 +73,14 @@ async function loadShortcutFaviconCache() {
     return;
   }
 
-  shortcutFaviconCacheLoadPromise = chrome.storage.local
+  const storage = chromeStorageLocal();
+  if (typeof storage?.get !== "function") {
+    shortcutFaviconCache = {};
+    shortcutFaviconCacheLoaded = true;
+    return;
+  }
+
+  shortcutFaviconCacheLoadPromise = storage
     .get(SHORTCUT_FAVICON_CACHE_KEY)
     .then((stored) => {
       shortcutFaviconCache = normalizeFaviconCache(stored?.[SHORTCUT_FAVICON_CACHE_KEY]);
@@ -148,9 +159,12 @@ async function fetchAndCacheFavicon(url, cacheKey) {
     }
     shortcutFaviconCache[cacheKey] = dataUrl;
     trimFaviconCache(shortcutFaviconCache);
-    await chrome.storage.local.set({
-      [SHORTCUT_FAVICON_CACHE_KEY]: shortcutFaviconCache
-    });
+    const storage = chromeStorageLocal();
+    if (typeof storage?.set === "function") {
+      await storage.set({
+        [SHORTCUT_FAVICON_CACHE_KEY]: shortcutFaviconCache
+      });
+    }
   }
 
   return dataUrl;

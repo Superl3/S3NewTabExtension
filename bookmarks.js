@@ -16,7 +16,7 @@ function ensureBookmarkCacheInvalidationListeners() {
     return;
   }
 
-  const bookmarksApi = chrome?.bookmarks;
+  const bookmarksApi = bookmarksPlatform();
   if (!bookmarksApi?.onCreated || !bookmarksApi?.onChanged || !bookmarksApi?.onRemoved) {
     return;
   }
@@ -29,8 +29,21 @@ function ensureBookmarkCacheInvalidationListeners() {
   bookmarkCacheListenersAttached = true;
 }
 
+function bookmarksPlatform() {
+  return globalThis.chrome?.bookmarks || null;
+}
+
+export function areBookmarksAvailable() {
+  return typeof bookmarksPlatform()?.getTree === "function";
+}
+
 function getTree({ force = false } = {}) {
   ensureBookmarkCacheInvalidationListeners();
+
+  const bookmarksApi = bookmarksPlatform();
+  if (typeof bookmarksApi?.getTree !== "function") {
+    return Promise.resolve([]);
+  }
 
   const now = Date.now();
   if (!force && cachedBookmarkTree && now - cachedBookmarkTreeAt < BOOKMARK_TREE_CACHE_TTL_MS) {
@@ -41,7 +54,7 @@ function getTree({ force = false } = {}) {
     return pendingBookmarkTreePromise;
   }
 
-  pendingBookmarkTreePromise = chrome.bookmarks
+  pendingBookmarkTreePromise = bookmarksApi
     .getTree()
     .then((tree) => {
       cachedBookmarkTree = tree;
@@ -58,7 +71,11 @@ function getTree({ force = false } = {}) {
 }
 
 function getSubTree(id) {
-  return chrome.bookmarks.getSubTree(id);
+  const bookmarksApi = bookmarksPlatform();
+  if (typeof bookmarksApi?.getSubTree !== "function") {
+    return Promise.resolve([]);
+  }
+  return bookmarksApi.getSubTree(id);
 }
 
 function normalizePath(path) {

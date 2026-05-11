@@ -1,4 +1,4 @@
-import { resolveBookmarkRoot } from "../bookmarks.js";
+import { areBookmarksAvailable, resolveBookmarkRoot } from "../bookmarks.js";
 
 function asRecord(value) {
   if (value && typeof value === "object" && !Array.isArray(value)) {
@@ -568,7 +568,9 @@ export const bookmarksWidget = {
           parentMap = {};
           const item = document.createElement("p");
           item.className = "muted";
-          item.textContent = "Bookmark folder not found.";
+          item.textContent = areBookmarksAvailable()
+            ? "Bookmark folder not found."
+            : "Bookmarks are available after loading this as a browser extension.";
           grid.append(item);
           renderEditor();
           return;
@@ -639,11 +641,17 @@ export const bookmarksWidget = {
       }, 120);
     };
 
-    chrome.bookmarks.onCreated.addListener(reload);
-    chrome.bookmarks.onChanged.addListener(reload);
-    chrome.bookmarks.onRemoved.addListener(reload);
-    chrome.bookmarks.onMoved.addListener(reload);
-    chrome.bookmarks.onChildrenReordered.addListener(reload);
+    const bookmarksApi = globalThis.chrome?.bookmarks || null;
+    const bookmarkEvents = [
+      bookmarksApi?.onCreated,
+      bookmarksApi?.onChanged,
+      bookmarksApi?.onRemoved,
+      bookmarksApi?.onMoved,
+      bookmarksApi?.onChildrenReordered
+    ].filter((event) => typeof event?.addListener === "function");
+    for (const event of bookmarkEvents) {
+      event.addListener(reload);
+    }
 
     void render();
 
@@ -669,11 +677,9 @@ export const bookmarksWidget = {
           clearTimeout(reloadTimer);
           reloadTimer = null;
         }
-        chrome.bookmarks.onCreated.removeListener(reload);
-        chrome.bookmarks.onChanged.removeListener(reload);
-        chrome.bookmarks.onRemoved.removeListener(reload);
-        chrome.bookmarks.onMoved.removeListener(reload);
-        chrome.bookmarks.onChildrenReordered.removeListener(reload);
+        for (const event of bookmarkEvents) {
+          event.removeListener?.(reload);
+        }
       }
     };
   }

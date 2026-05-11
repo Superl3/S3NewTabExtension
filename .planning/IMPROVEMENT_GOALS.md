@@ -9,7 +9,7 @@ This document defines the improvement loop for S3 New Tab Extension. It is inten
 
 | Step | Gate | Status | Reason |
 | --- | --- | --- | --- |
-| 1 | Strict 30 USD buyer ego | Not satisfied | First-screen exploration found visible widget failure and browser API dependency failures in local/demo execution. |
+| 1 | Strict 30 USD buyer ego | In progress | First local/demo browser API failures are fixed, but the full paid-buyer checklist has not been completed. |
 | 2 | Strict senior developer ego | Blocked | Internal refactor/quality loop is not allowed to start until Step 1 passes. |
 
 ## Step 1: Strict 30 USD Buyer Ego
@@ -22,14 +22,21 @@ The buyer paid 30 USD and expects a polished, reliable, low-friction new tab pro
 
 These are the first issues that a strict paid user would likely call out:
 
-1. First-screen widget failure is visible: `Bookmarks Collection` can render `Widget failed to load.` during local/demo execution when browser bookmark APIs are unavailable.
-2. Local/demo execution logs hard browser API failures:
-   - `widgets/shortcut.js` reads `chrome.storage.local` without a safe unavailable-API path.
-   - `widgets/bookmarks.js` subscribes to `chrome.bookmarks.*` listeners without a safe unavailable-API path.
-   - `storage.js` tries to persist through `chrome.storage.local` without a local/demo fallback.
-3. Several premium-facing widgets depend on external accounts or page scraping. Their empty/error states must feel intentional, not like raw developer messages or setup dead ends.
-4. The first-run story is not yet strong enough for a paid product: the user sees many capabilities, but not a guided confidence path proving which widgets work immediately and which require setup.
-5. The repository has strong unit coverage, but the paid-user gate needs browser-level smoke evidence for launch, edit mode, add widget, modal close, persistence/reload, and degraded browser-API states.
+1. Fixed: first-screen `Bookmarks Collection` no longer renders `Widget failed to load.` during local/demo execution when browser bookmark APIs are unavailable.
+2. Fixed: local/demo execution no longer logs hard browser API failures for:
+   - `widgets/shortcut.js` favicon cache reads/writes
+   - `widgets/bookmarks.js` bookmark change listeners
+   - `storage.js` dashboard state persistence
+3. Open: several premium-facing widgets depend on external accounts or page scraping. Their empty/error states must feel intentional, not like raw developer messages or setup dead ends.
+4. Open: the first-run story is not yet strong enough for a paid product: the user sees many capabilities, but not a guided confidence path proving which widgets work immediately and which require setup.
+5. Open: the paid-user gate still needs a complete manual smoke pass for launch, edit mode, add widget, modal close, persistence/reload, and degraded account-backed widget states.
+
+### Step 1 Evidence Log
+
+- 2026-05-11: Added browser API fallback tests for storage, bookmark root resolution, default shortcut rendering, and default bookmarks rendering without `chrome.*` APIs.
+- 2026-05-11: Local browser smoke on `http://127.0.0.1:8766/newtab.html` showed no current-page error/warn logs, no `Widget failed to load.`, and a polished bookmark unavailable message.
+- 2026-05-11: Local browser smoke confirmed Edit Mode opens and Add Widget modal appears without current-page error/warn logs.
+- 2026-05-11: `npm test` passed with 547 tests.
 
 ### Buyer Acceptance Criteria
 
