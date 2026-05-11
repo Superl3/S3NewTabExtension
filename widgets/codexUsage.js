@@ -534,6 +534,13 @@ export const codexUsageWidget = {
       }
     }
 
+    function syncNow() {
+      if (loading) {
+        return Promise.resolve();
+      }
+      return syncSnapshot();
+    }
+
     async function openUsagePage() {
       errorMessage = "";
       render();
@@ -565,16 +572,16 @@ export const codexUsageWidget = {
     openBtn.addEventListener("click", (event) => {
       event.preventDefault();
       event.stopPropagation();
-      void openUsagePage();
+      void openUsagePage().catch((error) => {
+        errorMessage = normalizeErrorMessage(error, "Could not open usage page.");
+        render();
+      });
     });
 
     syncBtn.addEventListener("click", (event) => {
       event.preventDefault();
       event.stopPropagation();
-      if (loading) {
-        return;
-      }
-      void syncSnapshot();
+      void syncNow();
     });
 
     if (chrome?.storage?.onChanged) {
@@ -591,6 +598,9 @@ export const codexUsageWidget = {
     return {
       refresh() {
         render();
+      },
+      manualRefresh() {
+        return syncNow();
       },
       destroy() {
         if (chrome?.storage?.onChanged) {
