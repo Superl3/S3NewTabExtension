@@ -3873,6 +3873,12 @@ body.mode-edit .widget-float-remove:hover {
   color: color-mix(in srgb, #d94755, var(--text) 18%);
 }
 
+.github-review-inbox-item-main {
+  min-height: 100%;
+  display: flex;
+  align-items: stretch;
+}
+
 .github-pr-link {
   min-height: 100%;
   display: flex;
@@ -3883,9 +3889,31 @@ body.mode-edit .widget-float-remove:hover {
   padding: 9px 10px;
 }
 
+.github-review-inbox-item-main .github-pr-link {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
 .github-pr-link:hover,
 .github-pr-link:focus-visible {
   background: color-mix(in srgb, var(--widget-effective-surface), transparent 10%);
+}
+
+.github-review-inbox-open-pr {
+  flex: 0 0 auto;
+  align-self: center;
+  width: 30px;
+  height: 30px;
+  margin: 8px 9px 8px 0;
+  border-radius: 999px;
+  color: var(--widget-effective-accent);
+  background: color-mix(in srgb, var(--widget-effective-surface), transparent 8%);
+}
+
+.github-review-inbox-open-pr .icon {
+  width: 16px;
+  height: 16px;
+  stroke-width: 1.9;
 }
 
 .github-pr-top {
