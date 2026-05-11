@@ -219,6 +219,9 @@ import {
   syncWidgetStateAfterModalApply
 } from "./core/widget-modal-apply-effects.js";
 import {
+  refreshWidgetController
+} from "./core/widget-refresh.js";
+import {
   applyAddWidgetModalAction
 } from "./core/add-widget-modal-apply.js";
 import {
@@ -2487,11 +2490,7 @@ const {
 
 function refreshAllWidgets() {
   for (const rt of runtime.values()) {
-    if (typeof rt.controller?.manualRefresh === "function") {
-      rt.controller.manualRefresh();
-    } else {
-      rt.controller?.refresh?.();
-    }
+    refreshWidgetController(rt.controller);
   }
 }
 

@@ -24,15 +24,16 @@ test("syncWidgetStateAfterModalApply updates overrides and active page", () => {
   ]);
 });
 
-test("refreshWidgetRuntimeAfterModalApply refreshes runtime card when mounted", () => {
+test("refreshWidgetRuntimeAfterModalApply refreshes runtime card passively when mounted", () => {
   const titleNode = { textContent: "" };
+  let manualRefreshCount = 0;
   const runtime = {
     card: {
       querySelector: () => titleNode
     },
     controller: {
       manualRefresh: () => {
-        titleNode.refreshed = "manual";
+        manualRefreshCount += 1;
       },
       refresh: () => {
         titleNode.refreshed = "refresh";
@@ -59,7 +60,8 @@ test("refreshWidgetRuntimeAfterModalApply refreshes runtime card when mounted", 
   );
 
   assert.equal(titleNode.textContent, "Widget");
-  assert.equal(titleNode.refreshed, "manual");
+  assert.equal(titleNode.refreshed, "refresh");
+  assert.equal(manualRefreshCount, 0);
   assert.equal(calls[0][0], "layout");
   assert.equal(calls[1][0], "visual");
 });

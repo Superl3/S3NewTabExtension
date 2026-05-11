@@ -1,3 +1,5 @@
+import { refreshWidgetController } from "./widget-refresh.js";
+
 function call(fn, ...args) {
   if (typeof fn !== "function") {
     return undefined;
@@ -52,11 +54,7 @@ export function refreshWidgetRuntimeAfterModalApply(instance, defTitle = "", dep
     }
     call(applyLayout, runtime.card, instance.layout, instance.page);
     call(applyCardVisual, runtime.card, instance);
-    if (typeof runtime.controller?.manualRefresh === "function") {
-      runtime.controller.manualRefresh();
-    } else {
-      runtime.controller?.refresh?.();
-    }
+    refreshWidgetController(runtime.controller);
     return;
   }
 
