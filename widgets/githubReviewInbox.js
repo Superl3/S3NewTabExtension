@@ -211,6 +211,11 @@ function buildReviewInboxItemKey(item) {
   return normalizeText(item?.number);
 }
 
+function buildReviewInboxOpenPrLabel(item) {
+  const number = Number(item?.number) || 0;
+  return number ? `Open PR #${number}` : "Open pull request";
+}
+
 function readReviewInboxReadSnapshot(storage = undefined) {
   return readScopedItemSnapshot(REVIEW_INBOX_READ_ITEMS_STORAGE_KEY, storage);
 }
@@ -929,6 +934,15 @@ export const githubReviewInboxWidget = {
       }
     }
 
+    function openPullRequestPage(item, cfg = normalizedConfig(getConfig())) {
+      const href = normalizeText(item?.htmlUrl) || buildRepoPullsPageUrl(cfg.repository);
+      if (cfg.openInNewTab) {
+        window.open(href, "_blank", "noopener,noreferrer");
+      } else {
+        window.location.href = href;
+      }
+    }
+
     function renderWarning() {
       warning.hidden = !tokenUserWarning;
       warning.textContent = tokenUserWarning;
@@ -1190,6 +1204,9 @@ export const githubReviewInboxWidget = {
         const swipeContent = document.createElement("div");
         swipeContent.className = "github-review-inbox-swipe-content";
 
+        const itemMain = document.createElement("div");
+        itemMain.className = "github-review-inbox-item-main";
+
         const link = document.createElement("a");
         link.className = "github-pr-link github-review-inbox-link";
         link.href = item.htmlUrl || buildRepoPullsPageUrl(cfg.repository);
@@ -1255,7 +1272,21 @@ export const githubReviewInboxWidget = {
 
         link.append(top, meta, badges);
 
-        swipeContent.append(link);
+        const openPrButton = document.createElement("button");
+        openPrButton.type = "button";
+        openPrButton.className = "icon-btn github-review-inbox-open-pr";
+        openPrButton.title = buildReviewInboxOpenPrLabel(item);
+        openPrButton.setAttribute("aria-label", openPrButton.title);
+        openPrButton.innerHTML = '<svg class="icon"><use href="#i-open"></use></svg>';
+        openPrButton.addEventListener("click", (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          setReadState(item);
+          openPullRequestPage(item, cfg);
+        });
+
+        itemMain.append(link, openPrButton);
+        swipeContent.append(itemMain);
 
         if (item.ignored && !item.autoIgnored) {
           const ignoredActions = document.createElement("div");
@@ -1462,6 +1493,7 @@ export {
   buildOpenPullsApiUrl,
   buildRepoPullsPageUrl,
   buildCacheReviewItems,
+  buildReviewInboxOpenPrLabel,
   buildReviewInboxReadItemKey,
   buildReviewInboxReadScopeKey,
   computeReviewInboxAgeSeverity,
