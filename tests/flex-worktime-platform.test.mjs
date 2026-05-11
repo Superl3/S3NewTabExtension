@@ -466,6 +466,60 @@ test("flexWorktimeWidget ignores stale in-flight scrape after config refresh", a
   }
 });
 
+test("flexWorktimeWidget renders only the work duration in compact view", async () => {
+  const harness = createDeferredChromeHarness();
+  const originalChrome = globalThis.chrome;
+  const originalDocument = globalThis.document;
+  const originalWindow = globalThis.window;
+  const originalSetTimeout = globalThis.setTimeout;
+  const originalClearTimeout = globalThis.clearTimeout;
+  const container = new FakeElement("div");
+
+  globalThis.chrome = harness.chrome;
+  globalThis.document = createFakeDocument();
+  globalThis.window = { open() {}, location: { href: "" } };
+  globalThis.setTimeout = () => 1;
+  globalThis.clearTimeout = () => {};
+
+  try {
+    const controller = flexWorktimeWidget.create({
+      container,
+      getConfig: () => ({
+        flexHomeUrl: "https://flex.team/home",
+        openFlexTabIfMissing: true,
+        refreshMinutes: 5,
+        detailUrlTemplate: "",
+        openInNewTab: true
+      }),
+      isEditMode: () => false,
+      openSettings: () => {}
+    });
+    await flushAsync();
+
+    harness.resolveNextScript({
+      ok: true,
+      status: "Working",
+      duration: "3h 10m",
+      line: "Working 3h 10m",
+      title: "Flex Home",
+      url: "https://flex.team/home",
+      extractedAt: 1712012345680
+    });
+    await flushAsync();
+
+    assert.equal(container.className.includes("flex-worktime-compact"), true);
+    assert.equal(container.textContent, "3h 10m");
+    assert.equal(container.attributes.get("data-sync-tone"), "success");
+    controller.destroy();
+  } finally {
+    globalThis.chrome = originalChrome;
+    globalThis.document = originalDocument;
+    globalThis.window = originalWindow;
+    globalThis.setTimeout = originalSetTimeout;
+    globalThis.clearTimeout = originalClearTimeout;
+  }
+});
+
 test("flexWorktimeWidget schedules refresh using configured minutes", async () => {
   const harness = createDeferredChromeHarness();
   const originalChrome = globalThis.chrome;
