@@ -211,6 +211,10 @@ function buildReviewInboxItemKey(item) {
   return normalizeText(item?.number);
 }
 
+function buildReviewInboxOpenPullsLabel() {
+  return "Open repository pull requests";
+}
+
 function readReviewInboxReadSnapshot(storage = undefined) {
   return readScopedItemSnapshot(REVIEW_INBOX_READ_ITEMS_STORAGE_KEY, storage);
 }
@@ -804,6 +808,21 @@ export const githubReviewInboxWidget = {
     const tabBar = document.createElement("div");
     tabBar.className = "github-review-inbox-tab-bar";
 
+    const actions = document.createElement("div");
+    actions.className = "github-review-inbox-actions";
+
+    const openPullsButton = document.createElement("button");
+    openPullsButton.type = "button";
+    openPullsButton.className = "icon-btn github-review-inbox-open-pr";
+    openPullsButton.title = buildReviewInboxOpenPullsLabel();
+    openPullsButton.setAttribute("aria-label", openPullsButton.title);
+    openPullsButton.innerHTML = '<svg class="icon"><use href="#i-open"></use></svg>';
+    openPullsButton.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      openRepositoryPage();
+    });
+
     const ignoredToggle = document.createElement("button");
     ignoredToggle.type = "button";
     ignoredToggle.className = "github-review-inbox-ignored-toggle";
@@ -849,7 +868,8 @@ export const githubReviewInboxWidget = {
     const status = document.createElement("p");
     status.className = "github-pr-widget-status github-review-inbox-status";
 
-    tabBar.append(tabs, ignoredToggle);
+    actions.append(openPullsButton, ignoredToggle);
+    tabBar.append(tabs, actions);
 
     shell.append(warning, tabBar, list, status);
     container.append(shell);
@@ -1462,6 +1482,7 @@ export {
   buildOpenPullsApiUrl,
   buildRepoPullsPageUrl,
   buildCacheReviewItems,
+  buildReviewInboxOpenPullsLabel,
   buildReviewInboxReadItemKey,
   buildReviewInboxReadScopeKey,
   computeReviewInboxAgeSeverity,

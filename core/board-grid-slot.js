@@ -74,9 +74,20 @@ export function findFirstAvailableBoardGridSlot(page, colSpan, rowSpan, deps = {
     const occupiedRowSpan = clampValue(grid.rowSpan, 1, rows);
     const occupiedCol = clampValue(grid.col, 0, Math.max(0, cols - occupiedColSpan));
     const occupiedRow = clampValue(grid.row, 0, Math.max(0, rows - occupiedRowSpan));
+    const occupiedColEnd = occupiedCol + occupiedColSpan;
+    const occupiedRowEnd = occupiedRow + occupiedRowSpan;
 
-    for (let y = occupiedRow; y < occupiedRow + occupiedRowSpan; y += 1) {
-      for (let x = occupiedCol; x < occupiedCol + occupiedColSpan; x += 1) {
+    for (let y = Math.floor(occupiedRow); y < Math.ceil(occupiedRowEnd); y += 1) {
+      for (let x = Math.floor(occupiedCol); x < Math.ceil(occupiedColEnd); x += 1) {
+        if (y < 0 || y >= rows || x < 0 || x >= cols) {
+          continue;
+        }
+        if (Math.max(occupiedRow, y) >= Math.min(occupiedRowEnd, y + 1)) {
+          continue;
+        }
+        if (Math.max(occupiedCol, x) >= Math.min(occupiedColEnd, x + 1)) {
+          continue;
+        }
         occupancy[y][x] = true;
       }
     }

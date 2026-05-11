@@ -20,6 +20,14 @@ function applyClamp(clampFn, value, min, max) {
   return Math.min(max, Math.max(min, safeValue));
 }
 
+function snapToHalfGridTrack(value) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) {
+    return 0;
+  }
+  return Math.round(numeric * 2) / 2;
+}
+
 export function startWidgetCardDragSession({
   event = null,
   target = null,
@@ -329,13 +337,13 @@ export function startWidgetCardDragSession({
       const maxRow = Math.max(0, (Number(metrics?.rows) || 0) - currentGrid.rowSpan);
       const snappedCol = applyClamp(
         clamp,
-        Math.round((instance.layout.x - (Number(metrics?.marginX) || 0)) / stepX),
+        snapToHalfGridTrack((instance.layout.x - (Number(metrics?.marginX) || 0)) / stepX),
         0,
         maxCol
       );
       const snappedRow = applyClamp(
         clamp,
-        Math.round((instance.layout.y - (Number(metrics?.marginY) || 0)) / stepY),
+        snapToHalfGridTrack((instance.layout.y - (Number(metrics?.marginY) || 0)) / stepY),
         0,
         maxRow
       );
