@@ -1,6 +1,10 @@
 import { STORAGE_KEY, loadState, saveState } from "./storage.js";
 import { defaultWidgetType, widgetRegistry, widgetList } from "./widgets/index.js";
-import { FALLBACK_DEFAULT_WIDGET_TYPES } from "./core/default-widget-order.js";
+import {
+  FALLBACK_DEFAULT_GRID,
+  FALLBACK_DEFAULT_WIDGET_TYPES,
+  assignFallbackDefaultGridLayouts
+} from "./core/default-widget-order.js";
 import {
   STARTUP_STATE_EMPTY_WIDGETS_QUERY_KEY,
   STARTUP_STATE_INLINE_QUERY_KEY,
@@ -782,11 +786,15 @@ function defaultBackground() {
 }
 
 function defaultUi() {
+  const home = defaultHomeLayout();
+  home.gridColumns = FALLBACK_DEFAULT_GRID.columns;
+  home.gridRows = FALLBACK_DEFAULT_GRID.rows;
+
   return {
     activeTab: "global",
     theme: defaultTheme(),
     background: defaultBackground(),
-    home: defaultHomeLayout(),
+    home,
     widgetCommonMaster: defaultWidgetCommonMaster(),
     shortcuts: {
       iconSizePercent: 100
@@ -1182,11 +1190,17 @@ function buildDockConfig(home = state?.ui?.home) {
 }
 
 function defaultInstances() {
-  return FALLBACK_DEFAULT_WIDGET_TYPES
-    .filter((type) => widgetRegistry[type])
-    .map((type, idx) => {
+  const layouts = assignFallbackDefaultGridLayouts(
+    FALLBACK_DEFAULT_WIDGET_TYPES.filter((type) => widgetRegistry[type]),
+    {
+      widgetRegistry,
+      widgetDefaultGridSize
+    }
+  );
+
+  return layouts
+    .map(({ type, page, gridLayout }, idx) => {
       const def = widgetRegistry[type];
-      const defaultSize = widgetDefaultGridSize(type, def);
       const defaultPadding = widgetPaddingFallback(type);
       return {
         id: `${type}-${idx + 1}`,
@@ -1217,16 +1231,11 @@ function defaultInstances() {
         customAccentColor: "#1F4F9F",
         customSurfaceColor: "#FFFAF2",
         commonOverrides: normalizeCommonOverrides({}),
-        page: 0,
+        page,
         dockOrder: null,
         containerId: "",
         config: structuredClone(def.defaultConfig || {}),
-        gridLayout: {
-          col: idx % 4,
-          row: Math.floor(idx / 4),
-          colSpan: defaultSize.colSpan,
-          rowSpan: defaultSize.rowSpan
-        },
+        gridLayout,
         layout: cloneLayout(def.defaultLayout),
         enabled: true
       };
