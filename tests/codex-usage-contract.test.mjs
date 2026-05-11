@@ -258,6 +258,37 @@ test("scraper extracts all codex usage slots from collapsed page text", async ()
   assert.equal(slotMap.get("spark-weekly")?.percent, "91%");
 });
 
+test("scraper waits for delayed codex usage metrics before responding", async () => {
+  const context = await loadScraperInternals();
+  let readCount = 0;
+  let storedSnapshot = null;
+
+  context.chrome.storage.local.set = async (payload) => {
+    storedSnapshot = payload["s3newtab-codex-usage-snapshot-v1"];
+  };
+  context.document.querySelector = () => null;
+  context.document.body = {};
+  Object.defineProperty(context.document.body, "innerText", {
+    get() {
+      readCount += 1;
+      if (readCount < 2) {
+        return "ChatGPT settings loading";
+      }
+      return "Codex 5시간 사용 한도 55% 남음 오후 7:30 초기화";
+    }
+  });
+
+  const snapshot = await context.captureAndStoreUsage({
+    waitForMetrics: true,
+    timeoutMs: 20,
+    intervalMs: 0
+  });
+
+  assert.equal(snapshot.metrics.length, 1);
+  assert.equal(snapshot.metrics[0].percent, "55%");
+  assert.equal(storedSnapshot.metrics[0].percent, "55%");
+});
+
 test("codex usage manual refresh triggers a live sync", async () => {
   let sendMessageCalls = 0;
   let resolveStoredSnapshot;

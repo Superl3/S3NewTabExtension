@@ -280,8 +280,30 @@ function buildSnapshot() {
   };
 }
 
-async function captureAndStoreUsage() {
-  const snapshot = buildSnapshot();
+function hasUsageMetrics(snapshot) {
+  return Boolean(snapshot?.metrics?.length);
+}
+
+function wait(delayMs) {
+  return new Promise((resolve) => {
+    setTimeout(resolve, delayMs);
+  });
+}
+
+async function captureAndStoreUsage({
+  waitForMetrics = false,
+  timeoutMs = 0,
+  intervalMs = 250
+} = {}) {
+  let snapshot = buildSnapshot();
+  if (waitForMetrics && !hasUsageMetrics(snapshot)) {
+    const deadline = Date.now() + Math.max(0, Number(timeoutMs) || 0);
+    while (!hasUsageMetrics(snapshot) && Date.now() < deadline) {
+      await wait(Math.max(0, Number(intervalMs) || 0));
+      snapshot = buildSnapshot();
+    }
+  }
+
   await chrome.storage.local.set({ [CODEX_USAGE_STORAGE_KEY]: snapshot });
   return snapshot;
 }
@@ -335,7 +357,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     return undefined;
   }
 
-  captureAndStoreUsage()
+  captureAndStoreUsage({ waitForMetrics: true, timeoutMs: 8000, intervalMs: 250 })
     .then((snapshot) => sendResponse({ ok: true, snapshot }))
     .catch((error) => sendResponse({ ok: false, error: normalizeText(error?.message, "Capture failed.") }));
 
