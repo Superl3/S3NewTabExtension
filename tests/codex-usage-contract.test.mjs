@@ -128,6 +128,15 @@ function withGlobal(name, value, callback) {
     });
 }
 
+function collectTextContent(node) {
+  if (!node) {
+    return "";
+  }
+  return [node.textContent, ...(node.children || []).map((child) => collectTextContent(child))]
+    .filter(Boolean)
+    .join(" ");
+}
+
 test("normalizes codex snapshot and filters non-codex metrics", () => {
   const normalized = normalizeCodexSnapshotForContractTest({
     capturedAt: Date.now(),
@@ -251,8 +260,9 @@ test("scraper extracts all codex usage slots from collapsed page text", async ()
 
 test("codex usage manual refresh triggers a live sync", async () => {
   let sendMessageCalls = 0;
-  const snapshot = {
-    capturedAt: Date.now(),
+  let resolveStoredSnapshot;
+  const staleSnapshot = {
+    capturedAt: Date.now() - 60_000,
     sourceUrl: "https://chatgpt.com/codex/settings/usage",
     title: "Codex Usage",
     metrics: [
@@ -268,6 +278,23 @@ test("codex usage manual refresh triggers a live sync", async () => {
     ],
     lines: []
   };
+  const snapshot = {
+    capturedAt: Date.now(),
+    sourceUrl: "https://chatgpt.com/codex/settings/usage",
+    title: "Codex Usage",
+    metrics: [
+      {
+        model: "Codex",
+        period: "fiveHours",
+        label: "Codex 5시간 사용 한도",
+        percent: "55%",
+        status: "남음",
+        resetAt: "오후 7:30 초기화",
+        value: "55% · 남음 · 오후 7:30 초기화"
+      }
+    ],
+    lines: []
+  };
   const chromeApi = {
     runtime: {
       get lastError() {
@@ -276,8 +303,10 @@ test("codex usage manual refresh triggers a live sync", async () => {
     },
     storage: {
       local: {
-        async get() {
-          return {};
+        get() {
+          return new Promise((resolve) => {
+            resolveStoredSnapshot = () => resolve({ "s3newtab-codex-usage-snapshot-v1": staleSnapshot });
+          });
         }
       },
       onChanged: {
@@ -307,6 +336,13 @@ test("codex usage manual refresh triggers a live sync", async () => {
       await controller.manualRefresh();
 
       assert.equal(sendMessageCalls, 1);
+      assert.match(collectTextContent(container), /55%/);
+
+      resolveStoredSnapshot();
+      await Promise.resolve();
+
+      assert.match(collectTextContent(container), /55%/);
+      assert.doesNotMatch(collectTextContent(container), /18%/);
     })
   );
 });

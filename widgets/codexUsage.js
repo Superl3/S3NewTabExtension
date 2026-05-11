@@ -399,7 +399,28 @@ export const codexUsageWidget = {
 
     let loading = false;
     let errorMessage = "";
+    let lastSyncMessage = "";
     let snapshot = null;
+    let snapshotVersion = 0;
+
+    function hasUsageMetrics(value) {
+      return Boolean(value?.metrics?.length);
+    }
+
+    function formatSyncStatus(capturedAt) {
+      const date = new Date(Number(capturedAt) || Date.now());
+      const hours = String(date.getHours()).padStart(2, "0");
+      const minutes = String(date.getMinutes()).padStart(2, "0");
+      return `Updated ${hours}:${minutes}`;
+    }
+
+    function applySnapshot(nextSnapshot, { markUpdated = false } = {}) {
+      snapshot = nextSnapshot;
+      snapshotVersion += 1;
+      if (markUpdated && nextSnapshot) {
+        lastSyncMessage = formatSyncStatus(nextSnapshot.capturedAt);
+      }
+    }
 
     function renderStatus() {
       status.classList.toggle("is-error", Boolean(errorMessage));
@@ -415,6 +436,10 @@ export const codexUsageWidget = {
       }
       if (!snapshot) {
         status.textContent = "No data yet. Open usage page then Sync.";
+        return;
+      }
+      if (lastSyncMessage) {
+        status.textContent = lastSyncMessage;
         return;
       }
 
@@ -514,14 +539,14 @@ export const codexUsageWidget = {
         }
 
         const liveSnapshot = normalizeSnapshot(response.snapshot);
-        if (liveSnapshot) {
-          snapshot = liveSnapshot;
+        if (hasUsageMetrics(liveSnapshot)) {
+          applySnapshot(liveSnapshot, { markUpdated: true });
         } else {
           const storedSnapshot = await getStoredSnapshot();
-          if (!storedSnapshot) {
+          if (!hasUsageMetrics(storedSnapshot)) {
             throw new Error("Usage snapshot was empty. Refresh the usage page and try Sync again.");
           }
-          snapshot = storedSnapshot;
+          applySnapshot(storedSnapshot, { markUpdated: true });
           errorMessage = "Live snapshot was incomplete. Showing last saved data.";
         }
       } catch (error) {
@@ -562,9 +587,12 @@ export const codexUsageWidget = {
       if (!changes[CODEX_USAGE_STORAGE_KEY]) {
         return;
       }
-      snapshot = normalizeSnapshot(changes[CODEX_USAGE_STORAGE_KEY].newValue);
-      if (snapshot) {
+      const nextSnapshot = normalizeSnapshot(changes[CODEX_USAGE_STORAGE_KEY].newValue);
+      if (hasUsageMetrics(nextSnapshot)) {
+        applySnapshot(nextSnapshot, { markUpdated: true });
         errorMessage = "";
+      } else if (!snapshot) {
+        applySnapshot(nextSnapshot);
       }
       render();
     };
@@ -588,8 +616,12 @@ export const codexUsageWidget = {
       chrome.storage.onChanged.addListener(storageListener);
     }
 
+    const initialSnapshotVersion = snapshotVersion;
     void getStoredSnapshot().then((stored) => {
-      snapshot = stored;
+      if (snapshotVersion !== initialSnapshotVersion || loading) {
+        return;
+      }
+      applySnapshot(stored);
       render();
     });
 
