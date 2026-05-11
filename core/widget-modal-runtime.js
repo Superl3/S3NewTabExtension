@@ -5,6 +5,7 @@ export function createWidgetModalRuntime({
   shortcutIconEditorState,
   elements,
   state,
+  getState,
   instanceById,
   widgetRegistry,
   closeWidgetTitleRenameModal,
@@ -83,6 +84,11 @@ export function createWidgetModalRuntime({
     pendingWidgetAddState.colSpan = 1;
     pendingWidgetAddState.rowSpan = 1;
     pendingWidgetAddState.title = "";
+  };
+
+  const resolveState = () => {
+    const liveState = typeof getState === "function" ? getState() : null;
+    return liveState || state || null;
   };
 
   const resolvePendingWidgetAdd = () => {
@@ -466,12 +472,15 @@ export function createWidgetModalRuntime({
       enforceContainerWidgetSize
     });
 
+    const runtimeState = resolveState();
     syncWidgetStateAfterModalApply?.(instance, previousPage, {
       inferCommonOverrides,
-      widgetCommonMaster: state?.ui?.widgetCommonMaster,
+      widgetCommonMaster: runtimeState?.ui?.widgetCommonMaster,
       syncLauncherPagingState,
       setActivePage: (page) => {
-        state.ui.home.activePage = page;
+        if (runtimeState?.ui?.home) {
+          runtimeState.ui.home.activePage = page;
+        }
       }
     });
 

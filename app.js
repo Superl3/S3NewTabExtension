@@ -4687,6 +4687,7 @@ const widgetModalRuntime = createWidgetModalRuntime({
   shortcutIconEditorState,
   elements,
   state,
+  getState: () => state,
   instanceById,
   widgetRegistry,
   closeWidgetTitleRenameModal,

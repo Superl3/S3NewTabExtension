@@ -475,9 +475,10 @@ export function setInstanceCommonValue(instance, key, value) {
 }
 
 export function inferCommonOverrides(instance, master) {
+  const normalizedMaster = normalizeWidgetCommonMaster(master);
   const out = {};
   for (const key of WIDGET_COMMON_MASTER_KEYS) {
-    out[key] = instanceCommonValue(instance, key) !== master[key];
+    out[key] = instanceCommonValue(instance, key) !== normalizedMaster[key];
   }
   return out;
 }
