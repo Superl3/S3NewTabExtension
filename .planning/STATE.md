@@ -55,3 +55,18 @@ None yet.
 Last session: 2026-03-31 00:00
 Stopped at: ROADMAP.md/STATE.md 작성 및 REQUIREMENTS traceability 정합화 완료
 Resume file: None
+## Active /goal State
+
+Current focus: Step 2 - strict senior developer gate.
+
+Status: Step 1 and Step 2 are satisfied for the current improvement pass. Future loops should restart at Step 1 if new paid-buyer P0/P1 issues are found.
+
+Latest `/goal` findings:
+
+- Fixed: local/demo browser API unavailable states no longer break default shortcut/bookmarks/storage flows.
+- Fixed: fallback code default widgets no longer include setup-heavy AI Chat or placeholder Label on first launch.
+- Fixed: AI Chat unavailable copy now points to connector/access-token setup instead of a terse required-field error.
+- Verified: startup-state first launch shows named shortcuts, search, weather, TODO, notes, and bookmarks degraded copy without current-page console errors.
+- Improved internally: fallback default widget order now lives in `core/default-widget-order.js` and is tested directly instead of through brittle source inspection.
+
+---

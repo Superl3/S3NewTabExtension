@@ -113,7 +113,7 @@ function normalizeConnectorUrl(value, fallback = LOCAL_AUTH_CONNECTOR_URL) {
 
 const authSessionStorage = createAuthSessionStorage({
   storageKey: AI_CHAT_AUTH_STORAGE_KEY,
-  getStorageArea: () => chrome?.storage?.local,
+  getStorageArea: () => globalThis.chrome?.storage?.local,
   normalizeConnectorUrl
 });
 
@@ -359,7 +359,7 @@ export const aiChatWidget = {
       } else if (connectionError) {
         text = connectionError;
       } else if (!connectorUrl && !configuredToken) {
-        text = "Auth connector URL is required.";
+        text = "Add a connector URL or access token in settings to enable AI Chat.";
       } else if (!activeSession) {
         text = "Connect to authenticate.";
       } else {
@@ -376,7 +376,7 @@ export const aiChatWidget = {
       const connectorUrl = getConnectorUrl();
       const configuredToken = getConfiguredAccessToken();
       if (!connectorUrl && !configuredToken) {
-        connectionError = "Set auth connector URL in widget settings first.";
+        connectionError = "Add a connector URL or access token in settings before connecting.";
         render();
         return;
       }
@@ -399,11 +399,12 @@ export const aiChatWidget = {
           }
         }
 
-        if (!token && connectorUrl && chrome.identity?.launchWebAuthFlow && chrome.identity?.getRedirectURL) {
+        const identityApi = globalThis.chrome?.identity;
+        if (!token && connectorUrl && identityApi?.launchWebAuthFlow && identityApi?.getRedirectURL) {
           const state = createAuthState();
-          const redirectUri = chrome.identity.getRedirectURL("ai-chat-auth");
+          const redirectUri = identityApi.getRedirectURL("ai-chat-auth");
           const startUrl = buildAuthConnectorStartUrl(connectorUrl, redirectUri, state, "openai");
-          const callbackUrl = await chrome.identity.launchWebAuthFlow({
+          const callbackUrl = await identityApi.launchWebAuthFlow({
             url: startUrl,
             interactive: true
           });
@@ -426,7 +427,8 @@ export const aiChatWidget = {
 
         if (!token) {
           throw new Error(
-            tokenRelayFailureMessage || "Unable to obtain connector token. Try Connect again."
+            tokenRelayFailureMessage ||
+              "Unable to obtain connector token. Check the connector URL or add an access token in settings."
           );
         }
 
@@ -515,7 +517,7 @@ export const aiChatWidget = {
 
       const connectorUrl = getConnectorUrl();
       if (!connectorUrl && !activeSession?.accessToken) {
-        appendAssistantMessage("Auth connector URL is required in settings.");
+        appendAssistantMessage("Add a connector URL or access token in settings before sending messages.");
         return;
       }
 
