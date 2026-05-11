@@ -1,5 +1,6 @@
 import { STORAGE_KEY, loadState, saveState } from "./storage.js";
 import { defaultWidgetType, widgetRegistry, widgetList } from "./widgets/index.js";
+import { FALLBACK_DEFAULT_WIDGET_TYPES } from "./core/default-widget-order.js";
 import {
   STARTUP_STATE_EMPTY_WIDGETS_QUERY_KEY,
   STARTUP_STATE_INLINE_QUERY_KEY,
@@ -1178,8 +1179,7 @@ function buildDockConfig(home = state?.ui?.home) {
 }
 
 function defaultInstances() {
-  const order = ["clock", "search", "aiChat", "bookmarks", "shortcut", "todo", "notes", "label"];
-  return order
+  return FALLBACK_DEFAULT_WIDGET_TYPES
     .filter((type) => widgetRegistry[type])
     .map((type, idx) => {
       const def = widgetRegistry[type];

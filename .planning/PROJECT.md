@@ -72,3 +72,13 @@ This document evolves at phase transitions and milestone boundaries.
 
 ---
 *Last updated: 2026-04-07 — modal + interaction invariant contracts locked project-wide.*
+## Active /goal
+
+Improve the product through two strict sequential gates:
+
+1. **Step 1: strict 30 USD buyer ego** - find and fix the issues a demanding paid consumer would criticize first. This includes first launch, default widgets, setup friction, degraded states, copy, polish, persistence, and common edit flows.
+2. **Step 2: strict senior developer ego** - only after Step 1 is satisfied, improve internal implementation quality through bounded refactors, stronger platform seams, clearer modules, and tests that protect behavior.
+
+Current pass status: Step 1 and Step 2 are marked satisfied in `.planning/IMPROVEMENT_GOALS.md`. Any future loop must restart at Step 1 if a new paid-buyer P0/P1 issue is found.
+
+---
