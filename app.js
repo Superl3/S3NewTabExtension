@@ -61,6 +61,7 @@ import {
   SHORT_TEXT_MIN_CONTENT_FONT_SCALE,
   SHORT_TEXT_WIDGET_TYPES,
   applyWidgetCommonMaster,
+  applyWidgetCommonMasterPatch,
   defaultPresets,
   defaultWidgetBackdropBlur,
   defaultWidgetCommonMaster,
@@ -3984,8 +3985,7 @@ function patchWidgetCommonMaster(patch) {
   });
 
   for (const instance of state.instances) {
-    applyWidgetCommonMaster(instance, state.ui.widgetCommonMaster, false);
-    instance.commonOverrides = inferCommonOverrides(instance, state.ui.widgetCommonMaster);
+    applyWidgetCommonMasterPatch(instance, state.ui.widgetCommonMaster, patch);
     const rt = runtime.get(instance.id);
     if (rt?.card) {
       applyCardVisual(rt.card, instance);

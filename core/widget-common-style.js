@@ -492,3 +492,14 @@ export function applyWidgetCommonMaster(instance, master, force = false) {
   }
   instance.commonOverrides = normalizeCommonOverrides(instance.commonOverrides);
 }
+
+export function applyWidgetCommonMasterPatch(instance, master, patch) {
+  applyWidgetCommonMaster(instance, master, false);
+  const changedKeys = Object.keys(patch && typeof patch === "object" ? patch : {});
+  for (const key of changedKeys) {
+    if (WIDGET_COMMON_MASTER_KEYS.includes(key)) {
+      setInstanceCommonValue(instance, key, master[key]);
+    }
+  }
+  instance.commonOverrides = inferCommonOverrides(instance, master);
+}
