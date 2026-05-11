@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 
 import {
   applyWidgetCommonMaster,
+  applyWidgetCommonMasterPatch,
   defaultWidgetCommonMaster,
   inferCommonOverrides,
   instanceCommonValue,
@@ -110,6 +111,50 @@ test("setInstanceCommonValue applies content and color fields", () => {
   assert.equal(instance.contentPadding, 18);
   assert.equal(instance.contentPaddingTop, 18);
   assert.equal(instance.customTextColor, "#ABC");
+});
+
+test("applyWidgetCommonMasterPatch applies changed master fields despite existing overrides", () => {
+  const master = normalizeWidgetCommonMaster({
+    viewMode: "headless",
+    contentPadding: 16
+  });
+  const instance = {
+    type: "note",
+    commonOverrides: normalizeCommonOverrides({
+      viewMode: true,
+      contentPadding: true
+    }),
+    viewMode: "window",
+    contentPadding: 22,
+    contentPaddingTop: 22,
+    contentPaddingRight: 22,
+    contentPaddingBottom: 22,
+    contentPaddingLeft: 22,
+    contentPaddingTopRight: 22,
+    contentPaddingBottomLeft: 22,
+    contentFontScale: 1,
+    transparency: 0.94,
+    backdropBlur: true,
+    edgeRoundness: 12,
+    contentAlignY: "top",
+    titleAlign: "center",
+    contentFillParent: false,
+    surfaceMode: "normal",
+    transparentAutoContrast: true,
+    transparentGhostStrength: 100,
+    widgetThemeMode: "inherit",
+    useCustomColors: false,
+    customTextColor: "#1F2226",
+    customAccentColor: "#1F4F9F",
+    customSurfaceColor: "#FFFAF2"
+  };
+
+  applyWidgetCommonMasterPatch(instance, master, { viewMode: "headless" });
+
+  assert.equal(instance.viewMode, "headless");
+  assert.equal(instance.commonOverrides.viewMode, false);
+  assert.equal(instanceCommonValue(instance, "contentPadding"), 22);
+  assert.equal(instance.commonOverrides.contentPadding, true);
 });
 
 test("resolveTransparentWidgetText and ghost opacity remain deterministic", () => {
