@@ -1,4 +1,5 @@
 import { executeScript } from "../core/platform/chrome-scripting.js";
+import { waitForTabReady } from "../core/platform/chrome-tabs.js";
 
 const CODEX_USAGE_URL = "https://chatgpt.com/codex/settings/usage";
 const CHATGPT_TAB_MATCH = "https://chatgpt.com/*";
@@ -249,6 +250,10 @@ function canUseTabsApi() {
   return Boolean(chrome?.tabs && typeof chrome.tabs.query === "function" && typeof chrome.tabs.sendMessage === "function");
 }
 
+function canNavigateTabsApi() {
+  return Boolean(chrome?.tabs && typeof chrome.tabs.update === "function");
+}
+
 function canUseScriptingApi() {
   return Boolean(chrome?.scripting && typeof chrome.scripting.executeScript === "function");
 }
@@ -290,6 +295,59 @@ async function queryUsageTabs() {
   );
   const safeTabs = Array.isArray(tabs) ? tabs.filter((tab) => Number.isFinite(tab?.id)) : [];
   return safeTabs.filter((tab) => isUsagePageUrl(readTabUrl(tab)));
+}
+
+async function queryChatGptTabs() {
+  if (!canUseTabsApi()) {
+    return [];
+  }
+  const tabs = await fromChromeCallback(
+    (callback) => chrome.tabs.query({ url: [CHATGPT_TAB_MATCH] }, callback),
+    "Unable to query ChatGPT tabs."
+  );
+  return Array.isArray(tabs) ? tabs.filter((tab) => Number.isFinite(tab?.id)) : [];
+}
+
+async function navigateTabToUsage(tabId) {
+  if (!canNavigateTabsApi()) {
+    throw new Error("Unable to navigate ChatGPT tab to usage page.");
+  }
+  const tab = await fromChromeCallback(
+    (callback) => chrome.tabs.update(tabId, { url: CODEX_USAGE_URL, active: true }, callback),
+    "Unable to open ChatGPT usage page in existing tab."
+  );
+  try {
+    await waitForTabReady(tabId, { timeoutMs: 15000 });
+  } catch {
+    // Some Chrome pages do not emit a reliable completion event after SPA redirects.
+  }
+  return tab;
+}
+
+async function resolveUsageTabForSync() {
+  const usageTabs = await queryUsageTabs();
+  if (usageTabs.length) {
+    return usageTabs[0];
+  }
+
+  const chatGptTabs = await queryChatGptTabs();
+  if (chatGptTabs.length) {
+    const targetTab = chatGptTabs[0];
+    await navigateTabToUsage(targetTab.id);
+    return { ...targetTab, url: CODEX_USAGE_URL };
+  }
+
+  const openedTab = await openUsageTab();
+  const tabId = Number(openedTab?.id);
+  if (!Number.isFinite(tabId)) {
+    throw new Error("Usage page opened. Log in and click Sync again.");
+  }
+  try {
+    await waitForTabReady(tabId, { timeoutMs: 15000 });
+  } catch {
+    // Keep going; capture will report whether the page is usable.
+  }
+  return { ...openedTab, id: tabId, url: CODEX_USAGE_URL };
 }
 
 async function sendCaptureMessage(tabId) {
@@ -526,13 +584,7 @@ export const codexUsageWidget = {
       render();
 
       try {
-        const usageTabs = await queryUsageTabs();
-        if (!usageTabs.length) {
-          await openUsageTab();
-          throw new Error("Usage tab opened. Log in and click Sync again.");
-        }
-
-        const targetTab = usageTabs[0];
+        const targetTab = await resolveUsageTabForSync();
         const response = await captureUsageFromTab(targetTab.id);
         if (!response?.ok) {
           throw new Error(normalizeText(response?.error, "Capture failed."));

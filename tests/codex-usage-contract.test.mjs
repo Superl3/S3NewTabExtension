@@ -346,3 +346,82 @@ test("codex usage manual refresh triggers a live sync", async () => {
     })
   );
 });
+
+test("codex usage sync navigates an existing ChatGPT tab to usage page", async () => {
+  let updateCalls = 0;
+  let sendMessageCalls = 0;
+  let updatedUrl = "";
+  const snapshot = {
+    capturedAt: Date.now(),
+    sourceUrl: "https://chatgpt.com/codex/settings/usage",
+    title: "Codex Usage",
+    metrics: [
+      {
+        model: "Codex-Spark",
+        period: "weekly",
+        label: "Codex-Spark 주간 사용 한도",
+        percent: "32%",
+        status: "남음",
+        resetAt: "내일 초기화",
+        value: "32% · 남음 · 내일 초기화"
+      }
+    ],
+    lines: []
+  };
+  const chromeApi = {
+    runtime: {
+      get lastError() {
+        return null;
+      }
+    },
+    storage: {
+      local: {
+        async get() {
+          return {};
+        }
+      },
+      onChanged: {
+        addListener() {},
+        removeListener() {}
+      }
+    },
+    tabs: {
+      query(_queryInfo, callback) {
+        callback([{ id: 9, url: "https://chatgpt.com/" }]);
+      },
+      update(tabId, updateProperties, callback) {
+        updateCalls += 1;
+        updatedUrl = updateProperties.url;
+        callback({ id: tabId, url: updateProperties.url, status: "complete" });
+      },
+      get(tabId, callback) {
+        callback({ id: tabId, url: updatedUrl, status: "complete" });
+      },
+      sendMessage(tabId, message, callback) {
+        sendMessageCalls += 1;
+        callback({ ok: true, tabId, message, snapshot });
+      },
+      onUpdated: {
+        addListener() {},
+        removeListener() {}
+      }
+    }
+  };
+  const documentObj = {
+    createElement: createTestElement
+  };
+
+  await withGlobal("chrome", chromeApi, () =>
+    withGlobal("document", documentObj, async () => {
+      const container = createTestElement("div");
+      const controller = codexUsageWidget.create({ container, getConfig: () => ({}) });
+
+      await controller.manualRefresh();
+
+      assert.equal(updateCalls, 1);
+      assert.equal(updatedUrl, "https://chatgpt.com/codex/settings/usage");
+      assert.equal(sendMessageCalls, 1);
+      assert.match(collectTextContent(container), /32%/);
+    })
+  );
+});
