@@ -8,11 +8,12 @@ export function createHistoryUndoRuntime(deps) {
     const snapshot = deps.buildHistorySnapshot();
     const fingerprint = deps.snapshotFingerprint(snapshot);
     const last = undoState.undoStack[undoState.undoStack.length - 1];
+
+    deps.touchUserMutationClock();
+
     if (last?.fingerprint === fingerprint) {
       return;
     }
-
-    deps.touchUserMutationClock();
 
     undoState.undoStack.push({
       label,
