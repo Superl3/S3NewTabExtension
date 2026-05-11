@@ -9,6 +9,9 @@ export function isPendingEditableField(field) {
   if (tagName === "TEXTAREA") {
     return true;
   }
+  if (tagName === "SELECT") {
+    return true;
+  }
   if (tagName !== "INPUT") {
     return false;
   }
@@ -48,7 +51,7 @@ export function commitPendingEditableState(root, { includeDescendants = false } 
   }
 
   if (includeDescendants && typeof root.querySelectorAll === "function") {
-    for (const field of root.querySelectorAll("input, textarea")) {
+    for (const field of root.querySelectorAll("input, textarea, select")) {
       pushField(field);
     }
   }

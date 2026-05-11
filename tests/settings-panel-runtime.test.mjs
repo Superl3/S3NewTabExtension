@@ -68,12 +68,12 @@ test("createSettingsPanelRuntime syncs visibility and tab selection", () => {
   assert.equal(runtime.toggleSettingsPanel(), true);
   assert.equal(open, true);
   assert.equal(runtime.syncSettingsTabButtons(), "profile");
-  assert.equal(renderCount, 0);
+  assert.equal(renderCount, 1);
 
   const active = runtime.setActiveSettingsTab("weird");
   assert.equal(active, "global");
   assert.equal(state.ui.activeTab, "global");
-  assert.equal(renderCount, 1);
+  assert.equal(renderCount, 2);
   assert.equal(dockSyncCount, 1);
 });
 
