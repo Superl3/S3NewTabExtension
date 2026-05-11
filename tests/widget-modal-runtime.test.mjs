@@ -309,6 +309,34 @@ test("widget modal runtime commits pending edits before applying draft", () => {
   assert.equal(appliedDraft.config.foo, "pending");
 });
 
+test("widget modal runtime applies settings against live app state", () => {
+  const staleMaster = { viewMode: "window" };
+  const liveMaster = { viewMode: "headless" };
+  const liveState = { ui: { home: { activePage: 0 }, widgetCommonMaster: liveMaster } };
+  const instance = { id: "w1", type: "note", page: 0 };
+  let observedMaster = null;
+
+  const { runtime } = createRuntime({
+    state: { ui: { home: { activePage: 0 }, widgetCommonMaster: staleMaster } },
+    getState: () => liveState,
+    instanceById: () => instance,
+    currentLauncherPageCount: () => 3,
+    normalizeWidgetPage: (page) => page,
+    applyWidgetDraftToInstance: () => {
+      instance.page = 2;
+    },
+    syncWidgetStateAfterModalApply: (_instance, _previousPage, deps) => {
+      observedMaster = deps.widgetCommonMaster;
+      deps.setActivePage(_instance.page);
+    }
+  });
+
+  runtime.applyWidgetModal();
+
+  assert.equal(observedMaster, liveMaster);
+  assert.equal(liveState.ui.home.activePage, 2);
+});
+
 test("widget modal runtime clears pending add draft when dismissed without apply", () => {
   const pendingWidgetAddState = {
     open: true,
