@@ -211,9 +211,8 @@ function buildReviewInboxItemKey(item) {
   return normalizeText(item?.number);
 }
 
-function buildReviewInboxOpenPrLabel(item) {
-  const number = Number(item?.number) || 0;
-  return number ? `Open PR #${number}` : "Open pull request";
+function buildReviewInboxOpenPullsLabel() {
+  return "Open repository pull requests";
 }
 
 function readReviewInboxReadSnapshot(storage = undefined) {
@@ -809,6 +808,21 @@ export const githubReviewInboxWidget = {
     const tabBar = document.createElement("div");
     tabBar.className = "github-review-inbox-tab-bar";
 
+    const actions = document.createElement("div");
+    actions.className = "github-review-inbox-actions";
+
+    const openPullsButton = document.createElement("button");
+    openPullsButton.type = "button";
+    openPullsButton.className = "icon-btn github-review-inbox-open-pr";
+    openPullsButton.title = buildReviewInboxOpenPullsLabel();
+    openPullsButton.setAttribute("aria-label", openPullsButton.title);
+    openPullsButton.innerHTML = '<svg class="icon"><use href="#i-open"></use></svg>';
+    openPullsButton.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      openRepositoryPage();
+    });
+
     const ignoredToggle = document.createElement("button");
     ignoredToggle.type = "button";
     ignoredToggle.className = "github-review-inbox-ignored-toggle";
@@ -854,7 +868,8 @@ export const githubReviewInboxWidget = {
     const status = document.createElement("p");
     status.className = "github-pr-widget-status github-review-inbox-status";
 
-    tabBar.append(tabs, ignoredToggle);
+    actions.append(openPullsButton, ignoredToggle);
+    tabBar.append(tabs, actions);
 
     shell.append(warning, tabBar, list, status);
     container.append(shell);
@@ -927,15 +942,6 @@ export const githubReviewInboxWidget = {
     function openRepositoryPage() {
       const cfg = normalizedConfig(getConfig());
       const href = buildRepoPullsPageUrl(cfg.repository);
-      if (cfg.openInNewTab) {
-        window.open(href, "_blank", "noopener,noreferrer");
-      } else {
-        window.location.href = href;
-      }
-    }
-
-    function openPullRequestPage(item, cfg = normalizedConfig(getConfig())) {
-      const href = normalizeText(item?.htmlUrl) || buildRepoPullsPageUrl(cfg.repository);
       if (cfg.openInNewTab) {
         window.open(href, "_blank", "noopener,noreferrer");
       } else {
@@ -1204,9 +1210,6 @@ export const githubReviewInboxWidget = {
         const swipeContent = document.createElement("div");
         swipeContent.className = "github-review-inbox-swipe-content";
 
-        const itemMain = document.createElement("div");
-        itemMain.className = "github-review-inbox-item-main";
-
         const link = document.createElement("a");
         link.className = "github-pr-link github-review-inbox-link";
         link.href = item.htmlUrl || buildRepoPullsPageUrl(cfg.repository);
@@ -1272,21 +1275,7 @@ export const githubReviewInboxWidget = {
 
         link.append(top, meta, badges);
 
-        const openPrButton = document.createElement("button");
-        openPrButton.type = "button";
-        openPrButton.className = "icon-btn github-review-inbox-open-pr";
-        openPrButton.title = buildReviewInboxOpenPrLabel(item);
-        openPrButton.setAttribute("aria-label", openPrButton.title);
-        openPrButton.innerHTML = '<svg class="icon"><use href="#i-open"></use></svg>';
-        openPrButton.addEventListener("click", (event) => {
-          event.preventDefault();
-          event.stopPropagation();
-          setReadState(item);
-          openPullRequestPage(item, cfg);
-        });
-
-        itemMain.append(link, openPrButton);
-        swipeContent.append(itemMain);
+        swipeContent.append(link);
 
         if (item.ignored && !item.autoIgnored) {
           const ignoredActions = document.createElement("div");
@@ -1493,7 +1482,7 @@ export {
   buildOpenPullsApiUrl,
   buildRepoPullsPageUrl,
   buildCacheReviewItems,
-  buildReviewInboxOpenPrLabel,
+  buildReviewInboxOpenPullsLabel,
   buildReviewInboxReadItemKey,
   buildReviewInboxReadScopeKey,
   computeReviewInboxAgeSeverity,
