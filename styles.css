@@ -3734,9 +3734,14 @@ body.mode-edit .widget-float-remove:hover {
 
 .github-review-inbox-footer {
   margin-top: auto;
-  padding-top: 4px;
-  border-top: 1px solid color-mix(in srgb, var(--line), transparent 58%);
+  display: flex;
+  align-items: flex-end;
+  justify-content: flex-end;
   flex: 0 0 auto;
+}
+
+.github-review-inbox-footer .github-pr-widget-status {
+  padding-top: 0;
 }
 
 .github-pr-list {
