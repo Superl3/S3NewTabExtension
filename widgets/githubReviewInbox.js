@@ -1205,6 +1205,7 @@ export const githubReviewInboxWidget = {
       const tabId = normalizeReviewInboxTab(selectedTab);
       const tabData = getTabData(cfg, tabId);
       const visibleItems = tabData.items.slice(0, cfg.maxItems);
+      list.classList.toggle("is-empty", visibleItems.length === 0);
 
       if (!visibleItems.length) {
         const empty = document.createElement("li");
