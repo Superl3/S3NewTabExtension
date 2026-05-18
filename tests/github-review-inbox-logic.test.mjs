@@ -13,6 +13,7 @@ import {
 } from "../widgets/shared/githubReviewInboxLogic.js";
 import {
   buildCacheReviewItems,
+  buildReviewInboxIgnoredToggleIconHref,
   buildReviewInboxOpenPullsLabel,
   buildReviewInboxTabLabel,
   buildReviewInboxReadItemKey,
@@ -405,6 +406,11 @@ test("review inbox open PR button targets the repository pull request list", () 
 test("review inbox tabs use compact requested and opened labels", () => {
   assert.equal(buildReviewInboxTabLabel("needsReview", 12), "requested (12)");
   assert.equal(buildReviewInboxTabLabel("opened", 3), "opened (3)");
+});
+
+test("review inbox hidden toggle switches between closed and open eye icons", () => {
+  assert.equal(buildReviewInboxIgnoredToggleIconHref(false), "#i-eye-off");
+  assert.equal(buildReviewInboxIgnoredToggleIconHref(true), "#i-eye");
 });
 
 test("hasGithubMention matches case-insensitive direct mentions", () => {

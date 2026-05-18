@@ -3699,38 +3699,10 @@ body.mode-edit .widget-float-remove:hover {
 }
 
 .github-review-inbox-ignored-toggle-icon {
-  position: relative;
-  display: inline-block;
-  width: 13px;
-  height: 8px;
-  border: 1.6px solid currentColor;
-  border-radius: 999px;
-  box-sizing: border-box;
-  pointer-events: none;
-}
-
-.github-review-inbox-ignored-toggle-icon::before {
-  content: "";
-  position: absolute;
-  inset: 50% auto auto 50%;
-  width: 3px;
-  height: 3px;
-  border-radius: 999px;
-  background: currentColor;
-  transform: translate(-50%, -50%);
-}
-
-.github-review-inbox-ignored-toggle-icon::after {
-  content: "";
-  position: absolute;
-  left: -2px;
-  top: 3px;
   width: 16px;
-  height: 1.6px;
-  border-radius: 999px;
-  background: currentColor;
-  transform: rotate(-32deg);
-  transform-origin: center;
+  height: 16px;
+  stroke-width: 1.9;
+  pointer-events: none;
 }
 
 .github-pr-widget-shell {

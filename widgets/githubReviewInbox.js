@@ -223,6 +223,10 @@ function buildReviewInboxTabLabel(tabId, count = 0) {
   return `${tab?.label || "requested"} (${normalizedCount})`;
 }
 
+function buildReviewInboxIgnoredToggleIconHref(showIgnored = false) {
+  return showIgnored ? "#i-eye" : "#i-eye-off";
+}
+
 function readReviewInboxReadSnapshot(storage = undefined) {
   return readScopedItemSnapshot(REVIEW_INBOX_READ_ITEMS_STORAGE_KEY, storage);
 }
@@ -838,9 +842,11 @@ export const githubReviewInboxWidget = {
     ignoredToggle.setAttribute("aria-label", "Show ignored pull requests");
     ignoredToggle.title = "Show ignored pull requests";
 
-    const ignoredToggleIcon = document.createElement("span");
-    ignoredToggleIcon.className = "github-review-inbox-ignored-toggle-icon";
+    const ignoredToggleIcon = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    ignoredToggleIcon.setAttribute("class", "icon github-review-inbox-ignored-toggle-icon");
+    ignoredToggleIcon.setAttribute("viewBox", "0 0 24 24");
     ignoredToggleIcon.setAttribute("aria-hidden", "true");
+    ignoredToggleIcon.innerHTML = `<use href="${buildReviewInboxIgnoredToggleIconHref(false)}"></use>`;
     ignoredToggle.append(ignoredToggleIcon);
 
     ignoredToggle.addEventListener("click", (event) => {
@@ -1064,6 +1070,7 @@ export const githubReviewInboxWidget = {
         ignoredToggle.setAttribute("aria-label", "Show ignored pull requests");
         ignoredToggle.dataset.count = "0";
         ignoredToggle.classList.remove("active");
+        ignoredToggleIcon.innerHTML = `<use href="${buildReviewInboxIgnoredToggleIconHref(false)}"></use>`;
         return;
       }
 
@@ -1074,6 +1081,7 @@ export const githubReviewInboxWidget = {
       ignoredToggle.setAttribute("aria-label", ignoredToggle.title);
       ignoredToggle.dataset.count = String(totalIgnored);
       ignoredToggle.classList.toggle("active", showIgnored);
+      ignoredToggleIcon.innerHTML = `<use href="${buildReviewInboxIgnoredToggleIconHref(showIgnored)}"></use>`;
     }
 
     function appendBadge(row, text, className = "") {
@@ -1508,6 +1516,7 @@ export {
   buildOpenPullsApiUrl,
   buildRepoPullsPageUrl,
   buildCacheReviewItems,
+  buildReviewInboxIgnoredToggleIconHref,
   buildReviewInboxOpenPullsLabel,
   buildReviewInboxTabLabel,
   buildReviewInboxReadItemKey,
