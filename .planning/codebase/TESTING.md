@@ -1,141 +1,66 @@
 # Testing Patterns
 
-**Analysis Date:** 2026-03-30
+**Analysis Date:** 2026-05-18
 
 ## Test Framework
 
-**Runner:**
-- Not detected (no `jest.config.*`, `vitest.config.*`, `playwright.config.*`, or `cypress.config.*` in repository root).
-- Config: Not applicable
-
-**Assertion Library:**
-- Not detected
+**Runner:** Node.js built-in `node:test`.
 
 **Run Commands:**
 ```bash
-node --check app.js                  # Syntax-check main runtime entry
-node --check widgets/index.js        # Syntax-check widget registry module
-node --check widgets/calendar.js     # Syntax-check individual widget module
+npm test
+npm run test:production
 ```
+
+**CI:** `.github/workflows/tests.yml` runs both commands on `main`, `fix`, `feat/**`, `chore/**`, and pull requests.
 
 ## Test File Organization
 
-**Location:**
-- No automated test directories or co-located test files detected.
-- Validation guidance is documented in `README.md` and manual QA checklists under `docs/`.
+**Location:** `tests/*.test.mjs`
 
-**Naming:**
-- Automated test naming pattern: Not detected (`*.test.*` / `*.spec.*` not present).
-- Manual checklist naming pattern uses kebab-case docs (examples: `docs/dock-manual-test-checklist.md`, `docs/dock-accessibility-checklist.md`).
+**Current scale:** 127 test files and 561 passing test cases in the latest local run.
 
-**Structure:**
-```
-docs/
-  dock-manual-test-checklist.md
-  dock-accessibility-checklist.md
-  dock-interaction-spec.md
-```
+**Major suites:**
+- Modal close and Enter-submit contracts: `wire-events-overlays`, `wire-events-keydown`, `widget-modal-runtime`, `todo-alarm-modal-contract`.
+- Drag/drop, dock, container, page navigation: `widget-card-drag-session`, `dock-widget-drag-session`, `drag-drop-*`, `container-*`, `launcher-*`.
+- Startup and buyer gate: `startup-state`, `buyer-gate-source-contract`, `browser-api-fallback`.
+- Integration logic contracts: `codex-usage-contract`, `github-review-inbox-logic`, `monday-widgets-regression`, `flex-worktime-platform`, `calendar-ics-contract`, `weather-contract`.
 
-## Test Structure
+## Production Readiness Gate
 
-**Suite Organization:**
-```markdown
-# Dock Manual Test Checklist
+`npm run test:production` runs `scripts/validate-production-readiness.mjs`.
 
-## 1) 스크롤 고정
-- [ ] 페이지 스크롤/컨텐츠 이동 중에도 Dock은 하단 고정 위치를 유지한다.
-
-## 4) 키보드
-- [ ] Tab으로 Dock item과 Dock 액션 버튼에 순차 접근 가능하다.
-- [ ] ArrowLeft/ArrowRight, Home/End 이동이 동작한다.
-```
-
-**Patterns:**
-- Setup pattern: run extension in Chromium with developer mode and reload extension before verification (`README.md`).
-- Teardown pattern: manual reset/reload workflow via extension reload and tab refresh (`README.md`).
-- Assertion pattern: checkbox-driven expected behaviors in `docs/dock-manual-test-checklist.md` and `docs/dock-accessibility-checklist.md`.
-
-## Mocking
-
-**Framework:** Not used
-
-**Patterns:**
-```typescript
-// Not applicable: no automated test harness or mocking utilities detected.
-```
-
-**What to Mock:**
-- Not applicable in current repository state.
-
-**What NOT to Mock:**
-- Not applicable in current repository state.
-
-## Fixtures and Factories
-
-**Test Data:**
-```typescript
-// No dedicated test fixture/factory modules detected.
-// Runtime sample state exists at config/startup-state.json for manual initialization checks.
-```
-
-**Location:**
-- Runtime baseline snapshot: `config/startup-state.json`
-- Export/sanitization snippet used for manual state verification: `scripts/export-current-state-snippet.md`
-
-## Coverage
-
-**Requirements:** None enforced
-
-**View Coverage:**
-```bash
-# Not available: no coverage tooling configured.
-```
-
-## Test Types
-
-**Unit Tests:**
-- Not used (no unit test files or runner configuration detected).
-
-**Integration Tests:**
-- Manual integration checks documented for Dock behavior and accessibility in `docs/dock-manual-test-checklist.md` and `docs/dock-accessibility-checklist.md`.
-
-**E2E Tests:**
-- Framework: Not used
-- Current E2E verification is manual through browser interaction checklists and behavior specs (`docs/dock-interaction-spec.md`).
-
-## Common Patterns
-
-**Async Testing:**
-```typescript
-// Current pattern is manual runtime validation of async flows:
-// - OAuth/connect flows in widgets/aiChat.js
-// - API fetch + fallback flows in widgets/weather.js and widgets/gmail.js
-// Verified through extension UI behavior, not automated assertions.
-```
-
-**Error Testing:**
-```typescript
-// Current pattern is manual negative-path verification:
-// - Invalid/missing auth and connector states handled in widgets/aiChat.js
-// - Feed/auth parse failures handled in widgets/gmail.js
-// - Storage fallback behavior in storage.js
-```
+The guard verifies:
+- Manifest V3 and new-tab entry shape.
+- Required permissions and explicit host permissions without `<all_urls>` or broad wildcard hosts.
+- CI runs both unit/contract tests and production readiness checks.
+- `.gitattributes` enforces LF text working trees and protects binary assets.
+- Planning docs no longer contain known stale test/CI statements.
+- `docs/production-readiness.md` contains the required manual release smoke checklist.
 
 ## Interaction Invariant Regression Gate
 
-Every change that touches navigation, deletion, drag-drop, container/folder routing, or modal submission must run and pass a focused regression gate before merge.
+Every change that touches navigation, deletion, drag-drop, container/folder routing, or modal submission must run and pass focused regression coverage before merge.
 
 **Required targeted suites:**
-- `node --test tests/wire-events-overlays.test.mjs tests/wire-events-keydown.test.mjs tests/wire-events-widget-controls.test.mjs tests/widget-modal-runtime.test.mjs`
-- `node --test tests/widget-card-drag-session.test.mjs tests/dock-widget-drag-session.test.mjs tests/drag-drop-evaluation.test.mjs tests/drag-drop-orchestration.test.mjs`
-- `node --test tests/launcher-drop-plan.test.mjs tests/launcher-page-runtime.test.mjs tests/launcher-pages.test.mjs tests/board-wheel-navigation.test.mjs`
-- `node --test tests/container-drop-runtime.test.mjs tests/container-order-runtime.test.mjs tests/widget-drop-plan-apply.test.mjs`
+```bash
+node --test tests/wire-events-overlays.test.mjs tests/wire-events-keydown.test.mjs tests/wire-events-widget-controls.test.mjs tests/widget-modal-runtime.test.mjs
+node --test tests/widget-card-drag-session.test.mjs tests/dock-widget-drag-session.test.mjs tests/drag-drop-evaluation.test.mjs tests/drag-drop-orchestration.test.mjs
+node --test tests/launcher-drop-plan.test.mjs tests/launcher-page-runtime.test.mjs tests/launcher-pages.test.mjs tests/board-wheel-navigation.test.mjs
+node --test tests/container-drop-runtime.test.mjs tests/container-order-runtime.test.mjs tests/widget-drop-plan-apply.test.mjs
+```
 
-**Coverage expectations:**
-- Include both Edit and Use mode paths where behavior differs.
-- Include delete-zone, container/folder enter/reorder/exit, and cancel/failure cleanup paths.
-- Include pointer + keyboard/Enter page navigation/modal submission paths when affected.
+## Manual Smoke Requirements
+
+Automated tests do not replace real extension smoke. Before a public production claim, run the checklist in `docs/production-readiness.md` from a clean Chrome and Edge profile with the repo loaded as an unpacked extension.
+
+Minimum smoke coverage:
+- First launch and configured startup dashboard.
+- Edit Mode toggle, Add Widget, widget settings OK/Cancel/Enter/Escape/overlay close.
+- Layout persistence after reload.
+- Bookmarks degraded and real-extension permission states.
+- At least one account-backed widget degraded state and one live authenticated path.
 
 ---
 
-*Testing analysis: 2026-03-30*
+*Testing analysis refreshed: 2026-05-18*

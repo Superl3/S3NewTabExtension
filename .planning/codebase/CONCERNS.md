@@ -1,11 +1,11 @@
 # Codebase Concerns
 
-**Analysis Date:** 2026-03-30
+**Analysis Date:** 2026-05-18
 
 ## Tech Debt
 
 **Core app runtime and UI orchestration (`app.js`):**
-- Issue: `app.js` is a monolithic 12,180-line module that combines state model, persistence, drag/drop, layout, settings UI, modal workflows, wallpaper/media logic, and startup-state import/export.
+- Issue: `app.js` is still a large 5,077-line module that combines state model, persistence, layout orchestration, settings UI, modal workflows, wallpaper/media coordination, and startup-state import/export.
 - Files: `app.js`
 - Impact: High change surface area increases regression risk; unrelated feature updates collide in one file and make refactoring/testing difficult.
 - Fix approach: Split `app.js` into focused modules (state/persistence, board interactions, settings UI, background media, startup import/export) behind explicit interfaces.
@@ -17,10 +17,10 @@
 - Fix approach: Extract shared Monday auth client helpers into one module and consume from both widgets.
 
 **Large committed startup snapshot as runtime baseline:**
-- Issue: Startup baseline is a very large static payload (4,878 lines) with full UI/widget instance state.
+- Issue: Startup baseline is now a smaller composable payload, but it is still a committed runtime baseline that can drift from product intent if not reviewed as a fixture.
 - Files: `config/startup-state.json`
-- Impact: High review noise, brittle default-state evolution, and higher chance of accidental config coupling to one captured environment.
-- Fix approach: Keep defaults minimal and composable (small canonical defaults + optional presets), and avoid committing full expanded instance snapshots as baseline.
+- Impact: Default-state evolution can still become coupled to one captured environment if changes are not covered by startup-state and buyer-gate tests.
+- Fix approach: Keep defaults minimal and composable, review startup changes as product changes, and preserve `tests/startup-state.test.mjs` coverage.
 
 ## Known Bugs
 
@@ -32,11 +32,11 @@
 
 ## Security Considerations
 
-**Over-broad network reach from extension context:**
-- Risk: Extension can request arbitrary HTTP/HTTPS origins due to wildcard host permissions.
+**Broad integration reach from extension context:**
+- Risk: Extension requests many explicit host permissions for integrations; while broad wildcards are not present, the permission surface is still large enough to require release review.
 - Files: `manifest.json`
-- Current mitigation: Widgets normalize URL schemes in several places (e.g., `http/https` checks).
-- Recommendations: Replace `"https://*/*", "http://*/*"` with explicit host allowlists per integration.
+- Current mitigation: `manifest.json` uses explicit host allowlists, and `npm run test:production` rejects `<all_urls>`, `http://*/*`, `https://*/*`, and `*://*/*`.
+- Recommendations: Keep host permissions tied to active widget integrations and document why each host is needed before public release.
 
 **Plaintext token persistence in local extension storage:**
 - Risk: Access tokens are persisted in `chrome.storage.local` for Monday and AI chat sessions.
@@ -76,13 +76,13 @@
 - Files: `widgets/flexWorktime.js`
 - Why fragile: Extraction relies on Korean status regex and body-text scoring from `flex.team/home`; minor UI/content changes or login-flow changes break parsing.
 - Safe modification: Keep scrape logic isolated, preserve fallback/error contracts, and validate against real logged-in tab scenarios before merging changes.
-- Test coverage: No automated tests verify scrape extraction robustness.
+- Test coverage: Unit coverage exists for platform and parser contracts, but live logged-in Flex UI smoke remains manual.
 
 **Shared auth/session behavior split across multiple widgets:**
 - Files: `widgets/mondayAssigned.js`, `widgets/mondayMeetingNote.js`, `widgets/aiChat.js`
 - Why fragile: Similar OAuth/token/session flows are implemented separately with different helper stacks.
 - Safe modification: Centralize auth parsing/storage helpers first, then refactor call sites incrementally.
-- Test coverage: No automated tests cover callback parsing, token relay fallback, or reconnect/disconnect edge cases.
+- Test coverage: Connector and widget regression tests cover several auth/session contracts, but live connector reconnect/disconnect flows remain manual release-smoke items.
 
 ## Scaling Limits
 
@@ -114,25 +114,26 @@
 
 ## Missing Critical Features
 
-**Automated validation pipeline (tests/CI) is not detected:**
-- Problem: No test suites or CI workflows are present.
-- Blocks: Safe refactoring of `app.js` and auth/integration flows at speed.
-- Files: `app.js`, `widgets/*.js`, `.github/workflows/` (not detected)
+**Real extension smoke is still manual:**
+- Problem: The automated suite covers contracts and local browser smoke can cover rendered behavior, but there is no committed Playwright-style unpacked-extension E2E suite yet.
+- Blocks: Fully automated proof for Chrome/Edge extension loading, real `chrome.*` permission prompts, and authenticated page scraping.
+- Files: `docs/production-readiness.md`, future E2E harness.
+- Current mitigation: `docs/production-readiness.md` defines the manual release smoke, and `npm run test:production` ensures that checklist stays present.
 
 ## Test Coverage Gaps
 
-**Core extension runtime behavior is untested:**
-- What's not tested: Persistence conflict resolution, undo/redo state restoration, drag/drop interactions, startup-state import/export sanitization, auth callback parsing.
-- Files: `app.js`, `storage.js`, `widgets/mondayAssigned.js`, `widgets/mondayMeetingNote.js`, `widgets/aiChat.js`
-- Risk: Regressions in state integrity and auth flows can ship unnoticed.
+**Live extension runtime behavior is partially manual:**
+- What's not fully automated: Real browser extension installation, permission prompts, authenticated tab reuse, and provider UI scraping against live accounts.
+- Files: `manifest.json`, `content-scripts/codexUsageScraper.js`, `widgets/codexUsage.js`, `widgets/flexWorktime.js`, account-backed widgets.
+- Risk: Local contract tests can pass while real browser/session behavior regresses.
 - Priority: High
 
-**Integration-heavy widgets are untested:**
-- What's not tested: RSS/XML parsing variants, ICS parsing edge cases/timezone handling, Flex scrape fallback behavior, weather cache invalidation behavior.
+**Integration-heavy widgets still need live smoke:**
+- What's not fully automated: Upstream provider UI changes, account login redirects, rate limits, and stale session behavior.
 - Files: `widgets/rss.js`, `widgets/calendar.js`, `widgets/flexWorktime.js`, `widgets/weather.js`
 - Risk: Upstream response variance causes production-only failures.
 - Priority: High
 
 ---
 
-*Concerns audit: 2026-03-30*
+*Concerns audit refreshed: 2026-05-18*
