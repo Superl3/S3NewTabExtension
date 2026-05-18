@@ -31,6 +31,14 @@ These rules are mandatory for this repository across sessions.
 4. Mode switches must preserve header/title layout metrics (font size, line height, vertical rhythm, and spacing) so titles never appear to jump due to button visibility changes.
 5. Header height must remain identical between Normal and Edit modes; button visibility must never cause title/header height expansion or collapse (notably in TODO/Notes and any future widgets).
 
+## Widget Body Layout Principles
+
+1. Widgets with list/content plus status metadata should default to a full-height body layout: header/actions at the top, content in a stable scrollable middle region, and status/metadata in an independent footer pinned to the bottom of the widget content area.
+2. Footer/status text must not be implemented as a divider-separated list item or as part of the scrollable content. It should remain visually separate by placement only, without a border divider unless explicitly requested.
+3. Repeated content rows/cards must keep stable dimensions as the widget grows, shrinks, or changes item count. Extra vertical space should belong to the scroll/content region, not be distributed into row height.
+4. Empty states may fill the content region, but populated item rows must not stretch via `1fr`/fit-content behavior that makes row height depend on item count.
+5. When a widget needs a bottom-pinned footer, ensure the widget content host/slot actually fills the widget body; pinning a footer inside a shrink-wrapped content slot is not sufficient.
+
 
 ## Drag Overlay Layering Principles
 
