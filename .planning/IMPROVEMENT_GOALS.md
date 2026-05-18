@@ -52,11 +52,16 @@ These are the first issues that a strict paid user would likely call out:
 - 2026-05-11: Step 2 internal loop added `widgets/shared/chromeApi.js` and moved AI/Monday auth widgets to the shared Chrome API seam.
 - 2026-05-11: `npm test` passed with 553 tests after Step 2 and Step 1 regression.
 - 2026-05-11: Browser smoke on `http://127.0.0.1:8768/newtab.html` confirmed default startup and setup-widget degraded states have no current-page console errors, no raw chrome failure, and no old terse setup copy.
-- 2026-05-11: Re-ran Step 1 buyer exploration and found a fallback first-launch P1: Add Widget -> default Clock -> OK could close the modal but fail with "빈 공간이 없어 위젯을 추가하지 못했습니다" because fallback default widgets were packed into a 4x3 layout.
+- 2026-05-11: Re-ran Step 1 buyer exploration and found a fallback first-launch P1: Add Widget -> default Clock -> OK could close the modal but fail with "no empty space" because fallback default widgets were packed into a 4x3 layout.
 - 2026-05-11: Fixed fallback default layout assignment with a shared 12x8 non-overlapping grid policy and buyer-gate contract coverage proving fallback widgets fit and leave room for a default Add Widget probe.
 - 2026-05-11: Browser smoke on `http://127.0.0.1:8774/newtab.html` confirmed fallback default first launch had 7 widgets, Add Widget -> default Clock -> settings OK increased to 8 widgets, reload preserved 8 widgets, Add modal Cancel closed, widget settings OK closed, no visible `Widget failed to load.`, and no current-page console errors for widget load, raw chrome access, or persistence.
 - 2026-05-11: Browser smoke with account-backed/setup widgets confirmed GitHub PR, GitHub Review Inbox, RSS, Monday, and AI Chat degraded states rendered without forbidden raw setup/error copy and without current-page widget/chrome/persistence console failures.
 - 2026-05-11: `npm test` passed with 556 tests after the fallback Add Widget fix and Step 2 review cleanup.
+- 2026-05-18: Production-readiness audit found one release hygiene blocker: Git appeared clean, but colocated `jj` reported 323 files modified because the repo had no LF policy while the Windows working tree used CRLF.
+- 2026-05-18: Added `.gitattributes` LF policy and normalized the working tree so `jj status` reports only intentional release changes.
+- 2026-05-18: Local browser smoke on `http://127.0.0.1:8776/newtab.html?startup-state=config/startup-state.json` confirmed 12 configured widgets rendered, settled with no `Widget failed to load`, no raw `chrome is not defined`, no `Unknown error`, no `Failed to fetch`, and no current-page warn/error logs.
+- 2026-05-18: Local browser smoke confirmed Edit Mode -> Add Widget -> default Clock -> settings OK increased the widget count from 12 to 13 and reload preserved the added clock.
+- 2026-05-18: Added `docs/production-readiness.md` and `npm run test:production` to keep release smoke, explicit host permission, CI, EOL, and stale planning-doc checks visible.
 
 ### Buyer Acceptance Criteria
 
@@ -145,4 +150,3 @@ Step 1 can be promoted to `Satisfied` only with:
 - updated manual checklist or notes
 
 Step 2 can be unblocked only after the Step 1 promotion checklist is complete.
-
