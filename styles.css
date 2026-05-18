@@ -3621,7 +3621,9 @@ body.mode-edit .widget-float-remove:hover {
 .github-review-inbox-tabs {
   display: flex;
   gap: 8px;
-  flex-wrap: wrap;
+  flex: 1 1 auto;
+  flex-wrap: nowrap;
+  min-width: 0;
 }
 
 .github-review-inbox-tab-bar {
@@ -3629,17 +3631,20 @@ body.mode-edit .widget-float-remove:hover {
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  min-width: 0;
 }
 
 .github-review-inbox-tab {
   border: 1px solid color-mix(in srgb, var(--line), transparent 22%);
   border-radius: 999px;
-  padding: 7px 12px;
+  padding: 7px 10px;
   cursor: pointer;
   color: var(--text);
   background: color-mix(in srgb, var(--surface), transparent 14%);
   font: inherit;
+  min-width: 0;
+  white-space: nowrap;
 }
 
 .github-review-inbox-tab.active {
@@ -3753,6 +3758,13 @@ body.mode-edit .widget-float-remove:hover {
 
 .github-pr-widget-status.is-error {
   color: color-mix(in srgb, var(--warn), var(--text) 18%);
+}
+
+.github-review-inbox-footer {
+  margin-top: auto;
+  padding-top: 4px;
+  border-top: 1px solid color-mix(in srgb, var(--line), transparent 58%);
+  flex: 0 0 auto;
 }
 
 .github-pr-list {

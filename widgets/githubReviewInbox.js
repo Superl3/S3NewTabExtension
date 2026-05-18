@@ -27,8 +27,8 @@ const REVIEW_INBOX_SWIPE_VERTICAL_TOLERANCE_RATIO = 0.75;
 const REVIEW_INBOX_READ_ITEMS_STORAGE_KEY = "s3:github-review-inbox-read-items:v1";
 
 const REVIEW_INBOX_TABS = [
-  { id: REVIEW_INBOX_TAB_NEEDS_REVIEW, label: "PRs I need to review" },
-  { id: REVIEW_INBOX_TAB_OPENED, label: "PRs I opened" }
+  { id: REVIEW_INBOX_TAB_NEEDS_REVIEW, label: "requested" },
+  { id: REVIEW_INBOX_TAB_OPENED, label: "opened" }
 ];
 
 function clamp(value, min, max) {
@@ -214,6 +214,13 @@ function buildReviewInboxItemKey(item) {
 
 function buildReviewInboxOpenPullsLabel() {
   return "Open repository pull requests";
+}
+
+function buildReviewInboxTabLabel(tabId, count = 0) {
+  const normalizedTabId = normalizeReviewInboxTab(tabId);
+  const tab = REVIEW_INBOX_TABS.find((candidate) => candidate.id === normalizedTabId);
+  const normalizedCount = Math.max(0, Math.round(Number(count) || 0));
+  return `${tab?.label || "requested"} (${normalizedCount})`;
 }
 
 function readReviewInboxReadSnapshot(storage = undefined) {
@@ -866,13 +873,17 @@ export const githubReviewInboxWidget = {
     const list = document.createElement("ul");
     list.className = "github-pr-list github-review-inbox-list";
 
+    const footer = document.createElement("footer");
+    footer.className = "github-review-inbox-footer";
+
     const status = document.createElement("p");
     status.className = "github-pr-widget-status github-review-inbox-status";
 
     actions.append(openPullsButton, ignoredToggle);
     tabBar.append(tabs, actions);
+    footer.append(status);
 
-    shell.append(warning, tabBar, list, status);
+    shell.append(warning, tabBar, list, footer);
     container.append(shell);
 
     let loading = false;
@@ -984,7 +995,21 @@ export const githubReviewInboxWidget = {
         return;
       }
       const synced = formatSyncedLabel(lastSyncedAt);
-      status.textContent = `${cfg.repository} · ${needsReviewData.items.length} review · ${openedData.items.length} opened${unreadCount ? ` · ${unreadCount} new` : ""}${hiddenIgnoredCount ? ` · ${hiddenIgnoredCount} ignored` : ""}${synced ? ` · Synced ${synced}` : ""}`;
+      const statusParts = [
+        cfg.repository,
+        `${needsReviewData.items.length} requested`,
+        `${openedData.items.length} opened`
+      ];
+      if (unreadCount) {
+        statusParts.push(`${unreadCount} new`);
+      }
+      if (hiddenIgnoredCount) {
+        statusParts.push(`${hiddenIgnoredCount} ignored PRs`);
+      }
+      if (synced) {
+        statusParts.push(`synced ${synced}`);
+      }
+      status.textContent = statusParts.join(" / ");
     }
 
     function renderTabs() {
@@ -1013,7 +1038,7 @@ export const githubReviewInboxWidget = {
         const isActive = normalizeReviewInboxTab(selectedTab) === tab.id;
         button.classList.toggle("active", isActive);
         button.setAttribute("aria-pressed", isActive ? "true" : "false");
-        button.textContent = `${tab.label} (${counts[tab.id] || 0})`;
+        button.textContent = buildReviewInboxTabLabel(tab.id, counts[tab.id] || 0);
       }
     }
 
@@ -1484,6 +1509,7 @@ export {
   buildRepoPullsPageUrl,
   buildCacheReviewItems,
   buildReviewInboxOpenPullsLabel,
+  buildReviewInboxTabLabel,
   buildReviewInboxReadItemKey,
   buildReviewInboxReadScopeKey,
   computeReviewInboxAgeSeverity,

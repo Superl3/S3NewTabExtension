@@ -14,6 +14,7 @@ import {
 import {
   buildCacheReviewItems,
   buildReviewInboxOpenPullsLabel,
+  buildReviewInboxTabLabel,
   buildReviewInboxReadItemKey,
   buildReviewInboxReadScopeKey,
   computeReviewInboxAgeSeverity,
@@ -399,6 +400,11 @@ test("review inbox read state can be removed and prunes empty scopes", () => {
 
 test("review inbox open PR button targets the repository pull request list", () => {
   assert.equal(buildReviewInboxOpenPullsLabel(), "Open repository pull requests");
+});
+
+test("review inbox tabs use compact requested and opened labels", () => {
+  assert.equal(buildReviewInboxTabLabel("needsReview", 12), "requested (12)");
+  assert.equal(buildReviewInboxTabLabel("opened", 3), "opened (3)");
 });
 
 test("hasGithubMention matches case-insensitive direct mentions", () => {
