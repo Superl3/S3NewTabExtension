@@ -3769,6 +3769,7 @@ body.mode-edit .widget-float-remove:hover {
 }
 
 .github-pr-list {
+  --github-review-inbox-item-height: 82px;
   list-style: none;
   margin: 0;
   padding: 0;
@@ -3779,6 +3780,11 @@ body.mode-edit .widget-float-remove:hover {
   grid-auto-rows: minmax(max-content, 1fr);
   align-content: stretch;
   overflow: hidden auto;
+}
+
+.github-review-inbox-list:not(.is-empty) {
+  grid-auto-rows: var(--github-review-inbox-item-height);
+  align-content: start;
 }
 
 .github-pr-empty {
@@ -3811,6 +3817,11 @@ body.mode-edit .widget-float-remove:hover {
   transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
   overflow: hidden;
   touch-action: pan-y;
+}
+
+.github-review-inbox-list:not(.is-empty) .github-pr-item {
+  min-height: var(--github-review-inbox-item-height);
+  height: var(--github-review-inbox-item-height);
 }
 
 .github-pr-item.is-review-requested {
@@ -3851,6 +3862,7 @@ body.mode-edit .widget-float-remove:hover {
   position: relative;
   z-index: 1;
   min-height: 100%;
+  height: 100%;
   border-radius: inherit;
   background: color-mix(in srgb, var(--widget-effective-surface), transparent 12%);
   box-shadow: inset 0 0 0 1px transparent;
