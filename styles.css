@@ -1406,6 +1406,30 @@ body.mode-edit .drag-handle {
   flex: 0 0 auto;
 }
 
+.widget-card[data-widget-type="githubReviewInbox"] .widget-body {
+  overflow: hidden;
+}
+
+.widget-card[data-widget-type="githubReviewInbox"] .widget-content-host {
+  min-height: 0;
+  height: 100%;
+}
+
+.widget-card[data-widget-type="githubReviewInbox"] .widget-content-slot {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  align-items: stretch;
+}
+
+.widget-card[data-widget-type="githubReviewInbox"] .widget-content-slot > * {
+  width: 100%;
+  min-width: 0;
+}
+
 .widget-card[data-content-fill="true"][data-widget-type="gmail"] .widget-content-slot,
 .widget-card[data-content-fill="true"][data-widget-type="mondayMeetingNote"] .widget-content-slot,
 .widget-card[data-content-fill="true"][data-widget-type="calendar"] .widget-content-slot,
