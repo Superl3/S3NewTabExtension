@@ -3,7 +3,7 @@
 간단 사용법:
 1. 새 탭 페이지에서 DevTools (`F12`) -> **Console** 열기
 2. 아래 코드를 그대로 실행
-3. 자동으로 `startup-state.sanitized.json` 파일이 다운로드됨
+3. 자동으로 `s3-new-tab-profile.json` 파일이 다운로드됨
 
 ```js
 const STORAGE_KEY = "s3newtab-state-v1";
@@ -34,6 +34,19 @@ const URL_SECRET_PARAMS = new Set([
   "refreshtoken",
   "clientsecret"
 ]);
+const VOLATILE_PROFILE_TERMS = [
+  "cache",
+  "cached",
+  "fingerprint",
+  "runtime",
+  "temp",
+  "signature",
+  "etag",
+  "storedat",
+  "lastfetch",
+  "fetchedat",
+  "expires"
+];
 
 const normalizeKey = (key) => String(key).toLowerCase().replace(/[^a-z0-9]/g, "");
 const isSensitiveKey = (key) => {
@@ -106,27 +119,20 @@ const scrubNode = (node) => {
   }
 };
 
-const removeVolatileBackgroundFields = (state) => {
-  const bg = state?.ui?.background;
-  if (!bg || typeof bg !== "object" || Array.isArray(bg)) return;
+const removeVolatileFields = (node) => {
+  if (Array.isArray(node)) {
+    node.forEach(removeVolatileFields);
+    return;
+  }
+  if (!node || typeof node !== "object") return;
 
-  for (const key of Object.keys(bg)) {
+  for (const key of Object.keys(node)) {
     const normalized = normalizeKey(key);
-    if (
-      normalized.includes("cache") ||
-      normalized.includes("cached") ||
-      normalized.includes("transient") ||
-      normalized.includes("runtime") ||
-      normalized.includes("temp") ||
-      normalized.includes("signature") ||
-      normalized.includes("etag") ||
-      normalized.includes("storedat") ||
-      normalized.includes("lastfetch") ||
-      normalized.includes("fetchedat") ||
-      normalized.includes("expires")
-    ) {
-      delete bg[key];
+    if (VOLATILE_PROFILE_TERMS.some((term) => normalized.includes(term))) {
+      delete node[key];
+      continue;
     }
+    removeVolatileFields(node[key]);
   }
 };
 
@@ -142,15 +148,34 @@ if (!rawState || typeof rawState !== "object") {
     sanitized.ui.monday.accessToken = "[REDACTED]";
   }
 
-  removeVolatileBackgroundFields(sanitized);
+  removeVolatileFields(sanitized);
   scrubNode(sanitized);
 
-  const jsonString = JSON.stringify(sanitized, null, 2);
+  const profile = {
+    format: "s3-new-tab-profile",
+    version: 1,
+    exportedAt: new Date().toISOString(),
+    app: {
+      name: "S3 New Tab",
+      version: ""
+    },
+    browser: {
+      userAgent: navigator.userAgent
+    },
+    portability: {
+      credentials: "excluded",
+      volatileCaches: "excluded",
+      browserSpecificUrls: "removed-on-import",
+      reauthenticationRequired: true
+    },
+    snapshot: sanitized
+  };
+  const jsonString = JSON.stringify(profile, null, 2);
   const blob = new Blob([jsonString], { type: "application/json;charset=utf-8" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = "startup-state.sanitized.json";
+  a.download = "s3-new-tab-profile.json";
   document.body.appendChild(a);
   a.click();
   a.remove();
@@ -161,8 +186,8 @@ if (!rawState || typeof rawState !== "object") {
     console.log("[export] copy() available: sanitized JSON also copied to clipboard.");
   }
 
-  console.log("[export] Sanitized preview:", sanitized);
-  console.log("[export] Downloaded: startup-state.sanitized.json");
+  console.log("[export] Portable profile preview:", profile);
+  console.log("[export] Downloaded: s3-new-tab-profile.json");
   jsonString;
 }
 ```

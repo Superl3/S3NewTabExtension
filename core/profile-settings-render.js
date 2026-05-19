@@ -24,6 +24,7 @@ export function renderProfileSettingsView({
   const {
     savePreset,
     exportCurrentStateToFile,
+    importProfileFromFile,
     appendDivider,
     saveCurrentAsDefaultProfile,
     loadDefaultProfile,
@@ -61,7 +62,28 @@ export function renderProfileSettingsView({
   exportBtn.addEventListener("click", () => {
     exportCurrentStateToFile?.();
   });
-  exportRow.append(exportBtn);
+  const importInput = document.createElement("input");
+  importInput.type = "file";
+  importInput.accept = "application/json,.json";
+  importInput.style.display = "none";
+  importInput.addEventListener("change", () => {
+    const file = importInput.files?.[0] || null;
+    importInput.value = "";
+    if (!file) {
+      return;
+    }
+    importProfileFromFile?.(file);
+  });
+
+  const importBtn = document.createElement("button");
+  importBtn.type = "button";
+  importBtn.className = "btn";
+  importBtn.textContent = "Import profile";
+  importBtn.addEventListener("click", () => {
+    importInput.click();
+  });
+
+  exportRow.append(exportBtn, importBtn, importInput);
   settingsContent.append(exportRow);
 
   appendDivider?.();

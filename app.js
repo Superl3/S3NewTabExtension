@@ -312,6 +312,11 @@ import {
   createStateExportSanitizer
 } from "./core/state-export-sanitize.js";
 import {
+  createPortableProfileExport,
+  extractProfileSnapshotFromImportPayload,
+  normalizeImportedProfileSnapshot
+} from "./core/profile-transfer.js";
+import {
   createPresetManagementRuntime
 } from "./core/preset-management-runtime.js";
 import {
@@ -420,7 +425,7 @@ const VIDEO_CACHE_NAME = "s3newtab-loop-video-cache-v1";
 const VIDEO_CACHE_KEY_PREFIX = "https://s3newtab.local/loop-video/";
 const VIDEO_CACHE_MAX_ENTRIES = 6;
 const BOARD_PAGE_TRANSITION_MS = 260;
-const EXPORT_SNAPSHOT_FILENAME = "startup-state.sanitized.json";
+const EXPORT_SNAPSHOT_FILENAME = "s3-new-tab-profile.json";
 const SENSITIVE_EXPORT_KEYWORD_PARTS = [
   "token",
   "secret",
@@ -434,6 +439,7 @@ const SENSITIVE_EXPORT_KEYWORD_PARTS = [
   "clientsecret"
 ];
 const VOLATILE_BACKGROUND_KEYWORD_PARTS = ["cache", "cached", "signature", "storedat", "fetch", "timestamp", "temp", "runtime"];
+const VOLATILE_PROFILE_KEYWORD_PARTS = ["cache", "cached", "fingerprint", "runtime", "storedat", "fetchedat", "updatedlabel"];
 const REDACTED_EXPORT_VALUE = "[REDACTED]";
 
 const elements = {
@@ -1405,6 +1411,7 @@ function deletePresetById(presetId) {
 const stateExportSanitizer = createStateExportSanitizer({
   sensitiveKeywordParts: SENSITIVE_EXPORT_KEYWORD_PARTS,
   volatileBackgroundKeywordParts: VOLATILE_BACKGROUND_KEYWORD_PARTS,
+  volatileProfileKeywordParts: VOLATILE_PROFILE_KEYWORD_PARTS,
   redactedValue: REDACTED_EXPORT_VALUE
 });
 
@@ -1420,6 +1427,10 @@ function isVolatileBackgroundExportKey(key) {
   return stateExportSanitizer.isVolatileBackgroundExportKey(key);
 }
 
+function isVolatileProfileExportKey(key) {
+  return stateExportSanitizer.isVolatileProfileExportKey(key);
+}
+
 function sanitizeCredentialQueryParamsInString(value) {
   return stateExportSanitizer.sanitizeCredentialQueryParamsInString(value);
 }
@@ -1430,6 +1441,13 @@ function sanitizeStateExportValue(value, pathParts = []) {
 
 function buildSanitizedStateExportSnapshot() {
   return sanitizeStateExportValue(buildPersistSnapshot());
+}
+
+function buildPortableProfileExportPayload() {
+  return createPortableProfileExport(buildPersistSnapshot(), {
+    sanitizeSnapshot: sanitizeStateExportValue,
+    userAgent: navigator.userAgent
+  });
 }
 
 function downloadTextFile(filename, text) {
@@ -1451,11 +1469,35 @@ function exportCurrentStateToFile() {
   }
 
   try {
-    const sanitizedSnapshot = buildSanitizedStateExportSnapshot();
-    const json = JSON.stringify(sanitizedSnapshot, null, 2);
+    const profileExport = buildPortableProfileExportPayload();
+    const json = JSON.stringify(profileExport, null, 2);
     downloadTextFile(EXPORT_SNAPSHOT_FILENAME, json);
   } catch (error) {
     console.warn("Failed to export current state", error);
+  }
+}
+
+async function importProfileFromFile(file) {
+  if (!file?.text) {
+    return false;
+  }
+
+  try {
+    const text = await file.text();
+    const payload = JSON.parse(text);
+    const snapshot = normalizeImportedProfileSnapshot(extractProfileSnapshotFromImportPayload(payload), {
+      isSensitiveKey: isSensitiveExportKey,
+      isVolatileProfileKey: isVolatileProfileExportKey,
+      redactedValue: REDACTED_EXPORT_VALUE,
+      sanitizeString: sanitizeCredentialQueryParamsInString
+    });
+    recordHistorySnapshot("Import profile");
+    restoreFromSnapshot(snapshot, { markAsUserMutation: true });
+    return true;
+  } catch (error) {
+    console.warn("Failed to import profile", error);
+    window.alert?.("Profile import failed. Choose a valid S3 New Tab profile JSON file.");
+    return false;
   }
 }
 
@@ -4578,6 +4620,7 @@ function renderProfileSettings() {
     actions: {
       savePreset,
       exportCurrentStateToFile,
+      importProfileFromFile,
       appendDivider,
       saveCurrentAsDefaultProfile,
       loadDefaultProfile,

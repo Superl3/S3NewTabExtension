@@ -1,6 +1,7 @@
 export function createStateExportSanitizer({
   sensitiveKeywordParts = [],
   volatileBackgroundKeywordParts = [],
+  volatileProfileKeywordParts = [],
   redactedValue = "[REDACTED]"
 } = {}) {
   function normalizeSensitiveKeyPart(value) {
@@ -23,6 +24,14 @@ export function createStateExportSanitizer({
       return false;
     }
     return volatileBackgroundKeywordParts.some((part) => normalizedKey.includes(part));
+  }
+
+  function isVolatileProfileExportKey(key) {
+    const normalizedKey = normalizeSensitiveKeyPart(key);
+    if (!normalizedKey) {
+      return false;
+    }
+    return volatileProfileKeywordParts.some((part) => normalizedKey.includes(part));
   }
 
   function sanitizeCredentialQueryParamsInString(value) {
@@ -85,11 +94,14 @@ export function createStateExportSanitizer({
         nextPath[0] === "ui" &&
         nextPath[1] === "monday" &&
         nextPath[2] === "accessToken";
-      if (isExactMondayAccessTokenPath || isSensitiveExportKey(key)) {
-        sanitized[key] = redactedValue;
+      if (isVolatileProfileExportKey(key)) {
         continue;
       }
       if (isBackgroundBranch && isVolatileBackgroundExportKey(key)) {
+        continue;
+      }
+      if (isExactMondayAccessTokenPath || isSensitiveExportKey(key)) {
+        sanitized[key] = redactedValue;
         continue;
       }
       sanitized[key] = sanitizeStateExportValue(rawValue, nextPath);
@@ -102,6 +114,7 @@ export function createStateExportSanitizer({
     normalizeSensitiveKeyPart,
     isSensitiveExportKey,
     isVolatileBackgroundExportKey,
+    isVolatileProfileExportKey,
     sanitizeCredentialQueryParamsInString,
     sanitizeStateExportValue
   };
