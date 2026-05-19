@@ -312,6 +312,7 @@ async function main() {
   const args = parseArgs(process.argv.slice(2));
   const browserPath = findBrowser(args.get("browser"));
   const keepProfile = args.has("keep-profile");
+  const addWidgetType = args.get("widget-type") || "";
   const port = await getFreePort();
   const newTabUrl = resolveNewTabUrl(browserPath);
   const profileDir = path.join(root, ".tmp", `extension-smoke-profile-${Date.now()}`);
@@ -425,6 +426,20 @@ async function main() {
     await new Promise((resolve) => setTimeout(resolve, 250));
     await cdp.click("#addWidgetBtn");
     await waitFor("add widget modal", () => cdp.evaluate("Boolean(document.querySelector('#addWidgetModalOkBtn') && document.body.classList.contains('modal-open'))"));
+    if (addWidgetType) {
+      const selectedType = await cdp.evaluate(`(() => {
+        const select = document.querySelector("#widgetTypeSelect");
+        if (!select) return "";
+        const option = Array.from(select.options).find((item) => item.value === ${JSON.stringify(addWidgetType)});
+        if (!option) return "";
+        select.value = option.value;
+        select.dispatchEvent(new Event("change", { bubbles: true }));
+        return select.value;
+      })()`);
+      if (selectedType !== addWidgetType) {
+        throw new Error(`Unable to select add widget type: ${addWidgetType}`);
+      }
+    }
     await cdp.click("#addWidgetModalOkBtn");
     await waitFor("widget settings modal", () => cdp.evaluate("Boolean(document.querySelector('#widgetModalOkBtn') && document.body.classList.contains('modal-open'))"));
     await cdp.click("#widgetModalOkBtn");
@@ -444,14 +459,20 @@ async function main() {
     if (initial.loadingCount !== 0) failures.push(`initial widgets still loading: ${initial.loadingCount}`);
     if (initial.hasWidgetFailed || initial.hasRawErrorText) failures.push("initial page exposed failure text");
     if (afterAdd.widgetCount <= initial.widgetCount) failures.push("Add Widget did not increase widget count");
+    if (addWidgetType && !afterAdd.widgets.some((widget) => widget.type === addWidgetType)) {
+      failures.push(`Add Widget did not create ${addWidgetType}`);
+    }
     if (afterAdd.modalOpen) failures.push("widget settings modal remained open after OK");
     if (afterAdd.hasWidgetFailed || afterAdd.hasRawErrorText) failures.push("post-add page exposed failure text");
     if (afterReload.widgetCount !== afterAdd.widgetCount) failures.push("reload did not preserve widget count");
+    if (addWidgetType && !afterReload.widgets.some((widget) => widget.type === addWidgetType)) {
+      failures.push(`reload did not preserve ${addWidgetType}`);
+    }
     if (afterReload.clockCount < afterAdd.clockCount) failures.push("reload lost the added clock widget");
     if (afterReload.hasWidgetFailed || afterReload.hasRawErrorText) failures.push("post-reload page exposed failure text");
 
     if (failures.length) {
-      throw new Error(`Extension smoke failed:\n- ${failures.join("\n- ")}`);
+      throw new Error(`Extension smoke failed:\n- ${failures.join("\n- ")}\nStats:\n${JSON.stringify({ initial, afterAdd, afterReload }, null, 2)}`);
     }
 
     console.log(JSON.stringify({ browserPath, initial, afterAdd, afterReload }, null, 2));

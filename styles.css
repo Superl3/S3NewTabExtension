@@ -3369,13 +3369,18 @@ body.mode-edit .widget-float-remove:hover {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
+  flex: 0 0 auto;
   gap: 8px;
+}
+
+.rss-widget-footer {
+  flex: 0 0 auto;
+  min-width: 0;
 }
 
 .rss-widget-status {
   margin: 0;
-  flex: 1 1 220px;
   min-width: 0;
   color: var(--muted);
   font-size: 0.84em;
@@ -3409,9 +3414,14 @@ body.mode-edit .widget-float-remove:hover {
   flex: 1 1 auto;
   min-height: 0;
   gap: 6px;
-  grid-auto-rows: minmax(max-content, 1fr);
-  align-content: stretch;
+  grid-auto-rows: max-content;
+  align-content: start;
   overflow: hidden auto;
+}
+
+.rss-feed-list.is-empty {
+  grid-auto-rows: minmax(0, 1fr);
+  align-content: stretch;
 }
 
 .rss-feed-empty {
@@ -3429,8 +3439,7 @@ body.mode-edit .widget-float-remove:hover {
 }
 
 .rss-feed-item {
-  min-height: 0;
-  height: 100%;
+  min-height: 74px;
   border: 1px solid color-mix(in srgb, var(--line), transparent 44%);
   border-radius: 8px;
   background:
@@ -3442,7 +3451,7 @@ body.mode-edit .widget-float-remove:hover {
 }
 
 .rss-feed-link {
-  min-height: 100%;
+  min-height: 74px;
   display: flex;
   flex-direction: column;
   justify-content: center;

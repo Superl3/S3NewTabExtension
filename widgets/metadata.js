@@ -697,6 +697,55 @@ export const widgetMetadata = [
     }
   },
   {
+    "type": "geekNews",
+    "title": "GeekNews",
+    "defaultConfig": {
+      "feedUrl": "https://news.hada.io/rss/news",
+      "maxItems": 10,
+      "showSummary": true,
+      "refreshMinutes": 15,
+      "openInNewTab": true
+    },
+    "defaultLayout": {
+      "x": 40,
+      "y": 40,
+      "w": 460,
+      "h": 360
+    },
+    "settingsSchema": [
+      {
+        "key": "maxItems",
+        "label": "Items to show",
+        "type": "number",
+        "min": 1,
+        "max": 30,
+        "step": 1
+      },
+      {
+        "key": "refreshMinutes",
+        "label": "Refresh every (minutes)",
+        "type": "number",
+        "min": 1,
+        "max": 240,
+        "step": 1
+      },
+      {
+        "key": "showSummary",
+        "label": "Show summary",
+        "type": "checkbox"
+      },
+      {
+        "key": "openInNewTab",
+        "label": "Open in new tab",
+        "type": "checkbox"
+      }
+    ],
+    "defaultGridSize": {
+      "w": 2,
+      "h": 2
+    }
+  },
+  {
     "type": "calendar",
     "title": "Calendar",
     "defaultConfig": {

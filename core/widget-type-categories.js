@@ -5,7 +5,7 @@ const WIDGET_TYPE_CATEGORY_DEFINITIONS = [
   },
   {
     label: "Planning",
-    types: ["todo", "notes", "calendar", "rss"]
+    types: ["todo", "notes", "calendar", "rss", "geekNews"]
   },
   {
     label: "Work",

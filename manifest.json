@@ -39,6 +39,9 @@
     "https://duckduckgo.com/*",
     "https://search.brave.com/*",
     "https://feeds.bbci.co.uk/*",
+    "https://news.hada.io/*",
+    "https://feeds.feedburner.com/*",
+    "http://feeds.feedburner.com/*",
     "https://*.chromiumapp.org/*",
     "http://localhost/*",
     "http://127.0.0.1/*"
