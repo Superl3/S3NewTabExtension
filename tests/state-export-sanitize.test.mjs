@@ -7,6 +7,7 @@ function createSanitizer() {
   return createStateExportSanitizer({
     sensitiveKeywordParts: ["token", "secret", "apikey"],
     volatileBackgroundKeywordParts: ["cache", "cached", "signature", "timestamp"],
+    volatileProfileKeywordParts: ["cache", "cached", "fingerprint"],
     redactedValue: "[REDACTED]"
   });
 }
@@ -38,6 +39,7 @@ test("sanitizeStateExportValue redacts sensitive paths and drops volatile backgr
       }
     },
     apiToken: "root-secret",
+    cacheTokenFingerprint: "abc123",
     nested: {
       keep: true
     }
@@ -47,6 +49,7 @@ test("sanitizeStateExportValue redacts sensitive paths and drops volatile backgr
 
   assert.equal(sanitized.ui.monday.accessToken, "[REDACTED]");
   assert.equal(sanitized.apiToken, "[REDACTED]");
+  assert.equal(Object.hasOwn(sanitized, "cacheTokenFingerprint"), false);
   assert.equal(sanitized.ui.background.mode, "wallpaper");
   assert.equal(Object.hasOwn(sanitized.ui.background, "wallpaperCachedUrl"), false);
   assert.equal(Object.hasOwn(sanitized.ui.background, "wallpaperCachedAt"), false);
@@ -60,4 +63,5 @@ test("normalizeSensitiveKeyPart strips punctuation and lowercases", () => {
   assert.equal(sanitizer.normalizeSensitiveKeyPart(" Client-Secret! "), "clientsecret");
   assert.equal(sanitizer.isSensitiveExportKey("client_secret"), true);
   assert.equal(sanitizer.isVolatileBackgroundExportKey("cached_signature"), true);
+  assert.equal(sanitizer.isVolatileProfileExportKey("cacheTokenFingerprint"), true);
 });
