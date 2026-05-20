@@ -3,7 +3,12 @@ import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 
 import { widgetRegistry } from "../widgets/index.js";
-import { GEEK_NEWS_FEED_URL, RSS_FEED_PRESETS, geekNewsWidget } from "../widgets/rss.js";
+import {
+  GEEK_NEWS_FEED_URL,
+  RSS_FEED_PRESETS,
+  geekNewsWidget,
+  resolveFeedFetchUrls
+} from "../widgets/rss.js";
 
 test("RSS Feed widget defaults to the GeekNews predefined feed", () => {
   const definition = widgetRegistry.rss;
@@ -43,6 +48,31 @@ test("GeekNews widget is registered as a pinned news.hada.io feed", async () => 
   const loadedDefinition = await lazyDefinition.load();
   assert.equal(loadedDefinition, geekNewsWidget);
   assert.equal(loadedDefinition.defaultConfig.feedUrl, "https://news.hada.io/rss/news");
+});
+
+test("GeekNews feed aliases resolve to the predefined fetch fallback chain", () => {
+  assert.deepEqual(
+    resolveFeedFetchUrls({
+      feedPreset: "custom",
+      feedUrl: "http://feeds.feedburner.com/geeknews-feed",
+      maxItems: 8,
+      showSummary: true,
+      refreshMinutes: 15,
+      openInNewTab: true
+    }),
+    [
+      "https://news.hada.io/rss/news",
+      "https://feeds.feedburner.com/geeknews-feed"
+    ]
+  );
+});
+
+test("RSS feed items use the shared multiple-card layout shape", async () => {
+  const styles = await fs.readFile(new URL("../styles.css", import.meta.url), "utf8");
+
+  assert.match(styles, /\.rss-feed-list\s*\{[\s\S]*grid-template-columns:\s*repeat\(auto-fit,/);
+  assert.match(styles, /\.rss-feed-list\s*\{[\s\S]*grid-auto-rows:\s*minmax\(var\(--rss-feed-card-min-height\), max-content\);/);
+  assert.match(styles, /\.rss-feed-item\s*\{[\s\S]*height:\s*100%;/);
 });
 
 test("manifest grants the GeekNews feed redirect chain", async () => {

@@ -3407,14 +3407,17 @@ body.mode-edit .widget-float-remove:hover {
 }
 
 .rss-feed-list {
+  --rss-feed-card-min-width: 190px;
+  --rss-feed-card-min-height: 112px;
   list-style: none;
   margin: 0;
   padding: 0;
   display: grid;
   flex: 1 1 auto;
   min-height: 0;
-  gap: 6px;
-  grid-auto-rows: max-content;
+  gap: 8px;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, var(--rss-feed-card-min-width)), 1fr));
+  grid-auto-rows: minmax(var(--rss-feed-card-min-height), max-content);
   align-content: start;
   overflow: hidden auto;
 }
@@ -3439,7 +3442,8 @@ body.mode-edit .widget-float-remove:hover {
 }
 
 .rss-feed-item {
-  min-height: 74px;
+  min-height: var(--rss-feed-card-min-height);
+  height: 100%;
   border: 1px solid color-mix(in srgb, var(--line), transparent 44%);
   border-radius: 8px;
   background:
@@ -3451,13 +3455,14 @@ body.mode-edit .widget-float-remove:hover {
 }
 
 .rss-feed-link {
-  min-height: 74px;
+  min-height: 100%;
+  height: 100%;
   display: flex;
   flex-direction: column;
-  justify-content: center;
+  justify-content: space-between;
   text-decoration: none;
   color: inherit;
-  padding: 9px 10px;
+  padding: 10px;
 }
 
 .rss-feed-link:hover,
@@ -3467,28 +3472,33 @@ body.mode-edit .widget-float-remove:hover {
 
 .rss-feed-top {
   display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 8px;
+  min-width: 0;
+  flex-direction: column;
+  gap: 5px;
 }
 
 .rss-feed-title {
   min-width: 0;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
   font-weight: 700;
+  line-height: 1.28;
 }
 
 .rss-feed-date {
-  flex: 0 0 auto;
+  align-self: flex-start;
   color: var(--muted);
   font-size: 0.78em;
+  line-height: 1.2;
+  white-space: nowrap;
 }
 
 .rss-feed-summary {
-  margin: 4px 0 0;
+  margin: 7px 0 0;
   font-size: 0.83em;
+  line-height: 1.34;
   color: color-mix(in srgb, var(--text), var(--muted) 42%);
   display: -webkit-box;
   -webkit-line-clamp: 2;

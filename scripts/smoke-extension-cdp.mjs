@@ -308,6 +308,17 @@ function collectStatsExpression() {
   })()`;
 }
 
+function hasLoadedRssWidget(stats) {
+  const rssWidget = stats?.widgets?.find((widget) => widget.type === "rss");
+  if (!rssWidget) {
+    return false;
+  }
+  return (
+    /Open feed/i.test(rssWidget.text) &&
+    !/Loading widget|Loading feed|Refreshing feed|Feed is not|not reachable|not available/i.test(rssWidget.text)
+  );
+}
+
 async function main() {
   const args = parseArgs(process.argv.slice(2));
   const browserPath = findBrowser(args.get("browser"));
@@ -443,16 +454,34 @@ async function main() {
     await cdp.click("#addWidgetModalOkBtn");
     await waitFor("widget settings modal", () => cdp.evaluate("Boolean(document.querySelector('#widgetModalOkBtn') && document.body.classList.contains('modal-open'))"));
     await cdp.click("#widgetModalOkBtn");
-    await new Promise((resolve) => setTimeout(resolve, 750));
-    const afterAdd = await cdp.evaluate(collectStatsExpression());
+    let afterAdd = null;
+    if (addWidgetType === "rss") {
+      afterAdd = await waitFor("RSS feed items after add", async () => {
+        const stats = await cdp.evaluate(collectStatsExpression());
+        return hasLoadedRssWidget(stats) ? stats : null;
+      }, 15000).catch(() => null);
+    }
+    if (!afterAdd) {
+      await new Promise((resolve) => setTimeout(resolve, 750));
+      afterAdd = await cdp.evaluate(collectStatsExpression());
+    }
 
     await cdp.call("Page.navigate", { url: newTabUrl });
     await waitFor("reload widgets", async () => {
       const stats = await cdp.evaluate(collectStatsExpression());
       return stats.ready === "complete" && stats.widgetCount >= 1 ? stats : null;
     });
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-    const afterReload = await cdp.evaluate(collectStatsExpression());
+    let afterReload = null;
+    if (addWidgetType === "rss") {
+      afterReload = await waitFor("RSS feed items after reload", async () => {
+        const stats = await cdp.evaluate(collectStatsExpression());
+        return hasLoadedRssWidget(stats) ? stats : null;
+      }, 15000).catch(() => null);
+    }
+    if (!afterReload) {
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+      afterReload = await cdp.evaluate(collectStatsExpression());
+    }
 
     const failures = [];
     if (initial.widgetCount < 7) failures.push(`expected at least 7 initial widgets, found ${initial.widgetCount}`);
@@ -462,11 +491,17 @@ async function main() {
     if (addWidgetType && !afterAdd.widgets.some((widget) => widget.type === addWidgetType)) {
       failures.push(`Add Widget did not create ${addWidgetType}`);
     }
+    if (addWidgetType === "rss" && !hasLoadedRssWidget(afterAdd)) {
+      failures.push("RSS widget did not render loaded feed items after add");
+    }
     if (afterAdd.modalOpen) failures.push("widget settings modal remained open after OK");
     if (afterAdd.hasWidgetFailed || afterAdd.hasRawErrorText) failures.push("post-add page exposed failure text");
     if (afterReload.widgetCount !== afterAdd.widgetCount) failures.push("reload did not preserve widget count");
     if (addWidgetType && !afterReload.widgets.some((widget) => widget.type === addWidgetType)) {
       failures.push(`reload did not preserve ${addWidgetType}`);
+    }
+    if (addWidgetType === "rss" && !hasLoadedRssWidget(afterReload)) {
+      failures.push("RSS widget did not render loaded feed items after reload");
     }
     if (afterReload.clockCount < afterAdd.clockCount) failures.push("reload lost the added clock widget");
     if (afterReload.hasWidgetFailed || afterReload.hasRawErrorText) failures.push("post-reload page exposed failure text");

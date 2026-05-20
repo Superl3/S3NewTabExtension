@@ -1,5 +1,6 @@
 export const GEEK_NEWS_FEED_URL = "https://news.hada.io/rss/news";
 const GEEK_NEWS_FETCH_URL = "https://feeds.feedburner.com/geeknews-feed";
+const GEEK_NEWS_HTTP_FETCH_URL = "http://feeds.feedburner.com/geeknews-feed";
 const BBC_WORLD_FEED_URL = "https://feeds.bbci.co.uk/news/world/rss.xml";
 const CUSTOM_FEED_PRESET = "custom";
 const DEFAULT_FEED_PRESET = "geekNews";
@@ -10,6 +11,7 @@ export const RSS_FEED_PRESETS = [
     value: "geekNews",
     label: "GeekNews (news.hada.io)",
     feedUrl: GEEK_NEWS_FEED_URL,
+    aliases: [GEEK_NEWS_FETCH_URL, GEEK_NEWS_HTTP_FETCH_URL],
     fallbackUrls: [GEEK_NEWS_FETCH_URL]
   },
   {
@@ -141,7 +143,10 @@ function feedPresetFromUrl(value) {
   if (!comparable) {
     return "";
   }
-  return RSS_FEED_PRESETS.find((preset) => normalizeComparableUrl(preset.feedUrl) === comparable)?.value || "";
+  return RSS_FEED_PRESETS.find((preset) => {
+    const urls = [preset.feedUrl, ...(Array.isArray(preset.aliases) ? preset.aliases : [])];
+    return urls.some((url) => normalizeComparableUrl(url) === comparable);
+  })?.value || "";
 }
 
 function feedUrlForPreset(value) {
@@ -155,12 +160,12 @@ function fallbackUrlsForPreset(value) {
 
 function normalizeFeedPreset(value, feedUrl, fallback = DEFAULT_FEED_PRESET) {
   const text = normalizeText(value);
-  if (text === CUSTOM_FEED_PRESET || feedUrlForPreset(text)) {
-    return text;
-  }
   const inferred = feedPresetFromUrl(feedUrl);
   if (inferred) {
     return inferred;
+  }
+  if (text === CUSTOM_FEED_PRESET || feedUrlForPreset(text)) {
+    return text;
   }
   return feedUrlForPreset(fallback) ? fallback : CUSTOM_FEED_PRESET;
 }
@@ -183,6 +188,20 @@ function asFetchUrl(value) {
   }
 
   return parsed.href;
+}
+
+function uniqueUrls(values) {
+  const seen = new Set();
+  const urls = [];
+  for (const value of values) {
+    const comparable = normalizeComparableUrl(value);
+    if (!comparable || seen.has(comparable)) {
+      continue;
+    }
+    seen.add(comparable);
+    urls.push(value);
+  }
+  return urls;
 }
 
 function nodeText(parent, tagNames = []) {
@@ -322,8 +341,13 @@ function configSignature(config) {
   return `${config.feedPreset}|${config.feedUrl}|${config.maxItems}|${config.showSummary ? 1 : 0}|${config.refreshMinutes}|${config.openInNewTab ? 1 : 0}`;
 }
 
+export function resolveFeedFetchUrls(config, defaults = {}) {
+  const cfg = normalizedConfig(config, defaults);
+  return uniqueUrls([cfg.feedUrl, ...fallbackUrlsForPreset(cfg.feedPreset)]);
+}
+
 async function fetchFeedText(config) {
-  const urls = [config.feedUrl, ...fallbackUrlsForPreset(config.feedPreset)];
+  const urls = resolveFeedFetchUrls(config);
   let lastError = null;
 
   for (const url of urls) {
@@ -335,6 +359,9 @@ async function fetchFeedText(config) {
 
       const response = await fetch(fetchUrl, {
         cache: "no-store",
+        headers: {
+          Accept: "application/rss+xml, application/atom+xml, application/xml;q=0.9, text/xml;q=0.8, */*;q=0.5"
+        },
         redirect: "follow"
       });
       if (!response.ok) {
