@@ -11,6 +11,7 @@ const widgetLoaders = {
   shortcut: () => import("./shortcut.js").then((module) => module.shortcutWidget),
   gmail: () => import("./gmail.js").then((module) => module.gmailWidget),
   rss: () => import("./rss.js").then((module) => module.rssWidget),
+  geekNews: () => import("./rss.js").then((module) => module.geekNewsWidget),
   calendar: () => import("./calendar.js").then((module) => module.calendarWidget),
   mondayAssigned: () => import("./mondayAssigned.js").then((module) => module.mondayAssignedWidget),
   mondayMeetingNote: () => import("./mondayMeetingNote.js").then((module) => module.mondayMeetingNoteWidget),

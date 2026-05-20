@@ -1,4 +1,34 @@
 const DEFAULT_FEED_URL = "https://feeds.bbci.co.uk/news/world/rss.xml";
+export const GEEK_NEWS_FEED_URL = "https://news.hada.io/rss/news";
+
+const RSS_SETTINGS_SCHEMA = [
+  {
+    key: "feedUrl",
+    label: "Feed URL",
+    type: "url",
+    placeholder: "https://example.com/rss.xml"
+  },
+  {
+    key: "maxItems",
+    label: "Items to show",
+    type: "number",
+    min: 1,
+    max: 30,
+    step: 1
+  },
+  {
+    key: "refreshMinutes",
+    label: "Refresh every (minutes)",
+    type: "number",
+    min: 1,
+    max: 240,
+    step: 1
+  },
+  { key: "showSummary", label: "Show summary", type: "checkbox" },
+  { key: "openInNewTab", label: "Open in new tab", type: "checkbox" }
+];
+
+const PINNED_FEED_SETTINGS_SCHEMA = RSS_SETTINGS_SCHEMA.filter((field) => field.key !== "feedUrl");
 
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
@@ -194,13 +224,13 @@ function parseFeedXml(xmlText) {
   throw new Error("Unsupported feed format.");
 }
 
-function normalizedConfig(config) {
+function normalizedConfig(config, defaults = {}) {
   return {
-    feedUrl: normalizeText(config?.feedUrl, DEFAULT_FEED_URL),
-    maxItems: normalizeMaxItems(config?.maxItems, 8),
-    showSummary: config?.showSummary !== false,
-    refreshMinutes: normalizeRefreshMinutes(config?.refreshMinutes, 15),
-    openInNewTab: config?.openInNewTab !== false
+    feedUrl: normalizeText(config?.feedUrl, defaults.feedUrl || DEFAULT_FEED_URL),
+    maxItems: normalizeMaxItems(config?.maxItems, defaults.maxItems || 8),
+    showSummary: config?.showSummary ?? defaults.showSummary ?? true,
+    refreshMinutes: normalizeRefreshMinutes(config?.refreshMinutes, defaults.refreshMinutes || 15),
+    openInNewTab: config?.openInNewTab ?? defaults.openInNewTab ?? true
   };
 }
 
@@ -208,276 +238,306 @@ function configSignature(config) {
   return `${config.feedUrl}|${config.maxItems}|${config.showSummary ? 1 : 0}|${config.refreshMinutes}|${config.openInNewTab ? 1 : 0}`;
 }
 
-export const rssWidget = {
-  type: "rss",
-  title: "RSS Feed",
-  defaultConfig: {
-    feedUrl: DEFAULT_FEED_URL,
-    maxItems: 8,
-    showSummary: true,
-    refreshMinutes: 15,
-    openInNewTab: true
-  },
-  defaultLayout: {
+function createRssWidgetDefinition({
+  type,
+  title,
+  feedUrl = DEFAULT_FEED_URL,
+  maxItems = 8,
+  showSummary = true,
+  refreshMinutes = 15,
+  openInNewTab = true,
+  defaultLayout = {
     x: 40,
     y: 40,
     w: 430,
     h: 340
   },
+  defaultGridSize = {
+    w: 2,
+    h: 2
+  },
+  settingsSchema = RSS_SETTINGS_SCHEMA,
+  statusFallback = "RSS feed",
+  openFeedLabel = "Open feed",
+  variantClass = ""
+}) {
+  const defaultConfig = {
+    feedUrl,
+    maxItems,
+    showSummary,
+    refreshMinutes,
+    openInNewTab
+  };
+
+  return {
+    type,
+    title,
+    defaultConfig,
+    defaultLayout,
+    defaultGridSize,
+    settingsSchema,
+    create({ container, getConfig, isEditMode, openSettings }) {
+      container.classList.add("rss-widget");
+      if (variantClass) {
+        container.classList.add(variantClass);
+      }
+
+      const shell = document.createElement("div");
+      shell.className = "rss-widget-shell";
+
+      const toolbar = document.createElement("div");
+      toolbar.className = "rss-widget-toolbar";
+
+      const status = document.createElement("p");
+      status.className = "rss-widget-status";
+
+      const actions = document.createElement("div");
+      actions.className = "rss-widget-actions";
+
+      const refreshBtn = document.createElement("button");
+      refreshBtn.type = "button";
+      refreshBtn.className = "btn";
+      refreshBtn.textContent = "Refresh";
+
+      const openFeedBtn = document.createElement("a");
+      openFeedBtn.className = "btn";
+      openFeedBtn.textContent = openFeedLabel;
+      openFeedBtn.rel = "noreferrer";
+
+      actions.append(refreshBtn, openFeedBtn);
+      toolbar.append(actions);
+
+      const list = document.createElement("ul");
+      list.className = "rss-feed-list";
+
+      const footer = document.createElement("div");
+      footer.className = "rss-widget-footer";
+      footer.append(status);
+
+      shell.append(toolbar, list, footer);
+      container.append(shell);
+
+      let feedTitle = title;
+      let loading = false;
+      let errorMessage = "";
+      let items = [];
+      let lastSignature = "";
+      let timer = null;
+      let requestSerial = 0;
+
+      function clearRefreshTimer() {
+        if (timer) {
+          clearTimeout(timer);
+          timer = null;
+        }
+      }
+
+      function scheduleRefresh() {
+        clearRefreshTimer();
+        const cfg = normalizedConfig(getConfig(), defaultConfig);
+        const delayMs = normalizeRefreshMinutes(cfg.refreshMinutes, 15) * 60000;
+        timer = setTimeout(() => {
+          void loadFeed();
+        }, delayMs);
+      }
+
+      function applyOpenFeedButton() {
+        const cfg = normalizedConfig(getConfig(), defaultConfig);
+        const feedUrl = normalizeSafeUrl(cfg.feedUrl, defaultConfig.feedUrl);
+        openFeedBtn.href = feedUrl;
+        openFeedBtn.target = cfg.openInNewTab ? "_blank" : "_self";
+      }
+
+      function renderList() {
+        list.replaceChildren();
+
+        const cfg = normalizedConfig(getConfig(), defaultConfig);
+        list.classList.toggle("is-empty", !items.length);
+        if (!items.length) {
+          const empty = document.createElement("li");
+          empty.className = "rss-feed-empty";
+          if (loading) {
+            empty.textContent = "Loading feed...";
+          } else if (errorMessage) {
+            empty.textContent = "Feed is not available.";
+          } else {
+            empty.textContent = "No feed items found.";
+          }
+          list.append(empty);
+          return;
+        }
+
+        for (const item of items) {
+          const row = document.createElement("li");
+          row.className = "rss-feed-item";
+
+          const link = document.createElement("a");
+          link.className = "rss-feed-link";
+          const feedUrl = normalizeSafeUrl(cfg.feedUrl, defaultConfig.feedUrl);
+          link.href = normalizeSafeUrl(item.link, feedUrl);
+          link.target = cfg.openInNewTab ? "_blank" : "_self";
+          link.rel = "noreferrer";
+
+          link.addEventListener("click", (event) => {
+            if (!isEditMode?.()) {
+              return;
+            }
+            event.preventDefault();
+            event.stopPropagation();
+            openSettings?.();
+          });
+
+          const top = document.createElement("div");
+          top.className = "rss-feed-top";
+
+          const title = document.createElement("span");
+          title.className = "rss-feed-title";
+          title.textContent = item.title;
+
+          const date = document.createElement("span");
+          date.className = "rss-feed-date";
+          date.textContent = item.dateLabel;
+
+          top.append(title, date);
+          link.append(top);
+
+          if (cfg.showSummary && item.summary) {
+            const summary = document.createElement("p");
+            summary.className = "rss-feed-summary";
+            summary.textContent = item.summary;
+            link.append(summary);
+          }
+
+          row.append(link);
+          list.append(row);
+        }
+      }
+
+      function renderStatus() {
+        status.classList.toggle("is-error", Boolean(errorMessage));
+        if (loading) {
+          status.textContent = "Refreshing feed...";
+        } else if (errorMessage) {
+          status.textContent = errorMessage;
+        } else if (items.length) {
+          status.textContent = `${feedTitle} (${items.length})`;
+        } else {
+          status.textContent = statusFallback;
+        }
+        refreshBtn.disabled = loading;
+      }
+
+      function render() {
+        applyOpenFeedButton();
+        renderStatus();
+        renderList();
+      }
+
+      async function loadFeed() {
+        const requestId = ++requestSerial;
+        loading = true;
+        errorMessage = "";
+        render();
+
+        try {
+          const cfg = normalizedConfig(getConfig(), defaultConfig);
+          const fetchUrl = asFetchUrl(cfg.feedUrl);
+          if (!fetchUrl) {
+            throw new Error("Add a feed URL in widget settings before refreshing.");
+          }
+
+          const response = await fetch(fetchUrl, {
+            cache: "no-store"
+          });
+          if (!response.ok) {
+            throw new Error(`Feed request failed: HTTP ${response.status}`);
+          }
+          const xmlText = await response.text();
+          const parsed = parseFeedXml(xmlText);
+
+          if (requestId !== requestSerial) {
+            return;
+          }
+
+          feedTitle = parsed.feedTitle;
+          items = parsed.items.slice(0, cfg.maxItems);
+          lastSignature = configSignature(cfg);
+        } catch (error) {
+          if (requestId !== requestSerial) {
+            return;
+          }
+          items = [];
+          errorMessage = normalizeErrorMessage(error);
+        } finally {
+          if (requestId !== requestSerial) {
+            return;
+          }
+          loading = false;
+          render();
+          scheduleRefresh();
+        }
+      }
+
+      refreshBtn.addEventListener("click", () => {
+        void loadFeed();
+      });
+
+      openFeedBtn.addEventListener("click", (event) => {
+        if (!isEditMode?.()) {
+          return;
+        }
+        event.preventDefault();
+        event.stopPropagation();
+        openSettings?.();
+      });
+
+      render();
+      void loadFeed();
+
+      return {
+        refresh() {
+          render();
+          const signature = configSignature(normalizedConfig(getConfig(), defaultConfig));
+          if (!loading && signature !== lastSignature) {
+            void loadFeed();
+            return;
+          }
+          scheduleRefresh();
+        },
+        destroy() {
+          requestSerial += 1;
+          clearRefreshTimer();
+        }
+      };
+    }
+  };
+}
+
+export const rssWidget = createRssWidgetDefinition({
+  type: "rss",
+  title: "RSS Feed"
+});
+
+export const geekNewsWidget = createRssWidgetDefinition({
+  type: "geekNews",
+  title: "GeekNews",
+  feedUrl: GEEK_NEWS_FEED_URL,
+  maxItems: 10,
+  showSummary: true,
+  refreshMinutes: 15,
+  openInNewTab: true,
+  defaultLayout: {
+    x: 40,
+    y: 40,
+    w: 460,
+    h: 360
+  },
   defaultGridSize: {
     w: 2,
     h: 2
   },
-  settingsSchema: [
-    {
-      key: "feedUrl",
-      label: "Feed URL",
-      type: "url",
-      placeholder: "https://example.com/rss.xml"
-    },
-    {
-      key: "maxItems",
-      label: "Items to show",
-      type: "number",
-      min: 1,
-      max: 30,
-      step: 1
-    },
-    {
-      key: "refreshMinutes",
-      label: "Refresh every (minutes)",
-      type: "number",
-      min: 1,
-      max: 240,
-      step: 1
-    },
-    { key: "showSummary", label: "Show summary", type: "checkbox" },
-    { key: "openInNewTab", label: "Open in new tab", type: "checkbox" }
-  ],
-  create({ container, getConfig, isEditMode, openSettings }) {
-    container.classList.add("rss-widget");
-
-    const shell = document.createElement("div");
-    shell.className = "rss-widget-shell";
-
-    const toolbar = document.createElement("div");
-    toolbar.className = "rss-widget-toolbar";
-
-    const status = document.createElement("p");
-    status.className = "rss-widget-status";
-
-    const actions = document.createElement("div");
-    actions.className = "rss-widget-actions";
-
-    const refreshBtn = document.createElement("button");
-    refreshBtn.type = "button";
-    refreshBtn.className = "btn";
-    refreshBtn.textContent = "Refresh";
-
-    const openFeedBtn = document.createElement("a");
-    openFeedBtn.className = "btn";
-    openFeedBtn.textContent = "Open feed";
-    openFeedBtn.rel = "noreferrer";
-
-    actions.append(refreshBtn, openFeedBtn);
-    toolbar.append(status, actions);
-
-    const list = document.createElement("ul");
-    list.className = "rss-feed-list";
-
-    shell.append(toolbar, list);
-    container.append(shell);
-
-    let feedTitle = "RSS Feed";
-    let loading = false;
-    let errorMessage = "";
-    let items = [];
-    let lastSignature = "";
-    let timer = null;
-    let requestSerial = 0;
-
-    function clearRefreshTimer() {
-      if (timer) {
-        clearTimeout(timer);
-        timer = null;
-      }
-    }
-
-    function scheduleRefresh() {
-      clearRefreshTimer();
-      const cfg = normalizedConfig(getConfig());
-      const delayMs = normalizeRefreshMinutes(cfg.refreshMinutes, 15) * 60000;
-      timer = setTimeout(() => {
-        void loadFeed();
-      }, delayMs);
-    }
-
-    function applyOpenFeedButton() {
-      const cfg = normalizedConfig(getConfig());
-      const feedUrl = normalizeSafeUrl(cfg.feedUrl, DEFAULT_FEED_URL);
-      openFeedBtn.href = feedUrl;
-      openFeedBtn.target = cfg.openInNewTab ? "_blank" : "_self";
-    }
-
-    function renderList() {
-      list.replaceChildren();
-
-      const cfg = normalizedConfig(getConfig());
-      if (!items.length) {
-        const empty = document.createElement("li");
-        empty.className = "rss-feed-empty";
-        if (loading) {
-          empty.textContent = "Loading feed...";
-        } else if (errorMessage) {
-          empty.textContent = "Feed is not available.";
-        } else {
-          empty.textContent = "No feed items found.";
-        }
-        list.append(empty);
-        return;
-      }
-
-      for (const item of items) {
-        const row = document.createElement("li");
-        row.className = "rss-feed-item";
-
-        const link = document.createElement("a");
-        link.className = "rss-feed-link";
-        const feedUrl = normalizeSafeUrl(cfg.feedUrl, DEFAULT_FEED_URL);
-        link.href = normalizeSafeUrl(item.link, feedUrl);
-        link.target = cfg.openInNewTab ? "_blank" : "_self";
-        link.rel = "noreferrer";
-
-        link.addEventListener("click", (event) => {
-          if (!isEditMode?.()) {
-            return;
-          }
-          event.preventDefault();
-          event.stopPropagation();
-          openSettings?.();
-        });
-
-        const top = document.createElement("div");
-        top.className = "rss-feed-top";
-
-        const title = document.createElement("span");
-        title.className = "rss-feed-title";
-        title.textContent = item.title;
-
-        const date = document.createElement("span");
-        date.className = "rss-feed-date";
-        date.textContent = item.dateLabel;
-
-        top.append(title, date);
-        link.append(top);
-
-        if (cfg.showSummary && item.summary) {
-          const summary = document.createElement("p");
-          summary.className = "rss-feed-summary";
-          summary.textContent = item.summary;
-          link.append(summary);
-        }
-
-        row.append(link);
-        list.append(row);
-      }
-    }
-
-    function renderStatus() {
-      status.classList.toggle("is-error", Boolean(errorMessage));
-      if (loading) {
-        status.textContent = "Refreshing feed...";
-      } else if (errorMessage) {
-        status.textContent = errorMessage;
-      } else if (items.length) {
-        status.textContent = `${feedTitle} (${items.length})`;
-      } else {
-        status.textContent = "RSS feed";
-      }
-      refreshBtn.disabled = loading;
-    }
-
-    function render() {
-      applyOpenFeedButton();
-      renderStatus();
-      renderList();
-    }
-
-    async function loadFeed() {
-      const requestId = ++requestSerial;
-      loading = true;
-      errorMessage = "";
-      render();
-
-      try {
-        const cfg = normalizedConfig(getConfig());
-        const fetchUrl = asFetchUrl(cfg.feedUrl);
-        if (!fetchUrl) {
-          throw new Error("Add a feed URL in widget settings before refreshing.");
-        }
-
-        const response = await fetch(fetchUrl, {
-          cache: "no-store"
-        });
-        if (!response.ok) {
-          throw new Error(`Feed request failed: HTTP ${response.status}`);
-        }
-        const xmlText = await response.text();
-        const parsed = parseFeedXml(xmlText);
-
-        if (requestId !== requestSerial) {
-          return;
-        }
-
-        feedTitle = parsed.feedTitle;
-        items = parsed.items.slice(0, cfg.maxItems);
-        lastSignature = configSignature(cfg);
-      } catch (error) {
-        if (requestId !== requestSerial) {
-          return;
-        }
-        items = [];
-        errorMessage = normalizeErrorMessage(error);
-      } finally {
-        if (requestId !== requestSerial) {
-          return;
-        }
-        loading = false;
-        render();
-        scheduleRefresh();
-      }
-    }
-
-    refreshBtn.addEventListener("click", () => {
-      void loadFeed();
-    });
-
-    openFeedBtn.addEventListener("click", (event) => {
-      if (!isEditMode?.()) {
-        return;
-      }
-      event.preventDefault();
-      event.stopPropagation();
-      openSettings?.();
-    });
-
-    render();
-    void loadFeed();
-
-    return {
-      refresh() {
-        render();
-        const signature = configSignature(normalizedConfig(getConfig()));
-        if (!loading && signature !== lastSignature) {
-          void loadFeed();
-          return;
-        }
-        scheduleRefresh();
-      },
-      destroy() {
-        requestSerial += 1;
-        clearRefreshTimer();
-      }
-    };
-  }
-};
+  settingsSchema: PINNED_FEED_SETTINGS_SCHEMA,
+  statusFallback: "GeekNews",
+  openFeedLabel: "Open GeekNews",
+  variantClass: "rss-widget--geek-news"
+});
