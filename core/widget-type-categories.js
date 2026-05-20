@@ -57,7 +57,7 @@ export function groupWidgetDefinitionsByCategory(widgetDefinitions = []) {
   });
 
   for (const widget of widgetDefinitions) {
-    if (!widget?.type) {
+    if (!widget?.type || widget.hiddenFromAddWidget === true) {
       continue;
     }
     groupsByLabel.get(widgetTypeCategoryLabel(widget.type)).widgets.push(widget);
