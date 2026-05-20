@@ -22,6 +22,12 @@ test("RSS Feed widget defaults to the GeekNews predefined feed", () => {
     ]
   );
   assert.ok(RSS_FEED_PRESETS.some((preset) => preset.value === "geekNews" && preset.feedUrl === GEEK_NEWS_FEED_URL));
+  assert.ok(
+    RSS_FEED_PRESETS.some((preset) => (
+      preset.value === "geekNews" &&
+      preset.fallbackUrls?.includes("https://feeds.feedburner.com/geeknews-feed")
+    ))
+  );
 });
 
 test("GeekNews widget is registered as a pinned news.hada.io feed", async () => {

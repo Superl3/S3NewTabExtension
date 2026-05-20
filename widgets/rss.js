@@ -1,4 +1,5 @@
 export const GEEK_NEWS_FEED_URL = "https://news.hada.io/rss/news";
+const GEEK_NEWS_FETCH_URL = "https://feeds.feedburner.com/geeknews-feed";
 const BBC_WORLD_FEED_URL = "https://feeds.bbci.co.uk/news/world/rss.xml";
 const CUSTOM_FEED_PRESET = "custom";
 const DEFAULT_FEED_PRESET = "geekNews";
@@ -8,7 +9,8 @@ export const RSS_FEED_PRESETS = [
   {
     value: "geekNews",
     label: "GeekNews (news.hada.io)",
-    feedUrl: GEEK_NEWS_FEED_URL
+    feedUrl: GEEK_NEWS_FEED_URL,
+    fallbackUrls: [GEEK_NEWS_FETCH_URL]
   },
   {
     value: "bbcWorld",
@@ -144,6 +146,11 @@ function feedPresetFromUrl(value) {
 
 function feedUrlForPreset(value) {
   return RSS_FEED_PRESETS.find((preset) => preset.value === value)?.feedUrl || "";
+}
+
+function fallbackUrlsForPreset(value) {
+  const fallbackUrls = RSS_FEED_PRESETS.find((preset) => preset.value === value)?.fallbackUrls;
+  return Array.isArray(fallbackUrls) ? fallbackUrls : [];
 }
 
 function normalizeFeedPreset(value, feedUrl, fallback = DEFAULT_FEED_PRESET) {
@@ -313,6 +320,33 @@ function normalizedConfig(config, defaults = {}) {
 
 function configSignature(config) {
   return `${config.feedPreset}|${config.feedUrl}|${config.maxItems}|${config.showSummary ? 1 : 0}|${config.refreshMinutes}|${config.openInNewTab ? 1 : 0}`;
+}
+
+async function fetchFeedText(config) {
+  const urls = [config.feedUrl, ...fallbackUrlsForPreset(config.feedPreset)];
+  let lastError = null;
+
+  for (const url of urls) {
+    try {
+      const fetchUrl = asFetchUrl(url);
+      if (!fetchUrl) {
+        throw new Error("Add a feed URL in widget settings before refreshing.");
+      }
+
+      const response = await fetch(fetchUrl, {
+        cache: "no-store",
+        redirect: "follow"
+      });
+      if (!response.ok) {
+        throw new Error(`Feed request failed: HTTP ${response.status}`);
+      }
+      return response.text();
+    } catch (error) {
+      lastError = error;
+    }
+  }
+
+  throw lastError || new Error("Feed request failed.");
 }
 
 function createRssWidgetDefinition({
@@ -522,18 +556,7 @@ function createRssWidgetDefinition({
 
         try {
           const cfg = normalizedConfig(getConfig(), defaultConfig);
-          const fetchUrl = asFetchUrl(cfg.feedUrl);
-          if (!fetchUrl) {
-            throw new Error("Add a feed URL in widget settings before refreshing.");
-          }
-
-          const response = await fetch(fetchUrl, {
-            cache: "no-store"
-          });
-          if (!response.ok) {
-            throw new Error(`Feed request failed: HTTP ${response.status}`);
-          }
-          const xmlText = await response.text();
+          const xmlText = await fetchFeedText(cfg);
           const parsed = parseFeedXml(xmlText);
 
           if (requestId !== requestSerial) {
