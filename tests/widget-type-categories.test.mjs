@@ -11,6 +11,7 @@ test("widget type categories group common widgets for add-widget selection", () 
     { type: "clock", title: "Clock" },
     { type: "todo", title: "TODO" },
     { type: "geekNews", title: "GeekNews" },
+    { type: "hiddenGeekNews", title: "Hidden GeekNews", hiddenFromAddWidget: true },
     { type: "githubReviewInbox", title: "GitHub Review Inbox" },
     { type: "container", title: "Widget Folder" },
     { type: "aiChat", title: "AI Chat" },

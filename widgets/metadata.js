@@ -645,7 +645,8 @@ export const widgetMetadata = [
     "type": "rss",
     "title": "RSS Feed",
     "defaultConfig": {
-      "feedUrl": "https://feeds.bbci.co.uk/news/world/rss.xml",
+      "feedPreset": "geekNews",
+      "feedUrl": "https://news.hada.io/rss/news",
       "maxItems": 8,
       "showSummary": true,
       "refreshMinutes": 15,
@@ -659,10 +660,30 @@ export const widgetMetadata = [
     },
     "settingsSchema": [
       {
+        "key": "feedPreset",
+        "label": "Feed preset",
+        "type": "select",
+        "options": [
+          {
+            "value": "geekNews",
+            "label": "GeekNews (news.hada.io)"
+          },
+          {
+            "value": "bbcWorld",
+            "label": "BBC World"
+          },
+          {
+            "value": "custom",
+            "label": "Custom URL"
+          }
+        ]
+      },
+      {
         "key": "feedUrl",
-        "label": "Feed URL",
+        "label": "Custom feed URL",
         "type": "url",
-        "placeholder": "https://example.com/rss.xml"
+        "placeholder": "https://example.com/rss.xml",
+        "helpText": "Used when Feed preset is Custom URL."
       },
       {
         "key": "maxItems",
@@ -699,7 +720,9 @@ export const widgetMetadata = [
   {
     "type": "geekNews",
     "title": "GeekNews",
+    "hiddenFromAddWidget": true,
     "defaultConfig": {
+      "feedPreset": "geekNews",
       "feedUrl": "https://news.hada.io/rss/news",
       "maxItems": 10,
       "showSummary": true,

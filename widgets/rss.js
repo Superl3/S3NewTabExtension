@@ -1,12 +1,40 @@
-const DEFAULT_FEED_URL = "https://feeds.bbci.co.uk/news/world/rss.xml";
 export const GEEK_NEWS_FEED_URL = "https://news.hada.io/rss/news";
+const BBC_WORLD_FEED_URL = "https://feeds.bbci.co.uk/news/world/rss.xml";
+const CUSTOM_FEED_PRESET = "custom";
+const DEFAULT_FEED_PRESET = "geekNews";
+const DEFAULT_FEED_URL = GEEK_NEWS_FEED_URL;
+
+export const RSS_FEED_PRESETS = [
+  {
+    value: "geekNews",
+    label: "GeekNews (news.hada.io)",
+    feedUrl: GEEK_NEWS_FEED_URL
+  },
+  {
+    value: "bbcWorld",
+    label: "BBC World",
+    feedUrl: BBC_WORLD_FEED_URL
+  }
+];
+
+const RSS_FEED_PRESET_OPTIONS = [
+  ...RSS_FEED_PRESETS.map(({ value, label }) => ({ value, label })),
+  { value: CUSTOM_FEED_PRESET, label: "Custom URL" }
+];
 
 const RSS_SETTINGS_SCHEMA = [
   {
+    key: "feedPreset",
+    label: "Feed preset",
+    type: "select",
+    options: RSS_FEED_PRESET_OPTIONS
+  },
+  {
     key: "feedUrl",
-    label: "Feed URL",
+    label: "Custom feed URL",
     type: "url",
-    placeholder: "https://example.com/rss.xml"
+    placeholder: "https://example.com/rss.xml",
+    helpText: "Used when Feed preset is Custom URL."
   },
   {
     key: "maxItems",
@@ -28,7 +56,9 @@ const RSS_SETTINGS_SCHEMA = [
   { key: "openInNewTab", label: "Open in new tab", type: "checkbox" }
 ];
 
-const PINNED_FEED_SETTINGS_SCHEMA = RSS_SETTINGS_SCHEMA.filter((field) => field.key !== "feedUrl");
+const PINNED_FEED_SETTINGS_SCHEMA = RSS_SETTINGS_SCHEMA.filter(
+  (field) => field.key !== "feedPreset" && field.key !== "feedUrl"
+);
 
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
@@ -87,6 +117,45 @@ function normalizeSafeUrl(value, fallback = DEFAULT_FEED_URL) {
   } catch {
     return fallback;
   }
+}
+
+function normalizeComparableUrl(value) {
+  const text = normalizeText(value);
+  if (!text) {
+    return "";
+  }
+
+  try {
+    const parsed = new URL(text);
+    parsed.hash = "";
+    return parsed.toString();
+  } catch {
+    return "";
+  }
+}
+
+function feedPresetFromUrl(value) {
+  const comparable = normalizeComparableUrl(value);
+  if (!comparable) {
+    return "";
+  }
+  return RSS_FEED_PRESETS.find((preset) => normalizeComparableUrl(preset.feedUrl) === comparable)?.value || "";
+}
+
+function feedUrlForPreset(value) {
+  return RSS_FEED_PRESETS.find((preset) => preset.value === value)?.feedUrl || "";
+}
+
+function normalizeFeedPreset(value, feedUrl, fallback = DEFAULT_FEED_PRESET) {
+  const text = normalizeText(value);
+  if (text === CUSTOM_FEED_PRESET || feedUrlForPreset(text)) {
+    return text;
+  }
+  const inferred = feedPresetFromUrl(feedUrl);
+  if (inferred) {
+    return inferred;
+  }
+  return feedUrlForPreset(fallback) ? fallback : CUSTOM_FEED_PRESET;
 }
 
 function asFetchUrl(value) {
@@ -225,8 +294,16 @@ function parseFeedXml(xmlText) {
 }
 
 function normalizedConfig(config, defaults = {}) {
+  const feedPreset = normalizeFeedPreset(
+    config?.feedPreset,
+    config?.feedUrl ?? defaults.feedUrl,
+    defaults.feedPreset || DEFAULT_FEED_PRESET
+  );
+  const presetFeedUrl = feedUrlForPreset(feedPreset);
+
   return {
-    feedUrl: normalizeText(config?.feedUrl, defaults.feedUrl || DEFAULT_FEED_URL),
+    feedPreset,
+    feedUrl: presetFeedUrl || normalizeText(config?.feedUrl, defaults.feedUrl || DEFAULT_FEED_URL),
     maxItems: normalizeMaxItems(config?.maxItems, defaults.maxItems || 8),
     showSummary: config?.showSummary ?? defaults.showSummary ?? true,
     refreshMinutes: normalizeRefreshMinutes(config?.refreshMinutes, defaults.refreshMinutes || 15),
@@ -235,12 +312,13 @@ function normalizedConfig(config, defaults = {}) {
 }
 
 function configSignature(config) {
-  return `${config.feedUrl}|${config.maxItems}|${config.showSummary ? 1 : 0}|${config.refreshMinutes}|${config.openInNewTab ? 1 : 0}`;
+  return `${config.feedPreset}|${config.feedUrl}|${config.maxItems}|${config.showSummary ? 1 : 0}|${config.refreshMinutes}|${config.openInNewTab ? 1 : 0}`;
 }
 
 function createRssWidgetDefinition({
   type,
   title,
+  feedPreset = feedPresetFromUrl(DEFAULT_FEED_URL) || DEFAULT_FEED_PRESET,
   feedUrl = DEFAULT_FEED_URL,
   maxItems = 8,
   showSummary = true,
@@ -259,9 +337,11 @@ function createRssWidgetDefinition({
   settingsSchema = RSS_SETTINGS_SCHEMA,
   statusFallback = "RSS feed",
   openFeedLabel = "Open feed",
-  variantClass = ""
+  variantClass = "",
+  hiddenFromAddWidget = false
 }) {
   const defaultConfig = {
+    feedPreset,
     feedUrl,
     maxItems,
     showSummary,
@@ -276,6 +356,7 @@ function createRssWidgetDefinition({
     defaultLayout,
     defaultGridSize,
     settingsSchema,
+    hiddenFromAddWidget,
     create({ container, getConfig, isEditMode, openSettings }) {
       container.classList.add("rss-widget");
       if (variantClass) {
@@ -515,12 +596,15 @@ function createRssWidgetDefinition({
 
 export const rssWidget = createRssWidgetDefinition({
   type: "rss",
-  title: "RSS Feed"
+  title: "RSS Feed",
+  feedPreset: DEFAULT_FEED_PRESET,
+  feedUrl: DEFAULT_FEED_URL
 });
 
 export const geekNewsWidget = createRssWidgetDefinition({
   type: "geekNews",
   title: "GeekNews",
+  feedPreset: DEFAULT_FEED_PRESET,
   feedUrl: GEEK_NEWS_FEED_URL,
   maxItems: 10,
   showSummary: true,
@@ -539,5 +623,6 @@ export const geekNewsWidget = createRssWidgetDefinition({
   settingsSchema: PINNED_FEED_SETTINGS_SCHEMA,
   statusFallback: "GeekNews",
   openFeedLabel: "Open GeekNews",
-  variantClass: "rss-widget--geek-news"
+  variantClass: "rss-widget--geek-news",
+  hiddenFromAddWidget: true
 });
