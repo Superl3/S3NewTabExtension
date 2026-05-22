@@ -279,7 +279,8 @@ function setReviewInboxItemRead(config, item, read = true, storage = undefined) 
 function shouldAutoIgnoreReviewInboxItem(item, tabId) {
   return (
     normalizeReviewInboxTab(tabId) === REVIEW_INBOX_TAB_NEEDS_REVIEW &&
-    item?.reviewRequested !== true
+    item?.reviewRequested !== true &&
+    Math.max(0, Number(item?.latestParticipationAt) || 0) <= 0
   );
 }
 
