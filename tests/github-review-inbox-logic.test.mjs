@@ -178,6 +178,33 @@ test("buildReviewCandidate excludes PRs when user responded after the latest cod
   assert.equal(candidate.reason, "REVIEWED_NO_NEW_UPDATES");
 });
 
+test("buildReviewCandidate includes non-owned PRs when others comment after user response", () => {
+  const candidate = buildReviewCandidate({
+    githubLogin: "bug95",
+    pullRequest: {
+      user: { login: "reviewer1" },
+      updated_at: "2026-04-09T12:00:00Z"
+    },
+    commits: [
+      {
+        author: { login: "reviewer1" },
+        committer: { login: "reviewer1" },
+        commit: { author: { date: "2026-04-06T10:00:00Z" }, committer: { date: "2026-04-06T10:00:00Z" } }
+      }
+    ],
+    reviews: [],
+    issueComments: [
+      { user: { login: "bug95" }, created_at: "2026-04-07T09:00:00Z", body: "I left feedback" },
+      { user: { login: "reviewer1" }, created_at: "2026-04-08T09:00:00Z", body: "Updated based on that feedback" }
+    ],
+    reviewComments: []
+  });
+
+  assert.equal(candidate.included, true);
+  assert.equal(candidate.reason, "UPDATED_AFTER_YOUR_REVIEW");
+  assert.equal(candidate.latestCodeUpdateAt, Date.parse("2026-04-08T09:00:00Z"));
+});
+
 test("deriveLatestOtherActivityAt ignores self comments and self commits on own PRs", () => {
   const latest = deriveLatestOtherActivityAt({
     pullRequest: { updated_at: "2026-04-09T12:00:00Z" },

@@ -128,6 +128,22 @@ export function deriveLatestOtherActivityAt({
   ]);
 }
 
+export function deriveLatestOtherCommentActivityAt({
+  githubLogin,
+  issueComments = [],
+  reviewComments = []
+}) {
+  const otherIssueCommentAt = issueComments
+    .filter((comment) => !isSameGithubUser(comment?.user?.login, githubLogin))
+    .map((comment) => parseTimestamp(comment?.updated_at || comment?.created_at));
+
+  const otherReviewCommentAt = reviewComments
+    .filter((comment) => !isSameGithubUser(comment?.user?.login, githubLogin))
+    .map((comment) => parseTimestamp(comment?.updated_at || comment?.created_at));
+
+  return maxTimestamp([...otherIssueCommentAt, ...otherReviewCommentAt]);
+}
+
 export function collectLatestUserParticipation({
   githubLogin,
   reviews = [],
@@ -265,6 +281,11 @@ export function buildReviewCandidate({
   commits = []
 }) {
   const isOwnPullRequest = isSameGithubUser(pullRequest?.user?.login, githubLogin);
+  const latestOtherCommentActivityAt = deriveLatestOtherCommentActivityAt({
+    githubLogin,
+    issueComments,
+    reviewComments
+  });
   const latestCodeUpdateAt = isOwnPullRequest
     ? deriveLatestOtherActivityAt({
         pullRequest,
@@ -274,7 +295,7 @@ export function buildReviewCandidate({
         reviewComments,
         commits
       })
-    : deriveLatestCodeUpdateAt(pullRequest, commits);
+    : Math.max(deriveLatestCodeUpdateAt(pullRequest, commits), latestOtherCommentActivityAt);
   const participation = collectLatestUserParticipation({
     githubLogin,
     reviews,
