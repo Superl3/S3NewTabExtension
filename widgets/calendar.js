@@ -1,16 +1,13 @@
 import { normalizeErrorMessage } from "../core/utils/error.js";
 import { normalizeIntegerInRange } from "../core/utils/number.js";
 import { normalizeText } from "../core/utils/text.js";
+import { normalizeGoogleAccountIndex as normalizeAccountIndex } from "./shared/googleAccounts.js";
 import { parseIcsEvents } from "./shared/icsParser.js";
 import { normalizeHttpUrl } from "./shared/linkUrls.js";
 import { addLocalDays as addDays, toLocalDateKey } from "./shared/localDates.js";
 
 const GOOGLE_CALENDAR_HOST = "https://calendar.google.com";
 const GOOGLE_CALENDAR_WEB_URL = `${GOOGLE_CALENDAR_HOST}/calendar/u/0/r`;
-
-function normalizeAccountIndex(value, fallback = 0) {
-  return normalizeIntegerInRange(value, fallback, 0, 9);
-}
 
 function calendarAppBaseUrl(accountIndex) {
   return `${GOOGLE_CALENDAR_HOST}/calendar/u/${normalizeAccountIndex(accountIndex)}/r`;

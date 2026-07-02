@@ -3,12 +3,9 @@ import { normalizeIntegerInRange } from "../core/utils/number.js";
 import { normalizeText } from "../core/utils/text.js";
 import { formatLocalDateTimeLabel as formatDateLabel } from "./shared/dateLabels.js";
 import { readAtomAlternateLink as atomAlternateLink, readFeedNodeText as nodeText } from "./shared/feedXml.js";
+import { normalizeGoogleAccountIndex as normalizeAccountIndex } from "./shared/googleAccounts.js";
 
 const GMAIL_WEB_BASE_URL = "https://mail.google.com/mail";
-
-function normalizeAccountIndex(value, fallback = 0) {
-  return normalizeIntegerInRange(value, fallback, 0, 9);
-}
 
 function normalizeMaxResults(value, fallback = 6) {
   return normalizeIntegerInRange(value, fallback, 1, 20);
