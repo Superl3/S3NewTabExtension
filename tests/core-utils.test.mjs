@@ -472,6 +472,13 @@ test("widget card drag session uses shared truthy timestamp fallback", async () 
   assert.doesNotMatch(source, /Number\(performanceNow\?\.\(\)\) \|\| Date\.now\(\)/);
 });
 
+test("widget card drag session normalizes grid metrics once with shared helpers", async () => {
+  const source = await fs.readFile(new URL("../core/widget-card-drag-session.js", import.meta.url), "utf8");
+  assert.match(source, /toFiniteNumber\(metrics\?\.cellW, 0\)/);
+  assert.match(source, /toFiniteNumber\(metrics\?\.marginX, 0\)/);
+  assert.doesNotMatch(source, /Number\(metrics\?\.(?:cellW|cellH|gapX|gapY|marginX|marginY|cols|rows)\) \|\| 0/);
+});
+
 test("core modules use shared integer helpers instead of local copies", async () => {
   const moduleUrls = [
     new URL("../core/board-grid-slot.js", import.meta.url),

@@ -1,5 +1,5 @@
 import { snapToHalfGridTrack } from "./utils/grid.js";
-import { clampFiniteOrMin, toInteger, toTruthyNumberOrFallback } from "./utils/number.js";
+import { clampFiniteOrMin, toFiniteNumber, toInteger, toTruthyNumberOrFallback } from "./utils/number.js";
 
 const INTERACTIVE_DRAG_BLOCK_SELECTOR = "button, input, textarea, select, a";
 const PAGE_SWITCH_THRESHOLD = 42;
@@ -313,22 +313,30 @@ export function startWidgetCardDragSession({
       row: 0,
       ...(widgetDefaultGridSize?.(instance.type, defForGrid) || {})
     };
-    const stepX = Math.max(1, (Number(metrics?.cellW) || 0) + (Number(metrics?.gapX) || 0));
-    const stepY = Math.max(1, (Number(metrics?.cellH) || 0) + (Number(metrics?.gapY) || 0));
+    const cellW = toFiniteNumber(metrics?.cellW, 0);
+    const cellH = toFiniteNumber(metrics?.cellH, 0);
+    const gapX = toFiniteNumber(metrics?.gapX, 0);
+    const gapY = toFiniteNumber(metrics?.gapY, 0);
+    const marginX = toFiniteNumber(metrics?.marginX, 0);
+    const marginY = toFiniteNumber(metrics?.marginY, 0);
+    const cols = toFiniteNumber(metrics?.cols, 0);
+    const rows = toFiniteNumber(metrics?.rows, 0);
+    const stepX = Math.max(1, cellW + gapX);
+    const stepY = Math.max(1, cellH + gapY);
 
     const projectedGridDropLayout = () => {
       const currentGrid = normalizeGridLayout?.(instance.gridLayout, gridFallback) || gridFallback;
-      const maxCol = Math.max(0, (Number(metrics?.cols) || 0) - currentGrid.colSpan);
-      const maxRow = Math.max(0, (Number(metrics?.rows) || 0) - currentGrid.rowSpan);
+      const maxCol = Math.max(0, cols - currentGrid.colSpan);
+      const maxRow = Math.max(0, rows - currentGrid.rowSpan);
       const snappedCol = applyClamp(
         clamp,
-        snapToHalfGridTrack((instance.layout.x - (Number(metrics?.marginX) || 0)) / stepX),
+        snapToHalfGridTrack((instance.layout.x - marginX) / stepX),
         0,
         maxCol
       );
       const snappedRow = applyClamp(
         clamp,
-        snapToHalfGridTrack((instance.layout.y - (Number(metrics?.marginY) || 0)) / stepY),
+        snapToHalfGridTrack((instance.layout.y - marginY) / stepY),
         0,
         maxRow
       );
@@ -340,10 +348,10 @@ export function startWidgetCardDragSession({
           row: snappedRow
         },
         layout: {
-          x: (Number(metrics?.marginX) || 0) + snappedCol * stepX,
-          y: (Number(metrics?.marginY) || 0) + snappedRow * stepY,
-          w: (Number(metrics?.cellW) || 0) * currentGrid.colSpan + (Number(metrics?.gapX) || 0) * (currentGrid.colSpan - 1),
-          h: (Number(metrics?.cellH) || 0) * currentGrid.rowSpan + (Number(metrics?.gapY) || 0) * (currentGrid.rowSpan - 1)
+          x: marginX + snappedCol * stepX,
+          y: marginY + snappedRow * stepY,
+          w: cellW * currentGrid.colSpan + gapX * (currentGrid.colSpan - 1),
+          h: cellH * currentGrid.rowSpan + gapY * (currentGrid.rowSpan - 1)
         }
       };
     };
