@@ -577,6 +577,13 @@ test("core modules use the shared optional function caller instead of local wrap
   }
 });
 
+test("widget add flow uses shared z-index fallback normalization", async () => {
+  const source = await fs.readFile(new URL("../core/widget-add-flow.js", import.meta.url), "utf8");
+  assert.match(source, /utils\/number\.js/);
+  assert.match(source, /toTruthyNumberOrFallback\(getZCounter\?\.\(\), 1\) \+ 1/);
+  assert.doesNotMatch(source, /\(Number\(getZCounter\?\.\(\)\) \|\| 1\) \+ 1/);
+});
+
 test("widget instance factory uses shared number normalization for free placement", async () => {
   const source = await fs.readFile(new URL("../core/widget-instance-factory.js", import.meta.url), "utf8");
   assert.match(source, /clampTruthyNumberOrFallback\(defaultSize\?\.colSpan, 1, 1, Number\.POSITIVE_INFINITY\)/);
