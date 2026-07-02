@@ -26,6 +26,8 @@ import {
 } from "./shared/authSessionStorage.js";
 import { getChromeIdentity, getChromeStorageChanges, getChromeStorageLocal } from "./shared/chromeApi.js";
 import {
+  hasMondayBoardConfig as hasBoardConfig,
+  hasMondayConnectorConfig as hasConnectorConfig,
   normalizeBoardId,
   normalizeBoardIds,
   normalizeColumnSelector,
@@ -238,14 +240,6 @@ function configSignature(config) {
     config.workEndHour,
     config.openInNewTab ? 1 : 0
   ].join("|");
-}
-
-function hasConnectorConfig(config) {
-  return Boolean(config.connectorUrl) || Boolean(config.accessToken);
-}
-
-function hasBoardConfig(config) {
-  return Array.isArray(config.boardIds) && config.boardIds.length > 0;
 }
 
 function autoSlotMinutes(config) {

@@ -48,6 +48,14 @@ export function normalizeBoardIds(value, fallback = []) {
   return out;
 }
 
+export function hasMondayConnectorConfig(config) {
+  return Boolean(config?.connectorUrl) || Boolean(config?.accessToken);
+}
+
+export function hasMondayBoardConfig(config) {
+  return Array.isArray(config?.boardIds) && config.boardIds.length > 0;
+}
+
 export function normalizeColumnSelector(value, options = {}) {
   const { fallback = "", maxLength = 120, allowWildcard = false } = options;
   const text = normalizeText(value, fallback);

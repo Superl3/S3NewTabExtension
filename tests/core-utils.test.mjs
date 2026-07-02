@@ -407,6 +407,20 @@ test("Monday widgets share auto-refresh slot primitives", async () => {
   }
 });
 
+test("Monday widgets share config predicates instead of local copies", async () => {
+  const moduleUrls = [
+    new URL("../widgets/mondayAssigned.js", import.meta.url),
+    new URL("../widgets/mondayMeetingNote.js", import.meta.url)
+  ];
+  const localConfigPredicatePattern = /^function (hasBoardConfig|hasConnectorConfig)\(/m;
+
+  for (const moduleUrl of moduleUrls) {
+    const source = await fs.readFile(moduleUrl, "utf8");
+    assert.match(source, /shared\/mondayConfig\.js/, moduleUrl.pathname);
+    assert.doesNotMatch(source, localConfigPredicatePattern, moduleUrl.pathname);
+  }
+});
+
 test("account auth widgets share local connector auth helpers", async () => {
   const moduleUrls = [
     new URL("../widgets/aiChat.js", import.meta.url),

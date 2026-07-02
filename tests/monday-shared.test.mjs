@@ -2,6 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
+  hasMondayBoardConfig,
+  hasMondayConnectorConfig,
   normalizeBoardIds,
   normalizeColumnSelectorList,
   parseColumnSelectorList
@@ -21,6 +23,16 @@ test("monday config normalizes board ids and selector lists for widget reuse", (
     "People, *, People"
   );
   assert.deepEqual(parseColumnSelectorList("미팅 노트, monday Doc"), ["미팅 노트", "monday Doc"]);
+});
+
+test("monday config predicates preserve connector and board readiness semantics", () => {
+  assert.equal(hasMondayConnectorConfig({ connectorUrl: "", accessToken: "" }), false);
+  assert.equal(hasMondayConnectorConfig({ connectorUrl: "http://localhost:8787/api/auth/start" }), true);
+  assert.equal(hasMondayConnectorConfig({ accessToken: "token-123" }), true);
+
+  assert.equal(hasMondayBoardConfig({ boardIds: [] }), false);
+  assert.equal(hasMondayBoardConfig({ boardIds: [101] }), true);
+  assert.equal(hasMondayBoardConfig({ boardId: 101 }), false);
 });
 
 test("monday client resolves site url from account label before fallback urls", () => {
