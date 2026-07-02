@@ -1,3 +1,5 @@
+import { clampTruthyNumberOrFallback } from "./utils/number.js";
+
 export function createBackgroundRuntime(deps) {
   function syncBackgroundRefreshButton() {
     const bgRefreshBtn = deps.elements?.bgRefreshBtn;
@@ -44,7 +46,7 @@ export function createBackgroundRuntime(deps) {
     const state = deps.getState();
     const cfg = state.ui.background;
     const theme = state.ui.theme;
-    const overlay = deps.clamp(Number(cfg.overlayOpacity) || 0.24, 0, 0.85);
+    const overlay = clampTruthyNumberOrFallback(cfg.overlayOpacity, 0.24, 0, 0.85);
 
     deps.elements.bgOverlay.style.background = `rgba(8, 11, 16, ${overlay})`;
     deps.elements.bgLayer.style.background = theme.background;

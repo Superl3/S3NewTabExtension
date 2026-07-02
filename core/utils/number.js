@@ -17,6 +17,10 @@ export function clampNumberOrFallback(value, fallback, min, max) {
   return clamp(numeric, min, max);
 }
 
+export function clampTruthyNumberOrFallback(value, fallback, min, max) {
+  return clamp(Number(value) || fallback, min, max);
+}
+
 export function toFiniteNumber(value, fallback = 0) {
   const numeric = Number(value);
   if (!Number.isFinite(numeric)) {
