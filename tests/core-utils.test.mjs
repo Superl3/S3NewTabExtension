@@ -623,6 +623,13 @@ test("core drag modules use shared browser and grid helpers instead of local cop
   }
 });
 
+test("widget drop projection uses shared truthy size clamps", async () => {
+  const source = await fs.readFile(new URL("../core/widget-drop-projection.js", import.meta.url), "utf8");
+  assert.match(source, /clampTruthyNumberOrFallback\(instance\.layout\.w, 320, 80, maxW\)/);
+  assert.match(source, /clampTruthyNumberOrFallback\(instance\.layout\.h, 220, 80, maxH\)/);
+  assert.doesNotMatch(source, /deps\.clamp\(Number\(instance\.layout\.(?:w|h)\) \|\|/);
+});
+
 test("grid and layout primitives share half-track snapping", async () => {
   const gridSource = await fs.readFile(new URL("../core/utils/grid.js", import.meta.url), "utf8");
   assert.match(gridSource, /utils\/number\.js|\.\/number\.js/);

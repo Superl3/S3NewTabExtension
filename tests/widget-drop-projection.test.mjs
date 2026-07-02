@@ -76,6 +76,27 @@ test("projectWidgetBoardDropLayoutRuntime projects snapped free-layout position"
   });
 });
 
+test("projectWidgetBoardDropLayoutRuntime preserves free-layout size fallback semantics", () => {
+  const instance = {
+    type: "note",
+    layout: { w: 0, h: "bad" }
+  };
+
+  const projection = projectWidgetBoardDropLayoutRuntime(
+    instance,
+    {
+      clientX: 333,
+      clientY: 277
+    },
+    {},
+    createBaseDeps()
+  );
+
+  assert.equal(projection.gridLayout, null);
+  assert.equal(projection.layout.w, 320);
+  assert.equal(projection.layout.h, 220);
+});
+
 test("projectWidgetBoardDropLayoutRuntime projects grid layout with spans", () => {
   const instance = {
     type: "note",
