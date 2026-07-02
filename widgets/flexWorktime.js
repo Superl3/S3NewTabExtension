@@ -29,8 +29,7 @@ import {
   formatSyncedLabel,
   normalizeCachedWorktimeRow as normalizeCachedRow,
   normalizeFlexHomeScrapeRow,
-  normalizeFlexHomeUrl,
-  normalizeFlexRefreshMinutes as normalizeRefreshMinutes,
+  normalizeFlexWidgetBaseConfig,
   normalizeTabId,
   resolveFlexWorktimeDetailUrl as resolveDetailUrl,
   toCachedWorktimeRow as toCachedRow,
@@ -74,13 +73,10 @@ function resolveQueryDateForSource(config) {
 }
 
 function normalizedConfig(config) {
-  return {
-    flexHomeUrl: normalizeFlexHomeUrl(config?.flexHomeUrl, DEFAULT_FLEX_HOME_URL),
-    openFlexTabIfMissing: config?.openFlexTabIfMissing !== false,
-    refreshMinutes: normalizeRefreshMinutes(config?.refreshMinutes, DEFAULT_FLEX_WORKTIME_REFRESH_MINUTES),
-    detailUrlTemplate: normalizeText(config?.detailUrlTemplate),
-    openInNewTab: config?.openInNewTab !== false
-  };
+  return normalizeFlexWidgetBaseConfig(config, {
+    defaultFlexHomeUrl: DEFAULT_FLEX_HOME_URL,
+    defaultRefreshMinutes: DEFAULT_FLEX_WORKTIME_REFRESH_MINUTES
+  });
 }
 
 function getReusableScrapeTabId(scrapeFlowState) {

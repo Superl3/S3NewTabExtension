@@ -73,6 +73,21 @@ export function normalizeFlexHomeUrl(value, fallback = "https://flex.team/home")
   return text || "https://flex.team/home";
 }
 
+export function normalizeFlexWidgetBaseConfig(config, options = {}) {
+  const {
+    defaultFlexHomeUrl = "https://flex.team/home",
+    defaultRefreshMinutes = 10
+  } = options;
+
+  return {
+    flexHomeUrl: normalizeFlexHomeUrl(config?.flexHomeUrl, defaultFlexHomeUrl),
+    openFlexTabIfMissing: config?.openFlexTabIfMissing !== false,
+    refreshMinutes: normalizeFlexRefreshMinutes(config?.refreshMinutes, defaultRefreshMinutes),
+    detailUrlTemplate: normalizeText(config?.detailUrlTemplate),
+    openInNewTab: config?.openInNewTab !== false
+  };
+}
+
 export { toLocalDateKey };
 
 export function formatClockMinutes(totalMinutes) {
