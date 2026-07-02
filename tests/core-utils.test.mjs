@@ -466,6 +466,12 @@ test("widget card drag session shares finite clamp fallback", async () => {
   assert.doesNotMatch(source, /Math\.min\(max, Math\.max\(min, safeValue\)\)/);
 });
 
+test("widget card drag session uses shared truthy timestamp fallback", async () => {
+  const source = await fs.readFile(new URL("../core/widget-card-drag-session.js", import.meta.url), "utf8");
+  assert.match(source, /toTruthyNumberOrFallback\(performanceNow\?\.\(\), Date\.now\)/);
+  assert.doesNotMatch(source, /Number\(performanceNow\?\.\(\)\) \|\| Date\.now\(\)/);
+});
+
 test("core modules use shared integer helpers instead of local copies", async () => {
   const moduleUrls = [
     new URL("../core/board-grid-slot.js", import.meta.url),
