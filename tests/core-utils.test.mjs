@@ -1295,6 +1295,7 @@ test("GitHub widgets share repository and API helpers", async () => {
       /^function build(?:IssueComments|Reviews|ReviewComments|Commits)ApiUrl\(/m,
       moduleUrl.pathname
     );
+    assert.doesNotMatch(source, /^function toCachedItem\(/m, moduleUrl.pathname);
     assert.doesNotMatch(source, /Math\.floor\(Number\(entry\?\.teamCount\)/, moduleUrl.pathname);
     assert.doesNotMatch(source, /Number\(rawConfig\?\.cacheAt\) \|\| 0/, moduleUrl.pathname);
     assert.doesNotMatch(source, /Number\(pull\?\.number\) \|\| 0/, moduleUrl.pathname);

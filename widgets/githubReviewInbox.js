@@ -363,17 +363,9 @@ function normalizeCachedItem(entry) {
   };
 }
 
-function toCachedItem(entry) {
-  const normalized = normalizeCachedItem(entry);
-  if (!normalized) {
-    return null;
-  }
-  return { ...normalized };
-}
-
 function buildCacheReviewItems(items) {
   return arrayOrEmpty(items)
-    .map(toCachedItem)
+    .map(normalizeCachedItem)
     .filter(Boolean);
 }
 
@@ -439,7 +431,7 @@ function readCachedSnapshot(rawConfig, cfg) {
 
 function isReviewInboxSnapshotUnchanged(rawConfig, cfg, items, tokenUserWarning) {
   const currentCacheItems = arrayOrEmpty(rawConfig?.cacheReviewItems)
-    .map(toCachedItem)
+    .map(normalizeCachedItem)
     .filter(Boolean);
 
   return (
