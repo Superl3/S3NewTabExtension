@@ -1,3 +1,4 @@
+import { arrayOrEmpty } from "../core/utils/array.js";
 import { normalizeErrorMessage } from "../core/utils/error.js";
 import { toFiniteNumber } from "../core/utils/number.js";
 import { normalizeText } from "../core/utils/text.js";
@@ -48,12 +49,8 @@ function extractTextParts(value) {
     return text ? [text] : [];
   }
 
-  if (!Array.isArray(value)) {
-    return [];
-  }
-
   const out = [];
-  for (const part of value) {
+  for (const part of arrayOrEmpty(value)) {
     if (!part || typeof part !== "object") {
       continue;
     }
@@ -86,8 +83,7 @@ function extractAssistantText(data) {
     return outputText;
   }
 
-  const output = Array.isArray(data?.output) ? data.output : [];
-  for (const item of output) {
+  for (const item of arrayOrEmpty(data?.output)) {
     if (!item || typeof item !== "object") {
       continue;
     }
@@ -311,7 +307,7 @@ export const aiChatWidget = {
 
     function getHistory() {
       const cfg = getConfig();
-      return Array.isArray(cfg.history) ? cfg.history : [];
+      return arrayOrEmpty(cfg.history);
     }
 
     function getConnectorUrl() {
