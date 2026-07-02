@@ -1,11 +1,9 @@
 import { normalizeErrorMessage } from "../core/utils/error.js";
 import { isPlainObject } from "../core/utils/object.js";
 import { normalizeText } from "../core/utils/text.js";
-import { hasScriptingApi } from "../core/platform/chrome-scripting.js";
 import {
   createTab,
   getTabIfExists,
-  hasTabsApi,
   queryTabs,
   removeTab,
   updateTab,
@@ -16,7 +14,10 @@ import {
   FLEX_AUTH_FLOW_PENDING_MESSAGE,
   isFlexAuthRequiredError
 } from "./shared/flexAuth.js";
-import { extractFlexHomeWorktimeFromTab } from "./shared/flexHomeScrape.js";
+import {
+  assertFlexScrapeApisAvailable,
+  extractFlexHomeWorktimeFromTab
+} from "./shared/flexHomeScrape.js";
 import {
   isLikelyOngoingFlexAuthFlowUrl,
   isMatchingFlexHomeTabUrl,
@@ -84,9 +85,7 @@ function normalizedConfig(config) {
 }
 
 function ensureFlexHomeScrapeApis() {
-  if (!hasTabsApi() || !hasScriptingApi()) {
-    throw new Error('Flex Home scrape mode requires "tabs" and "scripting" extension permissions.');
-  }
+  assertFlexScrapeApisAvailable('Flex Home scrape mode requires "tabs" and "scripting" extension permissions.');
 }
 
 function getReusableScrapeTabId(scrapeFlowState) {

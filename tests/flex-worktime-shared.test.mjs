@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
+import { assertFlexScrapeApisAvailable } from "../widgets/shared/flexHomeScrape.js";
 import { createFlexWorktimeCache } from "../widgets/shared/flexWorktimeCache.js";
 import { resolveFlexWorktimeDetailUrl } from "../widgets/shared/flexWorktimeRows.js";
 
@@ -30,6 +31,25 @@ class FakeStorage {
   }
 }
 
+function createScrapeChromeApi() {
+  return {
+    scripting: {
+      executeScript() {}
+    },
+    tabs: {
+      query() {},
+      get() {},
+      create() {},
+      update() {},
+      remove() {},
+      onUpdated: {
+        addListener() {},
+        removeListener() {}
+      }
+    }
+  };
+}
+
 function createCache(storage) {
   return createFlexWorktimeCache({
     cachePrefix: "test:flex-cache:v1",
@@ -40,6 +60,26 @@ function createCache(storage) {
     toCachedRow: (row) => row && row.id ? { id: row.id, keep: true } : null
   });
 }
+
+test("Flex scrape API assertion preserves permission error messaging", () => {
+  const previousChrome = globalThis.chrome;
+  delete globalThis.chrome;
+  try {
+    assert.throws(
+      () => assertFlexScrapeApisAvailable("missing flex permissions"),
+      /missing flex permissions/
+    );
+
+    globalThis.chrome = createScrapeChromeApi();
+    assert.doesNotThrow(() => assertFlexScrapeApisAvailable("missing flex permissions"));
+  } finally {
+    if (typeof previousChrome === "undefined") {
+      delete globalThis.chrome;
+    } else {
+      globalThis.chrome = previousChrome;
+    }
+  }
+});
 
 test("Flex worktime detail URL helper resolves placeholders safely", () => {
   const entry = {
