@@ -605,6 +605,19 @@ test("date-driven widgets share local date key helpers instead of local copies",
   }
 });
 
+test("Google account widgets share account index normalization", async () => {
+  const moduleUrls = [
+    new URL("../widgets/calendar.js", import.meta.url),
+    new URL("../widgets/gmail.js", import.meta.url)
+  ];
+
+  for (const moduleUrl of moduleUrls) {
+    const source = await fs.readFile(moduleUrl, "utf8");
+    assert.match(source, /shared\/googleAccounts\.js/, moduleUrl.pathname);
+    assert.doesNotMatch(source, /^function normalizeAccountIndex\(/m, moduleUrl.pathname);
+  }
+});
+
 test("feed widgets share XML helpers instead of local copies", async () => {
   const moduleUrls = [
     new URL("../widgets/gmail.js", import.meta.url),
