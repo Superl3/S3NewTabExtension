@@ -233,6 +233,7 @@ test("dock state uses the shared container membership predicate", async () => {
 
 test("core modules use the shared finite clamp helper instead of local copies", async () => {
   const moduleUrls = [
+    new URL("../core/board-grid-slot.js", import.meta.url),
     new URL("../core/board-swipe.js", import.meta.url),
     new URL("../core/dock-geometry.js", import.meta.url),
     new URL("../core/drag-positioning.js", import.meta.url),
@@ -245,7 +246,9 @@ test("core modules use the shared finite clamp helper instead of local copies", 
 
   for (const moduleUrl of moduleUrls) {
     const source = await fs.readFile(moduleUrl, "utf8");
+    assert.match(source, /utils\/number\.js/, moduleUrl.pathname);
     assert.doesNotMatch(source, /^function clamp\(/m, moduleUrl.pathname);
+    assert.doesNotMatch(source, /^function fallbackClamp\(/m, moduleUrl.pathname);
   }
 });
 
