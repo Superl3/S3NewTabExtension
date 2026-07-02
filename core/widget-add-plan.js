@@ -1,8 +1,9 @@
+import { arrayOrEmpty } from "./utils/array.js";
 import { callIfFunction as call } from "./utils/function.js";
 
 export function countBoardWidgetsOnPage(instances, targetPage, pageCount, deps = {}) {
   const { isWidgetDocked, isWidgetInContainer, normalizeWidgetPage } = deps;
-  return (Array.isArray(instances) ? instances : []).filter((instance) => {
+  return arrayOrEmpty(instances).filter((instance) => {
     return (
       !call(isWidgetDocked, instance) &&
       !call(isWidgetInContainer, instance) &&
