@@ -519,8 +519,10 @@ async function fetchReviewInboxItems(config) {
       continue;
     }
 
-    const reviewerNames = normalizeReviewerNames(pull?.requested_reviewers);
-    const teamCount = Array.isArray(pull?.requested_teams) ? pull.requested_teams.length : 0;
+    const requestedReviewers = arrayOrEmpty(pull?.requested_reviewers);
+    const requestedTeams = arrayOrEmpty(pull?.requested_teams);
+    const reviewerNames = normalizeReviewerNames(requestedReviewers);
+    const teamCount = requestedTeams.length;
     reviewItems.push({
       id: String(pull?.id || pull?.number || Math.random()),
       number: pullNumber,
@@ -530,11 +532,8 @@ async function fetchReviewInboxItems(config) {
       createdAt: parseTimestamp(pull?.created_at),
       draft: pull?.draft === true,
       reviewRequested:
-        (Array.isArray(pull?.requested_reviewers)
-          ? pull.requested_reviewers.some(
-              (reviewer) => normalizeGithubLogin(reviewer?.login) === config.githubLogin
-            )
-          : false) || teamCount > 0,
+        requestedReviewers.some((reviewer) => normalizeGithubLogin(reviewer?.login) === config.githubLogin) ||
+        teamCount > 0,
       reviewerNames,
       teamCount,
       reason: candidate.reason,
