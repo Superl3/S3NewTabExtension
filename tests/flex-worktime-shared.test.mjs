@@ -13,6 +13,8 @@ import { createFlexWorktimeCache } from "../widgets/shared/flexWorktimeCache.js"
 import {
   formatClockMinutes,
   formatDurationMinutes,
+  formatFlexHomeScrapeError,
+  formatFlexWorkRecordScrapeError,
   normalizeFlexWidgetBaseConfig,
   resolveFlexWorktimeDetailUrl
 } from "../widgets/shared/flexWorktimeRows.js";
@@ -215,6 +217,21 @@ test("Flex shared duration formatter preserves numeric fallback semantics", () =
   assert.equal(formatDurationMinutes(61.9), "1h 2m");
   assert.equal(formatDurationMinutes("bad"), "0m");
   assert.equal(formatDurationMinutes(-4), "0m");
+});
+
+test("Flex shared source error formatters preserve widget prefixes", () => {
+  assert.equal(
+    formatFlexHomeScrapeError(null, new Error("missing tab")),
+    "Flex Home scrape: missing tab"
+  );
+  assert.equal(
+    formatFlexWorkRecordScrapeError(null, "blocked"),
+    "Flex Work Record scrape: blocked"
+  );
+  assert.equal(
+    formatFlexHomeScrapeError(null, "Flex Home scrape: already prefixed"),
+    "Flex Home scrape: already prefixed"
+  );
 });
 
 test("Flex worktime detail URL helper resolves placeholders safely", () => {

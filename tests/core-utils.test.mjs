@@ -1085,7 +1085,7 @@ test("Flex worktime widgets share row helpers instead of local copies", async ()
     new URL("../widgets/flexWorktimeTimeline.js", import.meta.url)
   ];
   const localHelperPattern =
-    /^function (applyTemplate|formatDurationMinutes|formatSyncedLabel|formatTimeFromRef|normalizeCachedRow|normalizeFlexHomeScrapeRow|normalizeTabId|normalizeWorktimeRow|resolveDetailUrl|resolvePathValue|sanitizePlaceholderMap|toCachedRow)\(/m;
+    /^function (applyTemplate|formatDurationMinutes|formatSourceError|formatSyncedLabel|formatTimeFromRef|normalizeCachedRow|normalizeFlexHomeScrapeRow|normalizeTabId|normalizeWorktimeRow|resolveDetailUrl|resolvePathValue|sanitizePlaceholderMap|sourceModeLabel|toCachedRow)\(/m;
 
   for (const moduleUrl of moduleUrls) {
     const source = await fs.readFile(moduleUrl, "utf8");
