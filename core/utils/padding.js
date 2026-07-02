@@ -1,9 +1,7 @@
+import { clampNumberOrFallback } from "./number.js";
+
 export function normalizePaddingValue(value, fallback = 10) {
-  const numeric = Number(value);
-  if (!Number.isFinite(numeric)) {
-    return fallback;
-  }
-  return Math.max(0, Math.min(100, numeric));
+  return clampNumberOrFallback(value, fallback, 0, 100);
 }
 
 export function resolvePaddingNormalizer(normalizePadding) {

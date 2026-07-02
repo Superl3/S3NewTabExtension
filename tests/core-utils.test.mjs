@@ -14,6 +14,7 @@ import { parseJsonOrFallback, parseJsonOrNull } from "../core/utils/json.js";
 import {
   clamp,
   clampFiniteOrMin,
+  clampNumberOrFallback,
   normalizeIntegerInRange,
   roundFiniteOrFallback,
   toFiniteNumber,
@@ -52,6 +53,12 @@ test("clampFiniteOrMin bounds finite values and uses min for non-finite values",
   assert.equal(clampFiniteOrMin(9, 1, 5), 5);
   assert.equal(clampFiniteOrMin(-2, 1, 5), 1);
   assert.equal(clampFiniteOrMin(Number.NaN, 1, 5), 1);
+});
+
+test("clampNumberOrFallback coerces numbers and preserves fallback values", () => {
+  assert.equal(clampNumberOrFallback("9", 1, 1, 5), 5);
+  assert.equal(clampNumberOrFallback("-2", 1, 1, 5), 1);
+  assert.equal(clampNumberOrFallback("bad", 150, 0, 100), 150);
 });
 
 test("toFiniteNumber returns numeric values and falls back for non-finite values", () => {
@@ -338,6 +345,15 @@ test("core padding modules share fallback padding normalization", async () => {
     assert.match(source, /utils\/padding\.js/, moduleUrl.pathname);
     assert.doesNotMatch(source, /^function resolveNormalize(Padding)?\(/m, moduleUrl.pathname);
   }
+});
+
+test("padding utility shares number clamp fallback helper", async () => {
+  const source = await fs.readFile(new URL("../core/utils/padding.js", import.meta.url), "utf8");
+  assert.match(source, /utils\/number\.js|\.\/number\.js/);
+  assert.match(source, /clampNumberOrFallback/);
+  assert.doesNotMatch(source, /const numeric = Number\(value\)/);
+  assert.doesNotMatch(source, /Number\.isFinite\(numeric\)/);
+  assert.doesNotMatch(source, /Math\.max\(0, Math\.min\(100, numeric\)\)/);
 });
 
 test("core profile utilities use shared object helpers", async () => {
