@@ -65,6 +65,12 @@ function isSameGithubUser(left, right) {
   return normalizeGithubLogin(left) && normalizeGithubLogin(left) === normalizeGithubLogin(right);
 }
 
+function collectOtherUserTimestamps(items, githubLogin, readTimestamp) {
+  return items
+    .filter((item) => !isSameGithubUser(item?.user?.login, githubLogin))
+    .map(readTimestamp);
+}
+
 export function deriveLatestCodeUpdateAt(pullRequest, commits = []) {
   const commitTimes = arrayOrEmpty(commits)
     .map((commit) => {
@@ -93,17 +99,21 @@ export function deriveLatestOtherActivityAt({
   reviewComments = [],
   commits = []
 }) {
-  const otherReviewAt = reviews
-    .filter((review) => !isSameGithubUser(review?.user?.login, githubLogin))
-    .map((review) => parseTimestamp(review?.submitted_at || review?.created_at));
-
-  const otherIssueCommentAt = issueComments
-    .filter((comment) => !isSameGithubUser(comment?.user?.login, githubLogin))
-    .map((comment) => parseTimestamp(comment?.updated_at || comment?.created_at));
-
-  const otherReviewCommentAt = reviewComments
-    .filter((comment) => !isSameGithubUser(comment?.user?.login, githubLogin))
-    .map((comment) => parseTimestamp(comment?.updated_at || comment?.created_at));
+  const otherReviewAt = collectOtherUserTimestamps(
+    reviews,
+    githubLogin,
+    (review) => parseTimestamp(review?.submitted_at || review?.created_at)
+  );
+  const otherIssueCommentAt = collectOtherUserTimestamps(
+    issueComments,
+    githubLogin,
+    (comment) => parseTimestamp(comment?.updated_at || comment?.created_at)
+  );
+  const otherReviewCommentAt = collectOtherUserTimestamps(
+    reviewComments,
+    githubLogin,
+    (comment) => parseTimestamp(comment?.updated_at || comment?.created_at)
+  );
 
   const otherCommitAt = commits
     .filter((commit) => {

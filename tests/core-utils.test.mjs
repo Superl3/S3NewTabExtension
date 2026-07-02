@@ -1325,6 +1325,11 @@ test("GitHub review inbox logic uses shared cache timestamp normalization", asyn
   const source = await fs.readFile(new URL("../widgets/shared/githubReviewInboxLogic.js", import.meta.url), "utf8");
   assert.match(source, /shared\/githubApi\.js|\.\/githubApi\.js/);
   assert.match(source, /normalizeGitHubCacheTimestamp/);
+  assert.match(source, /collectOtherUserTimestamps/);
+  assert.equal(
+    Array.from(source.matchAll(/\.filter\(\([^)]*\) => !isSameGithubUser\(/g)).length,
+    1
+  );
   assert.doesNotMatch(source, /Math\.max\(0, Number\(latestAttentionAt \?\? latestCodeUpdateAt\) \|\| 0\)/);
 });
 
