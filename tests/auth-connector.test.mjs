@@ -15,6 +15,7 @@ import {
 import {
   hasActiveAuthConnection,
   hasAuthSessionStorageChange,
+  loadActiveAuthSessionForConfig,
   resolveActiveAuthSession
 } from "../widgets/shared/authSessionStorage.js";
 import {
@@ -280,6 +281,66 @@ test("shared active auth connection predicate preserves configured-token and sto
     }),
     false
   );
+});
+
+test("shared auth session config loader preserves token and stored-session resolution", async () => {
+  const loadCalls = [];
+  const normalizeConnectorUrl = (value) => String(value || "").trim();
+  const storedSession = {
+    connectorUrl: "http://localhost:8787/api/auth/start",
+    accessToken: "stored-token",
+    accountLabel: "stored@example.com"
+  };
+
+  assert.deepEqual(
+    await loadActiveAuthSessionForConfig({
+      config: {
+        connectorUrl: " http://localhost:8787/api/auth/start ",
+        accessToken: " configured-token "
+      },
+      normalizeConnectorUrl,
+      loadStoredSession: async () => {
+        loadCalls.push("configured");
+        return storedSession;
+      }
+    }),
+    {
+      connectorUrl: "http://localhost:8787/api/auth/start",
+      accessToken: "configured-token",
+      accountLabel: "Configured token"
+    }
+  );
+
+  assert.deepEqual(
+    await loadActiveAuthSessionForConfig({
+      config: {
+        connectorUrl: "http://localhost:8787/api/auth/start",
+        accessToken: ""
+      },
+      normalizeConnectorUrl,
+      loadStoredSession: async () => {
+        loadCalls.push("stored");
+        return storedSession;
+      }
+    }),
+    storedSession
+  );
+
+  assert.equal(
+    await loadActiveAuthSessionForConfig({
+      config: {
+        connectorUrl: "",
+        accessToken: ""
+      },
+      normalizeConnectorUrl,
+      loadStoredSession: async () => {
+        loadCalls.push("empty");
+        return storedSession;
+      }
+    }),
+    null
+  );
+  assert.deepEqual(loadCalls, ["configured", "stored"]);
 });
 
 test("shared auth session change detector matches the configured storage key", () => {

@@ -1399,6 +1399,21 @@ test("Monday widgets share active auth connection predicate", async () => {
   }
 });
 
+test("Monday widgets share active auth session config loading", async () => {
+  const moduleUrls = [
+    new URL("../widgets/mondayAssigned.js", import.meta.url),
+    new URL("../widgets/mondayMeetingNote.js", import.meta.url)
+  ];
+  const localSessionConfigPattern =
+    /const connectorUrl = normalizeConnectorUrl\(config\?\.connectorUrl\)[\s\S]*?resolveActiveAuthSession\(/;
+
+  for (const moduleUrl of moduleUrls) {
+    const source = await fs.readFile(moduleUrl, "utf8");
+    assert.match(source, /loadActiveAuthSessionForConfig/, moduleUrl.pathname);
+    assert.doesNotMatch(source, localSessionConfigPattern, moduleUrl.pathname);
+  }
+});
+
 test("Monday widgets share chrome storage change subscription primitive", async () => {
   const moduleUrls = [
     new URL("../widgets/mondayAssigned.js", import.meta.url),
