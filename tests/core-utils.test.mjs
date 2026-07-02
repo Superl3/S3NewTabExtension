@@ -279,8 +279,10 @@ test("core modules use shared integer helpers instead of local copies", async ()
 
   for (const moduleUrl of moduleUrls) {
     const source = await fs.readFile(moduleUrl, "utf8");
+    assert.match(source, /utils\/number\.js/, moduleUrl.pathname);
     assert.doesNotMatch(source, /^function (toInteger|normalizeInteger|toPositiveInteger)\(/m, moduleUrl.pathname);
     assert.doesNotMatch(source, /^function normalizeHoldMs\(/m, moduleUrl.pathname);
+    assert.doesNotMatch(source, /Number\.isFinite\(Number\(/, moduleUrl.pathname);
   }
 });
 
