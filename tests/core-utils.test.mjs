@@ -1603,6 +1603,7 @@ test("Monday widgets share cached board base normalization", async () => {
       /function normalizeCachedBoardSnapshot\([\s\S]*?\n}\n\nfunction readCachedSnapshot/
     )?.[0] || "";
     assert.match(source, /normalizeCachedMondayBoardBase/, moduleUrl.pathname);
+    assert.match(source, /formatMondayGraphqlStringList/, moduleUrl.pathname);
     assert.match(source, /normalizeMondayCachedBoards/, moduleUrl.pathname);
     assert.ok(
       Array.from(source.matchAll(/normalizeMondayCachedBoards\(/g)).length >= 2,
@@ -1620,6 +1621,7 @@ test("Monday widgets share cached board base normalization", async () => {
     assert.doesNotMatch(source, /Array\.isArray\(cached\.boards\)/, moduleUrl.pathname);
     assert.doesNotMatch(source, /Array\.isArray\(currentCfg\?\.cacheBoards\)/, moduleUrl.pathname);
     assert.doesNotMatch(source, /JSON\.stringify\(currentCacheBoards\) === JSON\.stringify\(cacheBoards\)/, moduleUrl.pathname);
+    assert.doesNotMatch(source, /\.map\(\(id\) => JSON\.stringify\(id\)\)\.join\(", "\)/, moduleUrl.pathname);
     assert.doesNotMatch(
       cachedSnapshotBlock,
       /boardName:\s*normalizeText\(entry\?\.boardName,\s*`Board \$\{boardId\}`\)/,

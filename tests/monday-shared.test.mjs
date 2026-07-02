@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 
 import {
   areMondayCachedBoardsEqual,
+  formatMondayGraphqlStringList,
   hasMondayBoardConfig,
   hasMondayConnectorConfig,
   normalizeCachedMondayBoardBase,
@@ -35,6 +36,8 @@ test("monday config normalizes board ids and selector lists for widget reuse", (
   assert.equal(normalizeMondayCacheNumber("bad", 7), 7);
   assert.equal(normalizeMondayCacheTimestamp("12.5"), 12.5);
   assert.equal(normalizeMondayCacheTimestamp("-1"), 0);
+  assert.equal(formatMondayGraphqlStringList(["status", "text column"]), "\"status\", \"text column\"");
+  assert.equal(formatMondayGraphqlStringList(["quote\"id"]), "\"quote\\\"id\"");
   assert.equal(
     normalizeColumnSelectorList(" People , *, People ", {
       allowWildcard: true,

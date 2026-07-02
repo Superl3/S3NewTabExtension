@@ -91,6 +91,10 @@ export function areMondayCachedBoardsEqual(leftBoards, rightBoards, normalizeBoa
   return JSON.stringify(left) === JSON.stringify(right);
 }
 
+export function formatMondayGraphqlStringList(values) {
+  return arrayOrEmpty(values).map((value) => JSON.stringify(value)).join(", ");
+}
+
 export function normalizeColumnSelector(value, options = {}) {
   const { fallback = "", maxLength = 120, allowWildcard = false } = options;
   const text = normalizeText(value, fallback);
