@@ -410,6 +410,7 @@ test("background video cache uses shared keep-count clamp", async () => {
 test("core input-list modules use shared array fallback helper", async () => {
   const moduleUrls = [
     new URL("../core/alarm/alarm-runtime.js", import.meta.url),
+    new URL("../core/background-wallpaper-runtime.js", import.meta.url),
     new URL("../core/background-video-cache-runtime.js", import.meta.url),
     new URL("../core/launcher-pages.js", import.meta.url),
     new URL("../core/settings-input-schema.js", import.meta.url)
@@ -426,6 +427,12 @@ test("core input-list modules use shared array fallback helper", async () => {
 
   const backgroundVideoSource = await fs.readFile(new URL("../core/background-video-cache-runtime.js", import.meta.url), "utf8");
   assert.doesNotMatch(backgroundVideoSource, /Array\.isArray\(previewVideo\?\.variants\) \? previewVideo\.variants : \[\]/);
+  assert.match(backgroundVideoSource, /arrayOrEmpty\(data\?\.data\?\.children\)/);
+  assert.doesNotMatch(backgroundVideoSource, /data\?\.data\?\.children \|\| \[\]/);
+
+  const backgroundWallpaperSource = await fs.readFile(new URL("../core/background-wallpaper-runtime.js", import.meta.url), "utf8");
+  assert.match(backgroundWallpaperSource, /arrayOrEmpty\(data\?\.data\?\.children\)/);
+  assert.doesNotMatch(backgroundWallpaperSource, /data\?\.data\?\.children \|\| \[\]/);
 
   const launcherPagesSource = await fs.readFile(new URL("../core/launcher-pages.js", import.meta.url), "utf8");
   assert.doesNotMatch(launcherPagesSource, /Array\.isArray\(list\) \? list : \[\]/);
