@@ -466,6 +466,9 @@ test("core input-list modules use shared array fallback helper", async () => {
 
   const schemaSource = await fs.readFile(new URL("../core/settings-input-schema.js", import.meta.url), "utf8");
   assert.doesNotMatch(schemaSource, /Array\.isArray\(schema\.options\) \? schema\.options : \[\]/);
+  assert.match(schemaSource, /node\.children \?\? \[\]/);
+  assert.match(schemaSource, /root\.children \?\? \[\]/);
+  assert.doesNotMatch(schemaSource, /(?:node|root)\.children \|\| \[\]/);
 });
 
 test("state timestamp fields use shared non-negative number normalization", async () => {
