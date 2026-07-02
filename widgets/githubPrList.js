@@ -7,6 +7,7 @@ import {
   buildGitHubRepoPullsPageUrl as buildRepoPullsPageUrl,
   formatGitHubRelativeTimestamp as formatUpdatedLabelFromTimestamp,
   formatGitHubSyncedLabel as formatSyncedLabel,
+  matchesGitHubCacheRepository as matchesCacheRepository,
   matchesGitHubCacheTokenFingerprint,
   normalizeGitHubCachedItemBase as normalizeCachedItemBase,
   normalizeGitHubCachedItems as normalizeCachedItems,
@@ -62,8 +63,7 @@ function readCachedSnapshot(rawConfig, cfg) {
     return null;
   }
 
-  const cachedRepository = normalizeRepository(rawConfig?.cacheRepository);
-  if (!cachedRepository || cachedRepository !== cfg.repository) {
+  if (!matchesCacheRepository(rawConfig?.cacheRepository, cfg.repository)) {
     return null;
   }
 
@@ -280,7 +280,7 @@ export const githubPrListWidget = {
       const expectedTokenHash = tokenFingerprint(cfg.accessToken);
 
       const unchanged =
-        normalizeRepository(currentCfg?.cacheRepository) === cfg.repository &&
+        matchesCacheRepository(currentCfg?.cacheRepository, cfg.repository) &&
         matchesGitHubCacheTokenFingerprint(currentCfg?.cacheTokenFingerprint, cfg.accessToken) &&
         JSON.stringify(currentCachePullItems) === JSON.stringify(cachePullItems);
 

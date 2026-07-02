@@ -115,6 +115,11 @@ export function matchesGitHubCacheTokenFingerprint(cacheTokenFingerprint, access
   return allowMissingWhenTokenEmpty === true && !normalizeText(accessToken);
 }
 
+export function matchesGitHubCacheRepository(cacheRepository, repository) {
+  const expectedRepository = normalizeGitHubRepository(repository);
+  return Boolean(expectedRepository) && normalizeGitHubRepository(cacheRepository) === expectedRepository;
+}
+
 export function formatGitHubRelativeTimestamp(parsedTimestamp) {
   const parsed = Number(parsedTimestamp);
   if (!Number.isFinite(parsed) || parsed <= 0) {
