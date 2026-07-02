@@ -664,6 +664,7 @@ test("widgets share link URL helpers instead of local copies", async () => {
   const moduleUrls = [
     new URL("../widgets/shortcut.js", import.meta.url),
     new URL("../widgets/bookmarks.js", import.meta.url),
+    new URL("../widgets/container.js", import.meta.url),
     new URL("../widgets/rss.js", import.meta.url),
     new URL("../widgets/calendar.js", import.meta.url)
   ];
