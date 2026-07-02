@@ -1665,6 +1665,8 @@ test("Monday widgets share list array fallback normalization", async () => {
   assert.doesNotMatch(meetingNoteSource, /Array\.isArray\(rawColumns\) \? rawColumns : \[\]/);
   assert.doesNotMatch(meetingNoteSource, /Array\.isArray\(selectorList\) \? selectorList : \[\]/);
   assert.doesNotMatch(meetingNoteSource, /Array\.isArray\(columnIds\) \? columnIds : \[\]/);
+  assert.match(meetingNoteSource, /parseColumnSelectorList\(selectorText, \{ maxLength: 120 \}\)/);
+  assert.doesNotMatch(meetingNoteSource, /^function (normalizeColumnSelectorList|parseSelectorList)\(/m);
 });
 
 test("Monday meeting notes reuse the shared safe URL parser", async () => {
