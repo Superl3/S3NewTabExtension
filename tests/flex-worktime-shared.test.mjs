@@ -10,6 +10,7 @@ import {
   findFlexTabByPriority,
   selectPreferredFlexTab
 } from "../widgets/shared/flexTabs.js";
+import { openFlexDetailHref } from "../widgets/shared/flexNavigation.js";
 import { createFlexWorktimeCache } from "../widgets/shared/flexWorktimeCache.js";
 import {
   FLEX_HOME_TAB_LOAD_TIMEOUT_MS,
@@ -362,6 +363,29 @@ test("Flex worktime detail URL helper resolves placeholders safely", () => {
     ""
   );
   assert.equal(resolveFlexWorktimeDetailUrl({ detailUrlTemplate: "" }, "2026-07-02", entry), "");
+});
+
+test("Flex worktime navigation helper opens detail links consistently", () => {
+  const opened = [];
+  const targetWindow = {
+    location: { href: "" },
+    open(href, target, features) {
+      opened.push({ href, target, features });
+    }
+  };
+
+  assert.equal(openFlexDetailHref("", { openInNewTab: true }, targetWindow), false);
+  assert.equal(openFlexDetailHref("https://example.com/detail", { openInNewTab: true }, targetWindow), true);
+  assert.deepEqual(opened, [
+    {
+      href: "https://example.com/detail",
+      target: "_blank",
+      features: "noopener,noreferrer"
+    }
+  ]);
+
+  assert.equal(openFlexDetailHref("https://example.com/current", { openInNewTab: false }, targetWindow), true);
+  assert.equal(targetWindow.location.href, "https://example.com/current");
 });
 
 test("Flex worktime cache factory preserves storage and index semantics", () => {

@@ -31,6 +31,7 @@ import {
   activateFlexAuthFlowTabIfNeeded,
   findFlexTabByPriority
 } from "./shared/flexTabs.js";
+import { openFlexDetailHref as openResolvedDetailHref } from "./shared/flexNavigation.js";
 import { createFlexWorktimeCache } from "./shared/flexWorktimeCache.js";
 import {
   addLocalDays,
@@ -1760,19 +1761,6 @@ export const flexWorktimeTimelineWidget = {
 
       rows = cached.rows;
       lastSyncedAt = cached.fetchedAt;
-      return true;
-    }
-
-    function openResolvedDetailHref(href, config) {
-      if (!href) {
-        return false;
-      }
-
-      if (config.openInNewTab) {
-        window.open(href, "_blank", "noopener,noreferrer");
-      } else {
-        window.location.href = href;
-      }
       return true;
     }
 
