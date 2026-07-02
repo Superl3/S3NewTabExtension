@@ -1,7 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { assertFlexScrapeApisAvailable } from "../widgets/shared/flexHomeScrape.js";
+import {
+  assertFlexScrapeApisAvailable,
+  executeFlexScriptInTab
+} from "../widgets/shared/flexHomeScrape.js";
 import { createFlexWorktimeCache } from "../widgets/shared/flexWorktimeCache.js";
 import { resolveFlexWorktimeDetailUrl } from "../widgets/shared/flexWorktimeRows.js";
 
@@ -31,10 +34,13 @@ class FakeStorage {
   }
 }
 
-function createScrapeChromeApi() {
+function createScrapeChromeApi(overrides = {}) {
   return {
+    runtime: {},
     scripting: {
-      executeScript() {}
+      executeScript(_injection, callback) {
+        callback([]);
+      }
     },
     tabs: {
       query() {},
@@ -46,7 +52,8 @@ function createScrapeChromeApi() {
         addListener() {},
         removeListener() {}
       }
-    }
+    },
+    ...overrides
   };
 }
 
@@ -72,6 +79,38 @@ test("Flex scrape API assertion preserves permission error messaging", () => {
 
     globalThis.chrome = createScrapeChromeApi();
     assert.doesNotThrow(() => assertFlexScrapeApisAvailable("missing flex permissions"));
+  } finally {
+    if (typeof previousChrome === "undefined") {
+      delete globalThis.chrome;
+    } else {
+      globalThis.chrome = previousChrome;
+    }
+  }
+});
+
+test("Flex script executor preserves tab target, args, and runtime errors", async () => {
+  const previousChrome = globalThis.chrome;
+  let receivedInjection = null;
+  globalThis.chrome = createScrapeChromeApi({
+    runtime: {
+      lastError: { message: "script blocked" }
+    },
+    scripting: {
+      executeScript(injection, callback) {
+        receivedInjection = injection;
+        callback(undefined);
+      }
+    }
+  });
+
+  try {
+    await assert.rejects(
+      executeFlexScriptInTab(5, (value) => value, ["demo"], "custom flex script error"),
+      /script blocked/
+    );
+    assert.equal(receivedInjection.target.tabId, 5);
+    assert.equal(typeof receivedInjection.func, "function");
+    assert.deepEqual(receivedInjection.args, ["demo"]);
   } finally {
     if (typeof previousChrome === "undefined") {
       delete globalThis.chrome;

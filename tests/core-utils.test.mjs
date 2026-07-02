@@ -471,6 +471,7 @@ test("Flex worktime widgets share the Flex Home scrape extractor", async () => {
     assert.match(source, /shared\/flexHomeScrape\.js/, moduleUrl.pathname);
     assert.match(source, /assertFlexScrapeApisAvailable/, moduleUrl.pathname);
     assert.doesNotMatch(source, /^async function extractFlexHomeWorktimeFromTab\(/m, moduleUrl.pathname);
+    assert.doesNotMatch(source, /^function executeScriptInTab\(/m, moduleUrl.pathname);
     assert.doesNotMatch(source, /hasTabsApi\(\) \|\| !hasScriptingApi\(\)/, moduleUrl.pathname);
   }
 });
