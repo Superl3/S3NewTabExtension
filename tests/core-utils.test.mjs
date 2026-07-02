@@ -1467,11 +1467,15 @@ test("account auth widgets share local connector auth helpers", async () => {
   ];
   const localAuthConnectorPattern =
     /^(const LOCAL_AUTH_CONNECTOR_URL|function (?:isAuthCancelledMessage|normalizeConnectorUrl|rewriteAuthorizationLoadError)\()/m;
+  const localStoredAuthWrapperPattern =
+    /^async function (?:loadStoredAuthSession|saveStoredAuthSession|clearStoredAuthSession)\(/m;
 
   for (const moduleUrl of moduleUrls) {
     const source = await fs.readFile(moduleUrl, "utf8");
     assert.match(source, /shared\/authConnector\.js/, moduleUrl.pathname);
+    assert.match(source, /createAuthSessionStorage/, moduleUrl.pathname);
     assert.doesNotMatch(source, localAuthConnectorPattern, moduleUrl.pathname);
+    assert.doesNotMatch(source, localStoredAuthWrapperPattern, moduleUrl.pathname);
   }
 });
 

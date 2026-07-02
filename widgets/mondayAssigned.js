@@ -194,18 +194,6 @@ const authSessionStorage = createAuthSessionStorage({
   normalizeConnectorUrl
 });
 
-async function loadStoredAuthSession() {
-  return authSessionStorage.load();
-}
-
-async function saveStoredAuthSession(session) {
-  await authSessionStorage.save(session);
-}
-
-async function clearStoredAuthSession() {
-  await authSessionStorage.clear();
-}
-
 function normalizedConfig(config) {
   const boardIds = normalizeBoardIds(config?.boardIds, [config?.boardId]);
   let workStartHour = normalizeHour(config?.workStartHour, 9, 0, 23);
@@ -1273,7 +1261,7 @@ export const mondayAssignedWidget = {
       accessToken = "";
       sessionConnectorUrl = "";
       if (clearStored) {
-        await clearStoredAuthSession();
+        await authSessionStorage.clear();
       }
     }
 
@@ -1286,7 +1274,7 @@ export const mondayAssignedWidget = {
         return false;
       }
 
-      const stored = connectorUrl ? await loadStoredAuthSession() : null;
+      const stored = connectorUrl ? await authSessionStorage.load() : null;
       if (syncId !== sessionSyncSerial) {
         return false;
       }
@@ -1392,7 +1380,7 @@ export const mondayAssignedWidget = {
         accountLabel = tokenAccount;
         sessionConnectorUrl = cfg.connectorUrl;
         if (!normalizeText(cfg.accessToken)) {
-          await saveStoredAuthSession({
+          await authSessionStorage.save({
             connectorUrl: cfg.connectorUrl,
             accessToken: token,
             accountLabel

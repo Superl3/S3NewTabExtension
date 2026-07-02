@@ -70,18 +70,6 @@ const authSessionStorage = createAuthSessionStorage({
   normalizeConnectorUrl
 });
 
-async function loadStoredAuthSession() {
-  return authSessionStorage.load();
-}
-
-async function saveStoredAuthSession(session) {
-  await authSessionStorage.save(session);
-}
-
-async function clearStoredAuthSession() {
-  await authSessionStorage.clear();
-}
-
 function isWeekday(date) {
   const day = date.getDay();
   return day >= 1 && day <= 5;
@@ -950,7 +938,7 @@ export const mondayMeetingNoteWidget = {
       accessToken = "";
       sessionConnectorUrl = "";
       if (clearStored) {
-        await clearStoredAuthSession();
+        await authSessionStorage.clear();
       }
     }
 
@@ -963,7 +951,7 @@ export const mondayMeetingNoteWidget = {
         return false;
       }
 
-      const stored = connectorUrl ? await loadStoredAuthSession() : null;
+      const stored = connectorUrl ? await authSessionStorage.load() : null;
       if (syncId !== sessionSyncSerial) {
         return false;
       }
@@ -1277,7 +1265,7 @@ export const mondayMeetingNoteWidget = {
         accountLabel = tokenAccount;
         sessionConnectorUrl = cfg.connectorUrl;
         if (!normalizeText(cfg.accessToken)) {
-          await saveStoredAuthSession({
+          await authSessionStorage.save({
             connectorUrl: cfg.connectorUrl,
             accessToken: token,
             accountLabel
