@@ -83,10 +83,6 @@ function normalizedConfig(config) {
   };
 }
 
-function ensureFlexHomeScrapeApis() {
-  assertFlexScrapeApisAvailable('Flex Home scrape mode requires "tabs" and "scripting" extension permissions.');
-}
-
 function getReusableScrapeTabId(scrapeFlowState) {
   if (!isPlainObject(scrapeFlowState)) {
     return null;
@@ -106,7 +102,7 @@ async function findFlexHomeTab(targetUrl) {
 }
 
 export async function fetchFlexHomeScrapeRows(config, queryDate, scrapeFlowState = null) {
-  ensureFlexHomeScrapeApis();
+  assertFlexScrapeApisAvailable('Flex Home scrape mode requires "tabs" and "scripting" extension permissions.');
   const targetUrl = parseFlexHomeTargetUrl(config.flexHomeUrl);
 
   let targetTab = null;

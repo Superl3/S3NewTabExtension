@@ -510,10 +510,6 @@ function normalizedConfig(config) {
   };
 }
 
-function ensureFlexHomeScrapeApis() {
-  assertFlexScrapeApisAvailable('Flex Work Record scrape requires "tabs" and "scripting" extension permissions.');
-}
-
 function isAllowedFlexWorkRecordPath(pathname) {
   const path = comparablePath(pathname || "/");
   return FLEX_WORK_RECORD_PATH_RE.test(path);
@@ -683,7 +679,7 @@ async function fetchFlexScrapePayload({
   extractPayload,
   inaccessibleTabMessage = "Unable to access Flex tab."
 }) {
-  ensureFlexHomeScrapeApis();
+  assertFlexScrapeApisAvailable('Flex Work Record scrape requires "tabs" and "scripting" extension permissions.');
 
   let targetTab = null;
   let managedTab = false;
