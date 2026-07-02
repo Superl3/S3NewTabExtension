@@ -1,12 +1,5 @@
+import { parseJsonOrNull } from "../../core/utils/json.js";
 import { normalizeText } from "../../core/utils/text.js";
-
-function tryParseJson(value) {
-  try {
-    return value ? JSON.parse(value) : {};
-  } catch {
-    return {};
-  }
-}
 
 export const LOCAL_AUTH_CONNECTOR_URL = "http://localhost:8787/api/auth/start";
 
@@ -91,7 +84,7 @@ export async function fetchConnectorToken(connectorUrl, provider) {
   url.searchParams.set("provider", provider);
   const response = await fetch(url.toString());
   const text = normalizeText(await response.text());
-  const payload = tryParseJson(text);
+  const payload = parseJsonOrNull(text) || {};
   if (!response.ok) {
     const message =
       normalizeText(payload?.message) ||

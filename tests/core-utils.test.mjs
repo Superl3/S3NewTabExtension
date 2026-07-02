@@ -402,13 +402,17 @@ test("widgets keep only domain-specific local error normalizers", async () => {
   assert.deepEqual(localErrorNormalizers, ["widgets/rss.js"]);
 });
 
-test("widgets keep only connector-specific local JSON parsers", async () => {
+test("widgets use shared JSON parsing instead of local copies", async () => {
   const sources = await collectWidgetSources(new URL("../widgets/", import.meta.url));
   const localJsonParsers = sources
     .filter((source) => /^function (tryParseJson|parseJsonSafely)\(/m.test(source.text))
     .map((source) => source.name.replace(/^.*\/widgets\//, "widgets/"));
 
-  assert.deepEqual(localJsonParsers, ["widgets/shared/authConnector.js"]);
+  assert.deepEqual(localJsonParsers, []);
+
+  const authConnectorSource = sources.find((source) => /\/widgets\/shared\/authConnector\.js$/.test(source.name));
+  assert.ok(authConnectorSource);
+  assert.match(authConnectorSource.text, /utils\/json\.js/, authConnectorSource.name);
 });
 
 test("widgets use the shared integer range normalizer for rounded clamps", async () => {

@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 
 import {
   buildAuthConnectorStartUrl,
+  fetchConnectorToken,
   isAuthCancelledMessage,
   LOCAL_AUTH_CONNECTOR_URL,
   normalizeLocalAuthConnectorUrl,
@@ -66,6 +67,45 @@ test("parses auth callback values from hash and query", () => {
   assert.equal(resultFromQuery.state, "xyz");
   assert.equal(resultFromQuery.accessToken, "t456");
   assert.equal(resultFromQuery.error, "oops");
+});
+
+test("fetchConnectorToken preserves fallback errors for invalid JSON responses", async () => {
+  const previousFetch = globalThis.fetch;
+  globalThis.fetch = async () => ({
+    ok: false,
+    status: 502,
+    text: async () => "not-json"
+  });
+
+  try {
+    await assert.rejects(
+      fetchConnectorToken("http://localhost:8787/api/auth/start", "monday"),
+      /Token relay failed \(HTTP 502\)/
+    );
+  } finally {
+    globalThis.fetch = previousFetch;
+  }
+});
+
+test("fetchConnectorToken parses connector token payloads through shared JSON handling", async () => {
+  const previousFetch = globalThis.fetch;
+  globalThis.fetch = async () => ({
+    ok: true,
+    status: 200,
+    text: async () => '{"access_token":"token-123","email":"me@example.com"}'
+  });
+
+  try {
+    assert.deepEqual(
+      await fetchConnectorToken("http://localhost:8787/api/auth/start", "monday"),
+      {
+        accessToken: "token-123",
+        accountLabel: "me@example.com"
+      }
+    );
+  } finally {
+    globalThis.fetch = previousFetch;
+  }
 });
 
 test("aiChat prefers configured access token over stored session", () => {
