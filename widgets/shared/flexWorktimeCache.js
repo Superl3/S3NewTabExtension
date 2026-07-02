@@ -12,13 +12,9 @@ function resolveStorageArea(fallbackStorage = null) {
   return typeof localStorage === "undefined" ? null : localStorage;
 }
 
-function normalizeMaxEntries(value) {
-  return toPositiveInteger(value, 1);
-}
-
 export function createFlexWorktimeCache(options = {}) {
   const cachePrefix = normalizeText(options.cachePrefix);
-  const defaultMaxEntries = normalizeMaxEntries(options.maxEntries);
+  const defaultMaxEntries = toPositiveInteger(options.maxEntries, 1);
   const configSignature = typeof options.configSignature === "function"
     ? options.configSignature
     : () => "";
