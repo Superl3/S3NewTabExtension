@@ -16,6 +16,7 @@ import {
   FLEX_WORKTIME_DEFAULT_HOME_URL,
   FLEX_WORKTIME_DEFAULT_REFRESH_MINUTES,
   buildFlexWidgetConfigSignature,
+  buildFlexWorktimeRowId,
   formatClockMinutes,
   formatDurationMinutes,
   formatFlexHomeScrapeError,
@@ -228,6 +229,11 @@ test("Flex config signature helper preserves shared prefix and explicit suffix o
     ),
     "https://flex.team/home|0|custom|2026-04-10||1"
   );
+});
+
+test("Flex row id helper preserves prefix and query-date formatting", () => {
+  assert.equal(buildFlexWorktimeRowId("flex-home", "2026-04-10"), "flex-home-2026-04-10");
+  assert.equal(buildFlexWorktimeRowId("flex-work-record", " 2026-04-11 "), "flex-work-record-2026-04-11");
 });
 
 test("Flex shared clock formatter preserves bounded minute semantics", () => {

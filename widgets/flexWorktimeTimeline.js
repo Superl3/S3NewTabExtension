@@ -43,6 +43,7 @@ import {
   FLEX_WORKTIME_DEFAULT_HOME_URL,
   FLEX_WORKTIME_DEFAULT_REFRESH_MINUTES,
   buildFlexWidgetConfigSignature,
+  buildFlexWorktimeRowId,
   formatClockMinutes,
   formatDurationMinutes,
   formatFlexWorkRecordScrapeError as formatSourceError,
@@ -577,7 +578,7 @@ function normalizeFlexWorkRecordRow(timeline, queryDate, workRecordUrl) {
   };
 
   const row = {
-    id: `flex-work-record-${normalizeText(queryDate, toLocalDateKey(new Date()))}`,
+    id: buildFlexWorktimeRowId("flex-work-record", queryDate),
     name: "Flex Work Record",
     status: summary.status,
     inLabel: summary.inLabel,
