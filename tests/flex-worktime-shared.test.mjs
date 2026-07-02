@@ -5,6 +5,10 @@ import {
   assertFlexScrapeApisAvailable,
   executeFlexScriptInTab
 } from "../widgets/shared/flexHomeScrape.js";
+import {
+  findFlexTabByPriority,
+  selectPreferredFlexTab
+} from "../widgets/shared/flexTabs.js";
 import { createFlexWorktimeCache } from "../widgets/shared/flexWorktimeCache.js";
 import { resolveFlexWorktimeDetailUrl } from "../widgets/shared/flexWorktimeRows.js";
 
@@ -118,6 +122,56 @@ test("Flex script executor preserves tab target, args, and runtime errors", asyn
       globalThis.chrome = previousChrome;
     }
   }
+});
+
+test("Flex tab selector prefers target pages before login fallback", () => {
+  const targetUrl = new URL("https://flex.team/home");
+  const selected = selectPreferredFlexTab(
+    [
+      { id: 1, url: "https://flex.team/auth/login" },
+      { id: 2, url: "https://flex.team/home" }
+    ],
+    targetUrl,
+    (tabUrl) => tabUrl === "https://flex.team/home"
+  );
+
+  assert.equal(selected.id, 2);
+  assert.equal(
+    selectPreferredFlexTab(
+      [{ id: 3, url: "https://flex.team/auth/login" }],
+      targetUrl,
+      () => false
+    ).id,
+    3
+  );
+});
+
+test("Flex tab finder checks active, current, then all tabs", async () => {
+  const targetUrl = new URL("https://flex.team/home");
+  const queries = [];
+  const found = await findFlexTabByPriority(
+    targetUrl,
+    (tabUrl) => tabUrl === "https://flex.team/home/team",
+    {
+      queryTabs(query) {
+        queries.push(query);
+        if (queries.length === 1) {
+          return Promise.resolve([]);
+        }
+        if (queries.length === 2) {
+          return Promise.resolve([{ id: 4, url: "https://example.com/" }]);
+        }
+        return Promise.resolve([{ id: 5, url: "https://flex.team/home/team" }]);
+      }
+    }
+  );
+
+  assert.equal(found.id, 5);
+  assert.deepEqual(queries, [
+    { active: true, currentWindow: true },
+    { currentWindow: true },
+    {}
+  ]);
 });
 
 test("Flex worktime detail URL helper resolves placeholders safely", () => {

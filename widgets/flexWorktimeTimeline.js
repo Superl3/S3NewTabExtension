@@ -5,7 +5,6 @@ import { normalizeText } from "../core/utils/text.js";
 import {
   createTab,
   getTabIfExists,
-  queryTabs,
   updateTab,
   waitForTabReady
 } from "../core/platform/chrome-tabs.js";
@@ -27,10 +26,10 @@ import {
   isAllowedFlexHomePath,
   isLikelyOngoingFlexAuthFlowUrl,
   isMatchingFlexHomeTabUrl,
-  isMatchingFlexLoginTabUrl,
   parseAllowedFlexTabUrl,
   parseFlexHomeTargetUrl
 } from "./shared/flexUrls.js";
+import { findFlexTabByPriority } from "./shared/flexTabs.js";
 import { createFlexWorktimeCache } from "./shared/flexWorktimeCache.js";
 import {
   formatClockMinutes,
@@ -575,38 +574,12 @@ function isMatchingFlexWorkRecordTabUrl(tabUrl, targetUrl) {
   return tabPath === targetPath || tabPath.startsWith(`${targetPath}/`);
 }
 
-function findPreferredFlexTab(tabs, targetUrl, matchTabUrl) {
-  const pageMatch = tabs.find((tab) => matchTabUrl(tab?.url, targetUrl));
-  if (pageMatch) {
-    return pageMatch;
-  }
-
-  return tabs.find((tab) => isMatchingFlexLoginTabUrl(tab?.url, targetUrl)) || null;
-}
-
-async function findFlexTab(targetUrl, matchTabUrl) {
-  const activeCurrentWindow = await queryTabs({ active: true, currentWindow: true });
-  const activeMatch = findPreferredFlexTab(activeCurrentWindow, targetUrl, matchTabUrl);
-  if (activeMatch) {
-    return activeMatch;
-  }
-
-  const currentWindowTabs = await queryTabs({ currentWindow: true });
-  const currentMatch = findPreferredFlexTab(currentWindowTabs, targetUrl, matchTabUrl);
-  if (currentMatch) {
-    return currentMatch;
-  }
-
-  const allTabs = await queryTabs({});
-  return findPreferredFlexTab(allTabs, targetUrl, matchTabUrl);
-}
-
 async function findFlexHomeTab(targetUrl) {
-  return findFlexTab(targetUrl, isMatchingFlexHomeTabUrl);
+  return findFlexTabByPriority(targetUrl, isMatchingFlexHomeTabUrl);
 }
 
 async function findFlexWorkRecordTab(targetUrl) {
-  return findFlexTab(targetUrl, isMatchingFlexWorkRecordTabUrl);
+  return findFlexTabByPriority(targetUrl, isMatchingFlexWorkRecordTabUrl);
 }
 
 function normalizeFlexWorkRecordRow(timeline, queryDate, workRecordUrl) {
