@@ -347,7 +347,7 @@ async function fetchContext(config, accessToken) {
     throw new Error("Board not found or access denied for this account.");
   }
 
-  const allColumns = Array.isArray(board?.columns) ? board.columns : [];
+  const allColumns = arrayOrEmpty(board?.columns);
   const peopleColumns = allColumns.filter((column) => {
     const type = normalizeText(column?.type).toLowerCase();
     const title = normalizeText(column?.title).toLowerCase();
@@ -492,7 +492,7 @@ function buildStatusColumnValuesSelection(statusColumnIds) {
 }
 
 function hasDoneStatusOnItem(item, statusColumnIds = []) {
-  const values = Array.isArray(item?.column_values) ? item.column_values : [];
+  const values = arrayOrEmpty(item?.column_values);
   if (!values.length) {
     return false;
   }
@@ -677,8 +677,7 @@ function isAssignedToMe(columnValues, meId) {
     return false;
   }
 
-  const values = Array.isArray(columnValues) ? columnValues : [];
-  for (const value of values) {
+  for (const value of arrayOrEmpty(columnValues)) {
     const ids = parsePeopleIdsFromValue(value);
     if (ids.includes(target)) {
       return true;
@@ -689,12 +688,10 @@ function isAssignedToMe(columnValues, meId) {
 
 function mapAssignedSubitems(parentItems, meId) {
   const out = [];
-  const parents = Array.isArray(parentItems) ? parentItems : [];
-  for (const parent of parents) {
+  for (const parent of arrayOrEmpty(parentItems)) {
     const parentTitle = normalizeText(parent?.name, "(Untitled issue)");
     const parentGroup = parent?.group;
-    const subitems = Array.isArray(parent?.subitems) ? parent.subitems : [];
-    for (const subitem of subitems) {
+    for (const subitem of arrayOrEmpty(parent?.subitems)) {
       if (!isAssignedToMe(subitem?.column_values, meId)) {
         continue;
       }
@@ -713,12 +710,10 @@ function mapAssignedSubitems(parentItems, meId) {
 
 function mapAllSubitems(parentItems) {
   const out = [];
-  const parents = Array.isArray(parentItems) ? parentItems : [];
-  for (const parent of parents) {
+  for (const parent of arrayOrEmpty(parentItems)) {
     const parentTitle = normalizeText(parent?.name, "(Untitled issue)");
     const parentGroup = parent?.group;
-    const subitems = Array.isArray(parent?.subitems) ? parent.subitems : [];
-    for (const subitem of subitems) {
+    for (const subitem of arrayOrEmpty(parent?.subitems)) {
       out.push({
         id: normalizeText(subitem?.id),
         name: `${parentTitle} / ${normalizeText(subitem?.name, "(Untitled issue)")}`,
@@ -758,7 +753,7 @@ async function fetchBoardIssues(config, accessToken, statusColumnIds = []) {
   try {
     const data = await mondayFetchGraphql(accessToken, query);
     const board = Array.isArray(data?.boards) ? data.boards[0] : null;
-    const parentItems = Array.isArray(board?.items_page?.items) ? board.items_page.items : [];
+    const parentItems = arrayOrEmpty(board?.items_page?.items);
     return mapAssignedIssues(parentItems, 0, statusColumnIds);
   } catch (error) {
     const message = normalizeErrorMessage(error);
@@ -787,7 +782,7 @@ async function fetchBoardIssues(config, accessToken, statusColumnIds = []) {
 
     const legacyData = await mondayFetchGraphql(accessToken, legacyQuery);
     const legacyBoard = Array.isArray(legacyData?.boards) ? legacyData.boards[0] : null;
-    const parentItems = Array.isArray(legacyBoard?.items) ? legacyBoard.items : [];
+    const parentItems = arrayOrEmpty(legacyBoard?.items);
     return mapAssignedIssues(parentItems, 0, statusColumnIds);
   }
 }
@@ -831,7 +826,7 @@ async function fetchAssignedFromColumn(config, meId, peopleColumnId, accessToken
   try {
     const data = await mondayFetchGraphql(accessToken, query);
     const board = Array.isArray(data?.boards) ? data.boards[0] : null;
-    const parentItems = Array.isArray(board?.items_page?.items) ? board.items_page.items : [];
+    const parentItems = arrayOrEmpty(board?.items_page?.items);
     return parentItems;
   } catch (error) {
     const message = normalizeErrorMessage(error);
@@ -874,9 +869,9 @@ async function fetchAssignedFromColumn(config, meId, peopleColumnId, accessToken
 }
 
 async function fetchAssignedSubitemsAcrossBoard(config, meId, peopleColumnIds, accessToken) {
-  const columnIds = Array.isArray(peopleColumnIds)
-    ? peopleColumnIds.map((value) => normalizeColumnSelector(value)).filter(Boolean)
-    : [];
+  const columnIds = arrayOrEmpty(peopleColumnIds)
+    .map((value) => normalizeColumnSelector(value))
+    .filter(Boolean);
 
   if (!columnIds.length) {
     return [];
@@ -920,14 +915,14 @@ async function fetchAssignedSubitemsAcrossBoard(config, meId, peopleColumnIds, a
 
   const data = await mondayFetchGraphql(accessToken, query);
   const board = Array.isArray(data?.boards) ? data.boards[0] : null;
-  const parentItems = Array.isArray(board?.items_page?.items) ? board.items_page.items : [];
+  const parentItems = arrayOrEmpty(board?.items_page?.items);
   return mapAssignedSubitems(parentItems, meId);
 }
 
 async function fetchAssignedIssues(config, meId, peopleColumnIds, accessToken, statusColumnIds = []) {
-  const columnIds = Array.isArray(peopleColumnIds)
-    ? peopleColumnIds.map((value) => normalizeColumnSelector(value)).filter(Boolean)
-    : [];
+  const columnIds = arrayOrEmpty(peopleColumnIds)
+    .map((value) => normalizeColumnSelector(value))
+    .filter(Boolean);
 
   if (!columnIds.length) {
     return [];
@@ -1808,7 +1803,7 @@ export const mondayAssignedWidget = {
               boardUrl: context.boardUrl,
               assigneeName: scope.mode === "all" ? "all tasks" : normalizeText(context.meName, "me"),
               scopeMode: scope.mode,
-              boardGroups: Array.isArray(context.boardGroups) ? context.boardGroups : [],
+              boardGroups: arrayOrEmpty(context.boardGroups),
               issues
             });
           } catch (boardError) {

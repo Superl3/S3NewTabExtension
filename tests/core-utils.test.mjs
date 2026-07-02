@@ -1383,6 +1383,25 @@ test("Monday widgets share cached board base normalization", async () => {
   assert.doesNotMatch(meetingNoteSource, /Array\.isArray\(boardEntries\) \? boardEntries : \[\]/);
 });
 
+test("Monday widgets share list array fallback normalization", async () => {
+  const assignedSource = await fs.readFile(new URL("../widgets/mondayAssigned.js", import.meta.url), "utf8");
+  const meetingNoteSource = await fs.readFile(new URL("../widgets/mondayMeetingNote.js", import.meta.url), "utf8");
+
+  assert.doesNotMatch(assignedSource, /Array\.isArray\(board\?\.columns\) \? board\.columns : \[\]/);
+  assert.doesNotMatch(assignedSource, /Array\.isArray\(item\?\.column_values\) \? item\.column_values : \[\]/);
+  assert.doesNotMatch(assignedSource, /Array\.isArray\(columnValues\) \? columnValues : \[\]/);
+  assert.doesNotMatch(assignedSource, /Array\.isArray\(parentItems\) \? parentItems : \[\]/);
+  assert.doesNotMatch(assignedSource, /Array\.isArray\(parent\?\.subitems\) \? parent\.subitems : \[\]/);
+  assert.doesNotMatch(assignedSource, /Array\.isArray\(peopleColumnIds\)/);
+
+  assert.doesNotMatch(meetingNoteSource, /Array\.isArray\(columns\) \? columns : \[\]/);
+  assert.doesNotMatch(meetingNoteSource, /Array\.isArray\(candidates\) \? candidates : \[\]/);
+  assert.doesNotMatch(meetingNoteSource, /Array\.isArray\(item\?\.column_values\) \? item\.column_values : \[\]/);
+  assert.doesNotMatch(meetingNoteSource, /Array\.isArray\(rawColumns\) \? rawColumns : \[\]/);
+  assert.doesNotMatch(meetingNoteSource, /Array\.isArray\(selectorList\) \? selectorList : \[\]/);
+  assert.doesNotMatch(meetingNoteSource, /Array\.isArray\(columnIds\) \? columnIds : \[\]/);
+});
+
 test("Monday meeting notes reuse the shared safe URL parser", async () => {
   const source = await fs.readFile(new URL("../widgets/mondayMeetingNote.js", import.meta.url), "utf8");
   assert.match(source, /parseUrlSafely,\s*\n\s*resolveMondaySiteUrl/s);

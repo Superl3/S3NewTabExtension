@@ -309,7 +309,7 @@ function pushUnique(list, value) {
 }
 
 function sortColumnsByPreference(columns, preferredColumnIds = []) {
-  const normalized = Array.isArray(columns) ? columns : [];
+  const normalized = arrayOrEmpty(columns);
   if (!preferredColumnIds.length) {
     return normalized;
   }
@@ -464,9 +464,8 @@ function collectColumnTextCandidates(columnValue) {
 
 function extractDocUrlFromCandidates(candidates, itemUrl) {
   const normalizedItemUrl = normalizeText(itemUrl);
-  const list = Array.isArray(candidates) ? candidates : [];
 
-  for (const candidate of list) {
+  for (const candidate of arrayOrEmpty(candidates)) {
     const text = normalizeText(candidate);
     if (!text) {
       continue;
@@ -502,7 +501,7 @@ function extractDocUrlFromColumnValue(columnValue, itemUrl) {
 }
 
 function extractMeetingNote(item, preferredColumnIds = [], selectorText = "") {
-  const columns = Array.isArray(item?.column_values) ? item.column_values : [];
+  const columns = arrayOrEmpty(item?.column_values);
   const itemUrl = normalizeText(item?.url);
   const orderedColumns = sortColumnsByPreference(columns, preferredColumnIds);
 
@@ -554,7 +553,7 @@ function itemTimestamp(item) {
 }
 
 function pickLatestItem(items) {
-  const normalized = Array.isArray(items) ? [...items] : [];
+  const normalized = [...arrayOrEmpty(items)];
   if (!normalized.length) {
     return null;
   }
@@ -570,20 +569,19 @@ function normalizeBoardColumn(column) {
 }
 
 function parseBoardColumns(rawColumns) {
-  const list = Array.isArray(rawColumns) ? rawColumns : [];
-  return list
+  return arrayOrEmpty(rawColumns)
     .map(normalizeBoardColumn)
     .filter((column) => column.id || column.title);
 }
 
 function resolveMeetingNoteColumnIds(columns, selectorList) {
-  const selectors = Array.isArray(selectorList) ? selectorList : [];
+  const selectors = arrayOrEmpty(selectorList);
   if (!selectors.length) {
     return [];
   }
 
   const out = [];
-  const normalizedColumns = Array.isArray(columns) ? columns : [];
+  const normalizedColumns = arrayOrEmpty(columns);
   const selectorKeys = selectors.map((entry) => normalizeSelectorKey(entry)).filter(Boolean);
   const compactSelectorKeys = selectorKeys.map((entry) => entry.replace(/\s+/g, ""));
 
@@ -684,7 +682,7 @@ async function fetchBoardContext(boardId, accessToken) {
 
 function buildColumnValuesSelection(columnIds) {
   const normalizedIds = [];
-  for (const entry of Array.isArray(columnIds) ? columnIds : []) {
+  for (const entry of arrayOrEmpty(columnIds)) {
     pushUnique(normalizedIds, entry);
   }
 
@@ -761,7 +759,7 @@ ${columnValuesSelection}
 
 function parseQueryData(data) {
   const board = Array.isArray(data?.boards) ? data.boards[0] : null;
-  const items = Array.isArray(board?.items_page?.items) ? board.items_page.items : [];
+  const items = arrayOrEmpty(board?.items_page?.items);
   return {
     boardName: normalizeText(board?.name),
     items
