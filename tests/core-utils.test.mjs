@@ -423,6 +423,21 @@ test("widgets use shared JSON parsing instead of local copies", async () => {
   assert.match(authConnectorSource.text, /utils\/json\.js/, authConnectorSource.name);
 });
 
+test("widgets use shared color primitives instead of local copies", async () => {
+  const sources = await collectWidgetSources(new URL("../widgets/", import.meta.url));
+  const localColorHelpers = sources
+    .filter((source) => /^function (normalizeHex|hexToRgb|srgbToLinear|luminance)\(/m.test(source.text))
+    .map((source) => source.name.replace(/^.*\/widgets\//, "widgets/"));
+
+  assert.deepEqual(localColorHelpers, []);
+
+  const labelSource = sources.find((source) => /\/widgets\/label\.js$/.test(source.name));
+  assert.ok(labelSource);
+  assert.match(labelSource.text, /widget-common-style\.js/, labelSource.name);
+  assert.match(labelSource.text, /luminanceFromHex/, labelSource.name);
+  assert.match(labelSource.text, /normalizeHexColor/, labelSource.name);
+});
+
 test("widgets use the shared integer range normalizer for rounded clamps", async () => {
   const sources = await collectWidgetSources(new URL("../widgets/", import.meta.url));
   for (const source of sources) {
