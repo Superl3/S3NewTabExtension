@@ -10,7 +10,10 @@ import {
   findFlexTabByPriority,
   selectPreferredFlexTab
 } from "../widgets/shared/flexTabs.js";
-import { openFlexDetailHref } from "../widgets/shared/flexNavigation.js";
+import {
+  openFlexDetailHref,
+  openFlexEntryDetail
+} from "../widgets/shared/flexNavigation.js";
 import { createFlexWorktimeCache } from "../widgets/shared/flexWorktimeCache.js";
 import {
   FLEX_HOME_TAB_LOAD_TIMEOUT_MS,
@@ -386,6 +389,51 @@ test("Flex worktime navigation helper opens detail links consistently", () => {
 
   assert.equal(openFlexDetailHref("https://example.com/current", { openInNewTab: false }, targetWindow), true);
   assert.equal(targetWindow.location.href, "https://example.com/current");
+});
+
+test("Flex worktime entry navigation helper preserves query date fallback", () => {
+  const opened = [];
+  const targetWindow = {
+    location: { href: "" },
+    open(href, target, features) {
+      opened.push({ href, target, features });
+    }
+  };
+  const config = { openInNewTab: true };
+  const entry = { id: "row-1" };
+  const resolveDetailUrl = (receivedConfig, queryDate, receivedEntry) => {
+    assert.equal(receivedConfig, config);
+    assert.equal(receivedEntry, entry);
+    return `https://example.com/work?date=${queryDate}`;
+  };
+
+  assert.equal(
+    openFlexEntryDetail({
+      entry,
+      config,
+      fallbackQueryDate: "2026-07-02",
+      resolveQueryDate() {
+        throw new Error("invalid date");
+      },
+      resolveDetailUrl,
+      targetWindow
+    }),
+    true
+  );
+  assert.equal(opened[0].href, "https://example.com/work?date=2026-07-02");
+
+  assert.equal(
+    openFlexEntryDetail({
+      entry,
+      config,
+      resolveQueryDate() {
+        throw new Error("invalid date");
+      },
+      resolveDetailUrl,
+      targetWindow
+    }),
+    false
+  );
 });
 
 test("Flex worktime cache factory preserves storage and index semantics", () => {

@@ -23,7 +23,10 @@ import {
   activateFlexAuthFlowTabIfNeeded,
   findFlexTabByPriority
 } from "./shared/flexTabs.js";
-import { openFlexDetailHref as openResolvedDetailHref } from "./shared/flexNavigation.js";
+import {
+  openFlexDetailHref as openResolvedDetailHref,
+  openFlexEntryDetail
+} from "./shared/flexNavigation.js";
 import { createFlexWorktimeCache } from "./shared/flexWorktimeCache.js";
 import { toLocalDateKey } from "./shared/localDates.js";
 import {
@@ -315,17 +318,13 @@ export const flexWorktimeWidget = {
 
     function openDetailInternal(entry) {
       const cfg = normalizedConfig(getConfig());
-      let queryDate = lastQueryDate;
-      try {
-        queryDate = resolveQueryDateForSource(cfg);
-      } catch {
-        if (!queryDate) {
-          return false;
-        }
-      }
-
-      const href = resolveDetailUrl(cfg, queryDate, entry);
-      return openResolvedDetailHref(href, cfg);
+      return openFlexEntryDetail({
+        entry,
+        config: cfg,
+        fallbackQueryDate: lastQueryDate,
+        resolveQueryDate: resolveQueryDateForSource,
+        resolveDetailUrl
+      });
     }
 
     function renderList(config, queryDate) {
