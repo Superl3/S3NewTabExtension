@@ -5,6 +5,7 @@ import path from "node:path";
 import vm from "node:vm";
 
 import { normalizeErrorMessage } from "../core/utils/error.js";
+import { arrayOrEmpty } from "../core/utils/array.js";
 import { parseJsonOrNull } from "../core/utils/json.js";
 import { clamp } from "../core/utils/number.js";
 import { normalizeText } from "../core/utils/text.js";
@@ -47,6 +48,7 @@ async function loadWidgetInternals(relativePath, exportedNames, injected = {}) {
     parseUrlSafely,
     parseJsonOrNull,
     rewriteAuthorizationLoadError,
+    arrayOrEmpty,
     normalizeText,
     ...injected
   };

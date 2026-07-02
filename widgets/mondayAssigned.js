@@ -104,14 +104,12 @@ function formatTimeLabel(date) {
 }
 
 function resolveMondayUrl(boardSnapshots, accountValue) {
-  const snapshots = Array.isArray(boardSnapshots) ? boardSnapshots : [];
   const candidateUrls = [];
 
-  for (const snapshot of snapshots) {
+  for (const snapshot of arrayOrEmpty(boardSnapshots)) {
     candidateUrls.push(snapshot?.boardUrl);
 
-    const issues = Array.isArray(snapshot?.issues) ? snapshot.issues : [];
-    for (const issue of issues) {
+    for (const issue of arrayOrEmpty(snapshot?.issues)) {
       candidateUrls.push(issue?.url);
     }
   }
@@ -125,7 +123,7 @@ function resolveBoardDisplayName(snapshot, fallbackBoardId = 0) {
 }
 
 function createFallbackBoardSnapshot(boardId, fallbackScopeMode, context = null, previousSnapshot = null) {
-  const previousGroups = Array.isArray(previousSnapshot?.boardGroups) ? previousSnapshot.boardGroups : [];
+  const previousGroups = arrayOrEmpty(previousSnapshot?.boardGroups);
   const contextGroups = Array.isArray(context?.boardGroups) ? context.boardGroups : previousGroups;
   const assigneeName =
     fallbackScopeMode === "all"
@@ -163,8 +161,7 @@ function isFallbackBoardName(boardName, boardId) {
 }
 
 function hasIncompleteBoardMetadata(boardSnapshots) {
-  const snapshots = Array.isArray(boardSnapshots) ? boardSnapshots : [];
-  return snapshots.some((snapshot) => {
+  return arrayOrEmpty(boardSnapshots).some((snapshot) => {
     const boardId = normalizeBoardId(snapshot?.boardId, 0);
     if (!boardId) {
       return false;
@@ -1605,7 +1602,7 @@ export const mondayAssignedWidget = {
         if (first) {
           const boardHeaderRow = document.createElement("li");
           boardHeaderRow.className = "monday-board-inline-header";
-          boardHeaderRow.append(createBoardHeader(first, cfg, Array.isArray(first?.issues) ? first.issues.length : 0));
+          boardHeaderRow.append(createBoardHeader(first, cfg, arrayOrEmpty(first?.issues).length));
           list.append(boardHeaderRow);
         }
         const grouped = groupIssuesByGroup(first?.issues || [], first?.boardGroups || []);
@@ -1614,7 +1611,7 @@ export const mondayAssignedWidget = {
       }
 
       for (const snapshot of visibleSnapshots) {
-        const boardIssues = Array.isArray(snapshot?.issues) ? snapshot.issues : [];
+        const boardIssues = arrayOrEmpty(snapshot?.issues);
         const isAllScope = snapshot?.scopeMode === "all";
 
         const card = document.createElement("li");
