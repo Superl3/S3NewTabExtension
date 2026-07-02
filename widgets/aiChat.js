@@ -9,7 +9,10 @@ import {
   normalizeLocalAuthConnectorUrl as normalizeConnectorUrl,
   rewriteAuthorizationLoadError
 } from "./shared/authConnector.js";
-import { createAuthSessionStorage } from "./shared/authSessionStorage.js";
+import {
+  createAuthSessionStorage,
+  resolveActiveAuthSession
+} from "./shared/authSessionStorage.js";
 import { getChromeIdentity, getChromeStorageLocal } from "./shared/chromeApi.js";
 
 function toMessage(role, content) {
@@ -100,22 +103,6 @@ const authSessionStorage = createAuthSessionStorage({
   getStorageArea: getChromeStorageLocal,
   normalizeConnectorUrl
 });
-
-export function resolveAiChatActiveSession({ connectorUrl, configuredAccessToken, storedSession }) {
-  if (configuredAccessToken) {
-    return {
-      connectorUrl,
-      accessToken: configuredAccessToken,
-      accountLabel: "Configured token"
-    };
-  }
-
-  if (connectorUrl && storedSession?.connectorUrl === connectorUrl) {
-    return storedSession;
-  }
-
-  return null;
-}
 
 export function normalizeAiChatTemperature(value, fallback = 0.7) {
   return toFiniteNumber(value ?? fallback, fallback);
@@ -319,7 +306,7 @@ export const aiChatWidget = {
 
     function updateActiveSessionFromStorage() {
       const connectorUrl = getConnectorUrl();
-      activeSession = resolveAiChatActiveSession({
+      activeSession = resolveActiveAuthSession({
         connectorUrl,
         configuredAccessToken: getConfiguredAccessToken(),
         storedSession
