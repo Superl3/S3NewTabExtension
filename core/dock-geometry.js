@@ -1,5 +1,5 @@
 import { pointInsideRect } from "./utils/geometry.js";
-import { clampFiniteOrMin } from "./utils/number.js";
+import { clampFiniteOrMin, toPositiveInteger } from "./utils/number.js";
 
 export function isHorizontalDockPosition(position = "bottom") {
   return position === "top" || position === "bottom";
@@ -17,7 +17,7 @@ export function resolveDockSlotIndexAtPoint(
     clampToRange = false
   } = {}
 ) {
-  const count = Math.max(1, Math.floor(Number(slotCount) || 1));
+  const count = toPositiveInteger(slotCount, 1);
   const unit = Math.max(1, Number(unitSize) || 44);
   const gapSize = Math.max(0, Number(gap) || 0);
 
@@ -54,7 +54,7 @@ export function resolveDockSlotRectRelativeToHost(
     horizontal = true
   } = {}
 ) {
-  const count = Math.max(1, Math.floor(Number(slotCount) || 1));
+  const count = toPositiveInteger(slotCount, 1);
   const unit = Math.max(1, Number(unitSize) || 44);
   const gapSize = Math.max(0, Number(gap) || 0);
   const slot = Number(slotIndex);
