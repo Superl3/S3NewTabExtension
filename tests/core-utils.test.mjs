@@ -42,6 +42,7 @@ import {
   isMatchingFlexLoginTabUrl,
   parseFlexHomeTargetUrl
 } from "../widgets/shared/flexUrls.js";
+import { createChromeStorageChangeSubscription } from "../widgets/shared/chromeApi.js";
 
 test("normalizeText trims text and falls back for blank-like values", () => {
   assert.equal(normalizeText("  hello  "), "hello");
@@ -239,6 +240,37 @@ test("object utilities preserve plain-object and safe own-property semantics", (
   assert.equal(isPlainObject(null), false);
   assert.equal(hasOwn({ ok: false }, "ok"), true);
   assert.equal(hasOwn(null, "ok"), false);
+});
+
+test("chrome storage change subscription installs once and removes listener", () => {
+  const listeners = [];
+  const calls = [];
+  const storageChanges = {
+    addListener(listener) {
+      listeners.push(listener);
+    },
+    removeListener(listener) {
+      const index = listeners.indexOf(listener);
+      if (index >= 0) {
+        listeners.splice(index, 1);
+      }
+    }
+  };
+  const subscription = createChromeStorageChangeSubscription(
+    (changes, areaName) => calls.push({ changes, areaName }),
+    { getStorageChanges: () => storageChanges }
+  );
+
+  subscription.install();
+  subscription.install();
+  assert.equal(listeners.length, 1);
+
+  listeners[0]({ monday: { newValue: true } }, "local");
+  assert.deepEqual(calls, [{ changes: { monday: { newValue: true } }, areaName: "local" }]);
+
+  subscription.remove();
+  subscription.remove();
+  assert.equal(listeners.length, 0);
 });
 
 test("array utility preserves arrays and normalizes non-arrays", () => {
@@ -1333,6 +1365,21 @@ test("Monday widgets share config predicates instead of local copies", async () 
     const source = await fs.readFile(moduleUrl, "utf8");
     assert.match(source, /shared\/mondayConfig\.js/, moduleUrl.pathname);
     assert.doesNotMatch(source, localConfigPredicatePattern, moduleUrl.pathname);
+  }
+});
+
+test("Monday widgets share chrome storage change subscription primitive", async () => {
+  const moduleUrls = [
+    new URL("../widgets/mondayAssigned.js", import.meta.url),
+    new URL("../widgets/mondayMeetingNote.js", import.meta.url)
+  ];
+
+  for (const moduleUrl of moduleUrls) {
+    const source = await fs.readFile(moduleUrl, "utf8");
+    assert.match(source, /createChromeStorageChangeSubscription/, moduleUrl.pathname);
+    assert.doesNotMatch(source, /let storageListener = null/, moduleUrl.pathname);
+    assert.doesNotMatch(source, /^    function (installStorageListener|removeStorageListener)\(/m, moduleUrl.pathname);
+    assert.doesNotMatch(source, /getChromeStorageChanges\(\)/, moduleUrl.pathname);
   }
 });
 

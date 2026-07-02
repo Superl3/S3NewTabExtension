@@ -24,7 +24,11 @@ import {
   hasAuthSessionStorageChange,
   resolveActiveAuthSession
 } from "./shared/authSessionStorage.js";
-import { getChromeIdentity, getChromeStorageChanges, getChromeStorageLocal } from "./shared/chromeApi.js";
+import {
+  createChromeStorageChangeSubscription,
+  getChromeIdentity,
+  getChromeStorageLocal
+} from "./shared/chromeApi.js";
 import {
   hasMondayBoardConfig as hasBoardConfig,
   hasMondayConnectorConfig as hasConnectorConfig,
@@ -1114,7 +1118,6 @@ export const mondayAssignedWidget = {
     let requestSerial = 0;
     let timer = null;
     let sessionSyncSerial = 0;
-    let storageListener = null;
     const collapsedGroupKeys = new Set();
 
     function clearRefreshTimer() {
@@ -1305,43 +1308,25 @@ export const mondayAssignedWidget = {
       return false;
     }
 
-    function installStorageListener() {
-      const storageChanges = getChromeStorageChanges();
-      if (storageListener || !storageChanges?.addListener) {
+    const storageSubscription = createChromeStorageChangeSubscription((changes, areaName) => {
+      if (areaName !== "local" || !hasAuthSessionStorageChange(changes, MONDAY_AUTH_STORAGE_KEY)) {
         return;
       }
 
-      storageListener = (changes, areaName) => {
-        if (areaName !== "local" || !hasAuthSessionStorageChange(changes, MONDAY_AUTH_STORAGE_KEY)) {
-          return;
-        }
-
-        const cfg = resolveConfig();
-        if (!hasConnectorConfig(cfg)) {
-          return;
-        }
-
-        void syncStoredSessionForConfig(cfg).finally(() => {
-          render();
-          if (!loading && hasBoardConfig(cfg) && hasActiveConnection(cfg) && shouldRunAutoNow()) {
-            void loadIssues({ reason: "auto" });
-            return;
-          }
-          scheduleRefresh();
-        });
-      };
-
-      storageChanges.addListener(storageListener);
-    }
-
-    function removeStorageListener() {
-      const storageChanges = getChromeStorageChanges();
-      if (!storageListener || !storageChanges?.removeListener) {
+      const cfg = resolveConfig();
+      if (!hasConnectorConfig(cfg)) {
         return;
       }
-      storageChanges.removeListener(storageListener);
-      storageListener = null;
-    }
+
+      void syncStoredSessionForConfig(cfg).finally(() => {
+        render();
+        if (!loading && hasBoardConfig(cfg) && hasActiveConnection(cfg) && shouldRunAutoNow()) {
+          void loadIssues({ reason: "auto" });
+          return;
+        }
+        scheduleRefresh();
+      });
+    });
 
     async function connectAccount() {
       const cfg = resolveConfig();
@@ -1869,7 +1854,7 @@ export const mondayAssignedWidget = {
     applyCachedSnapshotIfPresent(initialRawCfg, initialCfg);
     lastSignature = configSignature(initialCfg);
     render();
-    installStorageListener();
+    storageSubscription.install();
     void syncStoredSessionForConfig(initialCfg).finally(() => {
       render();
       const shouldLoadImmediately =
@@ -1935,7 +1920,7 @@ export const mondayAssignedWidget = {
       destroy() {
         requestSerial += 1;
         clearRefreshTimer();
-        removeStorageListener();
+        storageSubscription.remove();
       }
     };
   }
