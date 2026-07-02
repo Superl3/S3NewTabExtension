@@ -436,7 +436,9 @@ test("widgets use the shared integer range normalizer for rounded clamps", async
   const containerSource = sources.find((source) => /\/widgets\/container\.js$/.test(source.name));
   assert.ok(containerSource);
   assert.match(containerSource.text, /normalizeIntegerInRange/, containerSource.name);
+  assert.match(containerSource.text, /widget-common-style\.js/, containerSource.name);
   assert.doesNotMatch(containerSource.text, /^function normalizeCount\(/m, containerSource.name);
+  assert.doesNotMatch(containerSource.text, /^function normalizeTitleAlign\(/m, containerSource.name);
 });
 
 test("widgets keep only blank-aware local finite number normalization", async () => {
