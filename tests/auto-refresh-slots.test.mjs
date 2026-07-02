@@ -4,6 +4,8 @@ import assert from "node:assert/strict";
 import {
   autoRefreshDoneSetForDay,
   dateAtMinute,
+  dueAutoRefreshSlotIndices,
+  nextAutoRefreshSlot,
   parseAutoRefreshSlotsDone,
   serializeAutoRefreshSlotsDone,
   toLocalDayKey,
@@ -46,4 +48,30 @@ test("auto refresh slot helpers update done state for the active day only", () =
       slotsDone: "0,1,2"
     }
   );
+});
+
+test("auto refresh slot helpers resolve due and next slots", () => {
+  const now = new Date(2026, 3, 2, 14, 0, 0);
+  const slots = [9 * 60, 13 * 60, 17 * 60];
+  const config = {
+    autoRefreshDayKey: "2026-04-02",
+    autoRefreshSlotsDone: "0"
+  };
+
+  assert.deepEqual(dueAutoRefreshSlotIndices(config, slots, now), [1]);
+
+  const next = nextAutoRefreshSlot(config, slots, now);
+  assert.equal(next.slotIndex, 2);
+  assert.equal(next.runAt.getDate(), 2);
+  assert.equal(next.runAt.getHours(), 17);
+
+  const fallback = nextAutoRefreshSlot(
+    { autoRefreshDayKey: "2026-04-02", autoRefreshSlotsDone: "0,1,2" },
+    slots,
+    now,
+    new Date(2026, 3, 6, 0, 0, 0, 0)
+  );
+  assert.equal(fallback.slotIndex, 0);
+  assert.equal(fallback.runAt.getDate(), 6);
+  assert.equal(fallback.runAt.getHours(), 9);
 });

@@ -535,7 +535,10 @@ test("Monday widgets share auto-refresh slot primitives", async () => {
   for (const moduleUrl of moduleUrls) {
     const source = await fs.readFile(moduleUrl, "utf8");
     assert.match(source, /shared\/autoRefreshSlots\.js/, moduleUrl.pathname);
+    assert.match(source, /dueAutoRefreshSlotIndices/, moduleUrl.pathname);
+    assert.match(source, /nextAutoRefreshSlot/, moduleUrl.pathname);
     assert.doesNotMatch(source, localSlotPattern, moduleUrl.pathname);
+    assert.doesNotMatch(source, /autoRefreshDoneSetForDay\(config, dayKey, .*\.length\)/, moduleUrl.pathname);
   }
 });
 

@@ -13,9 +13,8 @@ import {
   rewriteAuthorizationLoadError
 } from "./shared/authConnector.js";
 import {
-  autoRefreshDoneSetForDay,
-  dateAtMinute,
-  toLocalDayKey,
+  dueAutoRefreshSlotIndices,
+  nextAutoRefreshSlot,
   updateAutoRefreshSlotsDoneForToday
 } from "./shared/autoRefreshSlots.js";
 import { formatLocalDateTimeLabel as formatDateLabel } from "./shared/dateLabels.js";
@@ -275,45 +274,11 @@ function dueAutoSlotIndices(config, now = new Date()) {
     return [];
   }
 
-  const slots = autoSlotMinutes(config);
-  const dayKey = toLocalDayKey(now);
-  const doneSet = autoRefreshDoneSetForDay(config, dayKey, slots.length);
-
-  const due = [];
-  for (let index = 0; index < slots.length; index += 1) {
-    if (doneSet.has(index)) {
-      continue;
-    }
-    if (slots[index] <= nowMinutes) {
-      due.push(index);
-    }
-  }
-  return due;
+  return dueAutoRefreshSlotIndices(config, autoSlotMinutes(config), now);
 }
 
 function nextAutoSlot(config, now = new Date()) {
-  const slots = autoSlotMinutes(config);
-  const dayKey = toLocalDayKey(now);
-  const doneSet = autoRefreshDoneSetForDay(config, dayKey, slots.length);
-  const nowMinutes = now.getHours() * 60 + now.getMinutes();
-
-  for (let index = 0; index < slots.length; index += 1) {
-    if (doneSet.has(index)) {
-      continue;
-    }
-    if (slots[index] > nowMinutes) {
-      return {
-        slotIndex: index,
-        runAt: dateAtMinute(now, slots[index])
-      };
-    }
-  }
-
-  const tomorrow = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 0, 0, 0, 0);
-  return {
-    slotIndex: 0,
-    runAt: dateAtMinute(tomorrow, slots[0])
-  };
+  return nextAutoRefreshSlot(config, autoSlotMinutes(config), now);
 }
 
 async function fetchContext(config, accessToken) {

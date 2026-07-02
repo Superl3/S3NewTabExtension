@@ -13,9 +13,9 @@ import {
   rewriteAuthorizationLoadError
 } from "./shared/authConnector.js";
 import {
-  autoRefreshDoneSetForDay,
   dateAtMinute,
-  toLocalDayKey,
+  dueAutoRefreshSlotIndices,
+  nextAutoRefreshSlot,
   updateAutoRefreshSlotsDoneForToday
 } from "./shared/autoRefreshSlots.js";
 import { formatLocalDateTimeLabel as formatDateLabel } from "./shared/dateLabels.js";
@@ -86,20 +86,7 @@ function dueAutoSlotIndices(config, now = new Date()) {
     return [];
   }
 
-  const nowMinutes = now.getHours() * 60 + now.getMinutes();
-  const dayKey = toLocalDayKey(now);
-  const doneSet = autoRefreshDoneSetForDay(config, dayKey, WEEKDAY_AUTO_SLOTS_MINUTES.length);
-
-  const due = [];
-  for (let index = 0; index < WEEKDAY_AUTO_SLOTS_MINUTES.length; index += 1) {
-    if (doneSet.has(index)) {
-      continue;
-    }
-    if (WEEKDAY_AUTO_SLOTS_MINUTES[index] <= nowMinutes) {
-      due.push(index);
-    }
-  }
-  return due;
+  return dueAutoRefreshSlotIndices(config, WEEKDAY_AUTO_SLOTS_MINUTES, now);
 }
 
 function nextWeekdayStart(fromDate) {
@@ -122,21 +109,7 @@ function nextWeekdayStart(fromDate) {
 
 function nextAutoSlot(config, now = new Date()) {
   if (isWeekday(now)) {
-    const nowMinutes = now.getHours() * 60 + now.getMinutes();
-    const dayKey = toLocalDayKey(now);
-    const doneSet = autoRefreshDoneSetForDay(config, dayKey, WEEKDAY_AUTO_SLOTS_MINUTES.length);
-
-    for (let index = 0; index < WEEKDAY_AUTO_SLOTS_MINUTES.length; index += 1) {
-      if (doneSet.has(index)) {
-        continue;
-      }
-      if (WEEKDAY_AUTO_SLOTS_MINUTES[index] > nowMinutes) {
-        return {
-          slotIndex: index,
-          runAt: dateAtMinute(now, WEEKDAY_AUTO_SLOTS_MINUTES[index])
-        };
-      }
-    }
+    return nextAutoRefreshSlot(config, WEEKDAY_AUTO_SLOTS_MINUTES, now, nextWeekdayStart(now));
   }
 
   const nextDay = nextWeekdayStart(now);
