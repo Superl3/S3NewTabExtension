@@ -1,6 +1,7 @@
 import { executeScript } from "../core/platform/chrome-scripting.js";
 import { waitForTabReady } from "../core/platform/chrome-tabs.js";
 import { normalizeErrorMessage } from "../core/utils/error.js";
+import { toFiniteNumber } from "../core/utils/number.js";
 import { normalizeText } from "../core/utils/text.js";
 
 const CODEX_USAGE_URL = "https://chatgpt.com/codex/settings/usage";
@@ -191,7 +192,7 @@ function normalizeSnapshot(raw) {
     return null;
   }
 
-  const capturedAt = Number(raw.capturedAt);
+  const capturedAt = toFiniteNumber(raw.capturedAt, 0);
   const sourceUrl = normalizeText(raw.sourceUrl);
   const title = normalizeText(raw.title, "Codex Usage");
   const metrics = Array.isArray(raw.metrics) ? raw.metrics.map(normalizeMetric).filter(Boolean) : [];
@@ -212,7 +213,7 @@ function normalizeSnapshot(raw) {
     title,
     metrics: metrics.filter(isTargetUsageMetric),
     lines,
-    parserVersion: Number(raw.parserVersion) || 1
+    parserVersion: toFiniteNumber(raw.parserVersion, 1) || 1
   };
 }
 
@@ -453,7 +454,7 @@ export const codexUsageWidget = {
     }
 
     function formatSyncStatus(capturedAt) {
-      const date = new Date(Number(capturedAt) || Date.now());
+      const date = new Date(toFiniteNumber(capturedAt, Date.now()) || Date.now());
       const hours = String(date.getHours()).padStart(2, "0");
       const minutes = String(date.getMinutes()).padStart(2, "0");
       return `Updated ${hours}:${minutes}`;
