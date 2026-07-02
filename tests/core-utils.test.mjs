@@ -579,6 +579,13 @@ test("widget instance factory uses shared number normalization for free placemen
   assert.doesNotMatch(source, /Math\.floor\(Number\(boardRect\?\.(?:width|height)\) \|\| 0\)/);
 });
 
+test("widget card click behavior uses shared truthy timestamp fallback", async () => {
+  const source = await fs.readFile(new URL("../core/widget-card-click-behavior.js", import.meta.url), "utf8");
+  assert.match(source, /utils\/number\.js/);
+  assert.match(source, /toTruthyNumberOrFallback\(lastDragEndAt, 0\)/);
+  assert.doesNotMatch(source, /Number\(lastDragEndAt\) \|\| 0/);
+});
+
 test("dock and container pointer hit tests share the geometry helper", async () => {
   const moduleUrls = [
     new URL("../core/dock-geometry.js", import.meta.url),

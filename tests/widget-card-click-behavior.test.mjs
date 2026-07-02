@@ -44,6 +44,7 @@ function createFakeEvent(target) {
 test("isWithinDragClickSuppressionWindow enforces threshold", () => {
   assert.equal(isWithinDragClickSuppressionWindow(1000, { now: 1270 }), true);
   assert.equal(isWithinDragClickSuppressionWindow(1000, { now: 1281 }), false);
+  assert.equal(isWithinDragClickSuppressionWindow("bad", { now: 281 }), false);
 });
 
 test("attachWidgetCardClickBehavior toggles container on non-interactive click", () => {
