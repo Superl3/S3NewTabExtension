@@ -1,5 +1,5 @@
 import { snapToHalfGridTrack } from "./utils/grid.js";
-import { toInteger } from "./utils/number.js";
+import { clampFiniteOrMin, toInteger } from "./utils/number.js";
 
 const INTERACTIVE_DRAG_BLOCK_SELECTOR = "button, input, textarea, select, a";
 const PAGE_SWITCH_THRESHOLD = 42;
@@ -10,9 +10,7 @@ function applyClamp(clampFn, value, min, max) {
   if (typeof clampFn === "function") {
     return clampFn(value, min, max);
   }
-  const numeric = Number(value);
-  const safeValue = Number.isFinite(numeric) ? numeric : min;
-  return Math.min(max, Math.max(min, safeValue));
+  return clampFiniteOrMin(value, min, max);
 }
 
 export function startWidgetCardDragSession({

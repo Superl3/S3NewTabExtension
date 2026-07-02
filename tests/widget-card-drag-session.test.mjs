@@ -563,7 +563,6 @@ test("startWidgetCardDragSession runs grid drag fallback commit when no drop pla
     widgetRegistry: {},
     widgetDefaultGridSize: () => ({ colSpan: 1, rowSpan: 1 }),
     normalizeGridLayout: (_grid, fallback) => ({ ...fallback }),
-    clamp: (value, min, max) => Math.min(max, Math.max(min, value)),
     resolveBoundedDragPositionFromDelta: () => ({ x: 55, y: 66 }),
     cleanupBoardDragSession: ({ resetPendingPageSwitch, hideAndRemoveDropSilhouette, previewSession: session }) => {
       resetPendingPageSwitch?.();
@@ -601,6 +600,8 @@ test("startWidgetCardDragSession runs grid drag fallback commit when no drop pla
   assert.equal(applyGridLayoutCalls, 1);
   assert.equal(compactCalls, 1);
   assert.equal(queueSaveCalls, 1);
+  assert.deepEqual(instance.gridLayout, { col: 0.5, row: 0.5, colSpan: 1, rowSpan: 1 });
+  assert.deepEqual(instance.layout, { x: 55, y: 45, w: 100, h: 80 });
 });
 
 test("startWidgetCardDragSession preserves delete-zone plan at pointerup", () => {
