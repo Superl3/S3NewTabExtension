@@ -29,7 +29,7 @@ export function readFeedNodeText(parent, tagNames = []) {
 }
 
 export function readAtomAlternateLink(entry) {
-  const links = Array.from(entry?.getElementsByTagName("link") || []);
+  const links = Array.from(entry?.getElementsByTagName("link") ?? []);
   let fallback = "";
 
   for (const linkNode of links) {

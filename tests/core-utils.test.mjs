@@ -1877,6 +1877,10 @@ test("feed widgets share XML helpers instead of local copies", async () => {
     assert.doesNotMatch(source, localFeedXmlPattern, moduleUrl.pathname);
     assert.doesNotMatch(source, /new DOMParser\(\)/, moduleUrl.pathname);
   }
+
+  const feedXmlSource = await fs.readFile(new URL("../widgets/shared/feedXml.js", import.meta.url), "utf8");
+  assert.match(feedXmlSource, /getElementsByTagName\("link"\) \?\? \[\]/);
+  assert.doesNotMatch(feedXmlSource, /getElementsByTagName\("link"\) \|\| \[\]/);
 });
 
 test("data widgets use shared integer range normalization directly", async () => {
