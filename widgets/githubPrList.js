@@ -425,7 +425,7 @@ export const githubPrListWidget = {
         const updated = document.createElement("span");
         updated.className = "github-pr-updated";
         updated.textContent =
-          formatUpdatedLabelFromTimestamp(Number(pull.updatedAt)) ||
+          formatUpdatedLabelFromTimestamp(normalizeCacheTimestamp(pull.updatedAt)) ||
           normalizeText(pull.updatedLabel);
 
         top.append(title, updated);
