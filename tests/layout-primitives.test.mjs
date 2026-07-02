@@ -56,6 +56,9 @@ test("normalizeGridLayout applies numeric fallback", () => {
 test("normalizeGridLayout preserves half-track positions", () => {
   assert.equal(normalizeGridTrackPosition(1.24), 1);
   assert.equal(normalizeGridTrackPosition(1.26), 1.5);
+  assert.equal(normalizeGridTrackPosition("bad", 2.24), 2);
+  assert.equal(normalizeGridTrackPosition("bad", "bad"), 0);
+  assert.equal(normalizeGridTrackPosition(-1.25), 0);
   assert.deepEqual(
     normalizeGridLayout({ col: 1.5, row: 0.5, colSpan: 2, rowSpan: 1 }, { col: 0, row: 0, colSpan: 1, rowSpan: 1 }),
     { col: 1.5, row: 0.5, colSpan: 2, rowSpan: 1 }

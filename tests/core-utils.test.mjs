@@ -121,6 +121,7 @@ test("snapToHalfGridTrack rounds finite values to the nearest half track", () =>
   assert.equal(snapToHalfGridTrack(1.24), 1);
   assert.equal(snapToHalfGridTrack(1.25), 1.5);
   assert.equal(snapToHalfGridTrack("2.74"), 2.5);
+  assert.equal(snapToHalfGridTrack(null), 0);
   assert.equal(snapToHalfGridTrack("bad"), 0);
 });
 
@@ -412,6 +413,20 @@ test("core drag modules use shared browser and grid helpers instead of local cop
     assert.match(source, /utils\/grid\.js/, moduleUrl.pathname);
     assert.doesNotMatch(source, /^function snapToHalfGridTrack\(/m, moduleUrl.pathname);
   }
+});
+
+test("grid and layout primitives share half-track snapping", async () => {
+  const gridSource = await fs.readFile(new URL("../core/utils/grid.js", import.meta.url), "utf8");
+  assert.match(gridSource, /utils\/number\.js|\.\/number\.js/);
+  assert.match(gridSource, /toFiniteNumber/);
+  assert.doesNotMatch(gridSource, /const numeric = Number\(value\)/);
+  assert.doesNotMatch(gridSource, /Number\.isFinite\(numeric\)/);
+
+  const layoutSource = await fs.readFile(new URL("../core/layout-primitives.js", import.meta.url), "utf8");
+  assert.match(layoutSource, /utils\/grid\.js/);
+  assert.match(layoutSource, /snapToHalfGridTrack/);
+  assert.doesNotMatch(layoutSource, /GRID_TRACK_POSITION_STEP/);
+  assert.doesNotMatch(layoutSource, /Number\.isFinite\(numeric\) \? numeric/);
 });
 
 test("drag layering uses shared number helpers for z-index normalization", async () => {

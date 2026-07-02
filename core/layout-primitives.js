@@ -1,8 +1,8 @@
-import { clamp, normalizeIntegerInRange } from "./utils/number.js";
+import { snapToHalfGridTrack } from "./utils/grid.js";
+import { clamp, normalizeIntegerInRange, toFiniteNumber } from "./utils/number.js";
 
 const GRID_MAX_COLUMNS_FALLBACK = 16;
 const GRID_MAX_ROWS_FALLBACK = 16;
-const GRID_TRACK_POSITION_STEP = 0.5;
 
 export { clamp };
 
@@ -54,11 +54,8 @@ export function normalizeContainerExpandedRows(
 }
 
 export function normalizeGridTrackPosition(value, fallback = 0) {
-  const numeric = Number(value);
-  const fallbackNumeric = Number(fallback);
-  const source = Number.isFinite(numeric) ? numeric : Number.isFinite(fallbackNumeric) ? fallbackNumeric : 0;
-  const stepped = Math.round(source / GRID_TRACK_POSITION_STEP) * GRID_TRACK_POSITION_STEP;
-  return Math.max(0, stepped);
+  const source = toFiniteNumber(value, toFiniteNumber(fallback, 0));
+  return Math.max(0, snapToHalfGridTrack(source));
 }
 
 export function normalizeGridLayout(layout, fallback) {
