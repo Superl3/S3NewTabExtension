@@ -1,4 +1,4 @@
-import { clamp } from "./utils/number.js";
+import { clamp, normalizeIntegerInRange } from "./utils/number.js";
 
 const GRID_MAX_COLUMNS_FALLBACK = 16;
 const GRID_MAX_ROWS_FALLBACK = 16;
@@ -42,11 +42,7 @@ export function normalizeContainerExpandedCols(
   fallback = 4,
   maxColumns = GRID_MAX_COLUMNS_FALLBACK
 ) {
-  const num = Number(value);
-  if (!Number.isFinite(num)) {
-    return clamp(Math.round(fallback), 1, maxColumns);
-  }
-  return clamp(Math.round(num), 1, maxColumns);
+  return normalizeIntegerInRange(value, fallback, 1, maxColumns);
 }
 
 export function normalizeContainerExpandedRows(
@@ -54,11 +50,7 @@ export function normalizeContainerExpandedRows(
   fallback = 3,
   maxRows = GRID_MAX_ROWS_FALLBACK
 ) {
-  const num = Number(value);
-  if (!Number.isFinite(num)) {
-    return clamp(Math.round(fallback), 1, maxRows);
-  }
-  return clamp(Math.round(num), 1, maxRows);
+  return normalizeIntegerInRange(value, fallback, 1, maxRows);
 }
 
 export function normalizeGridTrackPosition(value, fallback = 0) {

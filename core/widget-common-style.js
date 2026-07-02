@@ -1,6 +1,4 @@
-function clamp(value, min, max) {
-  return Math.max(min, Math.min(max, value));
-}
+import { clamp, normalizeIntegerInRange } from "./utils/number.js";
 
 export const WIDGET_COMMON_MASTER_KEYS = [
   "viewMode",
@@ -62,11 +60,7 @@ export function normalizeTransparency(value, fallback = 0.94) {
 }
 
 export function normalizeContentPadding(value, fallback = 10) {
-  const num = Number(value);
-  if (!Number.isFinite(num)) {
-    return clamp(Math.round(fallback), 0, 48);
-  }
-  return clamp(Math.round(num), 0, 48);
+  return normalizeIntegerInRange(value, fallback, 0, 48);
 }
 
 export function normalizeWidgetContentFontScale(value, fallback = 1) {
@@ -78,11 +72,7 @@ export function normalizeWidgetContentFontScale(value, fallback = 1) {
 }
 
 export function normalizeEdgeRoundness(value, fallback = 12) {
-  const num = Number(value);
-  if (!Number.isFinite(num)) {
-    return clamp(Math.round(fallback), 0, 40);
-  }
-  return clamp(Math.round(num), 0, 40);
+  return normalizeIntegerInRange(value, fallback, 0, 40);
 }
 
 export function widgetPaddingFallback(type) {
@@ -172,11 +162,7 @@ export function normalizeWidgetColor(value, fallback) {
 }
 
 export function normalizeTransparentGhostStrength(value, fallback = 100) {
-  const num = Number(value);
-  if (!Number.isFinite(num)) {
-    return clamp(Math.round(fallback), 40, 180);
-  }
-  return clamp(Math.round(num), 40, 180);
+  return normalizeIntegerInRange(value, fallback, 40, 180);
 }
 
 export function hexToRgb(hex, fallback = "#000000") {
