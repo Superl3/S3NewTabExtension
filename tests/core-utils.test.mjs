@@ -1915,6 +1915,7 @@ test("widgets share link URL helpers instead of local copies", async () => {
 
 test("general widgets use shared array fallback helper", async () => {
   const moduleUrls = [
+    new URL("../widgets/bookmarks.js", import.meta.url),
     new URL("../widgets/container.js", import.meta.url),
     new URL("../widgets/rss.js", import.meta.url),
     new URL("../widgets/todo.js", import.meta.url)
@@ -1928,6 +1929,9 @@ test("general widgets use shared array fallback helper", async () => {
 
   const containerSource = await fs.readFile(new URL("../widgets/container.js", import.meta.url), "utf8");
   assert.doesNotMatch(containerSource, /Array\.isArray\(list\) \? list : \[\]/);
+
+  const bookmarksSource = await fs.readFile(new URL("../widgets/bookmarks.js", import.meta.url), "utf8");
+  assert.doesNotMatch(bookmarksSource, /(?:node|activeFolder)\.children \|\| \[\]/);
 
   const rssSource = await fs.readFile(new URL("../widgets/rss.js", import.meta.url), "utf8");
   assert.doesNotMatch(rssSource, /Array\.isArray\(preset\.aliases\) \? preset\.aliases : \[\]/);
