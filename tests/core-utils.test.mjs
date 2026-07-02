@@ -772,6 +772,18 @@ test("core snapshot modules use shared object ownership helper", async () => {
   }
 });
 
+test("runtime snapshot policy uses shared plain object helper", async () => {
+  const source = await fs.readFile(new URL("../core/runtimeSnapshotPolicy.js", import.meta.url), "utf8");
+
+  assert.match(source, /isPlainObject\(/);
+  assert.doesNotMatch(source, /!config \|\| typeof config !== "object" \|\| Array\.isArray\(config\)/);
+  assert.doesNotMatch(source, /!patch \|\| typeof patch !== "object" \|\| Array\.isArray\(patch\)/);
+  assert.doesNotMatch(source, /!snapshot \|\| typeof snapshot !== "object" \|\| Array\.isArray\(snapshot\)/);
+  assert.doesNotMatch(source, /typeof snapshot\.ui === "object" && !Array\.isArray\(snapshot\.ui\)/);
+  assert.doesNotMatch(source, /typeof instance !== "object" \|\| Array\.isArray\(instance\)/);
+  assert.doesNotMatch(source, /typeof preset !== "object" \|\| Array\.isArray\(preset\)/);
+});
+
 test("preset management uses shared truthy clamp normalization for z-index", async () => {
   const source = await fs.readFile(new URL("../core/preset-management-runtime.js", import.meta.url), "utf8");
   assert.match(source, /utils\/array\.js/);
