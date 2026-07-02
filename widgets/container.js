@@ -1,6 +1,6 @@
 import { DROP_SILHOUETTE_Z_INDEX, resolveFolderPanelZIndex } from "../core/drag-layering.js";
 import { pointInsideRect } from "../core/utils/geometry.js";
-import { clamp, normalizeIntegerInRange } from "../core/utils/number.js";
+import { clamp, clampRoundedTruthyNumberOrFallback, clampTruthyNumberOrFallback, normalizeIntegerInRange } from "../core/utils/number.js";
 import { normalizeText } from "../core/utils/text.js";
 import { normalizeTitleAlign } from "../core/widget-common-style.js";
 import { isUrlIcon } from "./shared/linkUrls.js";
@@ -18,17 +18,17 @@ function normalizeFolderConfig(config) {
 }
 
 function resolveWidgetPadding(widget) {
-  const fallback = clamp(Math.round(Number(widget?.contentPadding) || 10), 0, 48);
-  const top = clamp(Math.round(Number(widget?.contentPaddingTop) || fallback), 0, 48);
-  const right = clamp(Math.round(Number(widget?.contentPaddingRight) || fallback), 0, 48);
-  const bottom = clamp(Math.round(Number(widget?.contentPaddingBottom) || fallback), 0, 48);
-  const left = clamp(Math.round(Number(widget?.contentPaddingLeft) || fallback), 0, 48);
+  const fallback = clampRoundedTruthyNumberOrFallback(widget?.contentPadding, 10, 0, 48);
+  const top = clampRoundedTruthyNumberOrFallback(widget?.contentPaddingTop, fallback, 0, 48);
+  const right = clampRoundedTruthyNumberOrFallback(widget?.contentPaddingRight, fallback, 0, 48);
+  const bottom = clampRoundedTruthyNumberOrFallback(widget?.contentPaddingBottom, fallback, 0, 48);
+  const left = clampRoundedTruthyNumberOrFallback(widget?.contentPaddingLeft, fallback, 0, 48);
   return { top, right, bottom, left };
 }
 
 function applyEmbeddedCardVisual(card, widget) {
-  const edgeRoundness = clamp(Math.round(Number(widget?.edgeRoundness) || 12), 0, 40);
-  const transparency = clamp(Number(widget?.transparency) || 0.94, 0, 1);
+  const edgeRoundness = clampRoundedTruthyNumberOrFallback(widget?.edgeRoundness, 12, 0, 40);
+  const transparency = clampTruthyNumberOrFallback(widget?.transparency, 0.94, 0, 1);
   const surfaceTransparent = widget?.surfaceMode === "transparent";
   const isHeadless = widget?.viewMode === "headless";
   const padding = resolveWidgetPadding(widget);

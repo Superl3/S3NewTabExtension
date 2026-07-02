@@ -15,6 +15,7 @@ import {
   clamp,
   clampFiniteOrMin,
   clampNumberOrFallback,
+  clampRoundedTruthyNumberOrFallback,
   clampTruthyNumberOrFallback,
   normalizeIntegerInRange,
   roundFiniteOrFallback,
@@ -69,6 +70,13 @@ test("clampTruthyNumberOrFallback preserves legacy falsy fallback semantics", ()
   assert.equal(clampTruthyNumberOrFallback(null, 0.24, 0, 0.85), 0.24);
   assert.equal(clampTruthyNumberOrFallback(-1, 0.24, 0, 0.85), 0);
   assert.equal(clampTruthyNumberOrFallback(2, 0.24, 0, 0.85), 0.85);
+});
+
+test("clampRoundedTruthyNumberOrFallback preserves rounded truthy fallback semantics", () => {
+  assert.equal(clampRoundedTruthyNumberOrFallback(0, 10, 0, 48), 10);
+  assert.equal(clampRoundedTruthyNumberOrFallback(null, 10, 0, 48), 10);
+  assert.equal(clampRoundedTruthyNumberOrFallback("4.6", 10, 0, 48), 5);
+  assert.equal(clampRoundedTruthyNumberOrFallback(120, 10, 0, 48), 48);
 });
 
 test("toNonNegativeNumberOrFallback preserves legacy non-negative number semantics", () => {
@@ -660,8 +668,15 @@ test("widgets use the shared integer range normalizer for rounded clamps", async
   assert.ok(containerSource);
   assert.match(containerSource.text, /normalizeIntegerInRange/, containerSource.name);
   assert.match(containerSource.text, /widget-common-style\.js/, containerSource.name);
+  assert.match(containerSource.text, /clampRoundedTruthyNumberOrFallback/, containerSource.name);
   assert.doesNotMatch(containerSource.text, /^function normalizeCount\(/m, containerSource.name);
   assert.doesNotMatch(containerSource.text, /^function normalizeTitleAlign\(/m, containerSource.name);
+  assert.doesNotMatch(
+    containerSource.text,
+    /clamp\(Math\.round\(Number\(widget\?\.(?:contentPadding|edgeRoundness)/,
+    containerSource.name
+  );
+  assert.doesNotMatch(containerSource.text, /clamp\(Number\(widget\?\.transparency\) \|\| 0\.94/, containerSource.name);
 });
 
 test("widgets keep only blank-aware local finite number normalization", async () => {
