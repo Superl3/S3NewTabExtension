@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 
 import {
   buildGitHubApiHeaders,
+  buildGitHubRepoApiUrl,
   buildGitHubRepoPullsPageUrl,
   formatGitHubRelativeTimestamp,
   githubRepositoryParts,
@@ -28,6 +29,15 @@ test("GitHub shared helpers preserve API formatting semantics", () => {
   assert.equal(headers.Accept, "application/vnd.github+json");
   assert.equal(headers["X-GitHub-Api-Version"], "2022-11-28");
   assert.equal(headers.Authorization, "Bearer token");
+  assert.equal(
+    buildGitHubRepoApiUrl("owner/repo", ["pulls"], { state: "open", per_page: 100 }),
+    "https://api.github.com/repos/owner/repo/pulls?state=open&per_page=100"
+  );
+  assert.equal(
+    buildGitHubRepoApiUrl("owner/repo", ["issues", 123, "comments"], { per_page: 100 }),
+    "https://api.github.com/repos/owner/repo/issues/123/comments?per_page=100"
+  );
+  assert.equal(buildGitHubRepoApiUrl("owner", ["pulls"]), "");
   assert.equal(buildGitHubRepoPullsPageUrl("owner/repo"), "https://github.com/owner/repo/pulls");
   assert.equal(parseGitHubError('{"message":"rate limited"}', 403), "rate limited");
   assert.equal(parseGitHubError("", 500), "GitHub request failed: HTTP 500");
