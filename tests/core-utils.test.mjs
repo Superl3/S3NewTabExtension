@@ -1102,6 +1102,19 @@ test("Flex worktime widgets share row helpers instead of local copies", async ()
   }
 });
 
+test("Flex worktime row ids use the shared row id helper", async () => {
+  const moduleUrls = [
+    new URL("../widgets/shared/flexWorktimeRows.js", import.meta.url),
+    new URL("../widgets/flexWorktimeTimeline.js", import.meta.url)
+  ];
+
+  for (const moduleUrl of moduleUrls) {
+    const source = await fs.readFile(moduleUrl, "utf8");
+    assert.match(source, /buildFlexWorktimeRowId/, moduleUrl.pathname);
+    assert.doesNotMatch(source, /`flex-(?:home|work-record)-\$\{normalizeText\(queryDate, toLocalDateKey\(new Date\(\)\)\)\}`/, moduleUrl.pathname);
+  }
+});
+
 test("Flex worktime timeline uses shared local date arithmetic", async () => {
   const source = await fs.readFile(new URL("../widgets/flexWorktimeTimeline.js", import.meta.url), "utf8");
   assert.match(source, /shared\/localDates\.js/);

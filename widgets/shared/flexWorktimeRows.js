@@ -101,6 +101,10 @@ export function buildFlexWidgetConfigSignature(config, parts = []) {
   ].join("|");
 }
 
+export function buildFlexWorktimeRowId(prefix, queryDate) {
+  return `${prefix}-${normalizeText(queryDate, toLocalDateKey(new Date()))}`;
+}
+
 export function formatClockMinutes(totalMinutes) {
   const minutes = clamp(toInteger(totalMinutes, 0), 0, 1439);
   const hour = Math.floor(minutes / 60);
@@ -585,7 +589,7 @@ export function normalizeFlexHomeScrapeRow(scraped, queryDate, flexHomeUrl) {
   };
 
   const row = {
-    id: `flex-home-${normalizeText(queryDate, toLocalDateKey(new Date()))}`,
+    id: buildFlexWorktimeRowId("flex-home", queryDate),
     name: "Flex Home",
     status,
     inLabel: "--",
