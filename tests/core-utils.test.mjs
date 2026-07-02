@@ -1092,8 +1092,10 @@ test("Flex worktime widgets share row helpers instead of local copies", async ()
     assert.match(source, /shared\/flexWorktimeRows\.js/, moduleUrl.pathname);
     assert.match(source, /normalizeFlexWidgetBaseConfig/, moduleUrl.pathname);
     assert.match(source, /resolveFlexSyncState/, moduleUrl.pathname);
+    assert.match(source, /FLEX_WORKTIME_DEFAULT_HOME_URL/, moduleUrl.pathname);
     assert.doesNotMatch(source, localHelperPattern, moduleUrl.pathname);
     assert.doesNotMatch(source, /normalizeFlexHomeUrl,\n|normalizeFlexRefreshMinutes/, moduleUrl.pathname);
+    assert.doesNotMatch(source, /^const (?:FLEX_WORKTIME_CACHE_MAX_ENTRIES|FLEX_HOME_TAB_LOAD_TIMEOUT_MS|DEFAULT_FLEX_WORKTIME_REFRESH_MINUTES|DEFAULT_FLEX_HOME_URL)\s*=/m, moduleUrl.pathname);
   }
 });
 

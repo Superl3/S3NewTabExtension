@@ -64,6 +64,11 @@ const DURATION_MINUTE_FIELDS = [
 const DURATION_HOUR_FIELDS = ["workedHours", "workHours", "durationHours", "totalHours", "hours", "hour"];
 const DURATION_GENERIC_FIELDS = ["duration", "workDuration", "totalDuration", "durationText", "elapsed"];
 
+export const FLEX_WORKTIME_CACHE_MAX_ENTRIES = 24;
+export const FLEX_HOME_TAB_LOAD_TIMEOUT_MS = 20000;
+export const FLEX_WORKTIME_DEFAULT_REFRESH_MINUTES = 1;
+export const FLEX_WORKTIME_DEFAULT_HOME_URL = "https://flex.team/home";
+
 export function normalizeFlexRefreshMinutes(value, fallback = 10) {
   return normalizeIntegerInRange(value, fallback, 1, 720);
 }
