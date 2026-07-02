@@ -913,6 +913,13 @@ test("Flex worktime timeline uses shared truthy fallback for event minutes", asy
   assert.doesNotMatch(source, /Math\.floor\(Number\(event\?\.minutes\) \|\| 0\)/);
 });
 
+test("Flex worktime timeline uses shared truthy fallback for extracted timestamps", async () => {
+  const source = await fs.readFile(new URL("../widgets/flexWorktimeTimeline.js", import.meta.url), "utf8");
+  assert.match(source, /toTruthyNumberOrFallback\(timeline\?\.extractedAt, Date\.now\)/);
+  assert.match(source, /toTruthyNumberOrFallback\(result\.extractedAt, Date\.now\)/);
+  assert.doesNotMatch(source, /Number\((?:timeline\?\.|result\.)extractedAt\) \|\| Date\.now\(\)/);
+});
+
 test("Flex worktime widgets share auth helpers instead of local copies", async () => {
   const moduleUrls = [
     new URL("../widgets/flexWorktime.js", import.meta.url),

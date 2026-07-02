@@ -604,7 +604,7 @@ function normalizeFlexWorkRecordRow(timeline, queryDate, workRecordUrl) {
     queryDate: normalizeText(queryDate),
     sourceUrl: normalizeText(timeline?.sourceUrl, workRecordUrl),
     pageTitle: normalizeText(timeline?.pageTitle),
-    extractedAt: Math.max(1, Math.round(Number(timeline?.extractedAt) || Date.now())),
+    extractedAt: Math.max(1, Math.round(toTruthyNumberOrFallback(timeline?.extractedAt, Date.now))),
     timeline: effectiveTimeline || null,
     summary: fallbackSummary,
     status: summary.status,
@@ -1591,7 +1591,7 @@ async function extractFlexWorkRecordTimelineFromTab(tabId, queryDate) {
     summary: isPlainObject(result.summary) ? result.summary : null,
     sourceUrl: normalizeText(result.url),
     pageTitle: normalizeText(result.title),
-    extractedAt: Math.max(1, Math.round(Number(result.extractedAt) || Date.now()))
+    extractedAt: Math.max(1, Math.round(toTruthyNumberOrFallback(result.extractedAt, Date.now)))
   };
 }
 

@@ -421,6 +421,77 @@ test("fetchFlexWorkRecordRows falls back to visible page summary when timeline t
   }
 });
 
+test("fetchFlexWorkRecordRows preserves extractedAt fallback semantics", async () => {
+  const previousNow = Date.now;
+  Date.now = () => 1712012345999;
+  const harness = createChromeHarness([
+    {
+      ok: true,
+      tooltipText: "",
+      summary: {
+        status: "Working",
+        duration: "5h 23m",
+        line: "Working 5h 23m"
+      },
+      title: "??洹쇰Т",
+      url: "https://flex.team/time-tracking/my-work-record",
+      extractedAt: 0
+    }
+  ]);
+  const originalChrome = globalThis.chrome;
+  globalThis.chrome = harness.chrome;
+
+  try {
+    const rows = await fetchFlexWorkRecordRows(
+      {
+        flexHomeUrl: "https://flex.team/time-tracking/my-work-record",
+        openFlexTabIfMissing: true
+      },
+      "2026-04-10",
+      { reusableTabIds: {} }
+    );
+
+    assert.equal(rows[0].rawEntry.extractedAt, 1712012345999);
+  } finally {
+    globalThis.chrome = originalChrome;
+    Date.now = previousNow;
+  }
+});
+
+test("fetchFlexWorkRecordTimeline preserves infinite extractedAt semantics", async () => {
+  const harness = createChromeHarness([
+    {
+      ok: true,
+      tooltipText: "",
+      summary: {
+        status: "Working",
+        duration: "5h 23m",
+        line: "Working 5h 23m"
+      },
+      title: "??洹쇰Т",
+      url: "https://flex.team/time-tracking/my-work-record",
+      extractedAt: Infinity
+    }
+  ]);
+  const originalChrome = globalThis.chrome;
+  globalThis.chrome = harness.chrome;
+
+  try {
+    const snapshot = await fetchFlexWorkRecordTimeline(
+      {
+        flexHomeUrl: "https://flex.team/time-tracking/my-work-record",
+        openFlexTabIfMissing: true
+      },
+      "2026-04-10",
+      { reusableTabIds: {} }
+    );
+
+    assert.equal(snapshot.extractedAt, Infinity);
+  } finally {
+    globalThis.chrome = originalChrome;
+  }
+});
+
 test("flexWorktimeWidget ignores stale in-flight scrape after config refresh", async () => {
   const harness = createDeferredChromeHarness();
   const originalChrome = globalThis.chrome;
