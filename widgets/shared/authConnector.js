@@ -115,6 +115,7 @@ export async function connectWithAuthConnector({
   configuredAccessToken = "",
   provider = "",
   providerLabel = "Account",
+  authFlowFailureMessage = `${providerLabel} connection failed.`,
   missingAuthFlowTokenMessage = "Auth connector did not return access_token.",
   unableTokenMessage = `${providerLabel} connection failed. Check connector server or configure access token manually.`,
   getIdentityApi = () => null
@@ -149,10 +150,10 @@ export async function connectWithAuthConnector({
 
     const result = parseAuthFlowResult(callbackUrl);
     if (result.error || result.errorDescription) {
-      throw new Error(result.errorDescription || result.error || `${providerLabel} connection failed.`);
+      throw new Error(result.errorDescription || result.error || authFlowFailureMessage);
     }
     if (!result.state || result.state !== state) {
-      throw new Error(`${providerLabel} connection failed (invalid state).`);
+      throw new Error(`${authFlowFailureMessage.replace(/\.$/, "")} (invalid state).`);
     }
 
     token = normalizeText(result.accessToken);
