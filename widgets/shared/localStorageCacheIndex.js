@@ -1,15 +1,5 @@
+import { parseJsonOrNull } from "../../core/utils/json.js";
 import { normalizeText } from "../../core/utils/text.js";
-
-function parseJsonSafely(value) {
-  if (typeof value !== "string" || !value.trim()) {
-    return null;
-  }
-  try {
-    return JSON.parse(value);
-  } catch {
-    return null;
-  }
-}
 
 function normalizeFetchedAt(value) {
   const num = Number(value);
@@ -39,7 +29,7 @@ export function scanCacheEntries(storage, options) {
     if (!key || !key.startsWith(options.prefix) || key === options.indexKey) {
       continue;
     }
-    const parsed = parseJsonSafely(storage.getItem(key) || "");
+    const parsed = parseJsonOrNull(storage.getItem(key) || "");
     entries.push({
       key,
       fetchedAt: normalizeFetchedAt(parsed?.fetchedAt)
@@ -50,7 +40,7 @@ export function scanCacheEntries(storage, options) {
 }
 
 export function readCacheIndex(storage, options) {
-  const parsed = parseJsonSafely(storage.getItem(options.indexKey) || "");
+  const parsed = parseJsonOrNull(storage.getItem(options.indexKey) || "");
   if (!Array.isArray(parsed)) {
     return scanCacheEntries(storage, options);
   }

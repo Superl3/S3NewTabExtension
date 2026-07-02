@@ -1,4 +1,5 @@
 import { normalizeErrorMessage } from "../core/utils/error.js";
+import { parseJsonOrNull } from "../core/utils/json.js";
 import { clamp } from "../core/utils/number.js";
 import { normalizeText } from "../core/utils/text.js";
 import {
@@ -548,19 +549,6 @@ function extractUrlsFromText(rawValue) {
   return matches.map((entry) => entry.replace(/[),.;]+$/g, ""));
 }
 
-function tryParseJson(value) {
-  const text = normalizeText(value);
-  if (!text) {
-    return null;
-  }
-
-  try {
-    return JSON.parse(text);
-  } catch {
-    return null;
-  }
-}
-
 function collectNestedStringValues(value, output, depth = 0) {
   if (depth > 4 || output.length > 120) {
     return;
@@ -603,7 +591,7 @@ function collectColumnTextCandidates(columnValue) {
   const rawValue = normalizeText(columnValue?.value);
   if (rawValue) {
     pushUnique(out, rawValue);
-    const parsed = tryParseJson(rawValue);
+    const parsed = parseJsonOrNull(rawValue);
     const nestedValues = [];
     collectNestedStringValues(parsed, nestedValues, 0);
     for (const entry of nestedValues) {

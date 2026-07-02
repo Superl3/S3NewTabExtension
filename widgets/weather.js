@@ -1,4 +1,5 @@
 import { normalizeErrorMessage } from "../core/utils/error.js";
+import { parseJsonOrNull } from "../core/utils/json.js";
 import { clamp } from "../core/utils/number.js";
 import { normalizeText } from "../core/utils/text.js";
 import { pruneCacheIndex, touchCacheIndex } from "./shared/localStorageCacheIndex.js";
@@ -13,17 +14,6 @@ const WEATHER_CACHE_INDEX_OPTIONS = {
   prefix: `${WEATHER_CACHE_PREFIX}:`,
   indexKey: WEATHER_CACHE_INDEX_KEY
 };
-
-function tryParseJson(value) {
-  if (typeof value !== "string" || !value.trim()) {
-    return null;
-  }
-  try {
-    return JSON.parse(value);
-  } catch {
-    return null;
-  }
-}
 
 function normalizeRefreshMinutes(value, fallback = 30) {
   const num = Number(value);
@@ -92,7 +82,7 @@ function readWeatherCache(config) {
   } catch {
     return null;
   }
-  const parsed = tryParseJson(raw);
+  const parsed = parseJsonOrNull(raw);
   if (!parsed || typeof parsed !== "object") {
     return null;
   }
