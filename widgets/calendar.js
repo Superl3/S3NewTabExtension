@@ -3,6 +3,7 @@ import { normalizeIntegerInRange } from "../core/utils/number.js";
 import { normalizeText } from "../core/utils/text.js";
 import { parseIcsEvents } from "./shared/icsParser.js";
 import { normalizeHttpUrl } from "./shared/linkUrls.js";
+import { addLocalDays as addDays, toLocalDateKey } from "./shared/localDates.js";
 
 const GOOGLE_CALENDAR_HOST = "https://calendar.google.com";
 const GOOGLE_CALENDAR_WEB_URL = `${GOOGLE_CALENDAR_HOST}/calendar/u/0/r`;
@@ -59,13 +60,6 @@ function normalizeIcsUrl(value) {
   } catch {
     return "";
   }
-}
-
-function toLocalDateKey(date) {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
 }
 
 function mapCalendarEvents(parsedEvents, fallbackLink) {
@@ -130,10 +124,6 @@ function fetchSignature(config) {
 
 function monthStart(date) {
   return new Date(date.getFullYear(), date.getMonth(), 1);
-}
-
-function addDays(date, days) {
-  return new Date(date.getFullYear(), date.getMonth(), date.getDate() + days);
 }
 
 function weekLabels(weekStartsOn) {

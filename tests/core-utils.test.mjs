@@ -540,6 +540,21 @@ test("feed and monday widgets share local date-time label formatting", async () 
   }
 });
 
+test("date-driven widgets share local date key helpers instead of local copies", async () => {
+  const moduleUrls = [
+    new URL("../widgets/calendar.js", import.meta.url),
+    new URL("../widgets/todo.js", import.meta.url),
+    new URL("../widgets/shared/icsParser.js", import.meta.url),
+    new URL("../widgets/shared/flexWorktimeRows.js", import.meta.url)
+  ];
+
+  for (const moduleUrl of moduleUrls) {
+    const source = await fs.readFile(moduleUrl, "utf8");
+    assert.match(source, /shared\/localDates\.js|\.\/localDates\.js/, moduleUrl.pathname);
+    assert.doesNotMatch(source, /^function (formatDateKey|toLocalDateKey|addDays)\(/m, moduleUrl.pathname);
+  }
+});
+
 test("feed widgets share XML helpers instead of local copies", async () => {
   const moduleUrls = [
     new URL("../widgets/gmail.js", import.meta.url),
