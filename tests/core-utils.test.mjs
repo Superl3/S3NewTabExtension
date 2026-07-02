@@ -1101,14 +1101,22 @@ test("Flex worktime widgets share row helpers instead of local copies", async ()
 
 test("Flex worktime timeline uses shared local date arithmetic", async () => {
   const source = await fs.readFile(new URL("../widgets/flexWorktimeTimeline.js", import.meta.url), "utf8");
+  assert.match(source, /shared\/localDates\.js/);
   assert.match(source, /addLocalDays/);
   assert.doesNotMatch(source, /\.setDate\(/);
 });
 
 test("Flex worktime timeline uses shared local date validation", async () => {
   const source = await fs.readFile(new URL("../widgets/flexWorktimeTimeline.js", import.meta.url), "utf8");
+  assert.match(source, /shared\/localDates\.js/);
   assert.match(source, /normalizeLocalDateKey/);
   assert.doesNotMatch(source, /^function normalizeIsoDate\(/m);
+});
+
+test("Flex worktime row helpers do not proxy-export local date helpers", async () => {
+  const source = await fs.readFile(new URL("../widgets/shared/flexWorktimeRows.js", import.meta.url), "utf8");
+  assert.match(source, /\.\/localDates\.js/);
+  assert.doesNotMatch(source, /export \{[^}]*LocalDate/);
 });
 
 test("Flex shared row helpers use core integer primitives", async () => {
@@ -1678,6 +1686,8 @@ test("date-driven widgets share local date key helpers instead of local copies",
   const moduleUrls = [
     new URL("../widgets/calendar.js", import.meta.url),
     new URL("../widgets/todo.js", import.meta.url),
+    new URL("../widgets/flexWorktime.js", import.meta.url),
+    new URL("../widgets/flexWorktimeTimeline.js", import.meta.url),
     new URL("../widgets/shared/icsParser.js", import.meta.url),
     new URL("../widgets/shared/flexWorktimeRows.js", import.meta.url)
   ];

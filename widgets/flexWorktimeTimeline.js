@@ -33,11 +33,15 @@ import {
 import { findFlexTabByPriority } from "./shared/flexTabs.js";
 import { createFlexWorktimeCache } from "./shared/flexWorktimeCache.js";
 import {
+  addLocalDays,
+  normalizeLocalDateKey,
+  toLocalDateKey
+} from "./shared/localDates.js";
+import {
   FLEX_HOME_TAB_LOAD_TIMEOUT_MS,
   FLEX_WORKTIME_CACHE_MAX_ENTRIES,
   FLEX_WORKTIME_DEFAULT_HOME_URL,
   FLEX_WORKTIME_DEFAULT_REFRESH_MINUTES,
-  addLocalDays,
   formatClockMinutes,
   formatDurationMinutes,
   formatFlexWorkRecordScrapeError as formatSourceError,
@@ -45,14 +49,12 @@ import {
   normalizeCachedWorktimeRow as normalizeCachedRow,
   normalizeFlexHomeScrapeRow,
   normalizeFlexWidgetBaseConfig,
-  normalizeLocalDateKey,
   normalizeTabId,
   parseTimeOfDayMinutes,
   resolveFlexSyncState,
   resolveFlexWorktimeDetailUrl as resolveDetailUrl,
   sanitizePlaceholderMap,
-  toCachedWorktimeRow as toCachedRow,
-  toLocalDateKey
+  toCachedWorktimeRow as toCachedRow
 } from "./shared/flexWorktimeRows.js";
 
 const FLEX_WORKTIME_CACHE_PREFIX = "s3newtab:flex-worktime-timeline-cache:v1";
