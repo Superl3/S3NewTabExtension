@@ -1,3 +1,5 @@
+import { clampTruthyNumberOrFallback } from "./utils/number.js";
+
 export function createPresetManagementRuntime(deps) {
   function clonePresetSnapshot(snapshot) {
     const cloned = {
@@ -31,7 +33,7 @@ export function createPresetManagementRuntime(deps) {
       },
       instances: state.instances.map((instance) => ({
         ...deps.structuredClone(instance),
-        zIndex: Math.max(1, Number(instance.zIndex) || 1),
+        zIndex: clampTruthyNumberOrFallback(instance.zIndex, 1, 1, Number.POSITIVE_INFINITY),
         surfaceMode: deps.normalizeSurfaceMode(instance.surfaceMode, "normal"),
         edgeRoundness: deps.normalizeEdgeRoundness(instance.edgeRoundness, 12),
         titleAlign: deps.normalizeTitleAlign(instance.titleAlign, deps.defaultWidgetTitleAlign()),

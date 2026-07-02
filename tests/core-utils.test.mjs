@@ -479,6 +479,13 @@ test("core profile utilities use shared object helpers", async () => {
   assert.doesNotMatch(source, /^function isPlainObject\(/m);
 });
 
+test("preset management uses shared truthy clamp normalization for z-index", async () => {
+  const source = await fs.readFile(new URL("../core/preset-management-runtime.js", import.meta.url), "utf8");
+  assert.match(source, /utils\/number\.js/);
+  assert.match(source, /clampTruthyNumberOrFallback/);
+  assert.doesNotMatch(source, /Math\.max\(1, Number\(instance\.zIndex\) \|\| 1\)/);
+});
+
 test("core modules use the shared optional function caller instead of local wrappers", async () => {
   const moduleUrls = [
     new URL("../core/board-grid-slot.js", import.meta.url),

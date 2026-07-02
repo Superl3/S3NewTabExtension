@@ -86,15 +86,19 @@ test("inferNextId computes next numeric suffix", () => {
 
 test("savePreset creates and updates same-name preset", () => {
   const harness = createHarness();
+  harness.state.instances[0].zIndex = -10;
 
   harness.runtime.savePreset("My Preset");
   assert.equal(harness.state.presets.length, 1);
   assert.equal(harness.state.presets[0].name, "My Preset");
+  assert.equal(harness.state.presets[0].snapshot.instances[0].zIndex, 1);
 
   const firstId = harness.state.presets[0].id;
+  harness.state.instances[0].zIndex = Number.POSITIVE_INFINITY;
   harness.runtime.savePreset("my preset");
   assert.equal(harness.state.presets.length, 1);
   assert.equal(harness.state.presets[0].id, firstId);
+  assert.equal(harness.state.presets[0].snapshot.instances[0].zIndex, Number.POSITIVE_INFINITY);
 
   assert.deepEqual(harness.calls.history, ["Save preset", "Save preset"]);
   assert.equal(harness.calls.renderSettings, 2);
