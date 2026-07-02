@@ -3,17 +3,13 @@ import {
   normalizeLauncherPageIndexList,
   normalizePageCount
 } from "./launcher-pages.js";
+import { normalizeText } from "./utils/text.js";
 
 function clamp(value, min, max) {
   if (!Number.isFinite(value)) {
     return min;
   }
   return Math.min(max, Math.max(min, value));
-}
-
-function normalizeText(value, fallback = "") {
-  const text = String(value || "").trim();
-  return text || fallback;
 }
 
 export function normalizeHomeMode(value, fallback = "grid") {
