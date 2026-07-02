@@ -1,3 +1,4 @@
+import { arrayOrEmpty } from "../core/utils/array.js";
 import { normalizeErrorMessage } from "../core/utils/error.js";
 import { parseJsonOrNull } from "../core/utils/json.js";
 import { clamp } from "../core/utils/number.js";
@@ -195,9 +196,7 @@ function readCachedSnapshot(rawConfig, cfg) {
     return null;
   }
 
-  const cacheBoards = Array.isArray(rawConfig?.cacheBoards)
-    ? rawConfig.cacheBoards.map(normalizeCachedBoardSnapshot).filter(Boolean)
-    : [];
+  const cacheBoards = arrayOrEmpty(rawConfig?.cacheBoards).map(normalizeCachedBoardSnapshot).filter(Boolean);
 
   if (cacheBoards.length) {
     const configBoards = new Set(cfg.boardIds);
@@ -251,10 +250,9 @@ function resolveItemUrl(boardId, latestItemUrl) {
 }
 
 function resolveMondayUrl(boardEntries, accountValue) {
-  const entries = Array.isArray(boardEntries) ? boardEntries : [];
   const candidateUrls = [];
 
-  for (const entry of entries) {
+  for (const entry of arrayOrEmpty(boardEntries)) {
     candidateUrls.push(entry?.boardUrl, entry?.latest?.itemUrl);
   }
 
@@ -997,14 +995,13 @@ export const mondayMeetingNoteWidget = {
         return false;
       }
 
-      boardEntries = Array.isArray(cached.boards)
-        ? cached.boards.map((entry) => ({
+      boardEntries = arrayOrEmpty(cached.boards)
+        .map((entry) => ({
             boardId: normalizeBoardId(entry?.boardId, 0),
             boardName: normalizeText(entry?.boardName),
             boardUrl: normalizeText(entry?.boardUrl),
             latest: normalizeCachedLatest(entry?.latest)
-          }))
-        : [];
+          }));
       hasFetched = boardEntries.some((entry) => Boolean(entry?.latest));
       return true;
     }
@@ -1042,9 +1039,9 @@ export const mondayMeetingNoteWidget = {
       const cacheBoardName = primary ? primary.boardName : "";
 
       const currentCfg = getConfig();
-      const currentCacheBoards = Array.isArray(currentCfg?.cacheBoards)
-        ? currentCfg.cacheBoards.map(normalizeCachedBoardSnapshot).filter(Boolean)
-        : [];
+      const currentCacheBoards = arrayOrEmpty(currentCfg?.cacheBoards)
+        .map(normalizeCachedBoardSnapshot)
+        .filter(Boolean);
       const unchanged =
         normalizeSelectorKey(currentCfg?.cacheMeetingNoteColumnId) ===
           normalizeSelectorKey(cfg.meetingNoteColumnId) &&

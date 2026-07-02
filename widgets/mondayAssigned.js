@@ -1,3 +1,4 @@
+import { arrayOrEmpty } from "../core/utils/array.js";
 import { normalizeErrorMessage } from "../core/utils/error.js";
 import { parseJsonOrNull } from "../core/utils/json.js";
 import { clamp, normalizeIntegerInRange } from "../core/utils/number.js";
@@ -581,12 +582,8 @@ function normalizeCachedBoardSnapshot(entry) {
     return null;
   }
 
-  const issues = Array.isArray(entry?.issues)
-    ? entry.issues.map(normalizeCachedIssue).filter(Boolean)
-    : [];
-  const groups = Array.isArray(entry?.groups)
-    ? entry.groups.map(normalizeCachedGroup).filter((group) => group.id || group.title)
-    : [];
+  const issues = arrayOrEmpty(entry?.issues).map(normalizeCachedIssue).filter(Boolean);
+  const groups = arrayOrEmpty(entry?.groups).map(normalizeCachedGroup).filter((group) => group.id || group.title);
 
   return {
     ...base,
@@ -600,9 +597,7 @@ function normalizeCachedBoardSnapshot(entry) {
 function readCachedSnapshot(rawConfig, cfg) {
   const cacheAt = normalizeMondayCacheTimestamp(rawConfig?.cacheAt);
   const configuredBoards = new Set(cfg.boardIds);
-  const cacheBoards = Array.isArray(rawConfig?.cacheBoards)
-    ? rawConfig.cacheBoards.map(normalizeCachedBoardSnapshot).filter(Boolean)
-    : [];
+  const cacheBoards = arrayOrEmpty(rawConfig?.cacheBoards).map(normalizeCachedBoardSnapshot).filter(Boolean);
 
   if (cacheBoards.length) {
     const boards = cacheBoards
@@ -634,16 +629,14 @@ function readCachedSnapshot(rawConfig, cfg) {
     return null;
   }
 
-  const cachedIssues = Array.isArray(rawConfig?.cacheIssues)
-    ? rawConfig.cacheIssues.map(normalizeCachedIssue).filter(Boolean)
-    : [];
+  const cachedIssues = arrayOrEmpty(rawConfig?.cacheIssues).map(normalizeCachedIssue).filter(Boolean);
   if (!cachedIssues.length && !cacheAt) {
     return null;
   }
 
-  const cachedGroups = Array.isArray(rawConfig?.cacheGroups)
-    ? rawConfig.cacheGroups.map(normalizeCachedGroup).filter((group) => group.id || group.title)
-    : [];
+  const cachedGroups = arrayOrEmpty(rawConfig?.cacheGroups)
+    .map(normalizeCachedGroup)
+    .filter((group) => group.id || group.title);
 
   return {
     boards: [
@@ -1191,17 +1184,16 @@ export const mondayAssignedWidget = {
         return;
       }
 
-      boardSnapshots = Array.isArray(cached.boards)
-        ? cached.boards.map((entry) => ({
+      boardSnapshots = arrayOrEmpty(cached.boards)
+        .map((entry) => ({
             boardId: normalizeBoardId(entry?.boardId, 0),
             boardName: normalizeText(entry?.boardName),
             boardUrl: normalizeText(entry?.boardUrl),
             assigneeName: normalizeText(entry?.assigneeName, "me"),
             scopeMode: normalizeText(entry?.scopeMode) === "all" ? "all" : "assigned",
-            boardGroups: Array.isArray(entry?.groups) ? entry.groups : [],
-            issues: Array.isArray(entry?.issues) ? entry.issues : []
+            boardGroups: arrayOrEmpty(entry?.groups),
+            issues: arrayOrEmpty(entry?.issues)
           }))
-        : [];
       hasFetched = boardSnapshots.length > 0;
     }
 
@@ -1213,8 +1205,8 @@ export const mondayAssignedWidget = {
             return null;
           }
 
-          const issues = Array.isArray(snapshot?.issues)
-            ? snapshot.issues.map((issue) => ({
+          const issues = arrayOrEmpty(snapshot?.issues)
+            .map((issue) => ({
                 id: normalizeText(issue?.id),
                 title: normalizeText(issue?.title),
                 url: normalizeText(issue?.url),
@@ -1222,15 +1214,13 @@ export const mondayAssignedWidget = {
                 groupTitle: normalizeText(issue?.groupTitle),
                 updatedLabel: normalizeText(issue?.updatedLabel),
                 updatedTs: normalizeMondayCacheNumber(issue?.updatedTs)
-              }))
-            : [];
+              }));
 
-          const groups = Array.isArray(snapshot?.boardGroups)
-            ? snapshot.boardGroups.map((group) => ({
+          const groups = arrayOrEmpty(snapshot?.boardGroups)
+            .map((group) => ({
                 id: normalizeText(group?.id),
                 title: normalizeText(group?.title)
-              }))
-            : [];
+              }));
 
           return {
             boardId,
@@ -1252,9 +1242,9 @@ export const mondayAssignedWidget = {
       const cacheBoardId = primary?.boardId || 0;
 
       const currentCfg = getConfig();
-      const currentCacheBoards = Array.isArray(currentCfg?.cacheBoards)
-        ? currentCfg.cacheBoards.map(normalizeCachedBoardSnapshot).filter(Boolean)
-        : [];
+      const currentCacheBoards = arrayOrEmpty(currentCfg?.cacheBoards)
+        .map(normalizeCachedBoardSnapshot)
+        .filter(Boolean);
 
       const unchanged = JSON.stringify(currentCacheBoards) === JSON.stringify(cacheBoards);
 
@@ -1537,7 +1527,7 @@ export const mondayAssignedWidget = {
     }
 
     function getVisibleSnapshots(cfg) {
-      const ids = Array.isArray(cfg.boardIds) ? cfg.boardIds : [];
+      const ids = arrayOrEmpty(cfg.boardIds);
       const byId = new Map(boardSnapshots.map((entry) => [normalizeBoardId(entry?.boardId, 0), entry]));
       const out = [];
 

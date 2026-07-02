@@ -1358,13 +1358,26 @@ test("Monday widgets share cached board base normalization", async () => {
     )?.[0] || "";
     assert.match(source, /normalizeCachedMondayBoardBase/, moduleUrl.pathname);
     assert.match(source, /normalizeMondayCacheTimestamp/, moduleUrl.pathname);
+    assert.match(source, /core\/utils\/array\.js/, moduleUrl.pathname);
+    assert.match(source, /arrayOrEmpty\(/, moduleUrl.pathname);
     assert.doesNotMatch(source, /Number\(rawConfig\?\.cacheAt\) \|\| 0/, moduleUrl.pathname);
+    assert.doesNotMatch(source, /Array\.isArray\(rawConfig\?\.cacheBoards\)/, moduleUrl.pathname);
+    assert.doesNotMatch(source, /Array\.isArray\(cached\.boards\)/, moduleUrl.pathname);
+    assert.doesNotMatch(source, /Array\.isArray\(currentCfg\?\.cacheBoards\)/, moduleUrl.pathname);
     assert.doesNotMatch(
       cachedSnapshotBlock,
       /boardName:\s*normalizeText\(entry\?\.boardName,\s*`Board \$\{boardId\}`\)/,
       moduleUrl.pathname
     );
   }
+
+  const assignedSource = await fs.readFile(new URL("../widgets/mondayAssigned.js", import.meta.url), "utf8");
+  assert.doesNotMatch(assignedSource, /Array\.isArray\(rawConfig\?\.cacheIssues\)/);
+  assert.doesNotMatch(assignedSource, /Array\.isArray\(rawConfig\?\.cacheGroups\)/);
+  assert.doesNotMatch(assignedSource, /Array\.isArray\(cfg\.boardIds\) \? cfg\.boardIds : \[\]/);
+
+  const meetingNoteSource = await fs.readFile(new URL("../widgets/mondayMeetingNote.js", import.meta.url), "utf8");
+  assert.doesNotMatch(meetingNoteSource, /Array\.isArray\(boardEntries\) \? boardEntries : \[\]/);
 });
 
 test("Monday meeting notes reuse the shared safe URL parser", async () => {
