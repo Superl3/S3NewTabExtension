@@ -1603,12 +1603,14 @@ test("Monday widgets share cached board base normalization", async () => {
       /function normalizeCachedBoardSnapshot\([\s\S]*?\n}\n\nfunction readCachedSnapshot/
     )?.[0] || "";
     assert.match(source, /normalizeCachedMondayBoardBase/, moduleUrl.pathname);
+    assert.match(source, /normalizeMondayCachedBoards/, moduleUrl.pathname);
     assert.match(source, /areMondayCachedBoardsEqual/, moduleUrl.pathname);
     assert.match(source, /normalizeMondayCacheTimestamp/, moduleUrl.pathname);
     assert.match(source, /core\/utils\/array\.js/, moduleUrl.pathname);
     assert.match(source, /arrayOrEmpty\(/, moduleUrl.pathname);
     assert.doesNotMatch(source, /Number\(rawConfig\?\.cacheAt\) \|\| 0/, moduleUrl.pathname);
     assert.doesNotMatch(source, /Array\.isArray\(rawConfig\?\.cacheBoards\)/, moduleUrl.pathname);
+    assert.doesNotMatch(source, /arrayOrEmpty\(rawConfig\?\.cacheBoards\)\.map\(normalizeCachedBoardSnapshot\)\.filter\(Boolean\)/, moduleUrl.pathname);
     assert.doesNotMatch(source, /Array\.isArray\(cached\.boards\)/, moduleUrl.pathname);
     assert.doesNotMatch(source, /Array\.isArray\(currentCfg\?\.cacheBoards\)/, moduleUrl.pathname);
     assert.doesNotMatch(source, /JSON\.stringify\(currentCacheBoards\) === JSON\.stringify\(cacheBoards\)/, moduleUrl.pathname);

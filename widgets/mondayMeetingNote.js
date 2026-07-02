@@ -36,6 +36,7 @@ import {
   normalizeCachedMondayBoardBase,
   normalizeColumnSelector,
   normalizeColumnSelectorList as normalizeSharedColumnSelectorList,
+  normalizeMondayCachedBoards,
   normalizeMondayCacheTimestamp,
   parseColumnSelectorList
 } from "./shared/mondayConfig.js";
@@ -193,7 +194,7 @@ function readCachedSnapshot(rawConfig, cfg) {
     return null;
   }
 
-  const cacheBoards = arrayOrEmpty(rawConfig?.cacheBoards).map(normalizeCachedBoardSnapshot).filter(Boolean);
+  const cacheBoards = normalizeMondayCachedBoards(rawConfig?.cacheBoards, normalizeCachedBoardSnapshot);
 
   if (cacheBoards.length) {
     const configBoards = new Set(cfg.boardIds);
