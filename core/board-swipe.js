@@ -1,8 +1,8 @@
 import { clampFiniteOrMin, toFiniteNumber } from "./utils/number.js";
 
 export function resolveBoardSwipeStartState(dx, dy, { minDx = 3, axisRatio = 0.55 } = {}) {
-  const absX = Math.abs(Number(dx) || 0);
-  const absY = Math.abs(Number(dy) || 0);
+  const absX = Math.abs(toFiniteNumber(dx, 0));
+  const absY = Math.abs(toFiniteNumber(dy, 0));
 
   if (absX < minDx) {
     return "pending";
@@ -34,8 +34,8 @@ export function resolveBoardSwipeNextPage(
 ) {
   const currentPage = toFiniteNumber(activePage, 0);
   let nextPage = currentPage;
-  const deltaX = Number(dx) || 0;
-  const speed = Number(velocity) || 0;
+  const deltaX = toFiniteNumber(dx, 0);
+  const speed = toFiniteNumber(velocity, 0);
 
   if (deltaX <= -threshold || speed <= -velocityThreshold) {
     nextPage = currentPage + 1;
