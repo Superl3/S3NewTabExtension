@@ -20,10 +20,6 @@ const WEATHER_CACHE_INDEX_OPTIONS = {
   indexKey: WEATHER_CACHE_INDEX_KEY
 };
 
-function normalizeRefreshMinutes(value, fallback = 30) {
-  return normalizeIntegerInRange(value, fallback, 5, 240);
-}
-
 function normalizeTemperatureUnit(value, fallback = "celsius") {
   const unit = normalizeText(value, fallback).toLowerCase();
   return unit === "fahrenheit" ? "fahrenheit" : "celsius";
@@ -39,7 +35,7 @@ function normalizedConfig(config) {
     locationQuery: normalizeText(config?.locationQuery, DEFAULT_LOCATION_QUERY),
     temperatureUnit: normalizeTemperatureUnit(config?.temperatureUnit, "celsius"),
     detailMode: normalizeDetailMode(config?.detailMode, "simple"),
-    refreshMinutes: normalizeRefreshMinutes(config?.refreshMinutes, 30)
+    refreshMinutes: normalizeIntegerInRange(config?.refreshMinutes, 30, 5, 240)
   };
 }
 
@@ -52,7 +48,7 @@ function weatherCacheStorageKey(config) {
 }
 
 function refreshIntervalMs(refreshMinutes) {
-  return normalizeRefreshMinutes(refreshMinutes, 30) * 60000;
+  return normalizeIntegerInRange(refreshMinutes, 30, 5, 240) * 60000;
 }
 
 function computeNextRefreshDelayMs(refreshMinutes, fetchedAt = 0) {

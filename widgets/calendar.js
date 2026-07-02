@@ -21,18 +21,6 @@ function calendarHomeUrl(accountIndex) {
   return calendarAppBaseUrl(accountIndex);
 }
 
-function normalizeMaxResults(value, fallback = 8) {
-  return normalizeIntegerInRange(value, fallback, 1, 30);
-}
-
-function normalizeDaysAhead(value, fallback = 21) {
-  return normalizeIntegerInRange(value, fallback, 1, 90);
-}
-
-function normalizeRefreshMinutes(value, fallback = 30) {
-  return normalizeIntegerInRange(value, fallback, 1, 240);
-}
-
 function normalizeWeekStartsOn(value) {
   return normalizeText(value).toLowerCase() === "sunday" ? "sunday" : "monday";
 }
@@ -83,7 +71,7 @@ export function parseIcsEventsForContractTest(icsText, fallbackLink = GOOGLE_CAL
 function filterUpcomingEvents(events, daysAhead) {
   const now = new Date();
   const rangeStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-  const rangeEnd = rangeStart + normalizeDaysAhead(daysAhead, 21) * 24 * 60 * 60 * 1000;
+  const rangeEnd = rangeStart + normalizeIntegerInRange(daysAhead, 21, 1, 90) * 24 * 60 * 60 * 1000;
 
   return events.filter((event) => {
     if (!event || !Number.isFinite(event.startTs)) {
@@ -97,9 +85,9 @@ function normalizeFetchConfig(config) {
   return {
     accountIndex: normalizeAccountIndex(config?.accountIndex, 0),
     icsUrl: normalizeIcsUrl(config?.icsUrl),
-    maxResults: normalizeMaxResults(config?.maxResults, 8),
-    daysAhead: normalizeDaysAhead(config?.daysAhead, 21),
-    refreshMinutes: normalizeRefreshMinutes(config?.refreshMinutes, 30),
+    maxResults: normalizeIntegerInRange(config?.maxResults, 8, 1, 30),
+    daysAhead: normalizeIntegerInRange(config?.daysAhead, 21, 1, 90),
+    refreshMinutes: normalizeIntegerInRange(config?.refreshMinutes, 30, 1, 240),
     viewMode: normalizeViewMode(config?.viewMode),
     weekStartsOn: normalizeWeekStartsOn(config?.weekStartsOn),
     showLocation: config?.showLocation !== false,
