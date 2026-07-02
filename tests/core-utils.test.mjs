@@ -44,6 +44,23 @@ test("layout-primitives clamp delegates to core utils number module", () => {
   assert.equal(layoutClamp(6, 2, 8), 6);
 });
 
+test("core style and layout modules share number utilities for rounded clamps", async () => {
+  const moduleUrls = [
+    new URL("../core/layout-primitives.js", import.meta.url),
+    new URL("../core/widget-common-style.js", import.meta.url)
+  ];
+
+  for (const moduleUrl of moduleUrls) {
+    const source = await fs.readFile(moduleUrl, "utf8");
+    assert.doesNotMatch(source, /^function clamp\(/m, moduleUrl.pathname);
+    assert.doesNotMatch(
+      source,
+      /const num = Number\(value\);\s*if \(!Number\.isFinite\(num\)\) \{\s*return clamp\(Math\.round\(fallback\),/m,
+      moduleUrl.pathname
+    );
+  }
+});
+
 async function collectWidgetSources(dirUrl) {
   const entries = await fs.readdir(dirUrl, { withFileTypes: true });
   const sources = [];
