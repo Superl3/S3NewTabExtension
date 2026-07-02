@@ -25,6 +25,7 @@ import {
   formatGitHubSyncedLabel as formatSyncedLabel,
   GITHUB_API_BASE,
   githubTokenFingerprint as tokenFingerprint,
+  matchesGitHubCacheRepository as matchesCacheRepository,
   matchesGitHubCacheTokenFingerprint,
   normalizeGitHubCachedItemBase as normalizeCachedItemBase,
   normalizeGitHubCachedItems as normalizeCachedItems,
@@ -394,7 +395,7 @@ function readCachedSnapshot(rawConfig, cfg) {
     return null;
   }
 
-  if (normalizeRepository(rawConfig?.cacheRepository) !== cfg.repository) {
+  if (!matchesCacheRepository(rawConfig?.cacheRepository, cfg.repository)) {
     return null;
   }
   if (normalizeGithubLogin(rawConfig?.cacheGithubLogin) !== cfg.githubLogin) {
@@ -422,7 +423,7 @@ function isReviewInboxSnapshotUnchanged(rawConfig, cfg, items, tokenUserWarning)
   const currentCacheItems = normalizeCachedItems(rawConfig?.cacheReviewItems, normalizeCachedItem);
 
   return (
-    normalizeRepository(rawConfig?.cacheRepository) === cfg.repository &&
+    matchesCacheRepository(rawConfig?.cacheRepository, cfg.repository) &&
     normalizeGithubLogin(rawConfig?.cacheGithubLogin) === cfg.githubLogin &&
     matchesGitHubCacheTokenFingerprint(rawConfig?.cacheTokenFingerprint, cfg.accessToken) &&
     normalizeText(rawConfig?.cacheTokenUserWarning) === normalizeText(tokenUserWarning) &&

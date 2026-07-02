@@ -8,6 +8,7 @@ import {
   formatGitHubRelativeTimestamp,
   githubRepositoryParts,
   githubTokenFingerprint,
+  matchesGitHubCacheRepository,
   matchesGitHubCacheTokenFingerprint,
   normalizeGitHubCachedItemBase,
   normalizeGitHubCachedItems,
@@ -101,6 +102,9 @@ test("GitHub shared helpers preserve API formatting semantics", () => {
   assert.equal(matchesGitHubCacheTokenFingerprint("", ""), false);
   assert.equal(matchesGitHubCacheTokenFingerprint("", "", true), true);
   assert.equal(matchesGitHubCacheTokenFingerprint("", "abc", true), false);
+  assert.equal(matchesGitHubCacheRepository(" https://github.com/Owner/Repo.git ", "Owner/Repo"), true);
+  assert.equal(matchesGitHubCacheRepository("other/repo", "Owner/Repo"), false);
+  assert.equal(matchesGitHubCacheRepository("", ""), false);
 });
 
 test("GitHub shared helpers parse response JSON without widget-local parsing", () => {
