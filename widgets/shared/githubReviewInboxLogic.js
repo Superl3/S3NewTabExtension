@@ -78,13 +78,15 @@ function collectUserTimestamps(items, targetLogin, readTimestamp) {
     .filter(Boolean);
 }
 
+function readCommitTimestamp(commit) {
+  const authoredAt = parseTimestamp(commit?.commit?.author?.date);
+  const committedAt = parseTimestamp(commit?.commit?.committer?.date);
+  return Math.max(authoredAt, committedAt);
+}
+
 export function deriveLatestCodeUpdateAt(pullRequest, commits = []) {
   const commitTimes = arrayOrEmpty(commits)
-    .map((commit) => {
-      const authoredAt = parseTimestamp(commit?.commit?.author?.date);
-      const committedAt = parseTimestamp(commit?.commit?.committer?.date);
-      return Math.max(authoredAt, committedAt);
-    })
+    .map(readCommitTimestamp)
     .filter((value) => value > 0);
 
   if (commitTimes.length) {
@@ -132,11 +134,7 @@ export function deriveLatestOtherActivityAt({
       }
       return knownLogin !== normalizeGithubLogin(githubLogin);
     })
-    .map((commit) => {
-      const authoredAt = parseTimestamp(commit?.commit?.author?.date);
-      const committedAt = parseTimestamp(commit?.commit?.committer?.date);
-      return Math.max(authoredAt, committedAt);
-    });
+    .map(readCommitTimestamp);
 
   return maxTimestamp([
     ...otherReviewAt,
