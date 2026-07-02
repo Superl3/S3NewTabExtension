@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
+  areMondayCachedBoardsEqual,
   hasMondayBoardConfig,
   hasMondayConnectorConfig,
   normalizeCachedMondayBoardBase,
@@ -72,6 +73,22 @@ test("monday config normalizes cached board base fields for widget reuse", () =>
     }
   );
   assert.equal(normalizeCachedMondayBoardBase({ boardId: 0 }), null);
+  assert.equal(
+    areMondayCachedBoardsEqual(
+      [{ boardId: "7", boardName: " Roadmap " }],
+      [{ boardId: 7, boardName: "Roadmap" }],
+      normalizeCachedMondayBoardBase
+    ),
+    true
+  );
+  assert.equal(
+    areMondayCachedBoardsEqual(
+      [{ boardId: "7", boardName: " Roadmap " }],
+      [{ boardId: 8, boardName: "Roadmap" }],
+      normalizeCachedMondayBoardBase
+    ),
+    false
+  );
 });
 
 test("monday auth wrapper preserves provider defaults and shared error copy", async () => {

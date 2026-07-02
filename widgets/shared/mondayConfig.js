@@ -1,3 +1,4 @@
+import { arrayOrEmpty } from "../../core/utils/array.js";
 import { toFiniteNumber, toInteger } from "../../core/utils/number.js";
 import { normalizeText } from "../../core/utils/text.js";
 
@@ -74,6 +75,16 @@ export function normalizeCachedMondayBoardBase(entry) {
     boardName: normalizeText(entry?.boardName, `Board ${boardId}`),
     boardUrl: normalizeText(entry?.boardUrl)
   };
+}
+
+export function areMondayCachedBoardsEqual(leftBoards, rightBoards, normalizeBoard) {
+  if (typeof normalizeBoard !== "function") {
+    return false;
+  }
+
+  const left = arrayOrEmpty(leftBoards).map(normalizeBoard).filter(Boolean);
+  const right = arrayOrEmpty(rightBoards).map(normalizeBoard).filter(Boolean);
+  return JSON.stringify(left) === JSON.stringify(right);
 }
 
 export function normalizeColumnSelector(value, options = {}) {
