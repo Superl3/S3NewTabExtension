@@ -30,6 +30,7 @@ import {
 import {
   hasMondayBoardConfig as hasBoardConfig,
   hasMondayConnectorConfig as hasConnectorConfig,
+  MONDAY_AUTH_STORAGE_KEY,
   normalizeBoardId,
   normalizeBoardIds,
   normalizeCachedMondayBoardBase,
@@ -45,7 +46,6 @@ import {
   resolveMondaySiteUrl
 } from "./shared/mondayClient.js";
 
-const MONDAY_AUTH_STORAGE_KEY = "s3newtab-monday-auth-session-v1";
 const WEEKDAY_AUTO_SLOTS_MINUTES = [9 * 60, 13 * 60];
 const DEFAULT_MEETING_NOTE_COLUMN_SELECTOR = "미팅 노트, monday Doc";
 const FALLBACK_LATEST_SCAN_LIMIT = 300;

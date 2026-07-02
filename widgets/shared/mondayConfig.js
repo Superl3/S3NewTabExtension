@@ -1,6 +1,8 @@
 import { toFiniteNumber, toInteger } from "../../core/utils/number.js";
 import { normalizeText } from "../../core/utils/text.js";
 
+export const MONDAY_AUTH_STORAGE_KEY = "s3newtab-monday-auth-session-v1";
+
 export function normalizeBoardId(value, fallback = 0) {
   return Math.max(0, toInteger(value, toInteger(fallback, 0) || 0));
 }
