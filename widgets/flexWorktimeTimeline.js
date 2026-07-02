@@ -1,5 +1,5 @@
 import { normalizeErrorMessage } from "../core/utils/error.js";
-import { clamp, toTruthyNumberOrFallback } from "../core/utils/number.js";
+import { clamp, clampTruthyNumberOrFallback, toTruthyNumberOrFallback } from "../core/utils/number.js";
 import { hasOwn, isPlainObject } from "../core/utils/object.js";
 import { normalizeText } from "../core/utils/text.js";
 import {
@@ -1073,7 +1073,12 @@ async function extractFlexWorkRecordTimelineFromTab(tabId, queryDate) {
           }
         }
 
-        const maxVisibleNodes = Math.max(1, Number(options.maxVisibleNodes) || MAX_VISIBLE_SCAN_NODES);
+        const maxVisibleNodes = clampTruthyNumberOrFallback(
+          options.maxVisibleNodes,
+          MAX_VISIBLE_SCAN_NODES,
+          1,
+          Number.POSITIVE_INFINITY
+        );
         const maxScannedNodes = maxVisibleNodes * 6;
         let inspectedVisibleNodes = 0;
         let scannedNodes = 0;

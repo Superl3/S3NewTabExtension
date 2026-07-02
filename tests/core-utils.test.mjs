@@ -964,6 +964,15 @@ test("Flex worktime timeline uses shared truthy fallback for extracted timestamp
   assert.doesNotMatch(source, /Number\((?:timeline\?\.|result\.)extractedAt\) \|\| Date\.now\(\)/);
 });
 
+test("Flex worktime timeline uses shared truthy clamp for scan limits", async () => {
+  const source = await fs.readFile(new URL("../widgets/flexWorktimeTimeline.js", import.meta.url), "utf8");
+  assert.match(
+    source,
+    /clampTruthyNumberOrFallback\(\s*options\.maxVisibleNodes,\s*MAX_VISIBLE_SCAN_NODES,\s*1,\s*Number\.POSITIVE_INFINITY\s*\)/
+  );
+  assert.doesNotMatch(source, /Math\.max\(1, Number\(options\.maxVisibleNodes\) \|\| MAX_VISIBLE_SCAN_NODES\)/);
+});
+
 test("Flex worktime widgets share auth helpers instead of local copies", async () => {
   const moduleUrls = [
     new URL("../widgets/flexWorktime.js", import.meta.url),
