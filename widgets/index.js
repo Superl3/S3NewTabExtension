@@ -1,3 +1,4 @@
+import { toTruthyNumberOrFallback } from "../core/utils/number.js";
 import { widgetMetadata } from "./metadata.js";
 
 const widgetLoaders = {
@@ -48,8 +49,10 @@ function isElementNearViewport(target, windowObj, margin = 240) {
     return false;
   }
 
-  const width = Number(windowObj?.innerWidth) || Number(target.ownerDocument?.documentElement?.clientWidth) || 0;
-  const height = Number(windowObj?.innerHeight) || Number(target.ownerDocument?.documentElement?.clientHeight) || 0;
+  const width = toTruthyNumberOrFallback(windowObj?.innerWidth, () =>
+    toTruthyNumberOrFallback(target.ownerDocument?.documentElement?.clientWidth, 0));
+  const height = toTruthyNumberOrFallback(windowObj?.innerHeight, () =>
+    toTruthyNumberOrFallback(target.ownerDocument?.documentElement?.clientHeight, 0));
   if (width <= 0 || height <= 0) {
     return true;
   }
