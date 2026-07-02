@@ -53,6 +53,28 @@ test("fallback default widgets fit first launch and leave room for Add Widget", 
   assert.equal(addProbeLayouts.at(-1)?.page, 0);
 });
 
+test("fallback default grid layout normalizes invalid grid dimensions and spans", () => {
+  const layouts = assignFallbackDefaultGridLayouts(["wide"], {
+    columns: 0,
+    rows: "bad",
+    widgetRegistry: { wide: {} },
+    widgetDefaultGridSize: () => ({ colSpan: 99, rowSpan: "bad" })
+  });
+
+  assert.deepEqual(layouts, [
+    {
+      type: "wide",
+      page: 0,
+      gridLayout: {
+        col: 0,
+        row: 0,
+        colSpan: FALLBACK_DEFAULT_GRID.columns,
+        rowSpan: 1
+      }
+    }
+  ]);
+});
+
 test("AI Chat degraded setup copy is actionable and chrome access is guarded", async () => {
   const source = await fs.readFile(new URL("../widgets/aiChat.js", import.meta.url), "utf8");
 
