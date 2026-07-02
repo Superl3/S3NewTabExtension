@@ -8,7 +8,7 @@ import {
   formatGitHubRelativeTimestamp as formatUpdatedLabelFromTimestamp,
   formatGitHubSyncedLabel as formatSyncedLabel,
   matchesGitHubCacheTokenFingerprint,
-  normalizeGitHubCacheCount as normalizeCacheCount,
+  normalizeGitHubCachedItemBase as normalizeCachedItemBase,
   normalizeGitHubCacheNumber as normalizeCacheNumber,
   normalizeGitHubCacheTimestamp as normalizeCacheTimestamp,
   githubTokenFingerprint as tokenFingerprint,
@@ -23,29 +23,21 @@ import {
 const GITHUB_PR_ERROR_FALLBACK = "GitHub pull requests are not available. Check the repository setting and try again.";
 
 function normalizeCachedPullItem(entry) {
-  const id = normalizeText(entry?.id);
-  if (!id) {
+  const base = normalizeCachedItemBase(entry);
+  if (!base) {
     return null;
   }
 
   const normalizedUpdatedAt = normalizeCacheTimestamp(entry?.updatedAt);
 
   return {
-    id,
-    number: normalizeCacheNumber(entry?.number),
-    title: normalizeText(entry?.title, "(No title)"),
-    htmlUrl: normalizeText(entry?.htmlUrl),
-    author: normalizeText(entry?.author, "unknown"),
-    draft: entry?.draft === true,
+    ...base,
     updatedAt: normalizedUpdatedAt,
     updatedLabel:
       normalizeText(entry?.updatedLabel) ||
       formatUpdatedLabelFromTimestamp(normalizedUpdatedAt),
     headRef: normalizeText(entry?.headRef),
-    baseRef: normalizeText(entry?.baseRef),
-    reviewRequested: entry?.reviewRequested === true,
-    reviewerNames: normalizeText(entry?.reviewerNames),
-    teamCount: normalizeCacheCount(entry?.teamCount)
+    baseRef: normalizeText(entry?.baseRef)
   };
 }
 

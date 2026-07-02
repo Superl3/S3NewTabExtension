@@ -27,7 +27,7 @@ import {
   GITHUB_API_BASE,
   githubTokenFingerprint as tokenFingerprint,
   matchesGitHubCacheTokenFingerprint,
-  normalizeGitHubCacheCount as normalizeCacheCount,
+  normalizeGitHubCachedItemBase as normalizeCachedItemBase,
   normalizeGitHubCacheNumber as normalizeCacheNumber,
   normalizeGitHubCacheTimestamp as normalizeCacheTimestamp,
   normalizeGitHubMaxItems as normalizeMaxItems,
@@ -338,22 +338,14 @@ function buildOpenPullsApiUrl(repository) {
 }
 
 function normalizeCachedItem(entry) {
-  const id = normalizeText(entry?.id);
-  if (!id) {
+  const base = normalizeCachedItemBase(entry);
+  if (!base) {
     return null;
   }
 
   return {
-    id,
-    number: normalizeCacheNumber(entry?.number),
-    title: normalizeText(entry?.title, "(No title)"),
-    htmlUrl: normalizeText(entry?.htmlUrl),
-    author: normalizeText(entry?.author, "unknown"),
+    ...base,
     createdAt: normalizeCacheTimestamp(entry?.createdAt),
-    draft: entry?.draft === true,
-    reviewRequested: entry?.reviewRequested === true,
-    reviewerNames: normalizeText(entry?.reviewerNames),
-    teamCount: normalizeCacheCount(entry?.teamCount),
     reason: normalizeText(entry?.reason),
     reasonLabel: normalizeText(entry?.reasonLabel),
     latestAttentionAt: readReviewInboxLatestAttentionAt(entry),
