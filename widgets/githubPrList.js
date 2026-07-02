@@ -2,11 +2,10 @@ import { normalizeErrorMessage } from "../core/utils/error.js";
 import { normalizeText } from "../core/utils/text.js";
 import {
   buildGitHubApiHeaders,
+  buildGitHubRepoApiUrl,
   buildGitHubRepoPullsPageUrl as buildRepoPullsPageUrl,
   formatGitHubRelativeTimestamp as formatUpdatedLabelFromTimestamp,
   formatGitHubSyncedLabel as formatSyncedLabel,
-  GITHUB_API_BASE,
-  githubRepositoryParts as repositoryParts,
   githubTokenFingerprint as tokenFingerprint,
   normalizeGitHubMaxItems as normalizeMaxItems,
   normalizeGitHubRefreshMinutes as normalizeRefreshMinutes,
@@ -129,17 +128,12 @@ function configSignature(config) {
 }
 
 function buildPullsUrl(config) {
-  const { owner, repo } = repositoryParts(config.repository);
-  if (!owner || !repo) {
-    return "";
-  }
-
-  const params = new URLSearchParams();
-  params.set("state", "open");
-  params.set("sort", "updated");
-  params.set("direction", "desc");
-  params.set("per_page", String(normalizeMaxItems(config.maxItems, 20)));
-  return `${GITHUB_API_BASE}/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/pulls?${params.toString()}`;
+  return buildGitHubRepoApiUrl(config.repository, ["pulls"], {
+    state: "open",
+    sort: "updated",
+    direction: "desc",
+    per_page: normalizeMaxItems(config.maxItems, 20)
+  });
 }
 
 function formatUpdatedLabel(rawDate) {

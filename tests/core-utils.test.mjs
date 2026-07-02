@@ -520,7 +520,11 @@ test("GitHub widgets share repository and API helpers", async () => {
   for (const moduleUrl of moduleUrls) {
     const source = await fs.readFile(moduleUrl, "utf8");
     assert.match(source, /shared\/githubApi\.js/, moduleUrl.pathname);
+    assert.match(source, /buildGitHubRepoApiUrl/, moduleUrl.pathname);
     assert.doesNotMatch(source, localGitHubPattern, moduleUrl.pathname);
+    assert.doesNotMatch(source, /new URLSearchParams\(/, moduleUrl.pathname);
+    assert.doesNotMatch(source, /\/repos\/\$\{/, moduleUrl.pathname);
+    assert.doesNotMatch(source, /githubRepositoryParts as repositoryParts/, moduleUrl.pathname);
   }
 });
 

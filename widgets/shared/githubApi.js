@@ -127,6 +127,27 @@ export function buildGitHubApiHeaders(accessToken) {
   return headers;
 }
 
+export function buildGitHubRepoApiUrl(repository, pathParts = [], query = {}) {
+  const { owner, repo } = githubRepositoryParts(repository);
+  if (!owner || !repo) {
+    return "";
+  }
+
+  const path = [owner, repo, ...pathParts]
+    .map((part) => encodeURIComponent(String(part)))
+    .join("/");
+  const params = new URLSearchParams();
+
+  for (const [key, value] of Object.entries(query || {})) {
+    if (value !== undefined && value !== null) {
+      params.set(key, String(value));
+    }
+  }
+
+  const queryString = params.toString();
+  return `${GITHUB_API_BASE}/repos/${path}${queryString ? `?${queryString}` : ""}`;
+}
+
 export function buildGitHubRepoPullsPageUrl(repository) {
   const normalized = normalizeGitHubRepository(repository);
   if (!normalized) {

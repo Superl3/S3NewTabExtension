@@ -19,11 +19,11 @@ import {
 } from "./shared/scopedItemStorage.js";
 import {
   buildGitHubApiHeaders as buildApiHeaders,
+  buildGitHubRepoApiUrl,
   buildGitHubRepoPullsPageUrl as buildRepoPullsPageUrl,
   formatGitHubRelativeTimestamp as formatRelativeTimestamp,
   formatGitHubSyncedLabel as formatSyncedLabel,
   GITHUB_API_BASE,
-  githubRepositoryParts as repositoryParts,
   githubTokenFingerprint as tokenFingerprint,
   normalizeGitHubMaxItems as normalizeMaxItems,
   normalizeGitHubRefreshMinutes as normalizeRefreshMinutes,
@@ -331,37 +331,28 @@ async function fetchPagedJson(baseUrl, headers, maxPages = 20) {
 }
 
 function buildOpenPullsApiUrl(repository) {
-  const { owner, repo } = repositoryParts(repository);
-  if (!owner || !repo) {
-    return "";
-  }
-  const params = new URLSearchParams({
+  return buildGitHubRepoApiUrl(repository, ["pulls"], {
     state: "open",
     sort: "created",
     direction: "asc",
-    per_page: "100"
+    per_page: 100
   });
-  return `${GITHUB_API_BASE}/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/pulls?${params.toString()}`;
 }
 
 function buildIssueCommentsApiUrl(repository, number) {
-  const { owner, repo } = repositoryParts(repository);
-  return `${GITHUB_API_BASE}/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/issues/${number}/comments?per_page=100`;
+  return buildGitHubRepoApiUrl(repository, ["issues", number, "comments"], { per_page: 100 });
 }
 
 function buildReviewsApiUrl(repository, number) {
-  const { owner, repo } = repositoryParts(repository);
-  return `${GITHUB_API_BASE}/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/pulls/${number}/reviews?per_page=100`;
+  return buildGitHubRepoApiUrl(repository, ["pulls", number, "reviews"], { per_page: 100 });
 }
 
 function buildReviewCommentsApiUrl(repository, number) {
-  const { owner, repo } = repositoryParts(repository);
-  return `${GITHUB_API_BASE}/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/pulls/${number}/comments?per_page=100`;
+  return buildGitHubRepoApiUrl(repository, ["pulls", number, "comments"], { per_page: 100 });
 }
 
 function buildCommitsApiUrl(repository, number) {
-  const { owner, repo } = repositoryParts(repository);
-  return `${GITHUB_API_BASE}/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/pulls/${number}/commits?per_page=100`;
+  return buildGitHubRepoApiUrl(repository, ["pulls", number, "commits"], { per_page: 100 });
 }
 
 function normalizeCachedItem(entry) {
