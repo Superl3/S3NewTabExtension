@@ -140,6 +140,7 @@ function collectTextContent(node) {
 test("normalizes codex snapshot and filters non-codex metrics", () => {
   const normalized = normalizeCodexSnapshotForContractTest({
     capturedAt: Date.now(),
+    parserVersion: "2.5",
     sourceUrl: "https://chatgpt.com/codex/settings/usage",
     title: "Codex Usage",
     metrics: [
@@ -169,6 +170,7 @@ test("normalizes codex snapshot and filters non-codex metrics", () => {
   assert.equal(normalized?.metrics?.length, 2);
   assert.equal(normalized?.metrics?.[0]?.model, "Codex");
   assert.equal(normalized?.metrics?.[1]?.model, "Codex-Spark");
+  assert.equal(normalized?.parserVersion, 2.5);
 });
 
 test("builds canonical slot map and keeps richer codex metrics", () => {

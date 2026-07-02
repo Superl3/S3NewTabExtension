@@ -681,6 +681,15 @@ test("GitHub review inbox logic uses shared cache timestamp normalization", asyn
   assert.doesNotMatch(source, /Math\.max\(0, Number\(latestAttentionAt \?\? latestCodeUpdateAt\) \|\| 0\)/);
 });
 
+test("Codex usage widget uses core number helpers", async () => {
+  const source = await fs.readFile(new URL("../widgets/codexUsage.js", import.meta.url), "utf8");
+  assert.match(source, /core\/utils\/number\.js/);
+  assert.match(source, /toFiniteNumber/);
+  assert.doesNotMatch(source, /const capturedAt = Number\(raw\.capturedAt\)/);
+  assert.doesNotMatch(source, /Number\(raw\.parserVersion\) \|\| 1/);
+  assert.doesNotMatch(source, /new Date\(Number\(capturedAt\) \|\| Date\.now\(\)\)/);
+});
+
 test("Monday widgets share auto-refresh slot primitives", async () => {
   const moduleUrls = [
     new URL("../widgets/mondayAssigned.js", import.meta.url),
