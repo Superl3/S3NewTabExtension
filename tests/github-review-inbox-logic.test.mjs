@@ -5,6 +5,7 @@ import {
   buildReviewCandidate,
   classifyReviewNeed,
   collectLatestUserParticipation,
+  deriveLatestAttentionAt,
   deriveLatestCodeUpdateAt,
   deriveLatestOtherActivityAt,
   hasGithubMention,
@@ -77,6 +78,19 @@ test("deriveLatestCodeUpdateAt prefers commit timestamps over noisy PR updated_a
   assert.equal(latest, Date.parse("2026-04-06T10:00:00Z"));
 });
 
+test("deriveLatestAttentionAt uses reviewer activity after user participation", () => {
+  const latest = deriveLatestAttentionAt({
+    pullRequest: { user: { login: "reviewer1" }, updated_at: "2026-04-09T12:00:00Z" },
+    githubLogin: "bug95",
+    reviews: [{ user: { login: "reviewer1" }, state: "COMMENTED", submitted_at: "2026-04-08T09:00:00Z" }],
+    issueComments: [{ user: { login: "bug95" }, created_at: "2026-04-07T09:00:00Z" }],
+    reviewComments: [],
+    commits: [{ commit: { author: { date: "2026-04-06T10:00:00Z" }, committer: { date: "2026-04-06T10:00:00Z" } } }]
+  });
+
+  assert.equal(latest, Date.parse("2026-04-08T09:00:00Z"));
+});
+
 test("collectLatestUserParticipation considers reviews issue comments and review comments", () => {
   const participation = collectLatestUserParticipation({
     githubLogin: "bug95",
@@ -91,7 +105,7 @@ test("collectLatestUserParticipation considers reviews issue comments and review
 });
 
 test("classifyReviewNeed includes PRs with no prior participation", () => {
-  assert.deepEqual(classifyReviewNeed({ hasParticipation: false, latestCodeUpdateAt: Date.now() }), {
+  assert.deepEqual(classifyReviewNeed({ hasParticipation: false, latestAttentionAt: Date.now() }), {
     reason: "NO_REVIEW_YET",
     label: "No review yet",
     included: true
@@ -104,7 +118,7 @@ test("classifyReviewNeed includes PRs updated after a non-approval review", () =
       hasParticipation: true,
       latestParticipationAt: Date.parse("2026-04-05T09:00:00Z"),
       latestApprovalAt: 0,
-      latestCodeUpdateAt: Date.parse("2026-04-06T09:00:00Z")
+      latestAttentionAt: Date.parse("2026-04-06T09:00:00Z")
     }),
     {
       reason: "UPDATED_AFTER_YOUR_REVIEW",
@@ -120,7 +134,7 @@ test("classifyReviewNeed excludes approvals with no newer code", () => {
       hasParticipation: true,
       latestParticipationAt: Date.parse("2026-04-05T09:00:00Z"),
       latestApprovalAt: Date.parse("2026-04-05T09:00:00Z"),
-      latestCodeUpdateAt: Date.parse("2026-04-05T08:00:00Z")
+      latestAttentionAt: Date.parse("2026-04-05T08:00:00Z")
     }),
     {
       reason: "APPROVED_NO_NEW_UPDATES",
@@ -136,7 +150,7 @@ test("classifyReviewNeed re-includes approvals after new code updates", () => {
       hasParticipation: true,
       latestParticipationAt: Date.parse("2026-04-05T09:00:00Z"),
       latestApprovalAt: Date.parse("2026-04-05T09:00:00Z"),
-      latestCodeUpdateAt: Date.parse("2026-04-06T08:00:00Z"),
+      latestAttentionAt: Date.parse("2026-04-06T08:00:00Z"),
       hasApprovedUpdateSignal: true
     }),
     {
@@ -153,7 +167,7 @@ test("classifyReviewNeed excludes approval updates without mention signal", () =
       hasParticipation: true,
       latestParticipationAt: Date.parse("2026-04-05T09:00:00Z"),
       latestApprovalAt: Date.parse("2026-04-05T09:00:00Z"),
-      latestCodeUpdateAt: Date.parse("2026-04-06T08:00:00Z"),
+      latestAttentionAt: Date.parse("2026-04-06T08:00:00Z"),
       hasApprovedUpdateSignal: false
     }),
     {
@@ -202,7 +216,7 @@ test("buildReviewCandidate includes non-owned PRs when others comment after user
 
   assert.equal(candidate.included, true);
   assert.equal(candidate.reason, "UPDATED_AFTER_YOUR_REVIEW");
-  assert.equal(candidate.latestCodeUpdateAt, Date.parse("2026-04-08T09:00:00Z"));
+  assert.equal(candidate.latestAttentionAt, Date.parse("2026-04-08T09:00:00Z"));
 });
 
 test("buildReviewCandidate includes non-owned PRs when others review after user response", () => {
@@ -226,7 +240,7 @@ test("buildReviewCandidate includes non-owned PRs when others review after user 
 
   assert.equal(candidate.included, true);
   assert.equal(candidate.reason, "UPDATED_AFTER_YOUR_REVIEW");
-  assert.equal(candidate.latestCodeUpdateAt, Date.parse("2026-04-08T09:00:00Z"));
+  assert.equal(candidate.latestAttentionAt, Date.parse("2026-04-08T09:00:00Z"));
 });
 
 test("deriveLatestOtherActivityAt ignores self comments and self commits on own PRs", () => {
@@ -419,7 +433,7 @@ test("review inbox read state is scoped by repository login and item update sign
   });
   const item = {
     number: 101,
-    latestCodeUpdateAt: Date.parse("2026-04-09T10:00:00Z"),
+    latestAttentionAt: Date.parse("2026-04-09T10:00:00Z"),
     latestParticipationAt: 0,
     reason: "NO_REVIEW_YET",
     reviewRequested: true
@@ -434,7 +448,22 @@ test("review inbox read state is scoped by repository login and item update sign
   assert.equal(setReviewInboxItemRead(cfg, item, true, storage), true);
   assert.equal(isReviewInboxItemRead(cfg, item, storage), true);
   assert.equal(isReviewInboxItemRead({ ...cfg, githubLogin: "other" }, item, storage), false);
-  assert.equal(isReviewInboxItemRead(cfg, { ...item, latestCodeUpdateAt: item.latestCodeUpdateAt + 1000 }, storage), false);
+  assert.equal(isReviewInboxItemRead(cfg, { ...item, latestAttentionAt: item.latestAttentionAt + 1000 }, storage), false);
+});
+
+test("review inbox read state accepts legacy cached code update timestamps", () => {
+  const item = {
+    number: 101,
+    latestCodeUpdateAt: Date.parse("2026-04-09T10:00:00Z"),
+    latestParticipationAt: 0,
+    reason: "NO_REVIEW_YET",
+    reviewRequested: true
+  };
+
+  assert.equal(
+    buildReviewInboxReadItemKey(item),
+    `101|${Date.parse("2026-04-09T10:00:00Z")}|0|NO_REVIEW_YET|requested`
+  );
 });
 
 test("review inbox read state can be removed and prunes empty scopes", () => {
@@ -445,7 +474,7 @@ test("review inbox read state can be removed and prunes empty scopes", () => {
   });
   const item = {
     number: 101,
-    latestCodeUpdateAt: 10,
+    latestAttentionAt: 10,
     latestParticipationAt: 0,
     reason: "NO_REVIEW_YET",
     reviewRequested: false
@@ -542,7 +571,7 @@ test("isReviewInboxSnapshotUnchanged returns true for identical cached review in
       reason: "NO_REVIEW_YET",
       reasonLabel: "No review yet",
       createdAt: Date.parse("2026-04-01T10:00:00Z"),
-      latestCodeUpdateAt: Date.parse("2026-04-09T10:00:00Z"),
+      latestAttentionAt: Date.parse("2026-04-09T10:00:00Z"),
       latestParticipationAt: 0,
       latestApprovalAt: 0,
       warning: ""

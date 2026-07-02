@@ -128,6 +128,30 @@ export function deriveLatestOtherActivityAt({
   ]);
 }
 
+export function deriveLatestAttentionAt({
+  pullRequest,
+  githubLogin,
+  reviews = [],
+  issueComments = [],
+  reviewComments = [],
+  commits = []
+}) {
+  const latestOtherActivityAt = deriveLatestOtherActivityAt({
+    pullRequest,
+    githubLogin,
+    reviews,
+    issueComments,
+    reviewComments,
+    commits
+  });
+
+  if (isSameGithubUser(pullRequest?.user?.login, githubLogin)) {
+    return latestOtherActivityAt;
+  }
+
+  return Math.max(deriveLatestCodeUpdateAt(pullRequest, commits), latestOtherActivityAt);
+}
+
 export function collectLatestUserParticipation({
   githubLogin,
   reviews = [],
@@ -216,12 +240,15 @@ export function hasMentionAfterTimestamp({
 }
 
 export function classifyReviewNeed({
+  latestAttentionAt,
   latestCodeUpdateAt = 0,
   hasParticipation = false,
   latestParticipationAt = 0,
   latestApprovalAt = 0,
   hasApprovedUpdateSignal = false
 }) {
+  const attentionAt = Math.max(0, Number(latestAttentionAt ?? latestCodeUpdateAt) || 0);
+
   if (!hasParticipation) {
     return {
       reason: "NO_REVIEW_YET",
@@ -230,7 +257,7 @@ export function classifyReviewNeed({
     };
   }
 
-  if (latestCodeUpdateAt > latestParticipationAt) {
+  if (attentionAt > latestParticipationAt) {
     const reason = latestApprovalAt > 0 && latestApprovalAt === latestParticipationAt
       ? (hasApprovedUpdateSignal ? "APPROVED_THEN_UPDATED" : "APPROVED_UPDATED_NO_MENTION")
       : "UPDATED_AFTER_YOUR_REVIEW";
@@ -241,7 +268,7 @@ export function classifyReviewNeed({
     };
   }
 
-  if (latestApprovalAt > 0 && latestCodeUpdateAt <= latestApprovalAt) {
+  if (latestApprovalAt > 0 && attentionAt <= latestApprovalAt) {
     return {
       reason: "APPROVED_NO_NEW_UPDATES",
       label: REVIEW_REASON_META.APPROVED_NO_NEW_UPDATES.label,
@@ -265,7 +292,7 @@ export function buildReviewCandidate({
   commits = []
 }) {
   const isOwnPullRequest = isSameGithubUser(pullRequest?.user?.login, githubLogin);
-  const latestOtherActivityAt = deriveLatestOtherActivityAt({
+  const latestAttentionAt = deriveLatestAttentionAt({
     pullRequest,
     githubLogin,
     reviews,
@@ -273,9 +300,6 @@ export function buildReviewCandidate({
     reviewComments,
     commits
   });
-  const latestCodeUpdateAt = isOwnPullRequest
-    ? latestOtherActivityAt
-    : Math.max(deriveLatestCodeUpdateAt(pullRequest, commits), latestOtherActivityAt);
   const participation = collectLatestUserParticipation({
     githubLogin,
     reviews,
@@ -289,7 +313,7 @@ export function buildReviewCandidate({
     reviewComments
   });
   const baseClassification = classifyReviewNeed({
-    latestCodeUpdateAt,
+    latestAttentionAt,
     hasParticipation: participation.hasParticipation,
     latestParticipationAt: participation.latestParticipationAt,
     latestApprovalAt: participation.latestApprovalAt,
@@ -299,7 +323,7 @@ export function buildReviewCandidate({
   let classification = baseClassification;
 
   if (isOwnPullRequest) {
-    if (latestCodeUpdateAt <= 0) {
+    if (latestAttentionAt <= 0) {
       classification = {
         reason: "OWN_PR_NO_OTHER_ACTIVITY",
         label: REVIEW_REASON_META.OWN_PR_NO_OTHER_ACTIVITY.label,
@@ -316,7 +340,7 @@ export function buildReviewCandidate({
 
   return {
     isOwnPullRequest,
-    latestCodeUpdateAt,
+    latestAttentionAt,
     latestParticipationAt: participation.latestParticipationAt,
     latestApprovalAt: participation.latestApprovalAt,
     hasApprovedUpdateSignal,
