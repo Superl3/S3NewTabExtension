@@ -5,14 +5,7 @@ import {
   hasContentPaddingChanged,
   projectContentPaddingFromDrag
 } from "../core/padding-drag.js";
-
-function normalizePadding(value, fallback = 10) {
-  const numeric = Number(value);
-  if (!Number.isFinite(numeric)) {
-    return fallback;
-  }
-  return Math.max(0, Math.min(100, numeric));
-}
+import { normalizePaddingValue as normalizePadding } from "../core/utils/padding.js";
 
 test("projectContentPaddingFromDrag updates top-right corner paddings", () => {
   const result = projectContentPaddingFromDrag(
@@ -59,6 +52,27 @@ test("projectContentPaddingFromDrag updates bottom-left proportionally", () => {
     topRight: 10,
     bottomLeft: 14,
     all: 12
+  });
+});
+
+test("projectContentPaddingFromDrag uses shared fallback padding normalization", () => {
+  const result = projectContentPaddingFromDrag({
+    corner: "bottomLeft",
+    proportional: false,
+    dx: 400,
+    dy: 400,
+    startPadding: { top: 10, right: 10, bottom: 10, left: 10 },
+    fallbackPadding: 10
+  });
+
+  assert.deepEqual(result, {
+    top: 10,
+    right: 10,
+    bottom: 0,
+    left: 100,
+    topRight: 10,
+    bottomLeft: 50,
+    all: 30
   });
 });
 

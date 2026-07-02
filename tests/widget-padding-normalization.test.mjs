@@ -5,14 +5,7 @@ import {
   resolveAveragePaddingValue,
   resolveDirectionalPaddingFromDraft
 } from "../core/widget-padding-normalization.js";
-
-function normalizePadding(value, fallback = 10) {
-  const numeric = Number(value);
-  if (!Number.isFinite(numeric)) {
-    return fallback;
-  }
-  return Math.max(0, Math.min(100, numeric));
-}
+import { normalizePaddingValue as normalizePadding } from "../core/utils/padding.js";
 
 test("resolveDirectionalPaddingFromDraft resolves directional and derived values", () => {
   const resolved = resolveDirectionalPaddingFromDraft(
@@ -52,4 +45,20 @@ test("resolveAveragePaddingValue computes mean with fallback", () => {
     normalizePadding
   );
   assert.equal(avg, 16);
+});
+
+test("resolveAveragePaddingValue uses shared fallback padding normalization", () => {
+  assert.equal(
+    resolveAveragePaddingValue(
+      {
+        contentPadding: 12,
+        contentPaddingTop: -10,
+        contentPaddingRight: 120,
+        contentPaddingBottom: 18,
+        contentPaddingLeft: "bad"
+      },
+      10
+    ),
+    32.5
+  );
 });
