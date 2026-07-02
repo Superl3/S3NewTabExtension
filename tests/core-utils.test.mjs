@@ -1098,6 +1098,7 @@ test("GitHub widgets share repository and API helpers", async () => {
     assert.doesNotMatch(source, /Math\.floor\(Number\(entry\?\.teamCount\)/, moduleUrl.pathname);
     assert.doesNotMatch(source, /Number\(rawConfig\?\.cacheAt\) \|\| 0/, moduleUrl.pathname);
     assert.doesNotMatch(source, /Number\(pull\?\.number\) \|\| 0/, moduleUrl.pathname);
+    assert.doesNotMatch(source, /formatUpdatedLabelFromTimestamp\(Number\(pull\.updatedAt\)\)/, moduleUrl.pathname);
     assert.doesNotMatch(source, /Math\.max\(0, normalizeCacheNumber\(/, moduleUrl.pathname);
   }
 });
