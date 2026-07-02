@@ -1,4 +1,11 @@
 import { clamp } from "../core/utils/number.js";
+import { normalizeTitleAlign } from "../core/widget-common-style.js";
+
+const CLOCK_JUSTIFY_ITEMS = {
+  center: "center",
+  left: "start",
+  right: "end"
+};
 
 export const clockWidget = {
   type: "clock",
@@ -205,7 +212,7 @@ export const clockWidget = {
 
       const font = cfg.fontFamily === "display" || cfg.fontFamily === "digital" ? cfg.fontFamily : "mono";
       const variant = cfg.styleVariant === "tile" || cfg.styleVariant === "glow" ? cfg.styleVariant : "minimal";
-      const align = cfg.textAlign === "left" || cfg.textAlign === "right" ? cfg.textAlign : "center";
+      const align = normalizeTitleAlign(cfg.textAlign, "center");
       const timeFontSize = Number.isFinite(Number(cfg.timeFontSize)) ? Number(cfg.timeFontSize) : 2.4;
       const weekdayFontSize = Number.isFinite(Number(cfg.weekdayFontSize)) ? Number(cfg.weekdayFontSize) : 0.88;
 
@@ -214,7 +221,7 @@ export const clockWidget = {
       if (cfg.shadowed) {
         container.classList.add("clock-shadowed");
       }
-      wrap.style.justifyItems = align === "left" ? "start" : align === "right" ? "end" : "center";
+      wrap.style.justifyItems = CLOCK_JUSTIFY_ITEMS[align];
       timeEl.style.textAlign = align;
       dateEl.style.textAlign = align;
       timeEl.style.fontSize = `${clamp(timeFontSize, 1, 6)}em`;
