@@ -1,3 +1,4 @@
+import { arrayOrEmpty } from "./utils/array.js";
 import { callIfFunction as call } from "./utils/function.js";
 import { toNonNegativeNumberOrFallback } from "./utils/number.js";
 
@@ -5,7 +6,7 @@ export function captureResetPreservedData(state, deps = {}) {
   const { readUserMutationClock, clonePresetSnapshot } = deps;
 
   const mutationClock = call(readUserMutationClock, state);
-  const presets = Array.isArray(state?.presets) ? state.presets : [];
+  const presets = arrayOrEmpty(state?.presets);
   const defaultProfileSnapshot =
     state?.ui?.defaultProfileSnapshot && typeof state.ui.defaultProfileSnapshot === "object"
       ? call(clonePresetSnapshot, state.ui.defaultProfileSnapshot)
@@ -27,7 +28,7 @@ export function restoreResetPreservedData(nextState, preserved = {}) {
 
   nextState.meta = nextState.meta && typeof nextState.meta === "object" ? nextState.meta : {};
   nextState.meta.lastUserMutationAt = preserved.mutationClock;
-  nextState.presets = Array.isArray(preserved.presets) ? preserved.presets : [];
+  nextState.presets = arrayOrEmpty(preserved.presets);
 
   if (preserved.defaultProfileSnapshot) {
     nextState.ui = nextState.ui && typeof nextState.ui === "object" ? nextState.ui : {};
