@@ -549,10 +549,12 @@ function normalizeFlexWorkRecordRow(timeline, queryDate, workRecordUrl) {
   const fallbackSummary = isPlainObject(timeline?.summary) ? timeline.summary : null;
   const inferredTimeline = !resolvedTimeline ? inferTimelineFromSummary(fallbackSummary, queryDate) : null;
   const effectiveTimeline = resolvedTimeline || inferredTimeline;
-  const inferredSummary = inferredTimeline ? summarizeFlexTimeline(inferredTimeline) : null;
-  const summary = resolvedTimeline
-    ? summarizeFlexTimeline(resolvedTimeline)
-    : inferredSummary
+  let summary;
+  if (resolvedTimeline) {
+    summary = summarizeFlexTimeline(resolvedTimeline);
+  } else {
+    const inferredSummary = inferredTimeline ? summarizeFlexTimeline(inferredTimeline) : null;
+    summary = inferredSummary
       ? {
         ...inferredSummary,
         status: normalizeText(fallbackSummary?.status, inferredSummary.status),
@@ -562,9 +564,10 @@ function normalizeFlexWorkRecordRow(timeline, queryDate, workRecordUrl) {
         status: normalizeText(fallbackSummary?.status, "상태 확인 필요"),
         durationLabel: normalizeText(fallbackSummary?.duration, "--"),
         inLabel: "--",
-      outLabel: "--",
-      segments: []
-    };
+        outLabel: "--",
+        segments: []
+      };
+  }
   const rawEntry = {
     sourceMode: "flexWorkRecordScrape",
     queryDate: normalizeText(queryDate),
