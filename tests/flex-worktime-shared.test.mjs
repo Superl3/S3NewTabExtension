@@ -65,10 +65,10 @@ function createScrapeChromeApi(overrides = {}) {
   };
 }
 
-function createCache(storage) {
+function createCache(storage, options = {}) {
   return createFlexWorktimeCache({
     cachePrefix: "test:flex-cache:v1",
-    maxEntries: 1,
+    maxEntries: options.maxEntries ?? 1,
     storage,
     configSignature: (config) => `${config.flexHomeUrl}|${config.openFlexTabIfMissing ? 1 : 0}`,
     normalizeCachedRow: (entry) => entry && entry.keep ? { id: String(entry.id), keep: true } : null,
@@ -243,7 +243,7 @@ test("Flex worktime detail URL helper resolves placeholders safely", () => {
 
 test("Flex worktime cache factory preserves storage and index semantics", () => {
   const storage = new FakeStorage();
-  const cache = createCache(storage);
+  const cache = createCache(storage, { maxEntries: 1.8 });
   const config = {
     flexHomeUrl: "https://flex.team/home",
     openFlexTabIfMissing: true
