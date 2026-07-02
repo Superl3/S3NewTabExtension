@@ -1,12 +1,5 @@
 import { resolveBrowserTimerApi } from "./platform/browser-api.js";
-
-function normalizeHoldMs(value, fallback = 280) {
-  const numeric = Number(value);
-  if (!Number.isFinite(numeric)) {
-    return fallback;
-  }
-  return Math.max(0, Math.floor(numeric));
-}
+import { toInteger } from "./utils/number.js";
 
 export function resolveEdgeDirectionFromPointer(clientX, viewportRect, threshold = 42) {
   const edgeThreshold = Math.max(0, Number(threshold) || 0);
@@ -32,7 +25,7 @@ export function createDeferredEdgeSwitchScheduler(
   } = {}
 ) {
   const timers = resolveBrowserTimerApi(timerApi);
-  const waitMs = normalizeHoldMs(holdMs, 280);
+  const waitMs = Math.max(0, toInteger(holdMs, 280));
 
   let pendingDirection = 0;
   let pendingTimer = 0;

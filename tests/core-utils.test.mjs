@@ -247,6 +247,7 @@ test("core drag and resize modules use the shared finite number helper", async (
 
 test("core modules use shared integer helpers instead of local copies", async () => {
   const moduleUrls = [
+    new URL("../core/drag-page-switch.js", import.meta.url),
     new URL("../core/drag-drop-evaluation.js", import.meta.url),
     new URL("../core/drag-drop-orchestration.js", import.meta.url),
     new URL("../core/widget-card-drag-session.js", import.meta.url),
@@ -257,6 +258,7 @@ test("core modules use shared integer helpers instead of local copies", async ()
   for (const moduleUrl of moduleUrls) {
     const source = await fs.readFile(moduleUrl, "utf8");
     assert.doesNotMatch(source, /^function (toInteger|normalizeInteger|toPositiveInteger)\(/m, moduleUrl.pathname);
+    assert.doesNotMatch(source, /^function normalizeHoldMs\(/m, moduleUrl.pathname);
   }
 });
 
