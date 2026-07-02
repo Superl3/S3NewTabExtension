@@ -1,3 +1,4 @@
+import { arrayOrEmpty } from "../../core/utils/array.js";
 import { normalizeGitHubCacheTimestamp } from "./githubApi.js";
 
 const REVIEW_REASON_META = {
@@ -65,15 +66,13 @@ function isSameGithubUser(left, right) {
 }
 
 export function deriveLatestCodeUpdateAt(pullRequest, commits = []) {
-  const commitTimes = Array.isArray(commits)
-    ? commits
-        .map((commit) => {
-          const authoredAt = parseTimestamp(commit?.commit?.author?.date);
-          const committedAt = parseTimestamp(commit?.commit?.committer?.date);
-          return Math.max(authoredAt, committedAt);
-        })
-        .filter((value) => value > 0)
-    : [];
+  const commitTimes = arrayOrEmpty(commits)
+    .map((commit) => {
+      const authoredAt = parseTimestamp(commit?.commit?.author?.date);
+      const committedAt = parseTimestamp(commit?.commit?.committer?.date);
+      return Math.max(authoredAt, committedAt);
+    })
+    .filter((value) => value > 0);
 
   if (commitTimes.length) {
     return Math.max(...commitTimes);
@@ -225,8 +224,8 @@ export function hasMentionAfterTimestamp({
   }
 
   const comments = [
-    ...(Array.isArray(issueComments) ? issueComments : []),
-    ...(Array.isArray(reviewComments) ? reviewComments : [])
+    ...arrayOrEmpty(issueComments),
+    ...arrayOrEmpty(reviewComments)
   ];
 
   return comments.some((comment) => {

@@ -1,3 +1,4 @@
+import { arrayOrEmpty } from "../core/utils/array.js";
 import { normalizeErrorMessage } from "../core/utils/error.js";
 import { normalizeText } from "../core/utils/text.js";
 import {
@@ -89,9 +90,9 @@ function readCachedSnapshot(rawConfig, cfg) {
     return null;
   }
 
-  const cachedPullItems = Array.isArray(rawConfig?.cachePullItems)
-    ? rawConfig.cachePullItems.map(normalizeCachedPullItem).filter(Boolean)
-    : [];
+  const cachedPullItems = arrayOrEmpty(rawConfig?.cachePullItems)
+    .map(normalizeCachedPullItem)
+    .filter(Boolean);
   const cacheAt = normalizeCacheTimestamp(rawConfig?.cacheAt);
   if (!cachedPullItems.length && !cacheAt) {
     return null;
@@ -164,11 +165,11 @@ async function fetchPullRequests(config) {
 
   const payload = parseGitHubJsonResponse(bodyText, []);
 
-  const list = Array.isArray(payload) ? payload : [];
+  const list = arrayOrEmpty(payload);
 
   const mapped = list.map((item) => {
     const reviewerNames = normalizeReviewerNames(item?.requested_reviewers);
-    const teamCount = Array.isArray(item?.requested_teams) ? item.requested_teams.length : 0;
+    const teamCount = arrayOrEmpty(item?.requested_teams).length;
     const reviewRequested = Boolean(reviewerNames) || teamCount > 0;
     const updatedAtRaw = normalizeText(item?.updated_at);
     const updatedAt = Date.parse(updatedAtRaw);
@@ -312,9 +313,9 @@ export const githubPrListWidget = {
         .slice(0, normalizeMaxItems(cfg.maxItems, 20));
 
       const currentCfg = getConfig();
-      const currentCachePullItems = Array.isArray(currentCfg?.cachePullItems)
-        ? currentCfg.cachePullItems.map(toCachedPullItem).filter(Boolean)
-        : [];
+      const currentCachePullItems = arrayOrEmpty(currentCfg?.cachePullItems)
+        .map(toCachedPullItem)
+        .filter(Boolean);
       const expectedTokenHash = tokenFingerprint(cfg.accessToken);
 
       const unchanged =

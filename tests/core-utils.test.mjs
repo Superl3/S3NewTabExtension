@@ -1142,13 +1142,34 @@ test("GitHub review inbox logic uses shared cache timestamp normalization", asyn
   assert.doesNotMatch(source, /Math\.max\(0, Number\(latestAttentionAt \?\? latestCodeUpdateAt\) \|\| 0\)/);
 });
 
-test("GitHub review inbox widget uses shared array fallback helper", async () => {
-  const source = await fs.readFile(new URL("../widgets/githubReviewInbox.js", import.meta.url), "utf8");
-  assert.match(source, /core\/utils\/array\.js/);
-  assert.match(source, /arrayOrEmpty\(/);
-  assert.doesNotMatch(source, /Array\.isArray\(items\) \? items : \[\]/);
-  assert.doesNotMatch(source, /Array\.isArray\(payload\) \? payload : \[\]/);
-  assert.doesNotMatch(source, /Array\.isArray\(tabData\?\.items\) \? tabData\.items : \[\]/);
+test("GitHub widgets use shared array fallback helper", async () => {
+  const moduleUrls = [
+    new URL("../widgets/githubPrList.js", import.meta.url),
+    new URL("../widgets/githubReviewInbox.js", import.meta.url),
+    new URL("../widgets/shared/githubReviewInboxLogic.js", import.meta.url)
+  ];
+
+  for (const moduleUrl of moduleUrls) {
+    const source = await fs.readFile(moduleUrl, "utf8");
+    assert.match(source, /core\/utils\/array\.js/, moduleUrl.pathname);
+    assert.match(source, /arrayOrEmpty\(/, moduleUrl.pathname);
+  }
+
+  const prListSource = await fs.readFile(new URL("../widgets/githubPrList.js", import.meta.url), "utf8");
+  assert.doesNotMatch(prListSource, /Array\.isArray\(rawConfig\?\.cachePullItems\)/);
+  assert.doesNotMatch(prListSource, /Array\.isArray\(payload\) \? payload : \[\]/);
+  assert.doesNotMatch(prListSource, /Array\.isArray\(item\?\.requested_teams\)/);
+  assert.doesNotMatch(prListSource, /Array\.isArray\(currentCfg\?\.cachePullItems\)/);
+
+  const inboxSource = await fs.readFile(new URL("../widgets/githubReviewInbox.js", import.meta.url), "utf8");
+  assert.doesNotMatch(inboxSource, /Array\.isArray\(items\) \? items : \[\]/);
+  assert.doesNotMatch(inboxSource, /Array\.isArray\(payload\) \? payload : \[\]/);
+  assert.doesNotMatch(inboxSource, /Array\.isArray\(tabData\?\.items\) \? tabData\.items : \[\]/);
+
+  const inboxLogicSource = await fs.readFile(new URL("../widgets/shared/githubReviewInboxLogic.js", import.meta.url), "utf8");
+  assert.doesNotMatch(inboxLogicSource, /Array\.isArray\(commits\)/);
+  assert.doesNotMatch(inboxLogicSource, /Array\.isArray\(issueComments\) \? issueComments : \[\]/);
+  assert.doesNotMatch(inboxLogicSource, /Array\.isArray\(reviewComments\) \? reviewComments : \[\]/);
 });
 
 test("Codex usage widget uses core number helpers", async () => {
