@@ -1,14 +1,7 @@
-function resolveTimerApi(timerApi = null) {
-  const source = timerApi || globalThis.window || globalThis;
-  return {
-    setTimeout: typeof source?.setTimeout === "function" ? source.setTimeout.bind(source) : null,
-    clearTimeout: typeof source?.clearTimeout === "function" ? source.clearTimeout.bind(source) : null
-  };
-}
-
-function resolveEventTarget(eventTarget = null) {
-  return eventTarget || globalThis.window || null;
-}
+import {
+  resolveBrowserEventTarget,
+  resolveBrowserTimerApi
+} from "./platform/browser-api.js";
 
 function resolveClassListAdapter(card = null) {
   const classList = card?.classList;
@@ -46,8 +39,8 @@ export function createLongPressDragController({
   eventTarget = null,
   timerApi = null
 } = {}) {
-  const listeners = resolveEventTarget(eventTarget);
-  const timers = resolveTimerApi(timerApi);
+  const listeners = resolveBrowserEventTarget(eventTarget);
+  const timers = resolveBrowserTimerApi(timerApi);
   const classes = resolveClassListAdapter(card);
 
   const state = {

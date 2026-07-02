@@ -1,12 +1,4 @@
-function resolveTimerApi(timerApi = null) {
-  const source = timerApi || globalThis.window || globalThis;
-  const setTimeoutFn = typeof source?.setTimeout === "function" ? source.setTimeout.bind(source) : null;
-  const clearTimeoutFn = typeof source?.clearTimeout === "function" ? source.clearTimeout.bind(source) : null;
-  return {
-    setTimeout: setTimeoutFn,
-    clearTimeout: clearTimeoutFn
-  };
-}
+import { resolveBrowserTimerApi } from "./platform/browser-api.js";
 
 function normalizeHoldMs(value, fallback = 280) {
   const numeric = Number(value);
@@ -39,7 +31,7 @@ export function createDeferredEdgeSwitchScheduler(
     timerApi = null
   } = {}
 ) {
-  const timers = resolveTimerApi(timerApi);
+  const timers = resolveBrowserTimerApi(timerApi);
   const waitMs = normalizeHoldMs(holdMs, 280);
 
   let pendingDirection = 0;

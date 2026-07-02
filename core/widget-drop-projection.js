@@ -1,10 +1,4 @@
-function snapToHalfGridTrack(value) {
-  const numeric = Number(value);
-  if (!Number.isFinite(numeric)) {
-    return 0;
-  }
-  return Math.round(numeric * 2) / 2;
-}
+import { snapToHalfGridTrack } from "./utils/grid.js";
 
 export function projectWidgetBoardDropLayoutRuntime(instance, payload = {}, { pageFallback = null } = {}, deps) {
   const viewportRect = deps.getLauncherViewportRect();

@@ -3,11 +3,8 @@ import {
   resolveGridResizeLayout,
   resolveSnappedSize
 } from "./resize-drag.js";
+import { resolveBrowserEventTarget } from "./platform/browser-api.js";
 import { toFiniteNumber } from "./utils/number.js";
-
-function resolveEventTarget(eventTarget = null) {
-  return eventTarget || globalThis.window || null;
-}
 
 export function startGridResizeSession({
   startX = 0,
@@ -19,7 +16,7 @@ export function startGridResizeSession({
   onComplete,
   eventTarget = null
 } = {}) {
-  const target = resolveEventTarget(eventTarget);
+  const target = resolveBrowserEventTarget(eventTarget);
 
   const move = (moveEvent) => {
     const nextGrid = resolveGridResizeLayout(startGrid, metrics, {
@@ -64,7 +61,7 @@ export function startFreeResizeSession({
   snap = 20,
   eventTarget = null
 } = {}) {
-  const target = resolveEventTarget(eventTarget);
+  const target = resolveBrowserEventTarget(eventTarget);
 
   const move = (moveEvent) => {
     const layoutPosition =
