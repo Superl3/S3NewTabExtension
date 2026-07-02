@@ -1,9 +1,7 @@
+import { isPlainObject } from "./utils/object.js";
+
 export const PORTABLE_PROFILE_FORMAT = "s3-new-tab-profile";
 export const PORTABLE_PROFILE_VERSION = 1;
-
-function isPlainObject(value) {
-  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
-}
 
 export function createPortableProfileExport(snapshot, {
   appVersion = "",
