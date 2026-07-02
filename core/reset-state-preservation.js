@@ -1,9 +1,4 @@
-function call(fn, ...args) {
-  if (typeof fn !== "function") {
-    return undefined;
-  }
-  return fn(...args);
-}
+import { callIfFunction as call } from "./utils/function.js";
 
 export function captureResetPreservedData(state, deps = {}) {
   const { readUserMutationClock, clonePresetSnapshot } = deps;

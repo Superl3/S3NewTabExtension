@@ -14,13 +14,7 @@ import {
   policyRealPageFromInternalPage
 } from "./launcherDropPlan.js";
 import { normalizeContainerId } from "./container-state.js";
-
-function invoke(fn, ...args) {
-  if (typeof fn !== "function") {
-    return undefined;
-  }
-  return fn(...args);
-}
+import { callIfFunction as invoke } from "./utils/function.js";
 
 function normalizeInteger(value, fallback = 0) {
   const numeric = Number(value);

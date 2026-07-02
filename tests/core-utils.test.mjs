@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 
 import { normalizeErrorMessage } from "../core/utils/error.js";
+import { callIfFunction } from "../core/utils/function.js";
 import { parseJsonOrNull } from "../core/utils/json.js";
 import { clamp, clampFiniteOrMin, normalizeIntegerInRange, toFiniteNumber } from "../core/utils/number.js";
 import { hasOwn, isPlainObject } from "../core/utils/object.js";
@@ -50,6 +51,13 @@ test("parseJsonOrNull parses JSON objects and ignores invalid input", () => {
   assert.equal(parseJsonOrNull(""), null);
   assert.equal(parseJsonOrNull("not-json"), null);
   assert.equal(parseJsonOrNull({ ok: true }), null);
+});
+
+test("callIfFunction returns undefined for non-functions and forwards arguments", () => {
+  assert.equal(callIfFunction(null, 1, 2), undefined);
+  assert.equal(callIfFunction(function sum(left, right) {
+    return left + right;
+  }, 2, 3), 5);
 });
 
 test("object utilities preserve plain-object and safe own-property semantics", () => {
@@ -133,6 +141,24 @@ test("core drag and resize modules use the shared finite number helper", async (
 test("core profile utilities use shared object helpers", async () => {
   const source = await fs.readFile(new URL("../core/profile-transfer.js", import.meta.url), "utf8");
   assert.doesNotMatch(source, /^function isPlainObject\(/m);
+});
+
+test("core modules use the shared optional function caller instead of local wrappers", async () => {
+  const moduleUrls = [
+    new URL("../core/board-grid-slot.js", import.meta.url),
+    new URL("../core/drag-drop-orchestration.js", import.meta.url),
+    new URL("../core/reset-state-preservation.js", import.meta.url),
+    new URL("../core/widget-add-plan.js", import.meta.url),
+    new URL("../core/widget-instance-factory.js", import.meta.url),
+    new URL("../core/widget-modal-apply.js", import.meta.url),
+    new URL("../core/widget-modal-apply-effects.js", import.meta.url),
+    new URL("../core/widget-modal-draft.js", import.meta.url)
+  ];
+
+  for (const moduleUrl of moduleUrls) {
+    const source = await fs.readFile(moduleUrl, "utf8");
+    assert.doesNotMatch(source, /^function (call|invoke)\(/m, moduleUrl.pathname);
+  }
 });
 
 async function collectWidgetSources(dirUrl) {
