@@ -254,6 +254,7 @@ test("core drag and resize modules use the shared finite number helper", async (
     new URL("../core/board-swipe.js", import.meta.url),
     new URL("../core/drag-drop-evaluation.js", import.meta.url),
     new URL("../core/drag-positioning.js", import.meta.url),
+    new URL("../core/drag-preview.js", import.meta.url),
     new URL("../core/resize-drag.js", import.meta.url),
     new URL("../core/resize-session.js", import.meta.url)
   ];

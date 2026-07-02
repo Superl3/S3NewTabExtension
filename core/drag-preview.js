@@ -1,5 +1,5 @@
 import { DRAG_PREVIEW_Z_INDEX } from "./drag-layering.js";
-import { clampFiniteOrMin } from "./utils/number.js";
+import { clampFiniteOrMin, toFiniteNumber } from "./utils/number.js";
 import { normalizeText } from "./utils/text.js";
 
 export function createWidgetDragPreview(instance, options = {}) {
@@ -23,12 +23,8 @@ export function createWidgetDragPreview(instance, options = {}) {
     preview.style.setProperty("--drag-preview-x", `${Math.round(rect.left)}px`);
     preview.style.setProperty("--drag-preview-y", `${Math.round(rect.top)}px`);
 
-    const pointerX = Number.isFinite(Number(options?.pointerX))
-      ? Number(options.pointerX)
-      : Number(options?.pointerEvent?.clientX);
-    const pointerY = Number.isFinite(Number(options?.pointerY))
-      ? Number(options.pointerY)
-      : Number(options?.pointerEvent?.clientY);
+    const pointerX = toFiniteNumber(options?.pointerX, Number(options?.pointerEvent?.clientX));
+    const pointerY = toFiniteNumber(options?.pointerY, Number(options?.pointerEvent?.clientY));
     const fallbackToTopLeft = options?.fallbackPointerAnchor === "top-left";
     const rawOffsetX = Number.isFinite(pointerX) ? pointerX - rect.left : Number.NaN;
     const rawOffsetY = Number.isFinite(pointerY) ? pointerY - rect.top : Number.NaN;
@@ -84,12 +80,8 @@ export function positionWidgetDragPreview(preview, clientX, clientY) {
 export function createDragPreviewSession(instance, options = {}) {
   const sourceCard = options?.sourceCard;
   const pointerEvent = options?.pointerEvent;
-  const pointerX = Number.isFinite(Number(options?.pointerX))
-    ? Number(options.pointerX)
-    : Number(pointerEvent?.clientX);
-  const pointerY = Number.isFinite(Number(options?.pointerY))
-    ? Number(options.pointerY)
-    : Number(pointerEvent?.clientY);
+  const pointerX = toFiniteNumber(options?.pointerX, Number(pointerEvent?.clientX));
+  const pointerY = toFiniteNumber(options?.pointerY, Number(pointerEvent?.clientY));
 
   if (!Number.isFinite(pointerX) || !Number.isFinite(pointerY)) {
     return null;
