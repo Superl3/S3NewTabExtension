@@ -428,6 +428,14 @@ test("core drag and resize modules use the shared finite number helper", async (
   }
 });
 
+test("board swipe uses shared finite number normalization for deltas", async () => {
+  const source = await fs.readFile(new URL("../core/board-swipe.js", import.meta.url), "utf8");
+  assert.match(source, /toFiniteNumber\(dx, 0\)/);
+  assert.match(source, /toFiniteNumber\(dy, 0\)/);
+  assert.match(source, /toFiniteNumber\(velocity, 0\)/);
+  assert.doesNotMatch(source, /Number\((?:dx|dy|velocity)\) \|\| 0/);
+});
+
 test("widget card drag session shares finite clamp fallback", async () => {
   const source = await fs.readFile(new URL("../core/widget-card-drag-session.js", import.meta.url), "utf8");
   assert.match(source, /utils\/number\.js/);

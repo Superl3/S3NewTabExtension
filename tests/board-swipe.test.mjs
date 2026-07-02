@@ -11,6 +11,7 @@ test("resolveBoardSwipeStartState returns pending/cancel/start states", () => {
   assert.equal(resolveBoardSwipeStartState(1, 0), "pending");
   assert.equal(resolveBoardSwipeStartState(4, 20), "cancel");
   assert.equal(resolveBoardSwipeStartState(20, 2), "start");
+  assert.equal(resolveBoardSwipeStartState(Number.POSITIVE_INFINITY, 0), "pending");
 });
 
 test("resolveBoardSwipeThreshold clamps board width-derived threshold", () => {
@@ -48,6 +49,18 @@ test("resolveBoardSwipeNextPage resolves next page from distance and velocity", 
     resolveBoardSwipeNextPage({
       dx: 0,
       velocity: 0,
+      activePage: 2,
+      minPage: 0,
+      maxPage: 4,
+      threshold: 40
+    }),
+    2
+  );
+
+  assert.equal(
+    resolveBoardSwipeNextPage({
+      dx: Number.NEGATIVE_INFINITY,
+      velocity: Number.POSITIVE_INFINITY,
       activePage: 2,
       minPage: 0,
       maxPage: 4,
