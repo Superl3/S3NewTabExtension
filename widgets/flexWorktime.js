@@ -25,6 +25,10 @@ import {
 import { findFlexTabByPriority } from "./shared/flexTabs.js";
 import { createFlexWorktimeCache } from "./shared/flexWorktimeCache.js";
 import {
+  FLEX_HOME_TAB_LOAD_TIMEOUT_MS,
+  FLEX_WORKTIME_CACHE_MAX_ENTRIES,
+  FLEX_WORKTIME_DEFAULT_HOME_URL,
+  FLEX_WORKTIME_DEFAULT_REFRESH_MINUTES,
   formatFlexHomeScrapeError as formatSourceError,
   normalizeCachedWorktimeRow as normalizeCachedRow,
   normalizeFlexHomeScrapeRow,
@@ -37,10 +41,6 @@ import {
 } from "./shared/flexWorktimeRows.js";
 
 const FLEX_WORKTIME_CACHE_PREFIX = "s3newtab:flex-worktime-cache:v1";
-const FLEX_WORKTIME_CACHE_MAX_ENTRIES = 24;
-const FLEX_HOME_TAB_LOAD_TIMEOUT_MS = 20000;
-const DEFAULT_FLEX_WORKTIME_REFRESH_MINUTES = 1;
-const DEFAULT_FLEX_HOME_URL = "https://flex.team/home";
 
 function configSignature(config) {
   return [
@@ -70,8 +70,8 @@ function resolveQueryDateForSource(config) {
 
 function normalizedConfig(config) {
   return normalizeFlexWidgetBaseConfig(config, {
-    defaultFlexHomeUrl: DEFAULT_FLEX_HOME_URL,
-    defaultRefreshMinutes: DEFAULT_FLEX_WORKTIME_REFRESH_MINUTES
+    defaultFlexHomeUrl: FLEX_WORKTIME_DEFAULT_HOME_URL,
+    defaultRefreshMinutes: FLEX_WORKTIME_DEFAULT_REFRESH_MINUTES
   });
 }
 
@@ -183,9 +183,9 @@ export const flexWorktimeWidget = {
   type: "flexWorktime",
   title: "Flex Worktime",
   defaultConfig: {
-    flexHomeUrl: "https://flex.team/home",
+    flexHomeUrl: FLEX_WORKTIME_DEFAULT_HOME_URL,
     openFlexTabIfMissing: true,
-    refreshMinutes: DEFAULT_FLEX_WORKTIME_REFRESH_MINUTES,
+    refreshMinutes: FLEX_WORKTIME_DEFAULT_REFRESH_MINUTES,
     detailUrlTemplate: "",
     openInNewTab: true
   },

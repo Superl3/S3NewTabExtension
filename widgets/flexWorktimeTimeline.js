@@ -32,6 +32,10 @@ import {
 import { findFlexTabByPriority } from "./shared/flexTabs.js";
 import { createFlexWorktimeCache } from "./shared/flexWorktimeCache.js";
 import {
+  FLEX_HOME_TAB_LOAD_TIMEOUT_MS,
+  FLEX_WORKTIME_CACHE_MAX_ENTRIES,
+  FLEX_WORKTIME_DEFAULT_HOME_URL,
+  FLEX_WORKTIME_DEFAULT_REFRESH_MINUTES,
   formatClockMinutes,
   formatDurationMinutes,
   formatFlexWorkRecordScrapeError as formatSourceError,
@@ -49,10 +53,6 @@ import {
 } from "./shared/flexWorktimeRows.js";
 
 const FLEX_WORKTIME_CACHE_PREFIX = "s3newtab:flex-worktime-timeline-cache:v1";
-const FLEX_WORKTIME_CACHE_MAX_ENTRIES = 24;
-const FLEX_HOME_TAB_LOAD_TIMEOUT_MS = 20000;
-const DEFAULT_FLEX_WORKTIME_REFRESH_MINUTES = 1;
-const DEFAULT_FLEX_HOME_URL = "https://flex.team/home";
 const DEFAULT_FLEX_WORK_RECORD_PATH = "/time-tracking/my-work-record";
 const FLEX_WORK_RECORD_PATH_RE = /^\/time-tracking\/my-work-record(?:\/|$)/i;
 const FLEX_TIMELINE_TOOLTIP_LABEL_RE = /(기록\s*시작|기록\s*종료|휴게\s*기록)/u;
@@ -492,8 +492,8 @@ function formatTimelineCaption(queryDate) {
 function normalizedConfig(config) {
   return {
     ...normalizeFlexWidgetBaseConfig(config, {
-      defaultFlexHomeUrl: DEFAULT_FLEX_HOME_URL,
-      defaultRefreshMinutes: DEFAULT_FLEX_WORKTIME_REFRESH_MINUTES
+      defaultFlexHomeUrl: FLEX_WORKTIME_DEFAULT_HOME_URL,
+      defaultRefreshMinutes: FLEX_WORKTIME_DEFAULT_REFRESH_MINUTES
     }),
     dateMode: normalizeDateMode(config?.dateMode, "today"),
     customDate: normalizeIsoDate(config?.customDate)
@@ -633,7 +633,7 @@ function normalizeFlexWorkRecordRow(timeline, queryDate, workRecordUrl) {
 }
 
 function parseFlexScrapeBaseTargetUrl(value) {
-  const text = normalizeText(value, DEFAULT_FLEX_HOME_URL);
+  const text = normalizeText(value, FLEX_WORKTIME_DEFAULT_HOME_URL);
 
   let parsed;
   try {
@@ -1635,11 +1635,11 @@ export const flexWorktimeTimelineWidget = {
   type: "flexWorktimeTimeline",
   title: "Flex Worktime History",
   defaultConfig: {
-    flexHomeUrl: "https://flex.team/home",
+    flexHomeUrl: FLEX_WORKTIME_DEFAULT_HOME_URL,
     openFlexTabIfMissing: true,
     dateMode: "today",
     customDate: "",
-    refreshMinutes: DEFAULT_FLEX_WORKTIME_REFRESH_MINUTES,
+    refreshMinutes: FLEX_WORKTIME_DEFAULT_REFRESH_MINUTES,
     detailUrlTemplate: "",
     openInNewTab: true
   },
