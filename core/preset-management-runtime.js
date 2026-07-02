@@ -1,3 +1,4 @@
+import { arrayOrEmpty } from "./utils/array.js";
 import { clampTruthyNumberOrFallback, toTruthyNumberOrFallback } from "./utils/number.js";
 
 export function createPresetManagementRuntime(deps) {
@@ -11,9 +12,10 @@ export function createPresetManagementRuntime(deps) {
         shortcuts: { ...(snapshot?.ui?.shortcuts || {}) },
         monday: { ...(snapshot?.ui?.monday || {}) }
       },
-      instances: Array.isArray(snapshot?.instances)
-        ? snapshot.instances.map((instance) => ({ ...instance, config: { ...(instance.config || {}) } }))
-        : []
+      instances: arrayOrEmpty(snapshot?.instances).map((instance) => ({
+        ...instance,
+        config: { ...(instance.config || {}) }
+      }))
     };
 
     deps.applyRuntimeOnlyPolicyToPresetSnapshot(cloned);
@@ -45,7 +47,7 @@ export function createPresetManagementRuntime(deps) {
 
   function inferNextId(instances, fallback) {
     let maxId = toTruthyNumberOrFallback(fallback, 100);
-    for (const instance of instances || []) {
+    for (const instance of arrayOrEmpty(instances)) {
       const id = String(instance?.id || "");
       const match = id.match(/-(\d+)$/);
       if (!match) {
