@@ -1,3 +1,5 @@
+import { clamp, toPositiveInteger } from "./utils/number.js";
+
 export const FALLBACK_DEFAULT_WIDGET_TYPES = Object.freeze([
   "clock",
   "search",
@@ -12,14 +14,6 @@ export const FALLBACK_DEFAULT_GRID = Object.freeze({
   columns: 12,
   rows: 8
 });
-
-function clampSpan(value, max) {
-  const parsed = Math.floor(Number(value));
-  if (!Number.isFinite(parsed)) {
-    return 1;
-  }
-  return Math.min(Math.max(1, parsed), Math.max(1, max));
-}
 
 function createOccupancy(rows, columns) {
   return Array.from({ length: rows }, () => Array(columns).fill(false));
@@ -63,15 +57,15 @@ export function assignFallbackDefaultGridLayouts(widgetTypes, {
   columns = FALLBACK_DEFAULT_GRID.columns,
   rows = FALLBACK_DEFAULT_GRID.rows
 } = {}) {
-  const gridColumns = Math.max(1, Math.floor(Number(columns) || FALLBACK_DEFAULT_GRID.columns));
-  const gridRows = Math.max(1, Math.floor(Number(rows) || FALLBACK_DEFAULT_GRID.rows));
+  const gridColumns = toPositiveInteger(Number(columns) || FALLBACK_DEFAULT_GRID.columns, FALLBACK_DEFAULT_GRID.columns);
+  const gridRows = toPositiveInteger(Number(rows) || FALLBACK_DEFAULT_GRID.rows, FALLBACK_DEFAULT_GRID.rows);
   const occupancyByPage = [createOccupancy(gridRows, gridColumns)];
 
   return (Array.isArray(widgetTypes) ? widgetTypes : []).map((type) => {
     const def = widgetRegistry[type];
     const defaultSize = widgetDefaultGridSize?.(type, def) || { colSpan: 1, rowSpan: 1 };
-    const colSpan = clampSpan(defaultSize.colSpan, gridColumns);
-    const rowSpan = clampSpan(defaultSize.rowSpan, gridRows);
+    const colSpan = clamp(toPositiveInteger(defaultSize.colSpan, 1), 1, gridColumns);
+    const rowSpan = clamp(toPositiveInteger(defaultSize.rowSpan, 1), 1, gridRows);
     let page = 0;
     let slot = null;
 

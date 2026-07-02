@@ -273,6 +273,7 @@ test("core drag and resize modules use the shared finite number helper", async (
 test("core modules use shared integer helpers instead of local copies", async () => {
   const moduleUrls = [
     new URL("../core/board-grid-slot.js", import.meta.url),
+    new URL("../core/default-widget-order.js", import.meta.url),
     new URL("../core/dock-geometry.js", import.meta.url),
     new URL("../core/dock-state.js", import.meta.url),
     new URL("../core/drag-page-switch.js", import.meta.url),
@@ -291,6 +292,8 @@ test("core modules use shared integer helpers instead of local copies", async ()
     assert.match(source, /utils\/number\.js/, moduleUrl.pathname);
     assert.doesNotMatch(source, /^function (toInteger|normalizeInteger|toPositiveInteger)\(/m, moduleUrl.pathname);
     assert.doesNotMatch(source, /^function normalizeHoldMs\(/m, moduleUrl.pathname);
+    assert.doesNotMatch(source, /^function clampSpan\(/m, moduleUrl.pathname);
+    assert.doesNotMatch(source, /Math\.floor\(Number/, moduleUrl.pathname);
     assert.doesNotMatch(source, /Number\.isFinite\(Number\(/, moduleUrl.pathname);
     assert.doesNotMatch(source, /toInteger as normalizeInteger/, moduleUrl.pathname);
   }
