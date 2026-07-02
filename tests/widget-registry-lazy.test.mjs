@@ -32,8 +32,11 @@ test("lazy widget controller waits for viewport visibility before loading", asyn
 
   assert.match(source, /IntersectionObserver/, "expected widget lazy loading to be viewport-gated");
   assert.match(source, /getBoundingClientRect/, "expected visible widgets to have an immediate geometry fallback");
+  assert.match(source, /toTruthyNumberOrFallback\(windowObj\?\.innerWidth,/);
+  assert.match(source, /toTruthyNumberOrFallback\(target\.ownerDocument\?\.documentElement\?\.clientWidth, 0\)/);
   assert.match(source, /timeout\(runOnce, 120\)/, "expected suspended animation frames to have a timer fallback");
   assert.match(source, /refreshPosition\(\)/, "expected lightweight controller methods to be forwarded");
+  assert.doesNotMatch(source, /Number\(windowObj\?\.inner(?:Width|Height)\) \|\| Number\(target\.ownerDocument\?\.documentElement\?\.client(?:Width|Height)\) \|\| 0/);
 });
 
 test("lazy widget controller loads immediately when target is already visible", async () => {
@@ -112,6 +115,82 @@ test("lazy widget controller loads immediately when target is already visible", 
     assert.equal(created, true);
     assert.equal(observedTarget, null);
     assert.deepEqual(replacedChildren, []);
+  } finally {
+    lazyDefinition.load = originalLoad;
+  }
+});
+
+test("lazy widget viewport fallback uses document dimensions", async () => {
+  const lazyDefinition = widgetRegistry.clock;
+  const originalLoad = lazyDefinition.load;
+  let loadCalls = 0;
+  let created = false;
+  let observedTarget = null;
+
+  const target = {
+    nodeType: 1,
+    ownerDocument: null,
+    getBoundingClientRect() {
+      return {
+        left: 10,
+        top: 10,
+        right: 120,
+        bottom: 90
+      };
+    }
+  };
+  const documentObj = {
+    documentElement: {
+      clientWidth: 1024,
+      clientHeight: 768
+    },
+    defaultView: {
+      innerWidth: 0,
+      innerHeight: 0,
+      requestAnimationFrame(callback) {
+        callback();
+      },
+      IntersectionObserver: class {
+        constructor() {}
+        observe(nextTarget) {
+          observedTarget = nextTarget;
+        }
+        disconnect() {}
+      }
+    },
+    createElement() {
+      return {
+        className: "",
+        textContent: ""
+      };
+    }
+  };
+  target.ownerDocument = documentObj;
+  const container = {
+    ownerDocument: documentObj,
+    closest() {
+      return target;
+    },
+    replaceChildren() {}
+  };
+
+  lazyDefinition.load = () => {
+    loadCalls += 1;
+    return Promise.resolve({
+      create() {
+        created = true;
+        return {};
+      }
+    });
+  };
+
+  try {
+    lazyDefinition.create({ container });
+    await Promise.resolve();
+
+    assert.equal(loadCalls, 1);
+    assert.equal(created, true);
+    assert.equal(observedTarget, null);
   } finally {
     lazyDefinition.load = originalLoad;
   }
