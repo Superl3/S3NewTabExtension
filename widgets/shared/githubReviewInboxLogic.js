@@ -1,3 +1,5 @@
+import { normalizeGitHubCacheTimestamp } from "./githubApi.js";
+
 const REVIEW_REASON_META = {
   NO_REVIEW_YET: {
     label: "No review yet",
@@ -247,7 +249,7 @@ export function classifyReviewNeed({
   latestApprovalAt = 0,
   hasApprovedUpdateSignal = false
 }) {
-  const attentionAt = Math.max(0, Number(latestAttentionAt ?? latestCodeUpdateAt) || 0);
+  const attentionAt = normalizeGitHubCacheTimestamp(latestAttentionAt ?? latestCodeUpdateAt);
 
   if (!hasParticipation) {
     return {
