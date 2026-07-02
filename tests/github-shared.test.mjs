@@ -53,6 +53,7 @@ test("GitHub shared helpers preserve API formatting semantics", () => {
   assert.equal(parseGitHubError('{"message":"rate limited"}', 403), "rate limited");
   assert.equal(parseGitHubError("", 500), "GitHub request failed: HTTP 500");
   assert.equal(normalizeGitHubReviewerNames([{ login: "alice" }, { login: " bob " }, {}]), "alice, bob");
+  assert.equal(normalizeGitHubReviewerNames(null), "");
   assert.equal(githubTokenFingerprint("abc"), "3:590");
   assert.equal(matchesGitHubCacheTokenFingerprint("3:590", "abc"), true);
   assert.equal(matchesGitHubCacheTokenFingerprint("3:590", "abcd"), false);

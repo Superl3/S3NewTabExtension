@@ -1,3 +1,4 @@
+import { arrayOrEmpty } from "../../core/utils/array.js";
 import { parseJsonOrFallback } from "../../core/utils/json.js";
 import { normalizeIntegerInRange, toFiniteNumber, toInteger } from "../../core/utils/number.js";
 import { normalizeText } from "../../core/utils/text.js";
@@ -188,10 +189,7 @@ export function buildGitHubRepoPullsPageUrl(repository) {
 }
 
 export function normalizeGitHubReviewerNames(reviewers) {
-  if (!Array.isArray(reviewers)) {
-    return "";
-  }
-  return reviewers
+  return arrayOrEmpty(reviewers)
     .map((reviewer) => normalizeText(reviewer?.login))
     .filter(Boolean)
     .join(", ");
