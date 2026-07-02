@@ -1473,9 +1473,11 @@ test("GitHub widgets use shared array fallback helper", async () => {
 test("Codex usage widget uses core number helpers", async () => {
   const source = await fs.readFile(new URL("../widgets/codexUsage.js", import.meta.url), "utf8");
   assert.match(source, /core\/utils\/number\.js/);
+  assert.match(source, /clamp\(parsed, 0, 100\)/);
   assert.match(source, /toFiniteNumber/);
   assert.match(source, /toTruthyFiniteNumberOrFallback\(raw\.parserVersion, 1\)/);
   assert.match(source, /toTruthyFiniteNumberOrFallback\(capturedAt, Date\.now\)/);
+  assert.doesNotMatch(source, /Math\.max\(0, Math\.min\(100, parsed\)\)/);
   assert.doesNotMatch(source, /const capturedAt = Number\(raw\.capturedAt\)/);
   assert.doesNotMatch(source, /Number\(raw\.parserVersion\) \|\| 1/);
   assert.doesNotMatch(source, /toFiniteNumber\(raw\.parserVersion, 1\) \|\| 1/);
