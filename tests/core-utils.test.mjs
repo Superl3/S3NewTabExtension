@@ -1107,6 +1107,7 @@ test("Flex worktime timeline uses shared local date arithmetic", async () => {
   assert.match(source, /shared\/localDates\.js/);
   assert.match(source, /addLocalDays/);
   assert.doesNotMatch(source, /\.setDate\(/);
+  assert.doesNotMatch(source, /addLocalDays\(new Date\(\), -1\)/);
 });
 
 test("Flex worktime timeline uses shared local date validation", async () => {

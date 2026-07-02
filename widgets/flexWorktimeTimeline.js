@@ -449,12 +449,13 @@ function resolveQueryDateForSource(config) {
 
 function formatTimelineCaption(queryDate) {
   const target = normalizeLocalDateKey(queryDate);
-  const today = toLocalDateKey(new Date());
+  const todayDate = new Date();
+  const today = toLocalDateKey(todayDate);
   if (!target || target === today) {
     return "Today timeline";
   }
 
-  if (target === toLocalDateKey(addLocalDays(new Date(), -1))) {
+  if (target === toLocalDateKey(addLocalDays(todayDate, -1))) {
     return "Yesterday timeline";
   }
 
