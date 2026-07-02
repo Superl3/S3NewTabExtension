@@ -1,3 +1,4 @@
+import { toInteger } from "../../core/utils/number.js";
 import { normalizeText } from "../../core/utils/text.js";
 
 export function toLocalDayKey(date) {
@@ -13,7 +14,7 @@ export function parseAutoRefreshSlotsDone(value, slotCount) {
     return new Set();
   }
 
-  const normalizedSlotCount = Math.max(0, Math.floor(Number(slotCount) || 0));
+  const normalizedSlotCount = Math.max(0, toInteger(slotCount, 0));
   const out = new Set();
   for (const part of text.split(",")) {
     const num = Number(part);

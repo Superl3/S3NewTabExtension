@@ -17,6 +17,8 @@ test("auto refresh slot helpers parse and serialize bounded slot indexes", () =>
   assert.deepEqual(Array.from(done).sort(), [0, 1, 2]);
   assert.equal(serializeAutoRefreshSlotsDone(done), "0,1,2");
   assert.deepEqual(Array.from(parseAutoRefreshSlotsDone("0,4", 0)), []);
+  assert.deepEqual(Array.from(parseAutoRefreshSlotsDone("0,1,2", "2.8")).sort(), [0, 1]);
+  assert.deepEqual(Array.from(parseAutoRefreshSlotsDone("0", "bad")), []);
 });
 
 test("auto refresh slot helpers preserve local day and minute semantics", () => {
