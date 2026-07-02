@@ -2,14 +2,8 @@ import { DROP_SILHOUETTE_Z_INDEX, resolveFolderPanelZIndex } from "../core/drag-
 import { pointInsideRect } from "../core/utils/geometry.js";
 import { clamp, normalizeIntegerInRange } from "../core/utils/number.js";
 import { normalizeText } from "../core/utils/text.js";
+import { normalizeTitleAlign } from "../core/widget-common-style.js";
 import { isUrlIcon } from "./shared/linkUrls.js";
-
-function normalizeTitleAlign(value, fallback = "center") {
-  if (value === "left" || value === "center" || value === "right") {
-    return value;
-  }
-  return fallback;
-}
 
 function normalizeFolderConfig(config) {
   const raw = config && typeof config === "object" ? config : {};
