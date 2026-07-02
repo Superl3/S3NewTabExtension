@@ -16,6 +16,7 @@ import {
   formatFlexHomeScrapeError,
   formatFlexWorkRecordScrapeError,
   normalizeFlexWidgetBaseConfig,
+  resolveFlexSyncState,
   resolveFlexWorktimeDetailUrl
 } from "../widgets/shared/flexWorktimeRows.js";
 
@@ -232,6 +233,30 @@ test("Flex shared source error formatters preserve widget prefixes", () => {
     formatFlexHomeScrapeError(null, "Flex Home scrape: already prefixed"),
     "Flex Home scrape: already prefixed"
   );
+});
+
+test("Flex shared sync state preserves loading, error, success, and idle labels", () => {
+  assert.deepEqual(resolveFlexSyncState({ loading: true, rowCount: 0 }), {
+    label: "Loading...",
+    tone: "loading",
+    tooltip: "Loading worktime data."
+  });
+  assert.deepEqual(resolveFlexSyncState({ loading: true, rowCount: 2 }), {
+    label: "Syncing...",
+    tone: "loading",
+    tooltip: "Refreshing cached worktime data."
+  });
+  assert.deepEqual(resolveFlexSyncState({ errorMessage: "network failed" }), {
+    label: "Sync failed",
+    tone: "error",
+    tooltip: "network failed"
+  });
+  assert.equal(resolveFlexSyncState({ lastSyncedAt: 1 }).tone, "success");
+  assert.deepEqual(resolveFlexSyncState(), {
+    label: "Not synced",
+    tone: "idle",
+    tooltip: "No sync history yet."
+  });
 });
 
 test("Flex worktime detail URL helper resolves placeholders safely", () => {
