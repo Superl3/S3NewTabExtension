@@ -1,5 +1,5 @@
 import { callIfFunction as call } from "./utils/function.js";
-import { clampFiniteOrMin } from "./utils/number.js";
+import { clampFiniteOrMin, toPositiveInteger } from "./utils/number.js";
 
 export function findFirstAvailableBoardGridSlot(page, colSpan, rowSpan, deps = {}) {
   const {
@@ -23,10 +23,10 @@ export function findFirstAvailableBoardGridSlot(page, colSpan, rowSpan, deps = {
   const clampValue = typeof clamp === "function" ? clamp : clampFiniteOrMin;
   const home = call(syncLauncherPagingState, { expandToFitInstances: true }) || { pageCount: 1 };
   const metrics = call(gridMetrics) || {};
-  const cols = Math.max(1, Math.floor(Number(metrics.cols) || 1));
-  const rows = Math.max(1, Math.floor(Number(metrics.rows) || 1));
-  const placementColSpan = clampValue(Math.max(1, Math.floor(Number(colSpan) || 1)), 1, cols);
-  const placementRowSpan = clampValue(Math.max(1, Math.floor(Number(rowSpan) || 1)), 1, rows);
+  const cols = toPositiveInteger(metrics.cols, 1);
+  const rows = toPositiveInteger(metrics.rows, 1);
+  const placementColSpan = clampValue(toPositiveInteger(colSpan, 1), 1, cols);
+  const placementRowSpan = clampValue(toPositiveInteger(rowSpan, 1), 1, rows);
   const targetPage = call(normalizeWidgetPage, page, home.pageCount, 0) ?? 0;
   const occupancy = Array.from({ length: rows }, () => Array(cols).fill(false));
 

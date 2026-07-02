@@ -91,6 +91,22 @@ test("findFirstAvailableBoardGridSlot clamps requested span to grid bounds", () 
   });
 });
 
+test("findFirstAvailableBoardGridSlot normalizes invalid grid metrics to one cell", () => {
+  const slot = findFirstAvailableBoardGridSlot(0, -3, 0, {
+    ...baseDeps,
+    isGridLayoutMode: () => true,
+    gridMetrics: () => ({ cols: "bad", rows: 0 }),
+    instances: []
+  });
+
+  assert.deepEqual(slot, {
+    row: 0,
+    col: 0,
+    rowSpan: 1,
+    colSpan: 1
+  });
+});
+
 test("findFirstAvailableBoardGridSlot uses shared fallback clamp when deps clamp is absent", () => {
   const { clamp: _clamp, ...depsWithoutClamp } = baseDeps;
   const slot = findFirstAvailableBoardGridSlot(0, Number.NaN, 99, {
