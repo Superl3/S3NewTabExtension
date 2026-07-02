@@ -163,6 +163,14 @@ export function formatFlexSourceError(prefix, error) {
   return `${prefix}: ${message}`;
 }
 
+export function formatFlexHomeScrapeError(_config, error) {
+  return formatFlexSourceError("Flex Home scrape", error);
+}
+
+export function formatFlexWorkRecordScrapeError(_config, error) {
+  return formatFlexSourceError("Flex Work Record scrape", error);
+}
+
 export function sanitizePlaceholderMap(source) {
   if (!isPlainObject(source)) {
     return {};

@@ -25,7 +25,7 @@ import {
 import { findFlexTabByPriority } from "./shared/flexTabs.js";
 import { createFlexWorktimeCache } from "./shared/flexWorktimeCache.js";
 import {
-  formatFlexSourceError,
+  formatFlexHomeScrapeError as formatSourceError,
   formatSyncedLabel,
   normalizeCachedWorktimeRow as normalizeCachedRow,
   normalizeFlexHomeScrapeRow,
@@ -41,10 +41,6 @@ const FLEX_WORKTIME_CACHE_MAX_ENTRIES = 24;
 const FLEX_HOME_TAB_LOAD_TIMEOUT_MS = 20000;
 const DEFAULT_FLEX_WORKTIME_REFRESH_MINUTES = 1;
 const DEFAULT_FLEX_HOME_URL = "https://flex.team/home";
-
-function formatSourceError(config, error) {
-  return formatFlexSourceError("Flex Home scrape", error);
-}
 
 function configSignature(config) {
   return [

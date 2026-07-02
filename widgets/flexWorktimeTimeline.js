@@ -34,7 +34,7 @@ import { createFlexWorktimeCache } from "./shared/flexWorktimeCache.js";
 import {
   formatClockMinutes,
   formatDurationMinutes,
-  formatFlexSourceError,
+  formatFlexWorkRecordScrapeError as formatSourceError,
   formatSyncedLabel,
   formatTimeFromRef,
   normalizeCachedWorktimeRow as normalizeCachedRow,
@@ -418,14 +418,6 @@ function inferTimelineFromSummary(summary, queryDate, now = new Date()) {
     inferred: true,
     events
   };
-}
-
-function sourceModeLabel() {
-  return "Flex Work Record scrape";
-}
-
-function formatSourceError(config, error) {
-  return formatFlexSourceError(sourceModeLabel(), error);
 }
 
 function configSignature(config) {
