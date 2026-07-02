@@ -990,8 +990,9 @@ export const mondayMeetingNoteWidget = {
     }
 
     function persistSnapshot(cfg) {
-      const cacheBoards = boardEntries
-        .map((entry) => {
+      const cacheBoards = normalizeMondayCachedBoards(
+        boardEntries,
+        (entry) => {
           const boardId = normalizeBoardId(entry?.boardId, 0);
           if (!boardId) {
             return null;
@@ -1013,8 +1014,8 @@ export const mondayMeetingNoteWidget = {
             boardUrl: normalizeText(entry?.boardUrl),
             latest: cacheLatest
           };
-        })
-        .filter(Boolean);
+        }
+      );
 
       const primary = cacheBoards[0] || null;
       const cacheLatest = primary ? primary.latest : null;

@@ -1182,8 +1182,9 @@ export const mondayAssignedWidget = {
     }
 
     function persistSnapshot(cfg) {
-      const cacheBoards = boardSnapshots
-        .map((snapshot) => {
+      const cacheBoards = normalizeMondayCachedBoards(
+        boardSnapshots,
+        (snapshot) => {
           const boardId = normalizeBoardId(snapshot?.boardId, 0);
           if (!boardId) {
             return null;
@@ -1215,8 +1216,8 @@ export const mondayAssignedWidget = {
             groups,
             issues
           };
-        })
-        .filter(Boolean);
+        }
+      );
 
       const primary = cacheBoards[0] || null;
       const cacheIssues = primary?.issues || [];
