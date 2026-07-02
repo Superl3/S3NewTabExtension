@@ -345,6 +345,14 @@ test("hydrate preset timestamp fallbacks use shared truthy number normalization"
   assert.doesNotMatch(source, /(?:createdAt|updatedAt): Number\(preset\.(?:createdAt|updatedAt)\) \|\| Date\.now\(\)/);
 });
 
+test("hydrate state uses shared truthy fallbacks for z-index and page count", async () => {
+  const source = await fs.readFile(new URL("../core/hydrate-state.js", import.meta.url), "utf8");
+  assert.match(source, /clampTruthyNumberOrFallback\(item\.zIndex, normalized\.length \+ 1, 1, Number\.POSITIVE_INFINITY\)/);
+  assert.match(source, /toTruthyNumberOrFallback\(rawUi\?\.home\?\.pageCount, 1\)/);
+  assert.doesNotMatch(source, /Math\.max\(1, Number\(item\.zIndex\) \|\| normalized\.length \+ 1\)/);
+  assert.doesNotMatch(source, /Math\.max\(Number\(rawUi\?\.home\?\.pageCount\) \|\| 1, maxInstancePage \+ 1\)/);
+});
+
 test("geometry edge gaps use shared non-negative number normalization", async () => {
   const moduleUrls = [
     new URL("../core/dock-geometry.js", import.meta.url),
