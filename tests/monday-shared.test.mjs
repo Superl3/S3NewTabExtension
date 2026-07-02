@@ -9,6 +9,7 @@ import {
   normalizeBoardId,
   normalizeBoardIds,
   normalizeColumnSelectorList,
+  normalizeMondayCachedBoards,
   normalizeMondayCacheNumber,
   normalizeMondayCacheTimestamp,
   parseColumnSelectorList
@@ -73,6 +74,20 @@ test("monday config normalizes cached board base fields for widget reuse", () =>
     }
   );
   assert.equal(normalizeCachedMondayBoardBase({ boardId: 0 }), null);
+  assert.deepEqual(
+    normalizeMondayCachedBoards(
+      [{ boardId: "7", boardName: " Roadmap " }, { boardName: "missing id" }],
+      normalizeCachedMondayBoardBase
+    ),
+    [
+      {
+        boardId: 7,
+        boardName: "Roadmap",
+        boardUrl: ""
+      }
+    ]
+  );
+  assert.deepEqual(normalizeMondayCachedBoards([{ boardId: 7 }], null), []);
   assert.equal(
     areMondayCachedBoardsEqual(
       [{ boardId: "7", boardName: " Roadmap " }],

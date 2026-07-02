@@ -77,13 +77,17 @@ export function normalizeCachedMondayBoardBase(entry) {
   };
 }
 
-export function areMondayCachedBoardsEqual(leftBoards, rightBoards, normalizeBoard) {
+export function normalizeMondayCachedBoards(boards, normalizeBoard) {
   if (typeof normalizeBoard !== "function") {
-    return false;
+    return [];
   }
 
-  const left = arrayOrEmpty(leftBoards).map(normalizeBoard).filter(Boolean);
-  const right = arrayOrEmpty(rightBoards).map(normalizeBoard).filter(Boolean);
+  return arrayOrEmpty(boards).map(normalizeBoard).filter(Boolean);
+}
+
+export function areMondayCachedBoardsEqual(leftBoards, rightBoards, normalizeBoard) {
+  const left = normalizeMondayCachedBoards(leftBoards, normalizeBoard);
+  const right = normalizeMondayCachedBoards(rightBoards, normalizeBoard);
   return JSON.stringify(left) === JSON.stringify(right);
 }
 
