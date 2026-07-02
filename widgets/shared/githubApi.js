@@ -1,8 +1,10 @@
+import { parseJsonOrFallback } from "../../core/utils/json.js";
 import { normalizeIntegerInRange } from "../../core/utils/number.js";
 import { normalizeText } from "../../core/utils/text.js";
 
 export const GITHUB_API_BASE = "https://api.github.com";
 export const GITHUB_WEB_BASE = "https://github.com";
+const GITHUB_JSON_PARSE_FAILED = Symbol("github-json-parse-failed");
 
 function isRepoSegment(value) {
   return /^[A-Za-z0-9_.-]+$/.test(value);
@@ -104,15 +106,24 @@ export function formatGitHubSyncedLabel(timestampMs) {
 
 export function parseGitHubError(text, status) {
   const fallback = normalizeText(text, `GitHub request failed: HTTP ${status}`);
-  try {
-    const parsed = JSON.parse(text);
-    const message = normalizeText(parsed?.message);
-    if (message) {
-      return message;
-    }
-  } catch {
+  const parsed = parseJsonOrFallback(text, null);
+  const message = normalizeText(parsed?.message);
+  if (message) {
+    return message;
   }
   return fallback;
+}
+
+export function parseGitHubJsonResponse(text, fallback = null) {
+  if (!normalizeText(text)) {
+    return fallback;
+  }
+
+  const parsed = parseJsonOrFallback(text, GITHUB_JSON_PARSE_FAILED);
+  if (parsed === GITHUB_JSON_PARSE_FAILED) {
+    throw new Error("GitHub response parse failed.");
+  }
+  return parsed;
 }
 
 export function buildGitHubApiHeaders(accessToken) {

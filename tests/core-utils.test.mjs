@@ -10,7 +10,7 @@ import { normalizeErrorMessage } from "../core/utils/error.js";
 import { callIfFunction } from "../core/utils/function.js";
 import { pointInsideRect } from "../core/utils/geometry.js";
 import { snapToHalfGridTrack } from "../core/utils/grid.js";
-import { parseJsonOrNull } from "../core/utils/json.js";
+import { parseJsonOrFallback, parseJsonOrNull } from "../core/utils/json.js";
 import {
   clamp,
   clampFiniteOrMin,
@@ -83,6 +83,14 @@ test("parseJsonOrNull parses JSON objects and ignores invalid input", () => {
   assert.equal(parseJsonOrNull(""), null);
   assert.equal(parseJsonOrNull("not-json"), null);
   assert.equal(parseJsonOrNull({ ok: true }), null);
+});
+
+test("parseJsonOrFallback preserves valid null and custom invalid fallbacks", () => {
+  const fallback = { fallback: true };
+  assert.deepEqual(parseJsonOrFallback(" { \"ok\": true } ", fallback), { ok: true });
+  assert.equal(parseJsonOrFallback("null", fallback), null);
+  assert.equal(parseJsonOrFallback("", fallback), fallback);
+  assert.equal(parseJsonOrFallback("not-json", fallback), fallback);
 });
 
 test("callIfFunction returns undefined for non-functions and forwards arguments", () => {
@@ -561,7 +569,9 @@ test("GitHub widgets share repository and API helpers", async () => {
     const source = await fs.readFile(moduleUrl, "utf8");
     assert.match(source, /shared\/githubApi\.js/, moduleUrl.pathname);
     assert.match(source, /buildGitHubRepoApiUrl/, moduleUrl.pathname);
+    assert.match(source, /parseGitHubJsonResponse/, moduleUrl.pathname);
     assert.doesNotMatch(source, localGitHubPattern, moduleUrl.pathname);
+    assert.doesNotMatch(source, /JSON\.parse/, moduleUrl.pathname);
     assert.doesNotMatch(source, /new URLSearchParams\(/, moduleUrl.pathname);
     assert.doesNotMatch(source, /\/repos\/\$\{/, moduleUrl.pathname);
     assert.doesNotMatch(source, /githubRepositoryParts as repositoryParts/, moduleUrl.pathname);

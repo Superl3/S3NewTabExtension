@@ -11,7 +11,8 @@ import {
   normalizeGitHubRefreshMinutes as normalizeRefreshMinutes,
   normalizeGitHubRepository as normalizeRepository,
   normalizeGitHubReviewerNames as normalizeReviewerNames,
-  parseGitHubError
+  parseGitHubError,
+  parseGitHubJsonResponse
 } from "./shared/githubApi.js";
 
 const GITHUB_PR_ERROR_FALLBACK = "GitHub pull requests are not available. Check the repository setting and try again.";
@@ -159,12 +160,7 @@ async function fetchPullRequests(config) {
     throw new Error(parseGitHubError(bodyText, response.status));
   }
 
-  let payload;
-  try {
-    payload = bodyText ? JSON.parse(bodyText) : [];
-  } catch {
-    throw new Error("GitHub response parse failed.");
-  }
+  const payload = parseGitHubJsonResponse(bodyText, []);
 
   const list = Array.isArray(payload) ? payload : [];
 
