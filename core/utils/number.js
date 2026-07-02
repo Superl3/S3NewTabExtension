@@ -33,6 +33,14 @@ export function toPositiveInteger(value, fallback = 1) {
   return Math.max(1, Math.floor(numeric));
 }
 
+export function roundFiniteOrFallback(value, fallback = 0) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) {
+    return fallback;
+  }
+  return Math.round(numeric);
+}
+
 export function normalizeIntegerInRange(value, fallback, min, max) {
   const num = Number(value);
   const rounded = Number.isFinite(num) ? Math.round(num) : Math.round(fallback);

@@ -15,6 +15,7 @@ import {
   clamp,
   clampFiniteOrMin,
   normalizeIntegerInRange,
+  roundFiniteOrFallback,
   toFiniteNumber,
   toInteger,
   toPositiveInteger
@@ -70,6 +71,12 @@ test("normalizeIntegerInRange rounds finite values and clamps fallback values", 
   assert.equal(normalizeIntegerInRange("4.6", 1, 1, 10), 5);
   assert.equal(normalizeIntegerInRange("bad", 12, 1, 10), 10);
   assert.equal(normalizeIntegerInRange(-3, 2, 1, 10), 1);
+});
+
+test("roundFiniteOrFallback rounds finite values and preserves fallback values", () => {
+  assert.equal(roundFiniteOrFallback("4.6", 1), 5);
+  assert.equal(roundFiniteOrFallback("bad", 1.4), 1.4);
+  assert.equal(roundFiniteOrFallback(null, 7), 0);
 });
 
 test("normalizeErrorMessage returns safe fallback text", () => {
@@ -405,6 +412,15 @@ test("core drag modules use shared browser and grid helpers instead of local cop
     assert.match(source, /utils\/grid\.js/, moduleUrl.pathname);
     assert.doesNotMatch(source, /^function snapToHalfGridTrack\(/m, moduleUrl.pathname);
   }
+});
+
+test("drag layering uses shared number helpers for z-index normalization", async () => {
+  const source = await fs.readFile(new URL("../core/drag-layering.js", import.meta.url), "utf8");
+  assert.match(source, /utils\/number\.js/);
+  assert.match(source, /roundFiniteOrFallback/);
+  assert.match(source, /normalizeIntegerInRange/);
+  assert.doesNotMatch(source, /const numeric = Number\((value|cardZIndex)\)/);
+  assert.doesNotMatch(source, /Number\.isFinite\(numeric\)/);
 });
 
 async function collectWidgetSources(dirUrl) {

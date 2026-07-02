@@ -35,6 +35,8 @@ test("folder panel remains above its source card while staying below drag overla
 test("folder panel layering stays above ordinary cards when source z-index is in range", () => {
   assert.equal(resolveFolderPanelZIndex(12), 13);
   assert.equal(resolveFolderPanelZIndex(Number.NaN), 2);
+  assert.equal(resolveFolderPanelZIndex(""), 2);
+  assert.equal(resolveFolderPanelZIndex(MAX_CONTENT_Z_INDEX + 100), MAX_CONTENT_Z_INDEX);
 });
 
 test("createWidgetDragPreview uses preview layer above normalized content", () => {
@@ -144,5 +146,8 @@ test("createWidgetDragPreview keeps long-press pointer misses anchored to top-le
 
 test("raw content z-index state stays unbounded while display z-index is normalized", () => {
   assert.equal(normalizeRawContentZIndex(999999), 999999);
+  assert.equal(normalizeRawContentZIndex("4.6"), 5);
+  assert.equal(normalizeRawContentZIndex("bad", { fallback: 1.4, min: 1 }), 1.4);
+  assert.equal(normalizeRawContentZIndex(null), 1);
   assert.equal(resolveCardContentZIndex(999999, 999999), MAX_CARD_Z_INDEX);
 });
