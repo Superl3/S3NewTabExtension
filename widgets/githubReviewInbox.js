@@ -47,6 +47,7 @@ const REVIEW_INBOX_SWIPE_IGNORE_ANIM_MS = 190;
 const REVIEW_INBOX_SWIPE_RESET_ANIM_MS = 170;
 const REVIEW_INBOX_SWIPE_VERTICAL_TOLERANCE_RATIO = 0.75;
 const REVIEW_INBOX_READ_ITEMS_STORAGE_KEY = "s3:github-review-inbox-read-items:v1";
+const REVIEW_INBOX_DETAIL_PAGE_QUERY = { per_page: 100 };
 
 const REVIEW_INBOX_TABS = [
   { id: REVIEW_INBOX_TAB_NEEDS_REVIEW, label: "requested" },
@@ -336,22 +337,6 @@ function buildOpenPullsApiUrl(repository) {
   });
 }
 
-function buildIssueCommentsApiUrl(repository, number) {
-  return buildGitHubRepoApiUrl(repository, ["issues", number, "comments"], { per_page: 100 });
-}
-
-function buildReviewsApiUrl(repository, number) {
-  return buildGitHubRepoApiUrl(repository, ["pulls", number, "reviews"], { per_page: 100 });
-}
-
-function buildReviewCommentsApiUrl(repository, number) {
-  return buildGitHubRepoApiUrl(repository, ["pulls", number, "comments"], { per_page: 100 });
-}
-
-function buildCommitsApiUrl(repository, number) {
-  return buildGitHubRepoApiUrl(repository, ["pulls", number, "commits"], { per_page: 100 });
-}
-
 function normalizeCachedItem(entry) {
   const id = normalizeText(entry?.id);
   if (!id) {
@@ -499,12 +484,15 @@ async function fetchReviewInboxItems(config) {
       continue;
     }
 
-    const [reviews, issueComments, reviewComments, commits] = await Promise.all([
-      fetchPagedJson(buildReviewsApiUrl(config.repository, pullNumber), headers, 20),
-      fetchPagedJson(buildIssueCommentsApiUrl(config.repository, pullNumber), headers, 20),
-      fetchPagedJson(buildReviewCommentsApiUrl(config.repository, pullNumber), headers, 20),
-      fetchPagedJson(buildCommitsApiUrl(config.repository, pullNumber), headers, 20)
-    ]);
+    const reviewDetailUrls = [
+      ["pulls", pullNumber, "reviews"],
+      ["issues", pullNumber, "comments"],
+      ["pulls", pullNumber, "comments"],
+      ["pulls", pullNumber, "commits"]
+    ].map((pathParts) => buildGitHubRepoApiUrl(config.repository, pathParts, REVIEW_INBOX_DETAIL_PAGE_QUERY));
+    const [reviews, issueComments, reviewComments, commits] = await Promise.all(
+      reviewDetailUrls.map((url) => fetchPagedJson(url, headers, 20))
+    );
 
     const candidate = buildReviewCandidate({
       pullRequest: pull,
