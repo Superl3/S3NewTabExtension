@@ -59,6 +59,10 @@ function toCachedPullItem(entry) {
   return cachedItem;
 }
 
+function sortPullItemsByUpdatedAt(items) {
+  return arrayOrEmpty(items).slice().sort((a, b) => b.updatedAt - a.updatedAt);
+}
+
 function readCachedSnapshot(rawConfig, cfg) {
   if (!cfg.repository) {
     return null;
@@ -82,10 +86,7 @@ function readCachedSnapshot(rawConfig, cfg) {
   }
 
   return {
-    pullItems: cachedPullItems
-      .slice()
-      .sort((a, b) => b.updatedAt - a.updatedAt)
-      .slice(0, cfg.maxItems),
+    pullItems: sortPullItemsByUpdatedAt(cachedPullItems).slice(0, cfg.maxItems),
     cacheAt
   };
 }
@@ -165,8 +166,7 @@ async function fetchPullRequests(config) {
     };
   });
 
-  mapped.sort((a, b) => b.updatedAt - a.updatedAt);
-  return mapped;
+  return sortPullItemsByUpdatedAt(mapped);
 }
 
 export const githubPrListWidget = {
