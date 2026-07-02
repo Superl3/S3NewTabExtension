@@ -61,6 +61,22 @@ test("core style and layout modules share number utilities for rounded clamps", 
   }
 });
 
+test("core modules use the shared text normalizer instead of local copies", async () => {
+  const moduleUrls = [
+    new URL("../core/container-state.js", import.meta.url),
+    new URL("../core/dock-state.js", import.meta.url),
+    new URL("../core/drag-preview.js", import.meta.url),
+    new URL("../core/home-layout.js", import.meta.url),
+    new URL("../core/settings-controls.js", import.meta.url),
+    new URL("../core/settings-input-schema.js", import.meta.url)
+  ];
+
+  for (const moduleUrl of moduleUrls) {
+    const source = await fs.readFile(moduleUrl, "utf8");
+    assert.doesNotMatch(source, /^function normalizeText\(/m, moduleUrl.pathname);
+  }
+});
+
 async function collectWidgetSources(dirUrl) {
   const entries = await fs.readdir(dirUrl, { withFileTypes: true });
   const sources = [];

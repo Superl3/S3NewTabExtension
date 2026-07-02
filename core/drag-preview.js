@@ -1,9 +1,5 @@
 import { DRAG_PREVIEW_Z_INDEX } from "./drag-layering.js";
-
-function normalizeText(value, fallback = "") {
-  const text = String(value || "").trim();
-  return text || fallback;
-}
+import { normalizeText } from "./utils/text.js";
 
 function clamp(value, min, max) {
   if (!Number.isFinite(value)) {

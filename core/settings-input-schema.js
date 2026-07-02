@@ -1,7 +1,4 @@
-function normalizeText(value, fallback = "") {
-  const text = String(value || "").trim();
-  return text || fallback;
-}
+import { normalizeText } from "./utils/text.js";
 
 function resolveChromeApi(chromeApi = null) {
   if (chromeApi) {
