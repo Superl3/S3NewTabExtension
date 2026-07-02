@@ -1,3 +1,5 @@
+import { arrayOrEmpty } from "./utils/array.js";
+
 export function createContainerDropRuntime(deps) {
   function resolveContainerInsertIndexFromPointer(
     containerId,
@@ -47,7 +49,7 @@ export function createContainerDropRuntime(deps) {
       return filteredCards.length;
     }
 
-    const siblings = (deps.getInstances() || []).filter((entry) => {
+    const siblings = arrayOrEmpty(deps.getInstances()).filter((entry) => {
       if (!entry || entry.type === "container") {
         return false;
       }

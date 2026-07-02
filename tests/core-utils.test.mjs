@@ -283,6 +283,8 @@ test("array utility preserves arrays and normalizes non-arrays", () => {
 test("core layout modules use shared array fallback helper", async () => {
   const moduleUrls = [
     new URL("../core/board-grid-slot.js", import.meta.url),
+    new URL("../core/container-drop-runtime.js", import.meta.url),
+    new URL("../core/container-order-runtime.js", import.meta.url),
     new URL("../core/default-widget-order.js", import.meta.url),
     new URL("../core/dock-state.js", import.meta.url),
     new URL("../core/widget-add-plan.js", import.meta.url)
@@ -296,6 +298,12 @@ test("core layout modules use shared array fallback helper", async () => {
 
   const boardSlotSource = await fs.readFile(new URL("../core/board-grid-slot.js", import.meta.url), "utf8");
   assert.doesNotMatch(boardSlotSource, /Array\.isArray\(instances\) \? instances : \[\]/);
+
+  const containerDropSource = await fs.readFile(new URL("../core/container-drop-runtime.js", import.meta.url), "utf8");
+  assert.doesNotMatch(containerDropSource, /deps\.getInstances\(\) \|\| \[\]/);
+
+  const containerOrderSource = await fs.readFile(new URL("../core/container-order-runtime.js", import.meta.url), "utf8");
+  assert.doesNotMatch(containerOrderSource, /state\?\.instances \|\| \[\]/);
 
   const defaultOrderSource = await fs.readFile(new URL("../core/default-widget-order.js", import.meta.url), "utf8");
   assert.doesNotMatch(defaultOrderSource, /Array\.isArray\(widgetTypes\) \? widgetTypes : \[\]/);
