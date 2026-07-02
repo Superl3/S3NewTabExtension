@@ -1,4 +1,5 @@
 import { areBookmarksAvailable, resolveBookmarkRoot } from "../bookmarks.js";
+import { clamp } from "../core/utils/number.js";
 import { normalizeText } from "../core/utils/text.js";
 import { buildGoogleFaviconUrl, isUrlIcon, normalizeHttpUrl } from "./shared/linkUrls.js";
 
@@ -518,7 +519,7 @@ export const bookmarksWidget = {
       const token = ++renderToken;
       const cfg = getConfig();
       const fontScale = Number.isFinite(Number(cfg.fontScale)) ? Number(cfg.fontScale) : 1;
-      grid.style.setProperty("--bookmarks-font-scale", `${Math.min(1.6, Math.max(0.75, fontScale))}`);
+      grid.style.setProperty("--bookmarks-font-scale", `${clamp(fontScale, 0.75, 1.6)}`);
       grid.replaceChildren();
 
       try {

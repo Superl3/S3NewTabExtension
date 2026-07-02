@@ -1,3 +1,5 @@
+import { clamp } from "../core/utils/number.js";
+
 export const clockWidget = {
   type: "clock",
   title: "Clock",
@@ -215,8 +217,8 @@ export const clockWidget = {
       wrap.style.justifyItems = align === "left" ? "start" : align === "right" ? "end" : "center";
       timeEl.style.textAlign = align;
       dateEl.style.textAlign = align;
-      timeEl.style.fontSize = `${Math.min(6, Math.max(1, timeFontSize))}em`;
-      dateEl.style.fontSize = `${Math.min(2.4, Math.max(0.5, weekdayFontSize))}em`;
+      timeEl.style.fontSize = `${clamp(timeFontSize, 1, 6)}em`;
+      dateEl.style.fontSize = `${clamp(weekdayFontSize, 0.5, 2.4)}em`;
     }
 
     function render() {
