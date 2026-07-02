@@ -1,5 +1,14 @@
 import { normalizeText } from "../../core/utils/text.js";
 
+export function parseFeedXmlDocument(xmlText, parseErrorMessage) {
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(String(xmlText || ""), "application/xml");
+  if (doc.querySelector("parsererror")) {
+    throw new Error(parseErrorMessage);
+  }
+  return doc;
+}
+
 export function readFeedNodeText(parent, tagNames = []) {
   if (!parent) {
     return "";

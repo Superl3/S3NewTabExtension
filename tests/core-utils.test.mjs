@@ -647,6 +647,7 @@ test("feed widgets share XML helpers instead of local copies", async () => {
     const source = await fs.readFile(moduleUrl, "utf8");
     assert.match(source, /shared\/feedXml\.js/, moduleUrl.pathname);
     assert.doesNotMatch(source, localFeedXmlPattern, moduleUrl.pathname);
+    assert.doesNotMatch(source, /new DOMParser\(\)/, moduleUrl.pathname);
   }
 });
 

@@ -2,7 +2,11 @@ import { normalizeErrorMessage } from "../core/utils/error.js";
 import { normalizeIntegerInRange } from "../core/utils/number.js";
 import { normalizeText } from "../core/utils/text.js";
 import { formatLocalDateTimeLabel as formatDateLabel } from "./shared/dateLabels.js";
-import { readAtomAlternateLink as atomAlternateLink, readFeedNodeText as nodeText } from "./shared/feedXml.js";
+import {
+  parseFeedXmlDocument,
+  readAtomAlternateLink as atomAlternateLink,
+  readFeedNodeText as nodeText
+} from "./shared/feedXml.js";
 import { normalizeGoogleAccountIndex as normalizeAccountIndex } from "./shared/googleAccounts.js";
 
 const GMAIL_WEB_BASE_URL = "https://mail.google.com/mail";
@@ -82,20 +86,14 @@ function classifyFeedResponse(response, bodyText) {
 }
 
 function parseFeedXml(xmlText, accountIndex, responseUrl = "") {
-  const parser = new DOMParser();
-  const doc = parser.parseFromString(String(xmlText || ""), "application/xml");
-  const parseError = doc.querySelector("parsererror");
-  if (parseError) {
-    if (isGmailLoginPage(responseUrl, xmlText)) {
-      throw new Error("Gmail web session not found. Sign in to Gmail in this browser first.");
-    }
-    throw new Error("Gmail feed parse failed.");
-  }
+  const authErrorMessage = "Gmail web session not found. Sign in to Gmail in this browser first.";
+  const parseErrorMessage = isGmailLoginPage(responseUrl, xmlText) ? authErrorMessage : "Gmail feed parse failed.";
+  const doc = parseFeedXmlDocument(xmlText, parseErrorMessage);
 
   const feed = doc.getElementsByTagName("feed")[0];
   if (!feed) {
     if (isGmailLoginPage(responseUrl, xmlText)) {
-      throw new Error("Gmail web session not found. Sign in to Gmail in this browser first.");
+      throw new Error(authErrorMessage);
     }
     throw new Error("Unsupported Gmail feed format.");
   }
