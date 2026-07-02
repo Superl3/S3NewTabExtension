@@ -15,7 +15,10 @@ import {
   hasAuthSessionStorageChange,
   resolveActiveAuthSession
 } from "../widgets/shared/authSessionStorage.js";
-import { resolveAiChatActiveSession } from "../widgets/aiChat.js";
+import {
+  normalizeAiChatTemperature,
+  resolveAiChatActiveSession
+} from "../widgets/aiChat.js";
 
 test("normalizes connector URL and removes hash", () => {
   assert.equal(
@@ -124,6 +127,14 @@ test("aiChat prefers configured access token over stored session", () => {
     accessToken: "configured-token",
     accountLabel: "Configured token"
   });
+});
+
+test("aiChat temperature normalization preserves request payload semantics", () => {
+  assert.equal(normalizeAiChatTemperature("1.2"), 1.2);
+  assert.equal(normalizeAiChatTemperature(""), 0);
+  assert.equal(normalizeAiChatTemperature(null), 0.7);
+  assert.equal(normalizeAiChatTemperature(undefined), 0.7);
+  assert.equal(normalizeAiChatTemperature("bad"), 0.7);
 });
 
 test("aiChat only reuses stored session for matching connector URL", () => {
