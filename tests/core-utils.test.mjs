@@ -422,6 +422,13 @@ test("core modules use the shared finite clamp helper instead of local copies", 
   }
 });
 
+test("home layout uses shared truthy fallback for grid dimensions", async () => {
+  const source = await fs.readFile(new URL("../core/home-layout.js", import.meta.url), "utf8");
+  assert.match(source, /toTruthyNumberOrFallback\(base\.gridColumns, 4\)/);
+  assert.match(source, /toTruthyNumberOrFallback\(base\.gridRows, 3\)/);
+  assert.doesNotMatch(source, /Number\(base\.grid(?:Columns|Rows)\) \|\| [43]/);
+});
+
 test("core drag and resize modules use the shared finite number helper", async () => {
   const moduleUrls = [
     new URL("../core/board-swipe.js", import.meta.url),

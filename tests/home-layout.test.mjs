@@ -47,6 +47,24 @@ test("normalizes home layout values and clamps ranges", () => {
   assert.equal(normalized.dockHeight, 72);
 });
 
+test("normalizes home grid dimensions with truthy fallback before finite clamp", () => {
+  const fallbackNormalized = normalizeHomeLayout({
+    gridColumns: 0,
+    gridRows: "bad"
+  });
+
+  assert.equal(fallbackNormalized.gridColumns, 4);
+  assert.equal(fallbackNormalized.gridRows, 3);
+
+  const nonFiniteNormalized = normalizeHomeLayout({
+    gridColumns: Number.POSITIVE_INFINITY,
+    gridRows: Number.POSITIVE_INFINITY
+  });
+
+  assert.equal(nonFiniteNormalized.gridColumns, 1);
+  assert.equal(nonFiniteNormalized.gridRows, 1);
+});
+
 test("converts margin and gap presets to pixels", () => {
   assert.equal(marginPresetToPx("wide"), 40);
   assert.equal(marginPresetToPx("none"), 0);
