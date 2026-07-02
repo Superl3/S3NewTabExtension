@@ -223,6 +223,21 @@ test("core modules use the shared optional function caller instead of local wrap
   }
 });
 
+test("core chrome modules use the shared chrome API resolver", async () => {
+  const moduleUrls = [
+    new URL("../core/platform/chrome-callback.js", import.meta.url),
+    new URL("../core/platform/chrome-scripting.js", import.meta.url),
+    new URL("../core/platform/chrome-tabs.js", import.meta.url),
+    new URL("../core/settings-input-schema.js", import.meta.url)
+  ];
+
+  for (const moduleUrl of moduleUrls) {
+    const source = await fs.readFile(moduleUrl, "utf8");
+    assert.match(source, /chrome-api\.js/, moduleUrl.pathname);
+    assert.doesNotMatch(source, /^function resolveChromeApi\(/m, moduleUrl.pathname);
+  }
+});
+
 async function collectWidgetSources(dirUrl) {
   const entries = await fs.readdir(dirUrl, { withFileTypes: true });
   const sources = [];

@@ -1,11 +1,5 @@
+import { resolveChromeApi } from "./platform/chrome-api.js";
 import { normalizeText } from "./utils/text.js";
-
-function resolveChromeApi(chromeApi = null) {
-  if (chromeApi) {
-    return chromeApi;
-  }
-  return globalThis.chrome || null;
-}
 
 export function createInputBySchema(schema = {}, value, { chromeApi = null } = {}) {
   if (schema.type === "textarea") {

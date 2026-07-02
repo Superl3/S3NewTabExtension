@@ -1,8 +1,5 @@
+import { resolveChromeApi } from "./chrome-api.js";
 import { fromChromeCallback } from "./chrome-callback.js";
-
-function resolveChromeApi(chromeApi) {
-  return chromeApi ?? globalThis.chrome;
-}
 
 function isValidTabId(value) {
   return Number.isInteger(value) && value >= 0;

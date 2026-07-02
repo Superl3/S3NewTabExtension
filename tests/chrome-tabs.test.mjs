@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
+import { resolveChromeApi } from "../core/platform/chrome-api.js";
 import { fromChromeCallback } from "../core/platform/chrome-callback.js";
 import {
   createTab,
@@ -64,6 +65,18 @@ function createChromeApi() {
     }
   };
 }
+
+test("resolveChromeApi prefers injected API and falls back to global chrome", () => {
+  const injected = { runtime: {} };
+  const previousChrome = globalThis.chrome;
+  globalThis.chrome = { tabs: {} };
+  try {
+    assert.equal(resolveChromeApi(injected), injected);
+    assert.equal(resolveChromeApi(), globalThis.chrome);
+  } finally {
+    globalThis.chrome = previousChrome;
+  }
+});
 
 test("fromChromeCallback resolves callback results", async () => {
   const { chromeApi } = createChromeApi();
