@@ -1339,6 +1339,8 @@ test("GitHub widgets use shared array fallback helper", async () => {
   assert.doesNotMatch(prListSource, /Array\.isArray\(payload\) \? payload : \[\]/);
   assert.doesNotMatch(prListSource, /Array\.isArray\(item\?\.requested_teams\)/);
   assert.doesNotMatch(prListSource, /Array\.isArray\(currentCfg\?\.cachePullItems\)/);
+  assert.match(prListSource, /const \{ updatedLabel, \.\.\.cachedItem \} = normalized;/);
+  assert.doesNotMatch(prListSource, /updatedLabel: normalized\.updatedLabel/);
 
   const inboxSource = await fs.readFile(new URL("../widgets/githubReviewInbox.js", import.meta.url), "utf8");
   assert.doesNotMatch(inboxSource, /Array\.isArray\(items\) \? items : \[\]/);

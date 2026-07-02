@@ -55,20 +55,8 @@ function toCachedPullItem(entry) {
     return null;
   }
 
-  return {
-    id: normalized.id,
-    number: normalized.number,
-    title: normalized.title,
-    htmlUrl: normalized.htmlUrl,
-    author: normalized.author,
-    draft: normalized.draft,
-    updatedAt: normalized.updatedAt,
-    headRef: normalized.headRef,
-    baseRef: normalized.baseRef,
-    reviewRequested: normalized.reviewRequested,
-    reviewerNames: normalized.reviewerNames,
-    teamCount: normalized.teamCount
-  };
+  const { updatedLabel, ...cachedItem } = normalized;
+  return cachedItem;
 }
 
 function readCachedSnapshot(rawConfig, cfg) {
