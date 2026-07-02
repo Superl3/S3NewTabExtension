@@ -347,3 +347,16 @@ test("Flex worktime widgets share URL helpers instead of local copies", async ()
     assert.doesNotMatch(source, localUrlPattern, moduleUrl.pathname);
   }
 });
+
+test("Flex worktime widgets share the Flex Home scrape extractor", async () => {
+  const moduleUrls = [
+    new URL("../widgets/flexWorktime.js", import.meta.url),
+    new URL("../widgets/flexWorktimeTimeline.js", import.meta.url)
+  ];
+
+  for (const moduleUrl of moduleUrls) {
+    const source = await fs.readFile(moduleUrl, "utf8");
+    assert.match(source, /shared\/flexHomeScrape\.js/, moduleUrl.pathname);
+    assert.doesNotMatch(source, /^async function extractFlexHomeWorktimeFromTab\(/m, moduleUrl.pathname);
+  }
+});

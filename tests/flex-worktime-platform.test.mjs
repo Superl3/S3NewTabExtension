@@ -6,6 +6,7 @@ import {
   flexWorktimeWidget
 } from "../widgets/flexWorktime.js";
 import {
+  fetchFlexHomeScrapeRows as fetchTimelineFlexHomeScrapeRows,
   fetchFlexWorkRecordRows,
   fetchFlexWorkRecordTimeline,
   flexWorktimeTimelineWidget
@@ -267,6 +268,31 @@ test("fetchFlexHomeScrapeRows uses platform wrappers for temporary Flex tab scra
     assert.equal(rows[0].durationLabel, "8시간 12분");
     assert.equal(rows[0].rawEntry.sourceMode, "flexHomeScrape");
     assert.equal(rows[0].rawEntry.queryDate, "2026-04-02");
+  } finally {
+    globalThis.chrome = originalChrome;
+  }
+});
+
+test("timeline fetchFlexHomeScrapeRows reuses the shared Flex Home scrape", async () => {
+  const harness = createChromeHarness();
+  const originalChrome = globalThis.chrome;
+  globalThis.chrome = harness.chrome;
+
+  try {
+    const rows = await fetchTimelineFlexHomeScrapeRows(
+      {
+        flexHomeUrl: "https://flex.team/home",
+        openFlexTabIfMissing: true
+      },
+      "2026-04-03",
+      { reusableTabIds: {} }
+    );
+
+    assert.deepEqual(harness.calls.create, [{ url: "https://flex.team/home", active: false }]);
+    assert.equal(harness.calls.executeScript.length, 1);
+    assert.equal(rows.length, 1);
+    assert.equal(rows[0].rawEntry.sourceMode, "flexHomeScrape");
+    assert.equal(rows[0].rawEntry.queryDate, "2026-04-03");
   } finally {
     globalThis.chrome = originalChrome;
   }
