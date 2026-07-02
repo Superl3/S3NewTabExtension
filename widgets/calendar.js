@@ -2,6 +2,7 @@ import { normalizeErrorMessage } from "../core/utils/error.js";
 import { normalizeIntegerInRange } from "../core/utils/number.js";
 import { normalizeText } from "../core/utils/text.js";
 import { parseIcsEvents } from "./shared/icsParser.js";
+import { normalizeHttpUrl } from "./shared/linkUrls.js";
 
 const GOOGLE_CALENDAR_HOST = "https://calendar.google.com";
 const GOOGLE_CALENDAR_WEB_URL = `${GOOGLE_CALENDAR_HOST}/calendar/u/0/r`;
@@ -60,23 +61,6 @@ function normalizeIcsUrl(value) {
   }
 }
 
-function normalizeEventLink(value, fallback = GOOGLE_CALENDAR_WEB_URL) {
-  const text = normalizeText(value);
-  if (!text) {
-    return fallback;
-  }
-
-  try {
-    const parsed = new URL(text);
-    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
-      return fallback;
-    }
-    return parsed.toString();
-  } catch {
-    return fallback;
-  }
-}
-
 function toLocalDateKey(date) {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, "0");
@@ -94,7 +78,7 @@ function mapCalendarEvents(parsedEvents, fallbackLink) {
       id: event.id,
       title: event.title,
       location: event.location,
-      link: normalizeEventLink(event.url, fallbackLink),
+      link: normalizeHttpUrl(event.url, fallbackLink),
       allDay: event.allDay,
       startTs: event.startTs,
       dateKey: event.dateKey,
@@ -606,7 +590,7 @@ export const calendarWidget = {
 
         const link = document.createElement("a");
         link.className = "calendar-event-link";
-        link.href = normalizeEventLink(event.link, calendarHomeHref);
+        link.href = normalizeHttpUrl(event.link, calendarHomeHref);
         link.target = cfg.openInNewTab ? "_blank" : "_self";
         link.rel = "noreferrer";
 
