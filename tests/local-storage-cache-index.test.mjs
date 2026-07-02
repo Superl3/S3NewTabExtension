@@ -44,13 +44,14 @@ test("touchCacheIndex keeps newest entries and removes older keys", () => {
   storage.setItem("cache:b", JSON.stringify({ fetchedAt: 20 }));
   storage.setItem("cache:c", JSON.stringify({ fetchedAt: 30 }));
 
-  touchCacheIndex(storage, { ...options, key: "cache:a", fetchedAt: 40, maxEntries: 2 });
+  touchCacheIndex(storage, { ...options, key: "cache:a", fetchedAt: 40.8, maxEntries: 2.8 });
 
   const index = readCacheIndex(storage, options);
   assert.deepEqual(
     index.map((entry) => entry.key),
     ["cache:a", "cache:c"]
   );
+  assert.equal(index[0].fetchedAt, 40);
   assert.equal(storage.getItem("cache:b"), null);
 });
 
@@ -64,6 +65,14 @@ test("readCacheIndex falls back to storage scan when index is missing", () => {
     index.map((entry) => entry.key),
     ["cache:two", "cache:one"]
   );
+});
+
+test("readCacheIndex normalizes invalid fetchedAt values to zero", () => {
+  const storage = new FakeStorage();
+  storage.setItem("cache:zero", JSON.stringify({ fetchedAt: "bad" }));
+
+  const index = readCacheIndex(storage, options);
+  assert.deepEqual(index, [{ key: "cache:zero", fetchedAt: 0 }]);
 });
 
 test("pruneCacheIndex trims index and removes stale keys", () => {
@@ -85,5 +94,17 @@ test("pruneCacheIndex trims index and removes stale keys", () => {
   const index = readCacheIndex(storage, options);
   assert.deepEqual(index.map((entry) => entry.key), ["cache:new"]);
   assert.equal(storage.getItem("cache:mid"), null);
+  assert.equal(storage.getItem("cache:old"), null);
+});
+
+test("pruneCacheIndex falls back invalid maxEntries to one", () => {
+  const storage = new FakeStorage();
+  storage.setItem("cache:new", JSON.stringify({ fetchedAt: 300 }));
+  storage.setItem("cache:old", JSON.stringify({ fetchedAt: 100 }));
+
+  pruneCacheIndex(storage, { ...options, maxEntries: "bad" });
+
+  const index = readCacheIndex(storage, options);
+  assert.deepEqual(index.map((entry) => entry.key), ["cache:new"]);
   assert.equal(storage.getItem("cache:old"), null);
 });
