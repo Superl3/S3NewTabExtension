@@ -1030,14 +1030,14 @@ async function extractFlexWorkRecordTimelineFromTab(tabId, queryDate) {
         }
 
         const candidateScores = new Map();
-        const tooltipNodes = Array.from(scanRoot.querySelectorAll?.(TOOLTIP_SELECTOR) || []);
+        const tooltipNodes = Array.from(scanRoot.querySelectorAll?.(TOOLTIP_SELECTOR) ?? []);
         for (const node of tooltipNodes) {
           for (const text of collectElementTexts(node)) {
             addCandidate(candidateScores, text, 120);
           }
         }
 
-        const attributeNodes = Array.from(scanRoot.querySelectorAll?.("[title], [aria-label], [data-tooltip], [data-tip]") || []);
+        const attributeNodes = Array.from(scanRoot.querySelectorAll?.("[title], [aria-label], [data-tooltip], [data-tip]") ?? []);
         for (const node of attributeNodes) {
           for (const text of collectElementTexts(node)) {
             addCandidate(candidateScores, text, 70);
