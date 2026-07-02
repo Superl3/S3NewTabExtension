@@ -1,35 +1,30 @@
-function clamp(value, min, max) {
-  if (!Number.isFinite(value)) {
-    return min;
-  }
-  return Math.min(max, Math.max(min, value));
-}
+import { clampFiniteOrMin } from "./utils/number.js";
 
 export function normalizePageCount(value, fallback = 1, maxPages = 12) {
   const max = Math.max(1, Math.floor(Number(maxPages) || 12));
   const num = Number(value);
   if (!Number.isFinite(num)) {
-    return clamp(Math.floor(fallback), 1, max);
+    return clampFiniteOrMin(Math.floor(fallback), 1, max);
   }
-  return clamp(Math.floor(num), 1, max);
+  return clampFiniteOrMin(Math.floor(num), 1, max);
 }
 
 export function normalizeActivePage(value, pageCount = 1, fallback = 0) {
   const maxPage = Math.max(0, normalizePageCount(pageCount, 1) - 1);
   const num = Number(value);
   if (!Number.isFinite(num)) {
-    return clamp(Math.floor(fallback), 0, maxPage);
+    return clampFiniteOrMin(Math.floor(fallback), 0, maxPage);
   }
-  return clamp(Math.floor(num), 0, maxPage);
+  return clampFiniteOrMin(Math.floor(num), 0, maxPage);
 }
 
 export function normalizeWidgetPage(value, pageCount = 12, fallback = 0) {
   const num = Number(value);
   const maxPage = Math.max(0, normalizePageCount(pageCount, 1) - 1);
   if (!Number.isFinite(num)) {
-    return clamp(Math.floor(fallback), 0, maxPage);
+    return clampFiniteOrMin(Math.floor(fallback), 0, maxPage);
   }
-  return clamp(Math.floor(num), 0, maxPage);
+  return clampFiniteOrMin(Math.floor(num), 0, maxPage);
 }
 
 export function normalizeLauncherPageIndexList(value, pageCount = 1) {

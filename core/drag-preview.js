@@ -1,12 +1,6 @@
 import { DRAG_PREVIEW_Z_INDEX } from "./drag-layering.js";
+import { clampFiniteOrMin } from "./utils/number.js";
 import { normalizeText } from "./utils/text.js";
-
-function clamp(value, min, max) {
-  if (!Number.isFinite(value)) {
-    return min;
-  }
-  return Math.min(max, Math.max(min, value));
-}
 
 export function createWidgetDragPreview(instance, options = {}) {
   const sourceCard = options?.sourceCard;
@@ -40,11 +34,11 @@ export function createWidgetDragPreview(instance, options = {}) {
     const rawOffsetY = Number.isFinite(pointerY) ? pointerY - rect.top : Number.NaN;
     const offsetX =
       Number.isFinite(rawOffsetX)
-        ? (fallbackToTopLeft && rawOffsetX > rect.width ? 0 : clamp(rawOffsetX, 0, rect.width))
+        ? (fallbackToTopLeft && rawOffsetX > rect.width ? 0 : clampFiniteOrMin(rawOffsetX, 0, rect.width))
         : rect.width / 2;
     const offsetY =
       Number.isFinite(rawOffsetY)
-        ? (fallbackToTopLeft && rawOffsetY > rect.height ? 0 : clamp(rawOffsetY, 0, rect.height))
+        ? (fallbackToTopLeft && rawOffsetY > rect.height ? 0 : clampFiniteOrMin(rawOffsetY, 0, rect.height))
         : rect.height / 2;
 
     preview.dataset.dragOffsetX = String(offsetX);

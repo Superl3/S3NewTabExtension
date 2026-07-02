@@ -1,9 +1,4 @@
-function clamp(value, min, max) {
-  if (!Number.isFinite(value)) {
-    return min;
-  }
-  return Math.min(max, Math.max(min, value));
-}
+import { clampFiniteOrMin } from "./utils/number.js";
 
 function toFinite(value, fallback = 0) {
   const numeric = Number(value);
@@ -29,8 +24,8 @@ export function resolveGridResizeLayout(startGrid = {}, metrics = {}, pointer = 
 
   return {
     ...startGrid,
-    colSpan: clamp(startColSpan + dCol, 1, maxColSpan),
-    rowSpan: clamp(startRowSpan + dRow, 1, maxRowSpan)
+    colSpan: clampFiniteOrMin(startColSpan + dCol, 1, maxColSpan),
+    rowSpan: clampFiniteOrMin(startRowSpan + dRow, 1, maxRowSpan)
   };
 }
 
@@ -51,8 +46,8 @@ export function resolveFreeResizeDimensions(
   const minH = Math.min(80, maxH);
 
   return {
-    w: clamp(toFinite(startW, minW) + toFinite(dx, 0), minW, maxW),
-    h: clamp(toFinite(startH, minH) + toFinite(dy, 0), minH, maxH)
+    w: clampFiniteOrMin(toFinite(startW, minW) + toFinite(dx, 0), minW, maxW),
+    h: clampFiniteOrMin(toFinite(startH, minH) + toFinite(dy, 0), minH, maxH)
   };
 }
 

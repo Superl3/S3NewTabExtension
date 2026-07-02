@@ -1,9 +1,4 @@
-function clamp(value, min, max) {
-  if (!Number.isFinite(value)) {
-    return min;
-  }
-  return Math.min(max, Math.max(min, value));
-}
+import { clampFiniteOrMin } from "./utils/number.js";
 
 export function resolveBoardSwipeStartState(dx, dy, { minDx = 3, axisRatio = 0.55 } = {}) {
   const absX = Math.abs(Number(dx) || 0);
@@ -23,7 +18,7 @@ export function resolveBoardSwipeStartState(dx, dy, { minDx = 3, axisRatio = 0.5
 export function resolveBoardSwipeThreshold(boardWidth, { min = 34, max = 130, ratio = 0.14 } = {}) {
   const width = Number.isFinite(Number(boardWidth)) ? Number(boardWidth) : 1;
   const raw = Math.round(width * ratio);
-  return clamp(raw, min, max);
+  return clampFiniteOrMin(raw, min, max);
 }
 
 export function resolveBoardSwipeNextPage(
@@ -48,5 +43,5 @@ export function resolveBoardSwipeNextPage(
     nextPage = currentPage - 1;
   }
 
-  return clamp(nextPage, minPage, maxPage);
+  return clampFiniteOrMin(nextPage, minPage, maxPage);
 }

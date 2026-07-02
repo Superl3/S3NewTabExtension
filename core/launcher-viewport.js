@@ -1,9 +1,4 @@
-function clamp(value, min, max) {
-  if (!Number.isFinite(value)) {
-    return min;
-  }
-  return Math.min(max, Math.max(min, value));
-}
+import { clampFiniteOrMin } from "./utils/number.js";
 
 export function isPlaceholderLauncherPage(page, pageCount = 1) {
   return page === -1 || page === pageCount;
@@ -23,7 +18,7 @@ export function resolveLauncherViewportPage({
   virtualPage = null,
   allowPlaceholderPages = false
 } = {}) {
-  const active = clamp(Math.floor(Number(activePage) || 0), 0, Math.max(0, Math.floor(Number(pageCount) || 1) - 1));
+  const active = clampFiniteOrMin(Math.floor(Number(activePage) || 0), 0, Math.max(0, Math.floor(Number(pageCount) || 1) - 1));
   if (!allowPlaceholderPages) {
     return active;
   }
@@ -34,7 +29,7 @@ export function resolveLauncherViewportPage({
     return active;
   }
 
-  return clamp(Math.floor(virtual), -1, Math.max(1, Math.floor(Number(pageCount) || 1)));
+  return clampFiniteOrMin(Math.floor(virtual), -1, Math.max(1, Math.floor(Number(pageCount) || 1)));
 }
 
 export function clampLauncherVirtualPage(value, pageCount = 1) {
@@ -42,5 +37,5 @@ export function clampLauncherVirtualPage(value, pageCount = 1) {
   if (!Number.isFinite(page)) {
     return null;
   }
-  return clamp(Math.floor(page), -1, Math.max(1, Math.floor(Number(pageCount) || 1)));
+  return clampFiniteOrMin(Math.floor(page), -1, Math.max(1, Math.floor(Number(pageCount) || 1)));
 }
