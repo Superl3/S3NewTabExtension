@@ -18,6 +18,7 @@ import {
 import { formatLocalDateTimeLabel as formatDateLabel } from "./shared/dateLabels.js";
 import {
   createAuthSessionStorage,
+  hasActiveAuthConnection,
   hasAuthSessionStorageChange,
   resolveActiveAuthSession
 } from "./shared/authSessionStorage.js";
@@ -1239,16 +1240,12 @@ export const mondayAssignedWidget = {
     }
 
     function hasActiveConnection(config) {
-      const configuredToken = normalizeText(config?.accessToken);
-      if (configuredToken && accessToken === configuredToken) {
-        return true;
-      }
-      return (
-        connected &&
-        Boolean(accessToken) &&
-        Boolean(sessionConnectorUrl) &&
-        config.connectorUrl === sessionConnectorUrl
-      );
+      return hasActiveAuthConnection({
+        config,
+        connected,
+        accessToken,
+        sessionConnectorUrl
+      });
     }
 
     async function clearConnectionState({ clearStored = true } = {}) {

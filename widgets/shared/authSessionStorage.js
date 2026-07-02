@@ -54,6 +54,25 @@ export function resolveActiveAuthSession({
   return null;
 }
 
+export function hasActiveAuthConnection({
+  config = null,
+  connected = false,
+  accessToken = "",
+  sessionConnectorUrl = ""
+} = {}) {
+  const configuredToken = normalizeText(config?.accessToken);
+  if (configuredToken && accessToken === configuredToken) {
+    return true;
+  }
+
+  return (
+    connected &&
+    Boolean(accessToken) &&
+    Boolean(sessionConnectorUrl) &&
+    config?.connectorUrl === sessionConnectorUrl
+  );
+}
+
 export function hasAuthSessionStorageChange(changes, storageKey) {
   const normalizedStorageKey = normalizeText(storageKey);
   return Boolean(

@@ -15,6 +15,7 @@ import {
   normalizeLocalAuthConnectorUrl as normalizeConnectorUrl,
   rewriteAuthorizationLoadError
 } from "../widgets/shared/authConnector.js";
+import { hasActiveAuthConnection } from "../widgets/shared/authSessionStorage.js";
 import { formatLocalDateTimeLabel as formatDateLabel } from "../widgets/shared/dateLabels.js";
 import { MONDAY_AUTH_STORAGE_KEY } from "../widgets/shared/mondayConfig.js";
 import { parseUrlSafely } from "../widgets/shared/mondayClient.js";
@@ -41,6 +42,7 @@ async function loadWidgetInternals(relativePath, exportedNames, injected = {}) {
     getChromeIdentity: () => null,
     getChromeStorageChanges: () => null,
     getChromeStorageLocal: () => null,
+    hasActiveAuthConnection,
     isAuthCancelledMessage,
     LOCAL_AUTH_CONNECTOR_URL,
     MONDAY_AUTH_STORAGE_KEY,
