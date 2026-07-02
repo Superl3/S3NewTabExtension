@@ -1,8 +1,5 @@
 import { normalizeText } from "../utils/text.js";
-
-function resolveChromeApi(chromeApi) {
-  return chromeApi ?? globalThis.chrome;
-}
+import { resolveChromeApi } from "./chrome-api.js";
 
 export function fromChromeCallback(run, options = {}) {
   const { chromeApi = globalThis.chrome, fallbackMessage = "Browser API request failed." } = options;

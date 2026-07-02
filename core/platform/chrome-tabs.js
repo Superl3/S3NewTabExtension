@@ -1,11 +1,8 @@
+import { resolveChromeApi } from "./chrome-api.js";
 import { fromChromeCallback } from "./chrome-callback.js";
 
 const DEFAULT_READY_TIMEOUT_MS = 20000;
 const DEFAULT_READY_TIMEOUT_FLOOR_MS = 1000;
-
-function resolveChromeApi(chromeApi) {
-  return chromeApi ?? globalThis.chrome;
-}
 
 function resolveReadyTimeout(timeoutMs) {
   return Math.max(DEFAULT_READY_TIMEOUT_FLOOR_MS, Number(timeoutMs) || DEFAULT_READY_TIMEOUT_MS);
