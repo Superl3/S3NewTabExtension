@@ -1287,6 +1287,7 @@ test("GitHub widgets use shared array fallback helper", async () => {
   assert.doesNotMatch(inboxSource, /Array\.isArray\(payload\) \? payload : \[\]/);
   assert.doesNotMatch(inboxSource, /Array\.isArray\(tabData\?\.items\) \? tabData\.items : \[\]/);
   assert.doesNotMatch(inboxSource, /Array\.isArray\(rawConfig\?\.cacheReviewItems\)/);
+  assert.doesNotMatch(inboxSource, /Array\.isArray\(pull\?\.requested_(reviewers|teams)\)/);
 
   const inboxLogicSource = await fs.readFile(new URL("../widgets/shared/githubReviewInboxLogic.js", import.meta.url), "utf8");
   assert.doesNotMatch(inboxLogicSource, /Array\.isArray\(commits\)/);
