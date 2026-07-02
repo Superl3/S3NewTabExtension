@@ -1,11 +1,8 @@
+import { toInteger } from "../../core/utils/number.js";
 import { normalizeText } from "../../core/utils/text.js";
 
 export function normalizeBoardId(value, fallback = 0) {
-  const num = Number(value);
-  if (!Number.isFinite(num)) {
-    return Math.max(0, Math.floor(Number(fallback) || 0));
-  }
-  return Math.max(0, Math.floor(num));
+  return Math.max(0, toInteger(value, toInteger(fallback, 0) || 0));
 }
 
 export function splitCsvText(value) {

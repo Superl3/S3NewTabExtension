@@ -5,6 +5,7 @@ import {
   hasMondayBoardConfig,
   hasMondayConnectorConfig,
   normalizeCachedMondayBoardBase,
+  normalizeBoardId,
   normalizeBoardIds,
   normalizeColumnSelectorList,
   parseColumnSelectorList
@@ -17,6 +18,9 @@ import {
 
 test("monday config normalizes board ids and selector lists for widget reuse", () => {
   assert.deepEqual(normalizeBoardIds(" 101, 202, 101 "), [101, 202]);
+  assert.equal(normalizeBoardId("42.8"), 42);
+  assert.equal(normalizeBoardId("-4", 7), 0);
+  assert.equal(normalizeBoardId("bad", "9.8"), 9);
   assert.equal(
     normalizeColumnSelectorList(" People , *, People ", {
       allowWildcard: true,
