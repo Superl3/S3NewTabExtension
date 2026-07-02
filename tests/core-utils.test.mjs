@@ -8,6 +8,7 @@ import {
 } from "../core/platform/browser-api.js";
 import { normalizeErrorMessage } from "../core/utils/error.js";
 import { callIfFunction } from "../core/utils/function.js";
+import { pointInsideRect } from "../core/utils/geometry.js";
 import { snapToHalfGridTrack } from "../core/utils/grid.js";
 import { parseJsonOrNull } from "../core/utils/json.js";
 import {
@@ -89,6 +90,16 @@ test("callIfFunction returns undefined for non-functions and forwards arguments"
   assert.equal(callIfFunction(function sum(left, right) {
     return left + right;
   }, 2, 3), 5);
+});
+
+test("pointInsideRect keeps pointer hit testing numeric and inclusive", () => {
+  const rect = { left: 10, right: 20, top: 30, bottom: 40 };
+  assert.equal(pointInsideRect(10, 35, rect), true);
+  assert.equal(pointInsideRect(20, 40, rect), true);
+  assert.equal(pointInsideRect(9, 35, rect), false);
+  assert.equal(pointInsideRect("10", 35, rect), false);
+  assert.equal(pointInsideRect(10, Number.NaN, rect), false);
+  assert.equal(pointInsideRect(10, 35, null), false);
 });
 
 test("snapToHalfGridTrack rounds finite values to the nearest half track", () => {
@@ -269,6 +280,19 @@ test("core modules use the shared optional function caller instead of local wrap
   for (const moduleUrl of moduleUrls) {
     const source = await fs.readFile(moduleUrl, "utf8");
     assert.doesNotMatch(source, /^function (call|invoke)\(/m, moduleUrl.pathname);
+  }
+});
+
+test("dock and container pointer hit tests share the geometry helper", async () => {
+  const moduleUrls = [
+    new URL("../core/dock-geometry.js", import.meta.url),
+    new URL("../widgets/container.js", import.meta.url)
+  ];
+
+  for (const moduleUrl of moduleUrls) {
+    const source = await fs.readFile(moduleUrl, "utf8");
+    assert.match(source, /utils\/geometry\.js/, moduleUrl.pathname);
+    assert.doesNotMatch(source, /^function pointInsideRect\(/m, moduleUrl.pathname);
   }
 });
 
