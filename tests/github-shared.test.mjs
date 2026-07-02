@@ -10,6 +10,7 @@ import {
   githubTokenFingerprint,
   matchesGitHubCacheTokenFingerprint,
   normalizeGitHubCachedItemBase,
+  normalizeGitHubCachedItems,
   normalizeGitHubCacheCount,
   normalizeGitHubCacheNumber,
   normalizeGitHubCacheTimestamp,
@@ -62,6 +63,14 @@ test("GitHub shared helpers normalize cached item base fields", () => {
     }
   );
   assert.equal(normalizeGitHubCachedItemBase({ title: "missing id" }), null);
+  assert.deepEqual(
+    normalizeGitHubCachedItems(
+      [{ id: "a", number: "1" }, { title: "missing id" }, { id: "b", number: "2" }],
+      normalizeGitHubCachedItemBase
+    ).map((item) => item.id),
+    ["a", "b"]
+  );
+  assert.deepEqual(normalizeGitHubCachedItems([{ id: "a" }], null), []);
 });
 
 test("GitHub shared helpers preserve API formatting semantics", () => {

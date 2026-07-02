@@ -28,6 +28,7 @@ import {
   githubTokenFingerprint as tokenFingerprint,
   matchesGitHubCacheTokenFingerprint,
   normalizeGitHubCachedItemBase as normalizeCachedItemBase,
+  normalizeGitHubCachedItems as normalizeCachedItems,
   normalizeGitHubCacheNumber as normalizeCacheNumber,
   normalizeGitHubCacheTimestamp as normalizeCacheTimestamp,
   normalizeGitHubMaxItems as normalizeMaxItems,
@@ -356,9 +357,7 @@ function normalizeCachedItem(entry) {
 }
 
 function buildCacheReviewItems(items) {
-  return arrayOrEmpty(items)
-    .map(normalizeCachedItem)
-    .filter(Boolean);
+  return normalizeCachedItems(items, normalizeCachedItem);
 }
 
 function normalizedConfig(config) {
@@ -405,9 +404,7 @@ function readCachedSnapshot(rawConfig, cfg) {
     return null;
   }
 
-  const cachedItems = arrayOrEmpty(rawConfig?.cacheReviewItems)
-    .map(normalizeCachedItem)
-    .filter(Boolean);
+  const cachedItems = normalizeCachedItems(rawConfig?.cacheReviewItems, normalizeCachedItem);
   const cacheAt = normalizeCacheTimestamp(rawConfig?.cacheAt);
   const tokenUserWarning = normalizeText(rawConfig?.cacheTokenUserWarning);
   if (!cachedItems.length && !cacheAt && !tokenUserWarning) {
@@ -422,9 +419,7 @@ function readCachedSnapshot(rawConfig, cfg) {
 }
 
 function isReviewInboxSnapshotUnchanged(rawConfig, cfg, items, tokenUserWarning) {
-  const currentCacheItems = arrayOrEmpty(rawConfig?.cacheReviewItems)
-    .map(normalizeCachedItem)
-    .filter(Boolean);
+  const currentCacheItems = normalizeCachedItems(rawConfig?.cacheReviewItems, normalizeCachedItem);
 
   return (
     normalizeRepository(rawConfig?.cacheRepository) === cfg.repository &&
