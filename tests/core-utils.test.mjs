@@ -16,6 +16,12 @@ import {
 import { hasOwn, isPlainObject } from "../core/utils/object.js";
 import { normalizeText } from "../core/utils/text.js";
 import { clamp as layoutClamp } from "../core/layout-primitives.js";
+import {
+  createFlexAuthRequiredError,
+  FLEX_AUTH_REQUIRED_CODE,
+  isFlexAuthRequiredError,
+  isFlexLoginUrl
+} from "../widgets/shared/flexAuth.js";
 
 test("normalizeText trims text and falls back for blank-like values", () => {
   assert.equal(normalizeText("  hello  "), "hello");
@@ -80,6 +86,17 @@ test("object utilities preserve plain-object and safe own-property semantics", (
   assert.equal(isPlainObject(null), false);
   assert.equal(hasOwn({ ok: false }, "ok"), true);
   assert.equal(hasOwn(null, "ok"), false);
+});
+
+test("Flex auth helpers preserve auth-required and login URL semantics", () => {
+  const error = createFlexAuthRequiredError("  login needed  ");
+  assert.equal(error.message, "login needed");
+  assert.equal(error.code, FLEX_AUTH_REQUIRED_CODE);
+  assert.equal(isFlexAuthRequiredError(error), true);
+  assert.equal(isFlexAuthRequiredError({ code: "other" }), false);
+  assert.equal(isFlexLoginUrl("https://flex.team/auth/login"), true);
+  assert.equal(isFlexLoginUrl("https://flex.team/home"), false);
+  assert.equal(isFlexLoginUrl("/auth/login?next=/home"), true);
 });
 
 test("layout-primitives clamp delegates to core utils number module", () => {
@@ -282,5 +299,20 @@ test("Flex worktime widgets share row helpers instead of local copies", async ()
     const source = await fs.readFile(moduleUrl, "utf8");
     assert.match(source, /shared\/flexWorktimeRows\.js/, moduleUrl.pathname);
     assert.doesNotMatch(source, localHelperPattern, moduleUrl.pathname);
+  }
+});
+
+test("Flex worktime widgets share auth helpers instead of local copies", async () => {
+  const moduleUrls = [
+    new URL("../widgets/flexWorktime.js", import.meta.url),
+    new URL("../widgets/flexWorktimeTimeline.js", import.meta.url)
+  ];
+  const localAuthPattern =
+    /^(const FLEX_AUTH_(?:REQUIRED_CODE|LOGIN_PATH_RE|LOGIN_FALLBACK_RE|FLOW_PENDING_MESSAGE)|function (?:createFlexAuthRequiredError|isFlexAuthRequiredError|isFlexLoginUrl)\()/m;
+
+  for (const moduleUrl of moduleUrls) {
+    const source = await fs.readFile(moduleUrl, "utf8");
+    assert.match(source, /shared\/flexAuth\.js/, moduleUrl.pathname);
+    assert.doesNotMatch(source, localAuthPattern, moduleUrl.pathname);
   }
 });
