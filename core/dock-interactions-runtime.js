@@ -154,7 +154,7 @@ export function createDockInteractionsRuntime(deps) {
   }
 
   function destroyDockEmbeddedControllers() {
-    for (const entry of deps.dockEmbeddedUiState?.controllers?.values?.() || []) {
+    for (const entry of deps.dockEmbeddedUiState?.controllers?.values?.() ?? []) {
       entry?.destroy?.();
     }
     deps.dockEmbeddedUiState?.controllers?.clear?.();
