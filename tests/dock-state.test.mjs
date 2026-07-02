@@ -34,6 +34,7 @@ test("computes next dock order and first available slot", () => {
 
   assert.equal(nextDockOrder(instances), 3);
   assert.equal(firstAvailableDockSlot(instances, { slotCount: 4 }), 1);
+  assert.equal(firstAvailableDockSlot(instances, { slotCount: "bad" }), null);
 });
 
 test("collects slot occupants while excluding one widget", () => {
@@ -51,6 +52,10 @@ test("collects slot occupants while excluding one widget", () => {
   assert.equal(occupied.has(0), true);
   assert.equal(occupied.has(1), false);
   assert.equal(occupied.has(2), false);
+
+  const fallbackOccupied = dockSlotOccupants(instances, { slotCount: 0 });
+  assert.equal(fallbackOccupied.has(0), true);
+  assert.equal(fallbackOccupied.has(1), false);
 });
 
 test("normalizes docked widget orders and clears container dockOrder", () => {
