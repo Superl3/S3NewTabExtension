@@ -2,8 +2,13 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 
+import {
+  resolveBrowserEventTarget,
+  resolveBrowserTimerApi
+} from "../core/platform/browser-api.js";
 import { normalizeErrorMessage } from "../core/utils/error.js";
 import { callIfFunction } from "../core/utils/function.js";
+import { snapToHalfGridTrack } from "../core/utils/grid.js";
 import { parseJsonOrNull } from "../core/utils/json.js";
 import {
   clamp,
@@ -84,6 +89,50 @@ test("callIfFunction returns undefined for non-functions and forwards arguments"
   assert.equal(callIfFunction(function sum(left, right) {
     return left + right;
   }, 2, 3), 5);
+});
+
+test("snapToHalfGridTrack rounds finite values to the nearest half track", () => {
+  assert.equal(snapToHalfGridTrack(1.24), 1);
+  assert.equal(snapToHalfGridTrack(1.25), 1.5);
+  assert.equal(snapToHalfGridTrack("2.74"), 2.5);
+  assert.equal(snapToHalfGridTrack("bad"), 0);
+});
+
+test("browser API resolvers prefer injected APIs and preserve global fallbacks", () => {
+  const previousWindow = globalThis.window;
+  const injectedTarget = { addEventListener() {} };
+  const injectedTimers = {
+    setTimeout() {
+      return 1;
+    },
+    clearTimeout() {}
+  };
+  globalThis.window = {
+    addEventListener() {},
+    setTimeout() {
+      return 2;
+    },
+    clearTimeout() {}
+  };
+
+  try {
+    assert.equal(resolveBrowserEventTarget(injectedTarget), injectedTarget);
+    assert.equal(resolveBrowserEventTarget(), globalThis.window);
+
+    const timers = resolveBrowserTimerApi(injectedTimers);
+    assert.equal(timers.setTimeout(), 1);
+    assert.equal(typeof timers.clearTimeout, "function");
+
+    const globalTimers = resolveBrowserTimerApi();
+    assert.equal(globalTimers.setTimeout(), 2);
+    assert.equal(typeof globalTimers.clearTimeout, "function");
+  } finally {
+    if (typeof previousWindow === "undefined") {
+      delete globalThis.window;
+    } else {
+      globalThis.window = previousWindow;
+    }
+  }
 });
 
 test("object utilities preserve plain-object and safe own-property semantics", () => {
@@ -235,6 +284,30 @@ test("core chrome modules use the shared chrome API resolver", async () => {
     const source = await fs.readFile(moduleUrl, "utf8");
     assert.match(source, /chrome-api\.js/, moduleUrl.pathname);
     assert.doesNotMatch(source, /^function resolveChromeApi\(/m, moduleUrl.pathname);
+  }
+});
+
+test("core drag modules use shared browser and grid helpers instead of local copies", async () => {
+  const browserApiModuleUrls = [
+    new URL("../core/drag-page-switch.js", import.meta.url),
+    new URL("../core/long-press-drag.js", import.meta.url),
+    new URL("../core/resize-session.js", import.meta.url)
+  ];
+  const gridModuleUrls = [
+    new URL("../core/widget-card-drag-session.js", import.meta.url),
+    new URL("../core/widget-drop-projection.js", import.meta.url)
+  ];
+
+  for (const moduleUrl of browserApiModuleUrls) {
+    const source = await fs.readFile(moduleUrl, "utf8");
+    assert.match(source, /browser-api\.js/, moduleUrl.pathname);
+    assert.doesNotMatch(source, /^function resolve(EventTarget|TimerApi)\(/m, moduleUrl.pathname);
+  }
+
+  for (const moduleUrl of gridModuleUrls) {
+    const source = await fs.readFile(moduleUrl, "utf8");
+    assert.match(source, /utils\/grid\.js/, moduleUrl.pathname);
+    assert.doesNotMatch(source, /^function snapToHalfGridTrack\(/m, moduleUrl.pathname);
   }
 });
 

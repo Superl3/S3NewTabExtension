@@ -1,3 +1,4 @@
+import { snapToHalfGridTrack } from "./utils/grid.js";
 import { toInteger } from "./utils/number.js";
 
 const INTERACTIVE_DRAG_BLOCK_SELECTOR = "button, input, textarea, select, a";
@@ -12,14 +13,6 @@ function applyClamp(clampFn, value, min, max) {
   const numeric = Number(value);
   const safeValue = Number.isFinite(numeric) ? numeric : min;
   return Math.min(max, Math.max(min, safeValue));
-}
-
-function snapToHalfGridTrack(value) {
-  const numeric = Number(value);
-  if (!Number.isFinite(numeric)) {
-    return 0;
-  }
-  return Math.round(numeric * 2) / 2;
 }
 
 export function startWidgetCardDragSession({
