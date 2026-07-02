@@ -1,3 +1,4 @@
+import { arrayOrEmpty } from "./utils/array.js";
 import { clampRoundedTruthyNumberOrFallback, toTruthyNumberOrFallback } from "./utils/number.js";
 
 export function createDropGuideRuntime({
@@ -173,7 +174,7 @@ export function createDropGuideRuntime({
     }
 
     if (!siblingIds.length) {
-      for (const item of state?.instances || []) {
+      for (const item of arrayOrEmpty(state?.instances)) {
         if (!item || item.enabled === false || item.type === "container") {
           continue;
         }
