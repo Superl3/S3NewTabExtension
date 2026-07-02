@@ -1,4 +1,4 @@
-import { clamp, normalizeIntegerInRange } from "./utils/number.js";
+import { clamp, clampNumberOrFallback, normalizeIntegerInRange } from "./utils/number.js";
 
 export const WIDGET_COMMON_MASTER_KEYS = [
   "viewMode",
@@ -52,11 +52,7 @@ export function defaultPresets() {
 }
 
 export function normalizeTransparency(value, fallback = 0.94) {
-  const num = Number(value);
-  if (!Number.isFinite(num)) {
-    return clamp(fallback, 0, 1);
-  }
-  return clamp(num, 0, 1);
+  return clampNumberOrFallback(value, clamp(fallback, 0, 1), 0, 1);
 }
 
 export function normalizeContentPadding(value, fallback = 10) {
@@ -64,11 +60,8 @@ export function normalizeContentPadding(value, fallback = 10) {
 }
 
 export function normalizeWidgetContentFontScale(value, fallback = 1) {
-  const num = Number(value);
-  if (!Number.isFinite(num)) {
-    return clamp(Number(fallback) || 1, 0.5, 2);
-  }
-  return clamp(num, 0.5, 2);
+  const fallbackNumber = Number(fallback);
+  return clampNumberOrFallback(value, clamp(fallbackNumber || 1, 0.5, 2), 0.5, 2);
 }
 
 export function normalizeEdgeRoundness(value, fallback = 12) {
