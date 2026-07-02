@@ -571,6 +571,14 @@ test("core modules use the shared optional function caller instead of local wrap
   }
 });
 
+test("widget instance factory uses shared number normalization for free placement", async () => {
+  const source = await fs.readFile(new URL("../core/widget-instance-factory.js", import.meta.url), "utf8");
+  assert.match(source, /clampTruthyNumberOrFallback\(defaultSize\?\.colSpan, 1, 1, Number\.POSITIVE_INFINITY\)/);
+  assert.match(source, /toInteger\(boardRect\?\.width, 0\)/);
+  assert.doesNotMatch(source, /Math\.max\(1, Number\(defaultSize\?\.(?:colSpan|rowSpan)\) \|\| 1\)/);
+  assert.doesNotMatch(source, /Math\.floor\(Number\(boardRect\?\.(?:width|height)\) \|\| 0\)/);
+});
+
 test("dock and container pointer hit tests share the geometry helper", async () => {
   const moduleUrls = [
     new URL("../core/dock-geometry.js", import.meta.url),

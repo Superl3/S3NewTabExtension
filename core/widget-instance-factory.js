@@ -1,4 +1,5 @@
 import { callIfFunction as call } from "./utils/function.js";
+import { clamp as clampNumber, clampTruthyNumberOrFallback, toInteger } from "./utils/number.js";
 
 export function createWidgetInstanceDraft(
   {
@@ -95,23 +96,23 @@ export function applyFreeLayoutPlacement(
     return instance;
   }
 
-  const clamp = typeof deps.clamp === "function" ? deps.clamp : (value, min, max) => Math.min(max, Math.max(min, value));
+  const clamp = typeof deps.clamp === "function" ? deps.clamp : clampNumber;
 
   instance.layout.x += (pageLocalIndex % 6) * 24;
   instance.layout.y += (pageLocalIndex % 4) * 24;
 
-  const scaleX = colSpan / Math.max(1, Number(defaultSize?.colSpan) || 1);
-  const scaleY = rowSpan / Math.max(1, Number(defaultSize?.rowSpan) || 1);
+  const scaleX = colSpan / clampTruthyNumberOrFallback(defaultSize?.colSpan, 1, 1, Number.POSITIVE_INFINITY);
+  const scaleY = rowSpan / clampTruthyNumberOrFallback(defaultSize?.rowSpan, 1, 1, Number.POSITIVE_INFINITY);
 
   instance.layout.w = clamp(
     Math.round(instance.layout.w * scaleX),
     80,
-    Math.max(80, Math.floor(Number(boardRect?.width) || 0))
+    Math.max(80, toInteger(boardRect?.width, 0))
   );
   instance.layout.h = clamp(
     Math.round(instance.layout.h * scaleY),
     80,
-    Math.max(80, Math.floor(Number(boardRect?.height) || 0))
+    Math.max(80, toInteger(boardRect?.height, 0))
   );
 
   return instance;
