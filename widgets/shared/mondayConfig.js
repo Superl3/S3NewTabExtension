@@ -1,8 +1,16 @@
-import { toInteger } from "../../core/utils/number.js";
+import { toFiniteNumber, toInteger } from "../../core/utils/number.js";
 import { normalizeText } from "../../core/utils/text.js";
 
 export function normalizeBoardId(value, fallback = 0) {
   return Math.max(0, toInteger(value, toInteger(fallback, 0) || 0));
+}
+
+export function normalizeMondayCacheNumber(value, fallback = 0) {
+  return toFiniteNumber(value, fallback);
+}
+
+export function normalizeMondayCacheTimestamp(value, fallback = 0) {
+  return Math.max(0, normalizeMondayCacheNumber(value, fallback));
 }
 
 export function splitCsvText(value) {

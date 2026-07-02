@@ -32,6 +32,8 @@ import {
   normalizeCachedMondayBoardBase,
   normalizeColumnSelector,
   normalizeColumnSelectorList,
+  normalizeMondayCacheNumber,
+  normalizeMondayCacheTimestamp,
   parseColumnSelectorList
 } from "./shared/mondayConfig.js";
 import {
@@ -539,7 +541,7 @@ function mapAssignedIssues(rawItems, maxItems, statusColumnIds = []) {
       groupId: normalizeText(entry?.group?.id),
       groupTitle: normalizeText(entry?.group?.title),
       updatedLabel: formatDateLabel(updatedAt),
-      updatedTs: Number.isFinite(updatedTs) ? updatedTs : 0
+      updatedTs: normalizeMondayCacheNumber(updatedTs)
     });
   }
 
@@ -555,7 +557,6 @@ function normalizeCachedIssue(entry) {
   if (!id) {
     return null;
   }
-  const updatedTs = Number(entry?.updatedTs);
   return {
     id,
     title: normalizeText(entry?.title, "(Untitled issue)"),
@@ -563,7 +564,7 @@ function normalizeCachedIssue(entry) {
     groupId: normalizeText(entry?.groupId),
     groupTitle: normalizeText(entry?.groupTitle),
     updatedLabel: normalizeText(entry?.updatedLabel),
-    updatedTs: Number.isFinite(updatedTs) ? updatedTs : 0
+    updatedTs: normalizeMondayCacheNumber(entry?.updatedTs)
   };
 }
 
@@ -597,7 +598,7 @@ function normalizeCachedBoardSnapshot(entry) {
 }
 
 function readCachedSnapshot(rawConfig, cfg) {
-  const cacheAt = Math.max(0, Number(rawConfig?.cacheAt) || 0);
+  const cacheAt = normalizeMondayCacheTimestamp(rawConfig?.cacheAt);
   const configuredBoards = new Set(cfg.boardIds);
   const cacheBoards = Array.isArray(rawConfig?.cacheBoards)
     ? rawConfig.cacheBoards.map(normalizeCachedBoardSnapshot).filter(Boolean)
@@ -1220,7 +1221,7 @@ export const mondayAssignedWidget = {
                 groupId: normalizeText(issue?.groupId),
                 groupTitle: normalizeText(issue?.groupTitle),
                 updatedLabel: normalizeText(issue?.updatedLabel),
-                updatedTs: Number(issue?.updatedTs) || 0
+                updatedTs: normalizeMondayCacheNumber(issue?.updatedTs)
               }))
             : [];
 

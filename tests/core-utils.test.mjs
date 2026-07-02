@@ -712,9 +712,11 @@ test("Monday widgets share config predicates instead of local copies", async () 
   }
 });
 
-test("Monday shared config uses core integer helpers", async () => {
+test("Monday shared config uses core number helpers", async () => {
   const source = await fs.readFile(new URL("../widgets/shared/mondayConfig.js", import.meta.url), "utf8");
   assert.match(source, /core\/utils\/number\.js/);
+  assert.match(source, /normalizeMondayCacheNumber/, "mondayConfig.js");
+  assert.match(source, /normalizeMondayCacheTimestamp/, "mondayConfig.js");
   assert.doesNotMatch(source, /Math\.floor\(Number/, "mondayConfig.js");
   assert.doesNotMatch(source, /Number\.isFinite\(Number\(/, "mondayConfig.js");
 });
@@ -731,6 +733,8 @@ test("Monday widgets share cached board base normalization", async () => {
       /function normalizeCachedBoardSnapshot\([\s\S]*?\n}\n\nfunction readCachedSnapshot/
     )?.[0] || "";
     assert.match(source, /normalizeCachedMondayBoardBase/, moduleUrl.pathname);
+    assert.match(source, /normalizeMondayCacheTimestamp/, moduleUrl.pathname);
+    assert.doesNotMatch(source, /Number\(rawConfig\?\.cacheAt\) \|\| 0/, moduleUrl.pathname);
     assert.doesNotMatch(
       cachedSnapshotBlock,
       /boardName:\s*normalizeText\(entry\?\.boardName,\s*`Board \$\{boardId\}`\)/,
