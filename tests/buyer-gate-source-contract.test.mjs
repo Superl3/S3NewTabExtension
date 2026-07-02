@@ -73,6 +73,26 @@ test("fallback default grid layout normalizes invalid grid dimensions and spans"
       }
     }
   ]);
+
+  const infiniteLayouts = assignFallbackDefaultGridLayouts(["wide"], {
+    columns: Infinity,
+    rows: -Infinity,
+    widgetRegistry: { wide: {} },
+    widgetDefaultGridSize: () => ({ colSpan: 99, rowSpan: 99 })
+  });
+
+  assert.deepEqual(infiniteLayouts, [
+    {
+      type: "wide",
+      page: 0,
+      gridLayout: {
+        col: 0,
+        row: 0,
+        colSpan: FALLBACK_DEFAULT_GRID.columns,
+        rowSpan: FALLBACK_DEFAULT_GRID.rows
+      }
+    }
+  ]);
 });
 
 test("AI Chat degraded setup copy is actionable and chrome access is guarded", async () => {
