@@ -1,3 +1,5 @@
+import { clampTruthyNumberOrFallback } from "./utils/number.js";
+
 export function createBackgroundVideoCacheRuntime(deps) {
   function parseRedditLoopVideoUrl(post) {
     if (!post || typeof post !== "object") {
@@ -99,7 +101,7 @@ export function createBackgroundVideoCacheRuntime(deps) {
   }
 
   async function pruneLoopVideoCache(cache, keepCount = deps.videoCacheMaxEntries) {
-    const boundedKeepCount = deps.clamp(Number(keepCount) || deps.videoCacheMaxEntries, 1, 24);
+    const boundedKeepCount = clampTruthyNumberOrFallback(keepCount, deps.videoCacheMaxEntries, 1, 24);
     const keys = await cache.keys();
     const videoKeys = keys.filter((request) => isLoopVideoCacheRequest(request));
     const overflow = Math.max(0, videoKeys.length - boundedKeepCount);
