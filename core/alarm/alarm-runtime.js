@@ -1,3 +1,5 @@
+import { arrayOrEmpty } from "../utils/array.js";
+
 function isPositiveFiniteNumber(value) {
   return Number.isFinite(value) && value > 0;
 }
@@ -103,8 +105,7 @@ export function createAlarmRuntime(options = {}) {
 
     for (const [ownerId, owner] of owners.entries()) {
       const events = listOwnerEvents(owner, rangeStartMs, now, ownerId);
-      const eventList = Array.isArray(events) ? events : [];
-      for (const event of eventList) {
+      for (const event of arrayOrEmpty(events)) {
         if (!isEventWithinRange(event, rangeStartMs, now)) {
           continue;
         }

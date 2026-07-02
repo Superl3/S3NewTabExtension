@@ -375,6 +375,34 @@ test("background video cache uses shared keep-count clamp", async () => {
   assert.doesNotMatch(source, /deps\.clamp\(Number\(keepCount\) \|\| deps\.videoCacheMaxEntries, 1, 24\)/);
 });
 
+test("core input-list modules use shared array fallback helper", async () => {
+  const moduleUrls = [
+    new URL("../core/alarm/alarm-runtime.js", import.meta.url),
+    new URL("../core/background-video-cache-runtime.js", import.meta.url),
+    new URL("../core/launcher-pages.js", import.meta.url),
+    new URL("../core/settings-input-schema.js", import.meta.url)
+  ];
+
+  for (const moduleUrl of moduleUrls) {
+    const source = await fs.readFile(moduleUrl, "utf8");
+    assert.match(source, /utils\/array\.js/, moduleUrl.pathname);
+    assert.match(source, /arrayOrEmpty\(/, moduleUrl.pathname);
+  }
+
+  const alarmSource = await fs.readFile(new URL("../core/alarm/alarm-runtime.js", import.meta.url), "utf8");
+  assert.doesNotMatch(alarmSource, /Array\.isArray\(events\) \? events : \[\]/);
+
+  const backgroundVideoSource = await fs.readFile(new URL("../core/background-video-cache-runtime.js", import.meta.url), "utf8");
+  assert.doesNotMatch(backgroundVideoSource, /Array\.isArray\(previewVideo\?\.variants\) \? previewVideo\.variants : \[\]/);
+
+  const launcherPagesSource = await fs.readFile(new URL("../core/launcher-pages.js", import.meta.url), "utf8");
+  assert.doesNotMatch(launcherPagesSource, /Array\.isArray\(list\) \? list : \[\]/);
+  assert.doesNotMatch(launcherPagesSource, /!Array\.isArray\(keptPages\)/);
+
+  const schemaSource = await fs.readFile(new URL("../core/settings-input-schema.js", import.meta.url), "utf8");
+  assert.doesNotMatch(schemaSource, /Array\.isArray\(schema\.options\) \? schema\.options : \[\]/);
+});
+
 test("state timestamp fields use shared non-negative number normalization", async () => {
   const moduleUrls = [
     new URL("../core/hydrate-state.js", import.meta.url),
