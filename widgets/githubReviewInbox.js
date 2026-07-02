@@ -243,6 +243,10 @@ function buildReviewInboxReadScopeKey(config) {
   ]);
 }
 
+function readReviewInboxLatestAttentionAt(item) {
+  return Math.max(0, Number(item?.latestAttentionAt ?? item?.latestCodeUpdateAt) || 0);
+}
+
 function buildReviewInboxReadItemKey(item) {
   const number = normalizeText(item?.number);
   if (!number) {
@@ -251,7 +255,7 @@ function buildReviewInboxReadItemKey(item) {
 
   return [
     number,
-    Math.max(0, Number(item?.latestCodeUpdateAt) || 0),
+    readReviewInboxLatestAttentionAt(item),
     Math.max(0, Number(item?.latestParticipationAt) || 0),
     normalizeText(item?.reason),
     item?.reviewRequested === true ? "requested" : "not-requested"
@@ -529,7 +533,7 @@ function normalizeCachedItem(entry) {
     teamCount: Math.max(0, Math.floor(Number(entry?.teamCount) || 0)),
     reason: normalizeText(entry?.reason),
     reasonLabel: normalizeText(entry?.reasonLabel),
-    latestCodeUpdateAt: Math.max(0, Number(entry?.latestCodeUpdateAt) || 0),
+    latestAttentionAt: readReviewInboxLatestAttentionAt(entry),
     latestParticipationAt: Math.max(0, Number(entry?.latestParticipationAt) || 0),
     latestApprovalAt: Math.max(0, Number(entry?.latestApprovalAt) || 0),
     warning: normalizeText(entry?.warning)
@@ -707,7 +711,7 @@ async function fetchReviewInboxItems(config) {
       teamCount,
       reason: candidate.reason,
       reasonLabel: candidate.reasonLabel,
-      latestCodeUpdateAt: candidate.latestCodeUpdateAt,
+      latestAttentionAt: candidate.latestAttentionAt,
       latestParticipationAt: candidate.latestParticipationAt,
       latestApprovalAt: candidate.latestApprovalAt,
       warning: tokenUserWarning
@@ -1273,7 +1277,7 @@ export const githubReviewInboxWidget = {
 
         const updated = document.createElement("span");
         updated.className = "github-pr-updated github-review-inbox-updated";
-        updated.textContent = formatRelativeTimestamp(item.latestCodeUpdateAt);
+        updated.textContent = formatRelativeTimestamp(item.latestAttentionAt);
 
         top.append(title, updated);
 
