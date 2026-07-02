@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import {
   hasMondayBoardConfig,
   hasMondayConnectorConfig,
+  normalizeCachedMondayBoardBase,
   normalizeBoardIds,
   normalizeColumnSelectorList,
   parseColumnSelectorList
@@ -34,6 +35,27 @@ test("monday config predicates preserve connector and board readiness semantics"
   assert.equal(hasMondayBoardConfig({ boardIds: [] }), false);
   assert.equal(hasMondayBoardConfig({ boardIds: [101] }), true);
   assert.equal(hasMondayBoardConfig({ boardId: 101 }), false);
+});
+
+test("monday config normalizes cached board base fields for widget reuse", () => {
+  assert.deepEqual(normalizeCachedMondayBoardBase({ boardId: "42" }), {
+    boardId: 42,
+    boardName: "Board 42",
+    boardUrl: ""
+  });
+  assert.deepEqual(
+    normalizeCachedMondayBoardBase({
+      boardId: 7,
+      boardName: "  Roadmap  ",
+      boardUrl: " https://workspace.monday.com/boards/7 "
+    }),
+    {
+      boardId: 7,
+      boardName: "Roadmap",
+      boardUrl: "https://workspace.monday.com/boards/7"
+    }
+  );
+  assert.equal(normalizeCachedMondayBoardBase({ boardId: 0 }), null);
 });
 
 test("monday client resolves site url from account label before fallback urls", () => {

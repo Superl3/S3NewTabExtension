@@ -30,6 +30,7 @@ import {
   hasMondayConnectorConfig as hasConnectorConfig,
   normalizeBoardId,
   normalizeBoardIds,
+  normalizeCachedMondayBoardBase,
   normalizeColumnSelector,
   normalizeColumnSelectorList as normalizeSharedColumnSelectorList,
   parseColumnSelectorList
@@ -198,15 +199,13 @@ function normalizeCachedLatest(entry) {
 }
 
 function normalizeCachedBoardSnapshot(entry) {
-  const boardId = normalizeBoardId(entry?.boardId, 0);
-  if (!boardId) {
+  const base = normalizeCachedMondayBoardBase(entry);
+  if (!base) {
     return null;
   }
 
   return {
-    boardId,
-    boardName: normalizeText(entry?.boardName, `Board ${boardId}`),
-    boardUrl: normalizeText(entry?.boardUrl),
+    ...base,
     latest: normalizeCachedLatest(entry?.latest)
   };
 }

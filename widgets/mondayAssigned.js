@@ -30,6 +30,7 @@ import {
   hasMondayConnectorConfig as hasConnectorConfig,
   normalizeBoardId,
   normalizeBoardIds,
+  normalizeCachedMondayBoardBase,
   normalizeColumnSelector,
   normalizeColumnSelectorList,
   parseColumnSelectorList
@@ -609,8 +610,8 @@ function normalizeCachedGroup(entry) {
 }
 
 function normalizeCachedBoardSnapshot(entry) {
-  const boardId = normalizeBoardId(entry?.boardId, 0);
-  if (!boardId) {
+  const base = normalizeCachedMondayBoardBase(entry);
+  if (!base) {
     return null;
   }
 
@@ -622,9 +623,7 @@ function normalizeCachedBoardSnapshot(entry) {
     : [];
 
   return {
-    boardId,
-    boardName: normalizeText(entry?.boardName, `Board ${boardId}`),
-    boardUrl: normalizeText(entry?.boardUrl),
+    ...base,
     assigneeName: normalizeText(entry?.assigneeName, "me"),
     scopeMode: normalizeText(entry?.scopeMode) === "all" ? "all" : "assigned",
     groups,
