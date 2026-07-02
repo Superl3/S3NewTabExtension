@@ -1091,6 +1091,7 @@ test("Flex worktime widgets share row helpers instead of local copies", async ()
     const source = await fs.readFile(moduleUrl, "utf8");
     assert.match(source, /shared\/flexWorktimeRows\.js/, moduleUrl.pathname);
     assert.match(source, /shared\/flexNavigation\.js/, moduleUrl.pathname);
+    assert.match(source, /openFlexEntryDetail/, moduleUrl.pathname);
     assert.match(source, /normalizeFlexWidgetBaseConfig/, moduleUrl.pathname);
     assert.match(source, /buildFlexWidgetConfigSignature/, moduleUrl.pathname);
     assert.match(source, /resolveFlexSyncState/, moduleUrl.pathname);
@@ -1102,6 +1103,7 @@ test("Flex worktime widgets share row helpers instead of local copies", async ()
     assert.doesNotMatch(source, /^const (?:FLEX_WORKTIME_CACHE_MAX_ENTRIES|FLEX_HOME_TAB_LOAD_TIMEOUT_MS|DEFAULT_FLEX_WORKTIME_REFRESH_MINUTES|DEFAULT_FLEX_HOME_URL)\s*=/m, moduleUrl.pathname);
     assert.doesNotMatch(source, /^function openResolvedDetailHref\(/m, moduleUrl.pathname);
     assert.doesNotMatch(source, /window\.open\(href, "_blank", "noopener,noreferrer"\)/, moduleUrl.pathname);
+    assert.doesNotMatch(source, /const href = resolveDetailUrl\(cfg, queryDate, entry\);\s*return openResolvedDetailHref\(href, cfg\);/, moduleUrl.pathname);
   }
 });
 

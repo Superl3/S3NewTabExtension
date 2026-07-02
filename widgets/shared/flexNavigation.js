@@ -10,3 +10,30 @@ export function openFlexDetailHref(href, config, targetWindow = globalThis.windo
   }
   return true;
 }
+
+export function openFlexEntryDetail({
+  entry,
+  config,
+  fallbackQueryDate = "",
+  resolveQueryDate,
+  resolveDetailUrl,
+  targetWindow = globalThis.window
+} = {}) {
+  if (typeof resolveDetailUrl !== "function") {
+    return false;
+  }
+
+  let queryDate = fallbackQueryDate;
+  if (typeof resolveQueryDate === "function") {
+    try {
+      queryDate = resolveQueryDate(config);
+    } catch {
+      if (!queryDate) {
+        return false;
+      }
+    }
+  }
+
+  const href = resolveDetailUrl(config, queryDate, entry);
+  return openFlexDetailHref(href, config, targetWindow);
+}
