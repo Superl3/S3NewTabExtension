@@ -5,10 +5,9 @@ import { clamp, normalizeIntegerInRange } from "../core/utils/number.js";
 import { normalizeText } from "../core/utils/text.js";
 import {
   connectWithAuthConnector,
-  isAuthCancelledMessage,
+  formatAuthConnectorErrorMessage,
   LOCAL_AUTH_CONNECTOR_URL,
-  normalizeLocalAuthConnectorUrl as normalizeConnectorUrl,
-  rewriteAuthorizationLoadError
+  normalizeLocalAuthConnectorUrl as normalizeConnectorUrl
 } from "./shared/authConnector.js";
 import {
   dueAutoRefreshSlotIndices,
@@ -1342,13 +1341,9 @@ export const mondayAssignedWidget = {
         hasFetched = false;
       } catch (error) {
         await clearConnectionState({ clearStored: true });
-        let message = normalizeErrorMessage(error);
-        message = rewriteAuthorizationLoadError(message);
-        if (isAuthCancelledMessage(message)) {
-          errorMessage = "Monday connection was cancelled.";
-        } else {
-          errorMessage = message;
-        }
+        errorMessage = formatAuthConnectorErrorMessage(error, {
+          cancelledMessage: "Monday connection was cancelled."
+        });
       } finally {
         loading = false;
         render();

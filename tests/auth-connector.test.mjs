@@ -5,6 +5,7 @@ import {
   buildAuthConnectorStartUrl,
   connectWithAuthConnector,
   fetchConnectorToken,
+  formatAuthConnectorErrorMessage,
   isAuthCancelledMessage,
   LOCAL_AUTH_CONNECTOR_URL,
   normalizeLocalAuthConnectorUrl,
@@ -44,6 +45,29 @@ test("normalizes local auth connector defaults and shared auth messages", () => 
   assert.equal(rewriteAuthorizationLoadError("different failure"), "different failure");
   assert.equal(isAuthCancelledMessage("User cancelled interaction"), true);
   assert.equal(isAuthCancelledMessage("network failed"), false);
+});
+
+test("formats auth connector errors with shared rewrite and cancellation semantics", () => {
+  assert.equal(
+    formatAuthConnectorErrorMessage(new Error("User cancelled interaction"), {
+      cancelledMessage: "Connector authentication was cancelled.",
+      fallbackMessage: "Connector authentication failed."
+    }),
+    "Connector authentication was cancelled."
+  );
+  assert.equal(
+    formatAuthConnectorErrorMessage("Authorization page was not loaded", {
+      cancelledMessage: "Connector authentication was cancelled.",
+      fallbackMessage: "Connector authentication failed."
+    }),
+    "Authorization page could not be loaded. Check that connector server is running at http://localhost:8787 and then try Connect again."
+  );
+  assert.equal(
+    formatAuthConnectorErrorMessage(null, {
+      fallbackMessage: "Connector authentication failed."
+    }),
+    "Unknown error"
+  );
 });
 
 test("builds auth connector start URL with provider", () => {

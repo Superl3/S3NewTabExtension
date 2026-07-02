@@ -47,6 +47,17 @@ export function isAuthCancelledMessage(message) {
   );
 }
 
+export function formatAuthConnectorErrorMessage(
+  error,
+  { cancelledMessage = "", fallbackMessage = "" } = {}
+) {
+  const message = rewriteAuthorizationLoadError(normalizeErrorMessage(error));
+  if (isAuthCancelledMessage(message)) {
+    return normalizeText(cancelledMessage, message);
+  }
+  return normalizeText(message, fallbackMessage);
+}
+
 export function createAuthState() {
   const bytes = new Uint8Array(16);
   crypto.getRandomValues(bytes);
