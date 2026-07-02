@@ -287,6 +287,7 @@ test("core layout modules use shared array fallback helper", async () => {
     new URL("../core/container-order-runtime.js", import.meta.url),
     new URL("../core/default-widget-order.js", import.meta.url),
     new URL("../core/dock-state.js", import.meta.url),
+    new URL("../core/launcher-page-runtime.js", import.meta.url),
     new URL("../core/widget-add-plan.js", import.meta.url)
   ];
 
@@ -310,6 +311,9 @@ test("core layout modules use shared array fallback helper", async () => {
 
   const dockStateSource = await fs.readFile(new URL("../core/dock-state.js", import.meta.url), "utf8");
   assert.doesNotMatch(dockStateSource, /Array\.isArray\(instances\)/);
+
+  const launcherPageRuntimeSource = await fs.readFile(new URL("../core/launcher-page-runtime.js", import.meta.url), "utf8");
+  assert.doesNotMatch(launcherPageRuntimeSource, /state\.instances \|\| \[\]/);
 
   const widgetAddPlanSource = await fs.readFile(new URL("../core/widget-add-plan.js", import.meta.url), "utf8");
   assert.doesNotMatch(widgetAddPlanSource, /Array\.isArray\(instances\) \? instances : \[\]/);

@@ -1,9 +1,10 @@
+import { arrayOrEmpty } from "./utils/array.js";
 import { toInteger } from "./utils/number.js";
 
 function launcherPageWidgetCounts(getState, pageCount, { isBoardWidgetInstance, normalizeWidgetPage }) {
   const state = getState();
   const counts = Array.from({ length: Math.max(1, pageCount) }, () => 0);
-  for (const instance of state.instances || []) {
+  for (const instance of arrayOrEmpty(state.instances)) {
     if (!isBoardWidgetInstance(instance)) {
       continue;
     }
@@ -54,7 +55,7 @@ export function createLauncherPageRuntime(deps) {
       remap.set(oldPage, nextPage);
     });
 
-    for (const instance of state.instances || []) {
+    for (const instance of arrayOrEmpty(state.instances)) {
       if (!deps.isBoardWidgetInstance(instance)) {
         continue;
       }
@@ -103,7 +104,7 @@ export function createLauncherPageRuntime(deps) {
 
     deps.recordHistorySnapshot("Delete launcher page");
 
-    for (const instance of state.instances || []) {
+    for (const instance of arrayOrEmpty(state.instances)) {
       if (!deps.isBoardWidgetInstance(instance)) {
         continue;
       }
@@ -193,7 +194,7 @@ export function createLauncherPageRuntime(deps) {
     deps.recordHistorySnapshot("Create launcher page by drop");
 
     if (addLeft) {
-      for (const entry of state.instances || []) {
+      for (const entry of arrayOrEmpty(state.instances)) {
         if (!deps.isBoardWidgetInstance(entry)) {
           continue;
         }
@@ -279,7 +280,7 @@ export function createLauncherPageRuntime(deps) {
     deps.recordHistorySnapshot("Create empty launcher page");
 
     if (addLeft) {
-      for (const entry of state.instances || []) {
+      for (const entry of arrayOrEmpty(state.instances)) {
         if (!deps.isBoardWidgetInstance(entry)) {
           continue;
         }
