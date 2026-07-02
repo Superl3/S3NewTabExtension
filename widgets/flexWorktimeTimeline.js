@@ -13,6 +13,14 @@ import {
   waitForTabReady
 } from "../core/platform/chrome-tabs.js";
 import {
+  createFlexAuthRequiredError,
+  FLEX_AUTH_FLOW_PENDING_MESSAGE,
+  FLEX_AUTH_LOGIN_PATH_RE,
+  FLEX_AUTH_REQUIRED_CODE,
+  isFlexAuthRequiredError,
+  isFlexLoginUrl
+} from "./shared/flexAuth.js";
+import {
   formatClockMinutes,
   formatDurationMinutes,
   formatFlexSourceError,
@@ -43,11 +51,8 @@ const DEFAULT_FLEX_WORKTIME_REFRESH_MINUTES = 1;
 const DEFAULT_FLEX_HOME_URL = "https://flex.team/home";
 const DEFAULT_FLEX_WORK_RECORD_PATH = "/time-tracking/my-work-record";
 const FLEX_HOME_ALLOWED_HOSTS = new Set(["flex.team", "www.flex.team"]);
-const FLEX_AUTH_REQUIRED_CODE = "FLEX_AUTH_REQUIRED";
-const FLEX_AUTH_LOGIN_PATH_RE = /^\/auth\/login(?:\/|$)/i;
 const FLEX_AUTH_PATH_RE = /^\/auth(?:\/|$)/i;
 const FLEX_WORK_RECORD_PATH_RE = /^\/time-tracking\/my-work-record(?:\/|$)/i;
-const FLEX_AUTH_LOGIN_FALLBACK_RE = /(?:^|[/?#])auth\/login(?:[/?#]|$)/i;
 const FLEX_AUTH_SAME_HOST_PATH_HINT_RE =
   /(?:^|\/)(?:auth|oauth(?:2)?|callback|login|signin|authorize|consent|sso)(?:\/|$)/i;
 const FLEX_AUTH_OAUTH_QUERY_KEYS = new Set([
@@ -68,38 +73,10 @@ const FLEX_EXTERNAL_AUTH_HOST_HINT_RE =
   /(?:^|[.-])(?:oauth|login|signin|sso|idp|okta|onelogin|microsoftonline|auth)(?:[.-]|$)/i;
 const FLEX_EXTERNAL_AUTH_PATH_HINT_RE =
   /(?:^|\/)(?:oauth(?:2)?|login|signin|authorize|consent|sso|auth)(?:\/|$)/i;
-const FLEX_AUTH_FLOW_PENDING_MESSAGE =
-  "Flex login is still in progress on the opened tab (including Google/OAuth redirects). Finish login there, then return and refresh this widget.";
 const FLEX_TIMELINE_TOOLTIP_LABEL_RE = /(기록\s*시작|기록\s*종료|휴게\s*기록)/u;
 const FLEX_TIMELINE_TOOLTIP_SUMMARY_RE = /(?:오전|오후)\s*\d{1,2}:\d{2}.*휴게\s*(?:없음|0\s*분)/u;
 const FLEX_TIMELINE_TIME_TOKEN_RE = /((?:오전|오후)\s*\d{1,2}:\d{2}|\d{1,2}:\d{2}|기록\s*중)/gu;
 const DATE_MODE_VALUES = new Set(["today", "yesterday", "tomorrow", "custom"]);
-
-function createFlexAuthRequiredError(message) {
-  const error = new Error(
-    normalizeText(message, "Flex login is required. Sign in on Flex, then refresh this widget.")
-  );
-  error.code = FLEX_AUTH_REQUIRED_CODE;
-  return error;
-}
-
-function isFlexAuthRequiredError(error) {
-  return normalizeText(error?.code).toUpperCase() === FLEX_AUTH_REQUIRED_CODE;
-}
-
-function isFlexLoginUrl(value) {
-  const text = normalizeText(value);
-  if (!text) {
-    return false;
-  }
-
-  try {
-    const parsed = new URL(text);
-    return FLEX_AUTH_LOGIN_PATH_RE.test(normalizeText(parsed.pathname, "/"));
-  } catch {
-    return FLEX_AUTH_LOGIN_FALLBACK_RE.test(text);
-  }
-}
 
 function normalizeDateMode(value, fallback = "today") {
   const mode = normalizeText(value, fallback).toLowerCase();
