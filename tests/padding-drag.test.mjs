@@ -76,6 +76,13 @@ test("projectContentPaddingFromDrag uses shared fallback padding normalization",
   });
 });
 
+test("normalizePadding preserves unclamped fallback for non-numeric values", () => {
+  assert.equal(normalizePadding("bad", 150), 150);
+  assert.equal(normalizePadding(Infinity, -5), -5);
+  assert.equal(normalizePadding(120, 10), 100);
+  assert.equal(normalizePadding(-10, 10), 0);
+});
+
 test("hasContentPaddingChanged compares directional paddings", () => {
   assert.equal(
     hasContentPaddingChanged(

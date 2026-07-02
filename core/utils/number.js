@@ -9,6 +9,14 @@ export function clampFiniteOrMin(value, min, max) {
   return clamp(value, min, max);
 }
 
+export function clampNumberOrFallback(value, fallback, min, max) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) {
+    return fallback;
+  }
+  return clamp(numeric, min, max);
+}
+
 export function toFiniteNumber(value, fallback = 0) {
   const numeric = Number(value);
   if (!Number.isFinite(numeric)) {
