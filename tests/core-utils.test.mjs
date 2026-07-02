@@ -22,6 +22,12 @@ import {
   isFlexAuthRequiredError,
   isFlexLoginUrl
 } from "../widgets/shared/flexAuth.js";
+import {
+  isLikelyOngoingFlexAuthFlowUrl,
+  isMatchingFlexHomeTabUrl,
+  isMatchingFlexLoginTabUrl,
+  parseFlexHomeTargetUrl
+} from "../widgets/shared/flexUrls.js";
 
 test("normalizeText trims text and falls back for blank-like values", () => {
   assert.equal(normalizeText("  hello  "), "hello");
@@ -97,6 +103,16 @@ test("Flex auth helpers preserve auth-required and login URL semantics", () => {
   assert.equal(isFlexLoginUrl("https://flex.team/auth/login"), true);
   assert.equal(isFlexLoginUrl("https://flex.team/home"), false);
   assert.equal(isFlexLoginUrl("/auth/login?next=/home"), true);
+});
+
+test("Flex URL helpers preserve home matching and auth-flow semantics", () => {
+  const targetUrl = parseFlexHomeTargetUrl("https://flex.team/home?team=core#ignore");
+  assert.equal(targetUrl.toString(), "https://flex.team/home?team=core");
+  assert.equal(isMatchingFlexHomeTabUrl("https://flex.team/home/dashboard", targetUrl), true);
+  assert.equal(isMatchingFlexHomeTabUrl("https://example.com/home", targetUrl), false);
+  assert.equal(isMatchingFlexLoginTabUrl("https://flex.team/auth/login", targetUrl), true);
+  assert.equal(isLikelyOngoingFlexAuthFlowUrl("https://accounts.google.com/o/oauth2/v2/auth?client_id=x", targetUrl), true);
+  assert.throws(() => parseFlexHomeTargetUrl("http://flex.team/home"), /must use https/);
 });
 
 test("layout-primitives clamp delegates to core utils number module", () => {
@@ -314,5 +330,20 @@ test("Flex worktime widgets share auth helpers instead of local copies", async (
     const source = await fs.readFile(moduleUrl, "utf8");
     assert.match(source, /shared\/flexAuth\.js/, moduleUrl.pathname);
     assert.doesNotMatch(source, localAuthPattern, moduleUrl.pathname);
+  }
+});
+
+test("Flex worktime widgets share URL helpers instead of local copies", async () => {
+  const moduleUrls = [
+    new URL("../widgets/flexWorktime.js", import.meta.url),
+    new URL("../widgets/flexWorktimeTimeline.js", import.meta.url)
+  ];
+  const localUrlPattern =
+    /^function (areEquivalentFlexHosts|comparablePath|hasAuthQueryMarkers|isAllowedFlexHomeHost|isAllowedFlexHomePath|isAllowedFlexLoginPath|isLikelyExternalAuthFlowUrl|isLikelyOngoingFlexAuthFlowUrl|isLikelySameHostFlexAuthProgressUrl|isMatchingFlexHomeTabUrl|isMatchingFlexLoginTabUrl|parseAllowedFlexTabUrl|parseFlexHomeTargetUrl)\(/m;
+
+  for (const moduleUrl of moduleUrls) {
+    const source = await fs.readFile(moduleUrl, "utf8");
+    assert.match(source, /shared\/flexUrls\.js/, moduleUrl.pathname);
+    assert.doesNotMatch(source, localUrlPattern, moduleUrl.pathname);
   }
 });
