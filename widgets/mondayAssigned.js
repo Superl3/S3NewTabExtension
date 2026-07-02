@@ -1,4 +1,5 @@
 import { normalizeErrorMessage } from "../core/utils/error.js";
+import { parseJsonOrNull } from "../core/utils/json.js";
 import { clamp } from "../core/utils/number.js";
 import { normalizeText } from "../core/utils/text.js";
 import {
@@ -801,7 +802,7 @@ function readCachedSnapshot(rawConfig, cfg) {
 }
 
 function parsePeopleIdsFromValue(columnValue) {
-  const parsed = tryParseJson(normalizeText(columnValue?.value));
+  const parsed = parseJsonOrNull(normalizeText(columnValue?.value));
   const people = Array.isArray(parsed?.personsAndTeams)
     ? parsed.personsAndTeams
     : Array.isArray(parsed?.persons_and_teams)

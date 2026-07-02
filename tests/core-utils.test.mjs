@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 
 import { normalizeErrorMessage } from "../core/utils/error.js";
+import { parseJsonOrNull } from "../core/utils/json.js";
 import { clamp } from "../core/utils/number.js";
 import { normalizeText } from "../core/utils/text.js";
 import { clamp as layoutClamp } from "../core/layout-primitives.js";
@@ -23,6 +24,13 @@ test("normalizeErrorMessage returns safe fallback text", () => {
   assert.equal(normalizeErrorMessage(), "Unknown error");
   assert.equal(normalizeErrorMessage("  bad request  "), "bad request");
   assert.equal(normalizeErrorMessage({ message: "  failed  " }), "failed");
+});
+
+test("parseJsonOrNull parses JSON objects and ignores invalid input", () => {
+  assert.deepEqual(parseJsonOrNull(" { \"ok\": true } "), { ok: true });
+  assert.equal(parseJsonOrNull(""), null);
+  assert.equal(parseJsonOrNull("not-json"), null);
+  assert.equal(parseJsonOrNull({ ok: true }), null);
 });
 
 test("layout-primitives clamp delegates to core utils number module", () => {
@@ -64,4 +72,13 @@ test("widgets keep only domain-specific local error normalizers", async () => {
     .map((source) => source.name.replace(/^.*\/widgets\//, "widgets/"));
 
   assert.deepEqual(localErrorNormalizers, ["widgets/rss.js"]);
+});
+
+test("widgets keep only connector-specific local JSON parsers", async () => {
+  const sources = await collectWidgetSources(new URL("../widgets/", import.meta.url));
+  const localJsonParsers = sources
+    .filter((source) => /^function (tryParseJson|parseJsonSafely)\(/m.test(source.text))
+    .map((source) => source.name.replace(/^.*\/widgets\//, "widgets/"));
+
+  assert.deepEqual(localJsonParsers, ["widgets/shared/authConnector.js"]);
 });

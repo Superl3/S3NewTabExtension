@@ -1,4 +1,5 @@
 import { normalizeErrorMessage } from "../core/utils/error.js";
+import { parseJsonOrNull } from "../core/utils/json.js";
 import { clamp } from "../core/utils/number.js";
 import { normalizeText } from "../core/utils/text.js";
 import { executeScript, hasScriptingApi } from "../core/platform/chrome-scripting.js";
@@ -148,17 +149,6 @@ function isFlexLoginUrl(value) {
     return FLEX_AUTH_LOGIN_PATH_RE.test(normalizeText(parsed.pathname, "/"));
   } catch {
     return FLEX_AUTH_LOGIN_FALLBACK_RE.test(text);
-  }
-}
-
-function tryParseJson(value) {
-  if (typeof value !== "string" || !value.trim()) {
-    return null;
-  }
-  try {
-    return JSON.parse(value);
-  } catch {
-    return null;
   }
 }
 
@@ -727,7 +717,7 @@ function readCachedSnapshot(config, queryDate) {
     return null;
   }
 
-  const parsed = tryParseJson(raw);
+  const parsed = parseJsonOrNull(raw);
   if (!isPlainObject(parsed)) {
     return null;
   }

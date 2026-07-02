@@ -1,3 +1,4 @@
+import { parseJsonOrNull } from "../../core/utils/json.js";
 import { normalizeText } from "../../core/utils/text.js";
 
 function resolveStorage(storage) {
@@ -8,17 +9,6 @@ function resolveStorage(storage) {
     return globalThis.localStorage;
   }
   return null;
-}
-
-function parseJsonSafely(value) {
-  if (typeof value !== "string" || !value.trim()) {
-    return null;
-  }
-  try {
-    return JSON.parse(value);
-  } catch {
-    return null;
-  }
 }
 
 function normalizeScopedItemSnapshot(snapshot) {
@@ -52,7 +42,7 @@ export function readScopedItemSnapshot(storageKey, storage = undefined) {
     return {};
   }
   try {
-    return normalizeScopedItemSnapshot(parseJsonSafely(targetStorage.getItem(normalizedStorageKey) || ""));
+    return normalizeScopedItemSnapshot(parseJsonOrNull(targetStorage.getItem(normalizedStorageKey) || ""));
   } catch {
     return {};
   }
