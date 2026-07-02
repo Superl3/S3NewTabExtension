@@ -1,13 +1,6 @@
 import { DROP_SILHOUETTE_Z_INDEX, resolveFolderPanelZIndex } from "../core/drag-layering.js";
-
-function clamp(value, min, max) {
-  return Math.max(min, Math.min(max, value));
-}
-
-function normalizeText(value, fallback = "") {
-  const text = String(value || "").trim();
-  return text || fallback;
-}
+import { clamp } from "../core/utils/number.js";
+import { normalizeText } from "../core/utils/text.js";
 
 function normalizeCount(value, fallback, min, max) {
   const num = Number(value);

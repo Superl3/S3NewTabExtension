@@ -1,3 +1,6 @@
+import { clamp } from "../core/utils/number.js";
+import { normalizeText } from "../core/utils/text.js";
+
 export const GEEK_NEWS_FEED_URL = "https://news.hada.io/rss/news";
 const GEEK_NEWS_FETCH_URL = "https://feeds.feedburner.com/geeknews-feed";
 const GEEK_NEWS_HTTP_FETCH_URL = "http://feeds.feedburner.com/geeknews-feed";
@@ -63,15 +66,6 @@ const RSS_SETTINGS_SCHEMA = [
 const PINNED_FEED_SETTINGS_SCHEMA = RSS_SETTINGS_SCHEMA.filter(
   (field) => field.key !== "feedPreset" && field.key !== "feedUrl"
 );
-
-function clamp(value, min, max) {
-  return Math.max(min, Math.min(max, value));
-}
-
-function normalizeText(value, fallback = "") {
-  const text = String(value || "").trim();
-  return text || fallback;
-}
 
 function normalizeMaxItems(value, fallback = 8) {
   const num = Number(value);

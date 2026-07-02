@@ -1,4 +1,6 @@
 import { normalizeErrorMessage } from "../core/utils/error.js";
+import { clamp } from "../core/utils/number.js";
+import { normalizeText } from "../core/utils/text.js";
 import {
   buildAuthConnectorStartUrl,
   createAuthState,
@@ -27,15 +29,6 @@ import {
 
 const MONDAY_AUTH_STORAGE_KEY = "s3newtab-monday-auth-session-v1";
 const LOCAL_AUTH_CONNECTOR_URL = "http://localhost:8787/api/auth/start";
-
-function clamp(value, min, max) {
-  return Math.max(min, Math.min(max, value));
-}
-
-function normalizeText(value, fallback = "") {
-  const text = String(value || "").trim();
-  return text || fallback;
-}
 
 const DONE_GROUP_TITLES = new Set(["done", "completed", "완료"]);
 const DONE_STATUS_LABELS = new Set(["done", "completed", "완료"]);

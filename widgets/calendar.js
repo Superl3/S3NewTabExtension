@@ -1,16 +1,9 @@
+import { clamp } from "../core/utils/number.js";
+import { normalizeText } from "../core/utils/text.js";
 import { parseIcsEvents } from "./shared/icsParser.js";
 
 const GOOGLE_CALENDAR_HOST = "https://calendar.google.com";
 const GOOGLE_CALENDAR_WEB_URL = `${GOOGLE_CALENDAR_HOST}/calendar/u/0/r`;
-
-function clamp(value, min, max) {
-  return Math.max(min, Math.min(max, value));
-}
-
-function normalizeText(value, fallback = "") {
-  const text = String(value || "").trim();
-  return text || fallback;
-}
 
 function normalizeAccountIndex(value, fallback = 0) {
   const num = Number(value);

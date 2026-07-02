@@ -1,13 +1,7 @@
+import { clamp } from "../core/utils/number.js";
+import { normalizeText } from "../core/utils/text.js";
+
 const GMAIL_WEB_BASE_URL = "https://mail.google.com/mail";
-
-function clamp(value, min, max) {
-  return Math.max(min, Math.min(max, value));
-}
-
-function normalizeText(value, fallback = "") {
-  const text = String(value || "").trim();
-  return text || fallback;
-}
 
 function normalizeAccountIndex(value, fallback = 0) {
   const num = Number(value);

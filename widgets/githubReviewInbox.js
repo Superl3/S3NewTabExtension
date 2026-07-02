@@ -1,3 +1,5 @@
+import { clamp } from "../core/utils/number.js";
+import { normalizeText } from "../core/utils/text.js";
 import {
   buildReviewCandidate,
   normalizeGithubLogin,
@@ -30,15 +32,6 @@ const REVIEW_INBOX_TABS = [
   { id: REVIEW_INBOX_TAB_NEEDS_REVIEW, label: "requested" },
   { id: REVIEW_INBOX_TAB_OPENED, label: "opened" }
 ];
-
-function clamp(value, min, max) {
-  return Math.max(min, Math.min(max, value));
-}
-
-function normalizeText(value, fallback = "") {
-  const text = String(value || "").trim();
-  return text || fallback;
-}
 
 function normalizeErrorMessage(error) {
   const fallback = "GitHub review inbox is not available. Check repository and login settings.";

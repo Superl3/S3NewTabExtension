@@ -1,3 +1,5 @@
+import { clamp } from "../core/utils/number.js";
+import { normalizeText } from "../core/utils/text.js";
 import { pruneCacheIndex, touchCacheIndex } from "./shared/localStorageCacheIndex.js";
 
 const GEOCODING_API_URL = "https://geocoding-api.open-meteo.com/v1/search";
@@ -10,15 +12,6 @@ const WEATHER_CACHE_INDEX_OPTIONS = {
   prefix: `${WEATHER_CACHE_PREFIX}:`,
   indexKey: WEATHER_CACHE_INDEX_KEY
 };
-
-function clamp(value, min, max) {
-  return Math.max(min, Math.min(max, value));
-}
-
-function normalizeText(value, fallback = "") {
-  const text = String(value || "").trim();
-  return text || fallback;
-}
 
 function tryParseJson(value) {
   if (typeof value !== "string" || !value.trim()) {
