@@ -3,13 +3,10 @@ import { normalizeErrorMessage } from "../core/utils/error.js";
 import { toFiniteNumber } from "../core/utils/number.js";
 import { normalizeText } from "../core/utils/text.js";
 import {
-  buildAuthConnectorStartUrl,
-  createAuthState,
-  fetchConnectorToken,
+  connectWithAuthConnector,
   isAuthCancelledMessage,
   LOCAL_AUTH_CONNECTOR_URL,
   normalizeLocalAuthConnectorUrl as normalizeConnectorUrl,
-  parseAuthFlowResult,
   rewriteAuthorizationLoadError
 } from "./shared/authConnector.js";
 import { createAuthSessionStorage } from "./shared/authSessionStorage.js";
@@ -365,57 +362,22 @@ export const aiChatWidget = {
       render();
 
       try {
-        let token = configuredToken;
-        let tokenAccount = token ? "Configured token" : "";
-        let tokenRelayFailureMessage = "";
-        if (!token && connectorUrl) {
-          try {
-            const fallback = await fetchConnectorToken(connectorUrl, "openai");
-            token = fallback.accessToken;
-            tokenAccount = fallback.accountLabel;
-          } catch (relayError) {
-            tokenRelayFailureMessage = normalizeErrorMessage(relayError);
-          }
-        }
-
-        const identityApi = getChromeIdentity();
-        if (!token && connectorUrl && identityApi?.launchWebAuthFlow && identityApi?.getRedirectURL) {
-          const state = createAuthState();
-          const redirectUri = identityApi.getRedirectURL("ai-chat-auth");
-          const startUrl = buildAuthConnectorStartUrl(connectorUrl, redirectUri, state, "openai");
-          const callbackUrl = await identityApi.launchWebAuthFlow({
-            url: startUrl,
-            interactive: true
-          });
-
-          const result = parseAuthFlowResult(callbackUrl);
-          if (result.error || result.errorDescription) {
-            throw new Error(result.errorDescription || result.error || "Authentication failed.");
-          }
-          if (!result.state || result.state !== state) {
-            throw new Error("Authentication failed (invalid state).");
-          }
-
-          token = normalizeText(result.accessToken);
-          if (!token) {
-            throw new Error("Auth connector did not return access_token.");
-          }
-
-          tokenAccount = normalizeText(result.accountLabel);
-        }
-
-        if (!token) {
-          throw new Error(
-            tokenRelayFailureMessage ||
-              "Unable to obtain connector token. Check the connector URL or add an access token in settings."
-          );
-        }
+        const result = await connectWithAuthConnector({
+          connectorUrl,
+          configuredAccessToken: configuredToken,
+          provider: "openai",
+          providerLabel: "Authentication",
+          authFlowFailureMessage: "Authentication failed.",
+          unableTokenMessage:
+            "Unable to obtain connector token. Check the connector URL or add an access token in settings.",
+          getIdentityApi: getChromeIdentity
+        });
 
         if (!configuredToken) {
           storedSession = {
             connectorUrl,
-            accessToken: token,
-            accountLabel: tokenAccount
+            accessToken: result.accessToken,
+            accountLabel: result.accountLabel
           };
           await authSessionStorage.save(storedSession);
         }

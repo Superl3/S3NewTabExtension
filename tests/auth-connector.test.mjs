@@ -163,6 +163,32 @@ test("connectWithAuthConnector completes chrome identity auth flow", async () =>
   }
 });
 
+test("connectWithAuthConnector preserves custom auth flow failure copy", async () => {
+  const previousFetch = globalThis.fetch;
+  globalThis.fetch = async () => {
+    throw new Error("token relay unavailable");
+  };
+
+  try {
+    await assert.rejects(
+      connectWithAuthConnector({
+        connectorUrl: "http://localhost:8787/api/auth/start",
+        provider: "openai",
+        providerLabel: "Authentication",
+        authFlowFailureMessage: "Authentication failed.",
+        getIdentityApi: () => ({
+          getRedirectURL: (path) => `https://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.chromiumapp.org/${path}`,
+          launchWebAuthFlow: async () =>
+            "https://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.chromiumapp.org/ai-chat-auth#state=wrong&access_token=token-123"
+        })
+      }),
+      /Authentication failed \(invalid state\)\./
+    );
+  } finally {
+    globalThis.fetch = previousFetch;
+  }
+});
+
 test("aiChat prefers configured access token over stored session", () => {
   const result = resolveAiChatActiveSession({
     connectorUrl: "http://localhost:8787/api/auth/start",

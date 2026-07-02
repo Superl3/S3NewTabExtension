@@ -1479,8 +1479,9 @@ test("account auth widgets share local connector auth helpers", async () => {
   }
 });
 
-test("Monday widgets share connector auth flow primitive", async () => {
+test("account auth widgets share connector auth flow primitive", async () => {
   const moduleUrls = [
+    new URL("../widgets/aiChat.js", import.meta.url),
     new URL("../widgets/mondayAssigned.js", import.meta.url),
     new URL("../widgets/mondayMeetingNote.js", import.meta.url)
   ];

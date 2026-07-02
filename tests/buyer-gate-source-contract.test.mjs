@@ -103,7 +103,8 @@ test("AI Chat degraded setup copy is actionable and chrome access is guarded", a
   assert.match(source, /Check the connector URL or add an access token in settings/);
   assert.match(source, /Check the endpoint, model, and access token in settings/);
   assert.match(source, /getStorageArea: getChromeStorageLocal/);
-  assert.match(source, /const identityApi = getChromeIdentity\(\)/);
+  assert.match(source, /connectWithAuthConnector/);
+  assert.match(source, /getIdentityApi: getChromeIdentity/);
   assert.doesNotMatch(source, /getStorageArea:\s*\(\)\s*=>\s*chrome\?\.storage\?\.local/);
   assert.doesNotMatch(source, /chrome\.identity/);
   assert.doesNotMatch(source, /Request failed: \$\{error\.message\}/);
