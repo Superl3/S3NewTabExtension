@@ -1,3 +1,5 @@
+import { toInteger } from "./utils/number.js";
+
 function launcherPageWidgetCounts(getState, pageCount, { isBoardWidgetInstance, normalizeWidgetPage }) {
   const state = getState();
   const counts = Array.from({ length: Math.max(1, pageCount) }, () => 0);
@@ -142,9 +144,7 @@ export function createLauncherPageRuntime(deps) {
 
     const home = deps.syncLauncherPagingState({ expandToFitInstances: true });
     const pageCount = home.pageCount;
-    const targetPlaceholder = Number.isFinite(Number(placeholderPage))
-      ? Math.floor(Number(placeholderPage))
-      : Math.floor(Number(payload?.page));
+    const targetPlaceholder = toInteger(placeholderPage, toInteger(payload?.page, Number.NaN));
 
     if (!deps.isPlaceholderLauncherPage(targetPlaceholder, pageCount)) {
       return false;
@@ -266,9 +266,7 @@ export function createLauncherPageRuntime(deps) {
     const state = deps.getState();
     const home = deps.syncLauncherPagingState({ expandToFitInstances: true });
     const oldPageCount = home.pageCount;
-    const targetPlaceholder = Number.isFinite(Number(placeholderPage))
-      ? Math.floor(Number(placeholderPage))
-      : oldPageCount;
+    const targetPlaceholder = toInteger(placeholderPage, oldPageCount);
 
     if (!deps.isPlaceholderLauncherPage(targetPlaceholder, oldPageCount) || oldPageCount >= deps.maxLauncherPages) {
       return false;

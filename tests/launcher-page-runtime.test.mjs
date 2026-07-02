@@ -114,6 +114,17 @@ test("queuePlaceholderPageDrop stores pending placeholder payload", () => {
   assert.equal(harness.calls.renderBoardViewport, 1);
 });
 
+test("queuePlaceholderPageDrop falls back to payload page for invalid explicit placeholder", () => {
+  const harness = createHarness();
+  harness.state.instances = [{ id: "w1", page: 0, layout: {} }];
+
+  const queued = harness.runtime.queuePlaceholderPageDrop("w1", { page: -1 }, "bad");
+
+  assert.equal(queued, true);
+  assert.equal(harness.launcherPageUiState.virtualPage, -1);
+  assert.equal(harness.launcherPageUiState.pendingPlaceholderDrop?.placeholderPage, -1);
+});
+
 test("materializePendingPlaceholderPage clears pending when widget is missing", () => {
   const harness = createHarness();
   harness.launcherPageUiState.pendingPlaceholderDrop = {
@@ -179,6 +190,17 @@ test("materializeLauncherPlaceholderPage creates right-side page and saves", () 
   assert.equal(harness.calls.renderBoard, 1);
   assert.equal(harness.calls.queueSave, 1);
   assert.deepEqual(harness.calls.history, ["Create empty launcher page"]);
+});
+
+test("materializeLauncherPlaceholderPage falls back invalid placeholder to right-side page", () => {
+  const harness = createHarness();
+  harness.state.instances = [{ id: "w1", page: 0, layout: {} }];
+
+  const created = harness.runtime.materializeLauncherPlaceholderPage("bad");
+
+  assert.equal(created, true);
+  assert.equal(harness.state.ui.home.pageCount, 3);
+  assert.equal(harness.state.ui.home.activePage, 2);
 });
 
 test("deleteLauncherPageAt remaps board widgets and updates home state", () => {
