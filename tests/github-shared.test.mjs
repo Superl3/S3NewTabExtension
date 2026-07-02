@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
+  areGitHubCachedItemsEqual,
   buildGitHubApiHeaders,
   buildGitHubRepoApiUrl,
   buildGitHubRepoPullsPageUrl,
@@ -75,6 +76,22 @@ test("GitHub shared helpers normalize cached item base fields", () => {
     ["a", "b"]
   );
   assert.deepEqual(normalizeGitHubCachedItems([{ id: "a" }], null), []);
+  assert.equal(
+    areGitHubCachedItemsEqual(
+      [{ id: "a", number: "1" }],
+      [{ id: "a", number: 1 }],
+      normalizeGitHubCachedItemBase
+    ),
+    true
+  );
+  assert.equal(
+    areGitHubCachedItemsEqual(
+      [{ id: "a", number: "1" }],
+      [{ id: "a", number: 2 }],
+      normalizeGitHubCachedItemBase
+    ),
+    false
+  );
 });
 
 test("GitHub shared helpers preserve API formatting semantics", () => {
