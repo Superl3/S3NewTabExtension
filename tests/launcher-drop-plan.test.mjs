@@ -17,6 +17,7 @@ import {
   isBoardPlaceholderDropPlan,
   isBoardRealPageDropPlan,
   isContainerDropPlan,
+  placeholderEdgeFromInternalPlaceholder,
   policyPlaceholderPageFromInternalPlaceholder,
   policyRealPageFromInternalPage
 } from "../core/launcherDropPlan.js";
@@ -24,13 +25,19 @@ import {
 test("maps policy and internal page numbers consistently", () => {
   assert.equal(policyRealPageFromInternalPage(0), 1);
   assert.equal(policyRealPageFromInternalPage(3), 4);
+  assert.equal(policyRealPageFromInternalPage(3.8), 4);
   assert.equal(internalPageFromPolicyRealPage(1), 0);
   assert.equal(internalPageFromPolicyRealPage(4), 3);
+  assert.equal(internalPageFromPolicyRealPage(4.8), 3);
 });
 
 test("maps internal placeholders to policy placeholders", () => {
   assert.equal(policyPlaceholderPageFromInternalPlaceholder(-1, 4), 0);
   assert.equal(policyPlaceholderPageFromInternalPlaceholder(4, 4), 5);
+  assert.equal(policyPlaceholderPageFromInternalPlaceholder("bad", 4), 5);
+  assert.equal(placeholderEdgeFromInternalPlaceholder(-1, 4), PLACEHOLDER_EDGE.HEAD);
+  assert.equal(placeholderEdgeFromInternalPlaceholder(4, 4), PLACEHOLDER_EDGE.TAIL);
+  assert.equal(placeholderEdgeFromInternalPlaceholder("bad", 4), null);
 });
 
 test("builds container drop plan with minimal hierarchy", () => {

@@ -107,17 +107,17 @@ export function isBoardRealPageDropPlan(plan) {
 
 export function policyRealPageFromInternalPage(internalPage) {
   const page = toInteger(internalPage, 0);
-  return Math.max(1, Math.floor(page) + 1);
+  return Math.max(1, page + 1);
 }
 
 export function internalPageFromPolicyRealPage(policyPage) {
   const page = toInteger(policyPage, 1);
-  return Math.max(0, Math.floor(page) - 1);
+  return Math.max(0, page - 1);
 }
 
 export function policyPlaceholderPageFromInternalPlaceholder(internalPlaceholderPage, pageCount) {
   const count = toPositiveInteger(pageCount, 1);
-  const page = Number(internalPlaceholderPage);
+  const page = toInteger(internalPlaceholderPage, count);
   if (page < 0) {
     return 0;
   }
@@ -126,7 +126,7 @@ export function policyPlaceholderPageFromInternalPlaceholder(internalPlaceholder
 
 export function placeholderEdgeFromInternalPlaceholder(internalPlaceholderPage, pageCount) {
   const count = toPositiveInteger(pageCount, 1);
-  const page = Number(internalPlaceholderPage);
+  const page = toInteger(internalPlaceholderPage, Number.NaN);
   if (!Number.isFinite(page)) {
     return null;
   }
