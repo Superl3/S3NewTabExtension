@@ -216,6 +216,13 @@ test("core modules use the shared text normalizer instead of local copies", asyn
   }
 });
 
+test("dock state uses the shared container membership predicate", async () => {
+  const source = await fs.readFile(new URL("../core/dock-state.js", import.meta.url), "utf8");
+  assert.match(source, /container-state\.js/);
+  assert.match(source, /isWidgetInContainer/);
+  assert.doesNotMatch(source, /^function defaultIsInContainer\(/m);
+});
+
 test("core modules use the shared finite clamp helper instead of local copies", async () => {
   const moduleUrls = [
     new URL("../core/board-swipe.js", import.meta.url),

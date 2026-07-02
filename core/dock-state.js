@@ -1,8 +1,5 @@
+import { isWidgetInContainer } from "./container-state.js";
 import { normalizeText } from "./utils/text.js";
-
-function defaultIsInContainer(instance) {
-  return normalizeText(instance?.containerId) !== "";
-}
 
 export function normalizeDockOrder(value, fallback = null) {
   if (value === null || value === undefined || value === "") {
@@ -19,7 +16,7 @@ export function isWidgetDocked(instance) {
   return normalizeDockOrder(instance?.dockOrder, null) !== null;
 }
 
-export function nextDockOrder(instances = [], { isInContainer = defaultIsInContainer } = {}) {
+export function nextDockOrder(instances = [], { isInContainer = isWidgetInContainer } = {}) {
   const items = Array.isArray(instances) ? instances : [];
   let maxOrder = -1;
 
@@ -39,7 +36,7 @@ export function nextDockOrder(instances = [], { isInContainer = defaultIsInConta
 export function dockSlotOccupants(instances = [], {
   slotCount = 1,
   excludeWidgetId = "",
-  isInContainer = defaultIsInContainer
+  isInContainer = isWidgetInContainer
 } = {}) {
   const count = Math.max(1, Math.floor(Number(slotCount) || 1));
   const excluded = normalizeText(excludeWidgetId);
@@ -66,7 +63,7 @@ export function dockSlotOccupants(instances = [], {
 export function firstAvailableDockSlot(instances = [], {
   slotCount = 1,
   excludeWidgetId = "",
-  isInContainer = defaultIsInContainer
+  isInContainer = isWidgetInContainer
 } = {}) {
   const count = Math.max(1, Math.floor(Number(slotCount) || 1));
   const occupied = dockSlotOccupants(instances, {
@@ -85,7 +82,7 @@ export function firstAvailableDockSlot(instances = [], {
 
 export function normalizeDockedWidgetOrders(instances, {
   slotCount = 1,
-  isInContainer = defaultIsInContainer
+  isInContainer = isWidgetInContainer
 } = {}) {
   if (!Array.isArray(instances) || !instances.length) {
     return false;
