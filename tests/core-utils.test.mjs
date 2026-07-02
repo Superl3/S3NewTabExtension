@@ -1327,6 +1327,15 @@ test("GitHub review inbox logic uses shared cache timestamp normalization", asyn
   assert.match(source, /normalizeGitHubCacheTimestamp/);
   assert.match(source, /collectOtherUserTimestamps/);
   assert.match(source, /collectUserTimestamps/);
+  assert.match(source, /readCommitTimestamp/);
+  assert.equal(
+    Array.from(source.matchAll(/parseTimestamp\(commit\?\.commit\?\.author\?\.date\)/g)).length,
+    1
+  );
+  assert.equal(
+    Array.from(source.matchAll(/parseTimestamp\(commit\?\.commit\?\.committer\?\.date\)/g)).length,
+    1
+  );
   assert.equal(
     Array.from(source.matchAll(/\.filter\(\([^)]*\) => !isSameGithubUser\(/g)).length,
     1
