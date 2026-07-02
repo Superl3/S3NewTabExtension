@@ -597,7 +597,8 @@ test("core profile utilities use shared object helpers", async () => {
 test("core snapshot modules use shared object ownership helper", async () => {
   const moduleUrls = [
     new URL("../core/history-snapshot-materialize.js", import.meta.url),
-    new URL("../core/runtimeSnapshotPolicy.js", import.meta.url)
+    new URL("../core/runtimeSnapshotPolicy.js", import.meta.url),
+    new URL("../core/persistence-runtime.js", import.meta.url)
   ];
 
   for (const moduleUrl of moduleUrls) {
@@ -936,6 +937,15 @@ test("widgets use shared object helpers instead of local copies", async () => {
   for (const source of sources) {
     assert.doesNotMatch(source.text, /^function isPlainObject\(/m, source.name);
     assert.doesNotMatch(source.text, /^function hasOwn\(/m, source.name);
+  }
+
+  const ownershipSources = sources.filter((source) =>
+    /\/widgets\/shared\/(?:authSessionStorage|icsParser)\.js$/.test(source.name)
+  );
+  for (const source of ownershipSources) {
+    assert.match(source.text, /utils\/object\.js/, source.name);
+    assert.match(source.text, /hasOwn\(/, source.name);
+    assert.doesNotMatch(source.text, /Object\.prototype\.hasOwnProperty\.call/, source.name);
   }
 
   const flexSources = sources.filter((source) =>

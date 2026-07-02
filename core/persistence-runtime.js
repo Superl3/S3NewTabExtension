@@ -1,3 +1,5 @@
+import { hasOwn } from "./utils/object.js";
+
 export function createPersistenceRuntime(deps) {
   const isStateObject = (value) => value !== null && typeof value === "object" && !Array.isArray(value);
   const structuredCloneValue =
@@ -193,7 +195,7 @@ export function createPersistenceRuntime(deps) {
         return;
       }
       const changed = changes?.[deps.storageKey];
-      if (!changed || !Object.prototype.hasOwnProperty.call(changed, "newValue")) {
+      if (!changed || !hasOwn(changed, "newValue")) {
         return;
       }
       syncFromExternalSnapshot(changed.newValue);

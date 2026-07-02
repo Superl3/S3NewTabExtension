@@ -1,3 +1,4 @@
+import { hasOwn } from "../../core/utils/object.js";
 import { normalizeText } from "../../core/utils/text.js";
 import { toLocalDateKey } from "./localDates.js";
 
@@ -171,7 +172,7 @@ export function parseIcsEvents(icsText) {
     }
 
     const { name, params, value } = parsed;
-    if (!Object.prototype.hasOwnProperty.call(current, name)) {
+    if (!hasOwn(current, name)) {
       current[name] = { value, params };
     }
   }
