@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 
 import {
   buildAuthConnectorStartUrl,
+  connectWithAuthConnector,
   fetchConnectorToken,
   isAuthCancelledMessage,
   LOCAL_AUTH_CONNECTOR_URL,
@@ -106,6 +107,57 @@ test("fetchConnectorToken parses connector token payloads through shared JSON ha
         accountLabel: "me@example.com"
       }
     );
+  } finally {
+    globalThis.fetch = previousFetch;
+  }
+});
+
+test("connectWithAuthConnector prefers configured access token", async () => {
+  assert.deepEqual(
+    await connectWithAuthConnector({
+      connectorUrl: "http://localhost:8787/api/auth/start",
+      configuredAccessToken: " configured-token ",
+      provider: "monday",
+      providerLabel: "Monday",
+      getIdentityApi: () => {
+        throw new Error("identity should not be used");
+      }
+    }),
+    {
+      accessToken: "configured-token",
+      accountLabel: "Configured token"
+    }
+  );
+});
+
+test("connectWithAuthConnector completes chrome identity auth flow", async () => {
+  const previousFetch = globalThis.fetch;
+  globalThis.fetch = async () => {
+    throw new Error("token relay unavailable");
+  };
+
+  try {
+    const result = await connectWithAuthConnector({
+      connectorUrl: "http://localhost:8787/api/auth/start",
+      provider: "monday",
+      providerLabel: "Monday",
+      unableTokenMessage: "Unable to obtain Monday connector token.",
+      getIdentityApi: () => ({
+        getRedirectURL: (path) => `https://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.chromiumapp.org/${path}`,
+        launchWebAuthFlow: async ({ url, interactive }) => {
+          assert.equal(interactive, true);
+          const parsed = new URL(url);
+          const state = parsed.searchParams.get("state");
+          assert.equal(parsed.searchParams.get("provider"), "monday");
+          return `https://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.chromiumapp.org/monday-auth#state=${state}&access_token=token-123&account=me@example.com`;
+        }
+      })
+    });
+
+    assert.deepEqual(result, {
+      accessToken: "token-123",
+      accountLabel: "me@example.com"
+    });
   } finally {
     globalThis.fetch = previousFetch;
   }

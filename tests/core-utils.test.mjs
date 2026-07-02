@@ -1479,6 +1479,21 @@ test("account auth widgets share local connector auth helpers", async () => {
   }
 });
 
+test("Monday widgets share connector auth flow primitive", async () => {
+  const moduleUrls = [
+    new URL("../widgets/mondayAssigned.js", import.meta.url),
+    new URL("../widgets/mondayMeetingNote.js", import.meta.url)
+  ];
+  const rawAuthFlowPattern =
+    /\b(buildAuthConnectorStartUrl|createAuthState|fetchConnectorToken|parseAuthFlowResult)\b/;
+
+  for (const moduleUrl of moduleUrls) {
+    const source = await fs.readFile(moduleUrl, "utf8");
+    assert.match(source, /connectWithAuthConnector/, moduleUrl.pathname);
+    assert.doesNotMatch(source, rawAuthFlowPattern, moduleUrl.pathname);
+  }
+});
+
 test("AI chat shares core number helpers for request payload numbers", async () => {
   const source = await fs.readFile(new URL("../widgets/aiChat.js", import.meta.url), "utf8");
   assert.match(source, /core\/utils\/number\.js/);

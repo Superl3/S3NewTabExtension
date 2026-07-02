@@ -4,13 +4,10 @@ import { parseJsonOrNull } from "../core/utils/json.js";
 import { clamp, normalizeIntegerInRange } from "../core/utils/number.js";
 import { normalizeText } from "../core/utils/text.js";
 import {
-  buildAuthConnectorStartUrl,
-  createAuthState,
-  fetchConnectorToken,
+  connectWithAuthConnector,
   isAuthCancelledMessage,
   LOCAL_AUTH_CONNECTOR_URL,
   normalizeLocalAuthConnectorUrl as normalizeConnectorUrl,
-  parseAuthFlowResult,
   rewriteAuthorizationLoadError
 } from "./shared/authConnector.js";
 import {
@@ -1329,60 +1326,24 @@ export const mondayAssignedWidget = {
       render();
 
       try {
-        let token = normalizeText(cfg.accessToken);
-        let tokenAccount = token ? "Configured token" : "";
-        let tokenRelayFailureMessage = "";
-        if (!token && cfg.connectorUrl) {
-          try {
-            const fallback = await fetchConnectorToken(cfg.connectorUrl, "monday");
-            token = fallback.accessToken;
-            tokenAccount = fallback.accountLabel;
-          } catch (relayError) {
-            tokenRelayFailureMessage = normalizeErrorMessage(relayError);
-          }
-        }
-
-        const identityApi = getChromeIdentity();
-        if (!token && identityApi?.launchWebAuthFlow && identityApi?.getRedirectURL) {
-          const state = createAuthState();
-          const redirectUri = identityApi.getRedirectURL("monday-auth");
-          const startUrl = buildAuthConnectorStartUrl(cfg.connectorUrl, redirectUri, state, "monday");
-          const callbackUrl = await identityApi.launchWebAuthFlow({
-            url: startUrl,
-            interactive: true
-          });
-
-          const result = parseAuthFlowResult(callbackUrl);
-          if (result.error || result.errorDescription) {
-            throw new Error(result.errorDescription || result.error || "Monday connection failed.");
-          }
-          if (!result.state || result.state !== state) {
-            throw new Error("Monday connection failed (invalid state).");
-          }
-
-          token = normalizeText(result.accessToken);
-          if (!token) {
-            throw new Error("Auth connector did not return access_token.");
-          }
-
-          tokenAccount = normalizeText(result.accountLabel);
-        }
-
-        if (!token) {
-          throw new Error(
-            tokenRelayFailureMessage ||
-              "Unable to obtain Monday connector token. Check the connector URL or add a Monday access token in settings."
-          );
-        }
+        const result = await connectWithAuthConnector({
+          connectorUrl: cfg.connectorUrl,
+          configuredAccessToken: cfg.accessToken,
+          provider: "monday",
+          providerLabel: "Monday",
+          unableTokenMessage:
+            "Unable to obtain Monday connector token. Check the connector URL or add a Monday access token in settings.",
+          getIdentityApi: getChromeIdentity
+        });
 
         connected = true;
-        accessToken = token;
-        accountLabel = tokenAccount;
+        accessToken = result.accessToken;
+        accountLabel = result.accountLabel;
         sessionConnectorUrl = cfg.connectorUrl;
         if (!normalizeText(cfg.accessToken)) {
           await authSessionStorage.save({
             connectorUrl: cfg.connectorUrl,
-            accessToken: token,
+            accessToken,
             accountLabel
           });
         }
