@@ -1,18 +1,12 @@
 import { areBookmarksAvailable, resolveBookmarkRoot } from "../bookmarks.js";
 import { arrayOrEmpty } from "../core/utils/array.js";
 import { clamp, toFiniteNumber } from "../core/utils/number.js";
+import { objectOrEmpty } from "../core/utils/object.js";
 import { normalizeText } from "../core/utils/text.js";
 import { buildGoogleFaviconUrl, isUrlIcon, normalizeHttpUrl } from "./shared/linkUrls.js";
 
-function asRecord(value) {
-  if (value && typeof value === "object" && !Array.isArray(value)) {
-    return value;
-  }
-  return {};
-}
-
 function buildNodeLabel(node, cfg) {
-  const labelMap = asRecord(cfg.labelMap);
+  const labelMap = objectOrEmpty(cfg.labelMap);
   const custom = normalizeText(labelMap[node.id]);
   if (custom) {
     return custom;
@@ -26,7 +20,7 @@ function buildNodeUrl(node, cfg) {
   }
 
   const fallbackUrl = normalizeHttpUrl(node.url);
-  const urlMap = asRecord(cfg.urlMap);
+  const urlMap = objectOrEmpty(cfg.urlMap);
   const custom = normalizeText(urlMap[node.id]);
   const customUrl = normalizeHttpUrl(custom);
   if (customUrl) {
@@ -39,7 +33,7 @@ function buildIconNode(node, cfg) {
   const icon = document.createElement("span");
   icon.className = "bookmark-icon";
 
-  const iconMap = asRecord(cfg.iconMap);
+  const iconMap = objectOrEmpty(cfg.iconMap);
   const custom = normalizeText(iconMap[node.id]);
   if (custom) {
     if (isUrlIcon(custom)) {
@@ -80,7 +74,7 @@ function createEditButton(onClick) {
 }
 
 function setMapValue(map, key, value) {
-  const next = { ...asRecord(map) };
+  const next = { ...objectOrEmpty(map) };
   if (value) {
     next[key] = value;
   } else {
@@ -287,7 +281,7 @@ export const bookmarksWidget = {
       const labelInput = document.createElement("input");
       labelInput.type = "text";
       labelInput.placeholder = "Custom display name";
-      labelInput.value = normalizeText(asRecord(cfg.labelMap)[editingNode.id]);
+      labelInput.value = normalizeText(objectOrEmpty(cfg.labelMap)[editingNode.id]);
       labelRow.append(labelText, labelInput);
 
       const iconRow = document.createElement("label");
@@ -297,7 +291,7 @@ export const bookmarksWidget = {
       const iconInput = document.createElement("input");
       iconInput.type = "text";
       iconInput.placeholder = "⭐ or https://example.com/icon.png";
-      iconInput.value = normalizeText(asRecord(cfg.iconMap)[editingNode.id]);
+      iconInput.value = normalizeText(objectOrEmpty(cfg.iconMap)[editingNode.id]);
       iconRow.append(iconText, iconInput);
 
       const urlRow = document.createElement("label");
@@ -307,7 +301,7 @@ export const bookmarksWidget = {
       const urlInput = document.createElement("input");
       urlInput.type = "url";
       urlInput.placeholder = "https://...";
-      urlInput.value = normalizeText(asRecord(cfg.urlMap)[editingNode.id]);
+      urlInput.value = normalizeText(objectOrEmpty(cfg.urlMap)[editingNode.id]);
       urlRow.append(urlText, urlInput);
 
       const actions = document.createElement("div");
