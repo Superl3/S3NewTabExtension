@@ -1,6 +1,6 @@
 import { normalizeErrorMessage } from "../core/utils/error.js";
 import { parseJsonOrNull } from "../core/utils/json.js";
-import { clamp, normalizeIntegerInRange } from "../core/utils/number.js";
+import { clamp, clampTruthyNumberOrFallback, normalizeIntegerInRange } from "../core/utils/number.js";
 import { normalizeText } from "../core/utils/text.js";
 import { pruneCacheIndex, touchCacheIndex } from "./shared/localStorageCacheIndex.js";
 
@@ -462,14 +462,14 @@ export const weatherWidget = {
 
       if (isGrid) {
         const targetRowSpan = advanced ? 2 : 1;
-        const currentRowSpan = Math.max(1, Number(widget.gridLayout.rowSpan) || 1);
+        const currentRowSpan = clampTruthyNumberOrFallback(widget.gridLayout.rowSpan, 1, 1, Number.POSITIVE_INFINITY);
         if (currentRowSpan !== targetRowSpan) {
           widget.gridLayout.rowSpan = targetRowSpan;
           changed = true;
         }
       } else {
         const targetHeight = advanced ? 300 : 220;
-        const currentHeight = Math.max(1, Number(widget.layout.h) || 0);
+        const currentHeight = clampTruthyNumberOrFallback(widget.layout.h, 0, 1, Number.POSITIVE_INFINITY);
         if (Math.abs(currentHeight - targetHeight) > 1) {
           widget.layout.h = targetHeight;
           if (card) {

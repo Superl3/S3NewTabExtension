@@ -893,6 +893,20 @@ test("widgets keep only blank-aware local finite number normalization", async ()
   assert.deepEqual(localFiniteNormalizers, ["widgets/weather.js"]);
 });
 
+test("weather mode sizing uses shared truthy clamp fallbacks", async () => {
+  const source = await fs.readFile(new URL("../widgets/weather.js", import.meta.url), "utf8");
+
+  assert.match(
+    source,
+    /clampTruthyNumberOrFallback\(widget\.gridLayout\.rowSpan, 1, 1, Number\.POSITIVE_INFINITY\)/
+  );
+  assert.match(
+    source,
+    /clampTruthyNumberOrFallback\(widget\.layout\.h, 0, 1, Number\.POSITIVE_INFINITY\)/
+  );
+  assert.doesNotMatch(source, /Math\.max\(1, Number\(widget\.(?:gridLayout\.rowSpan|layout\.h)\) \|\| [01]\)/);
+});
+
 test("widgets use shared object helpers instead of local copies", async () => {
   const sources = await collectWidgetSources(new URL("../widgets/", import.meta.url));
   for (const source of sources) {
