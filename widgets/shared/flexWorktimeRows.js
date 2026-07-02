@@ -1,4 +1,3 @@
-import { arrayOrEmpty } from "../../core/utils/array.js";
 import { normalizeErrorMessage } from "../../core/utils/error.js";
 import { clamp, normalizeIntegerInRange, toFiniteNumber, toInteger } from "../../core/utils/number.js";
 import { hasOwn, isPlainObject } from "../../core/utils/object.js";
@@ -98,7 +97,7 @@ export function buildFlexWidgetConfigSignature(config, parts = []) {
   return [
     normalizeText(config?.flexHomeUrl),
     config?.openFlexTabIfMissing ? 1 : 0,
-    ...arrayOrEmpty(parts)
+    ...parts
   ].join("|");
 }
 

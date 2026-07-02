@@ -1125,6 +1125,7 @@ test("Flex worktime row helpers do not proxy-export local date helpers", async (
 test("Flex shared row helpers use core integer primitives", async () => {
   const source = await fs.readFile(new URL("../widgets/shared/flexWorktimeRows.js", import.meta.url), "utf8");
   assert.match(source, /core\/utils\/number\.js/);
+  assert.doesNotMatch(source, /core\/utils\/array\.js/);
   assert.doesNotMatch(source, /Math\.floor\(Number/, "flexWorktimeRows.js");
   assert.doesNotMatch(source, /Number\.isFinite\(Number\(/, "flexWorktimeRows.js");
   assert.doesNotMatch(source, /Number\(totalMinutes\) \|\| 0/, "flexWorktimeRows.js");
