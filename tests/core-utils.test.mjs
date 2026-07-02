@@ -630,6 +630,14 @@ test("Flex worktime widgets share cache helpers instead of local copies", async 
   }
 });
 
+test("local storage cache index uses core integer helpers", async () => {
+  const source = await fs.readFile(new URL("../widgets/shared/localStorageCacheIndex.js", import.meta.url), "utf8");
+  assert.match(source, /core\/utils\/number\.js/);
+  assert.doesNotMatch(source, /Math\.floor\(Number/, "localStorageCacheIndex.js");
+  assert.doesNotMatch(source, /Number\.isFinite\(Number\(/, "localStorageCacheIndex.js");
+  assert.doesNotMatch(source, /Number\(options\.maxEntries\)/, "localStorageCacheIndex.js");
+});
+
 test("GitHub widgets share repository and API helpers", async () => {
   const moduleUrls = [
     new URL("../widgets/githubPrList.js", import.meta.url),

@@ -1,9 +1,9 @@
 import { parseJsonOrNull } from "../../core/utils/json.js";
+import { toInteger, toPositiveInteger } from "../../core/utils/number.js";
 import { normalizeText } from "../../core/utils/text.js";
 
 function normalizeFetchedAt(value) {
-  const num = Number(value);
-  return Number.isFinite(num) ? Math.max(0, Math.floor(num)) : 0;
+  return Math.max(0, toInteger(value, 0));
 }
 
 function normalizeIndexEntry(entry, options) {
@@ -55,7 +55,7 @@ export function writeCacheIndex(storage, options, entries) {
 }
 
 export function touchCacheIndex(storage, options) {
-  const maxEntries = Math.max(1, Number(options.maxEntries) || 1);
+  const maxEntries = toPositiveInteger(options.maxEntries, 1);
   const key = normalizeText(options.key);
   if (!key) {
     return;
@@ -81,7 +81,7 @@ export function touchCacheIndex(storage, options) {
 }
 
 export function pruneCacheIndex(storage, options) {
-  const maxEntries = Math.max(1, Number(options.maxEntries) || 1);
+  const maxEntries = toPositiveInteger(options.maxEntries, 1);
   const entries = readCacheIndex(storage, options);
   if (entries.length <= maxEntries) {
     writeCacheIndex(storage, options, entries);
