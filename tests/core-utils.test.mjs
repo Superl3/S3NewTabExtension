@@ -438,6 +438,20 @@ test("feed and monday widgets share local date-time label formatting", async () 
   }
 });
 
+test("feed widgets share XML helpers instead of local copies", async () => {
+  const moduleUrls = [
+    new URL("../widgets/gmail.js", import.meta.url),
+    new URL("../widgets/rss.js", import.meta.url)
+  ];
+  const localFeedXmlPattern = /^function (atomAlternateLink|atomLink|nodeText)\(/m;
+
+  for (const moduleUrl of moduleUrls) {
+    const source = await fs.readFile(moduleUrl, "utf8");
+    assert.match(source, /shared\/feedXml\.js/, moduleUrl.pathname);
+    assert.doesNotMatch(source, localFeedXmlPattern, moduleUrl.pathname);
+  }
+});
+
 test("widgets share link URL helpers instead of local copies", async () => {
   const moduleUrls = [
     new URL("../widgets/shortcut.js", import.meta.url),
