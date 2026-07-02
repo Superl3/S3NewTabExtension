@@ -1201,8 +1201,8 @@ export const mondayAssignedWidget = {
       );
 
       const primary = cacheBoards[0] || null;
-      const cacheIssues = primary?.issues || [];
-      const cacheGroups = primary?.groups || [];
+      const cacheIssues = arrayOrEmpty(primary?.issues);
+      const cacheGroups = arrayOrEmpty(primary?.groups);
       const cacheBoardName = primary?.boardName || "";
       const cacheAssigneeName = primary?.assigneeName || "";
       const cacheBoardId = primary?.boardId || 0;

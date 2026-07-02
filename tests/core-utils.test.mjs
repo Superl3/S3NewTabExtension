@@ -1680,6 +1680,7 @@ test("Monday widgets share cached board base normalization", async () => {
   assert.doesNotMatch(assignedSource, /Array\.isArray\(boardSnapshots\) \? boardSnapshots : \[\]/);
   assert.doesNotMatch(assignedSource, /Array\.isArray\(snapshot\?\.issues\) \? snapshot\.issues : \[\]/);
   assert.doesNotMatch(assignedSource, /Array\.isArray\(previousSnapshot\?\.boardGroups\) \? previousSnapshot\.boardGroups : \[\]/);
+  assert.doesNotMatch(assignedSource, /primary\?\.(?:issues|groups) \|\| \[\]/);
 
   const meetingNoteSource = await fs.readFile(new URL("../widgets/mondayMeetingNote.js", import.meta.url), "utf8");
   assert.doesNotMatch(meetingNoteSource, /Array\.isArray\(boardEntries\) \? boardEntries : \[\]/);
