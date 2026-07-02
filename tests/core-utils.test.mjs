@@ -327,6 +327,12 @@ test("core layout modules use shared array fallback helper", async () => {
   assert.doesNotMatch(widgetAddPlanSource, /Array\.isArray\(instances\) \? instances : \[\]/);
 });
 
+test("dock interactions use native nullish iterator fallback", async () => {
+  const source = await fs.readFile(new URL("../core/dock-interactions-runtime.js", import.meta.url), "utf8");
+  assert.match(source, /controllers\?\.values\?\.\(\) \?\? \[\]/);
+  assert.doesNotMatch(source, /controllers\?\.values\?\.\(\) \|\| \[\]/);
+});
+
 test("Flex auth helpers preserve auth-required and login URL semantics", () => {
   const error = createFlexAuthRequiredError("  login needed  ");
   assert.equal(error.message, "login needed");
