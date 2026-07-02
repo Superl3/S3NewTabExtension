@@ -1,5 +1,5 @@
 import { snapToHalfGridTrack } from "./utils/grid.js";
-import { clampFiniteOrMin, toInteger } from "./utils/number.js";
+import { clampFiniteOrMin, toInteger, toTruthyNumberOrFallback } from "./utils/number.js";
 
 const INTERACTIVE_DRAG_BLOCK_SELECTOR = "button, input, textarea, select, a";
 const PAGE_SWITCH_THRESHOLD = 42;
@@ -173,7 +173,7 @@ export function startWidgetCardDragSession({
       return false;
     }
 
-    const now = Number(performanceNow?.()) || Date.now();
+    const now = toTruthyNumberOrFallback(performanceNow?.(), Date.now);
     if (now - lastPageSwitchAt < PAGE_SWITCH_COOLDOWN_MS) {
       return false;
     }
