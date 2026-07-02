@@ -1,3 +1,4 @@
+import { hasOwn } from "../../core/utils/object.js";
 import { normalizeText } from "../../core/utils/text.js";
 
 function resolveConnectorNormalizer(normalizeConnectorUrl) {
@@ -59,7 +60,7 @@ export function hasAuthSessionStorageChange(changes, storageKey) {
     normalizedStorageKey &&
       changes &&
       typeof changes === "object" &&
-      Object.prototype.hasOwnProperty.call(changes, normalizedStorageKey)
+      hasOwn(changes, normalizedStorageKey)
   );
 }
 
