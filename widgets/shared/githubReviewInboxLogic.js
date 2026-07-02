@@ -71,6 +71,13 @@ function collectOtherUserTimestamps(items, githubLogin, readTimestamp) {
     .map(readTimestamp);
 }
 
+function collectUserTimestamps(items, targetLogin, readTimestamp) {
+  return items
+    .filter((item) => normalizeGithubLogin(item?.user?.login) === targetLogin)
+    .map(readTimestamp)
+    .filter(Boolean);
+}
+
 export function deriveLatestCodeUpdateAt(pullRequest, commits = []) {
   const commitTimes = arrayOrEmpty(commits)
     .map((commit) => {
@@ -201,18 +208,20 @@ export function collectLatestUserParticipation({
     }
   }
 
-  for (const comment of issueComments) {
-    if (normalizeGithubLogin(comment?.user?.login) !== targetLogin) {
-      continue;
-    }
-    pushLatest(parseTimestamp(comment?.updated_at || comment?.created_at));
-  }
-
-  for (const comment of reviewComments) {
-    if (normalizeGithubLogin(comment?.user?.login) !== targetLogin) {
-      continue;
-    }
-    pushLatest(parseTimestamp(comment?.updated_at || comment?.created_at));
+  const commentTimestamps = [
+    ...collectUserTimestamps(
+      issueComments,
+      targetLogin,
+      (comment) => parseTimestamp(comment?.updated_at || comment?.created_at)
+    ),
+    ...collectUserTimestamps(
+      reviewComments,
+      targetLogin,
+      (comment) => parseTimestamp(comment?.updated_at || comment?.created_at)
+    )
+  ];
+  for (const timestamp of commentTimestamps) {
+    pushLatest(timestamp);
   }
 
   return {
