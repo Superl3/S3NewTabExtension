@@ -10,6 +10,7 @@ import {
 } from "../widgets/shared/mondayConfig.js";
 import {
   mondayFetchGraphql,
+  parseUrlSafely,
   resolveMondaySiteUrl
 } from "../widgets/shared/mondayClient.js";
 
@@ -44,6 +45,12 @@ test("monday client resolves site url from account label before fallback urls", 
     resolveMondaySiteUrl("", ["https://team.monday.com/boards/123"]),
     "https://team.monday.com/"
   );
+});
+
+test("monday client safe URL parser ignores blank and invalid values", () => {
+  assert.equal(parseUrlSafely(""), null);
+  assert.equal(parseUrlSafely("not a url"), null);
+  assert.equal(parseUrlSafely("https://workspace.monday.com/boards/123")?.hostname, "workspace.monday.com");
 });
 
 test("monday client marks HTTP auth failures without adding widget messaging", async () => {

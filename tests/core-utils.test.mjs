@@ -509,6 +509,12 @@ test("Monday widgets share config predicates instead of local copies", async () 
   }
 });
 
+test("Monday meeting notes reuse the shared safe URL parser", async () => {
+  const source = await fs.readFile(new URL("../widgets/mondayMeetingNote.js", import.meta.url), "utf8");
+  assert.match(source, /parseUrlSafely,\s*\n\s*resolveMondaySiteUrl/s);
+  assert.doesNotMatch(source, /^function parseUrlSafely\(/m);
+});
+
 test("account auth widgets share local connector auth helpers", async () => {
   const moduleUrls = [
     new URL("../widgets/aiChat.js", import.meta.url),
