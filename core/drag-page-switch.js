@@ -1,8 +1,8 @@
 import { resolveBrowserTimerApi } from "./platform/browser-api.js";
-import { toInteger } from "./utils/number.js";
+import { toInteger, toNonNegativeNumberOrFallback } from "./utils/number.js";
 
 export function resolveEdgeDirectionFromPointer(clientX, viewportRect, threshold = 42) {
-  const edgeThreshold = Math.max(0, Number(threshold) || 0);
+  const edgeThreshold = toNonNegativeNumberOrFallback(threshold);
   if (!viewportRect || !Number.isFinite(clientX) || viewportRect.width < edgeThreshold * 2) {
     return 0;
   }

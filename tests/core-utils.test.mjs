@@ -306,6 +306,23 @@ test("state timestamp fields use shared non-negative number normalization", asyn
   }
 });
 
+test("geometry edge gaps use shared non-negative number normalization", async () => {
+  const moduleUrls = [
+    new URL("../core/dock-geometry.js", import.meta.url),
+    new URL("../core/drag-page-switch.js", import.meta.url)
+  ];
+
+  for (const moduleUrl of moduleUrls) {
+    const source = await fs.readFile(moduleUrl, "utf8");
+    assert.match(source, /toNonNegativeNumberOrFallback/, moduleUrl.pathname);
+    assert.doesNotMatch(
+      source,
+      /Math\.max\(0, Number\([^)]*(?:gap|threshold)[^)]*\) \|\| 0\)/,
+      moduleUrl.pathname
+    );
+  }
+});
+
 test("core modules use the shared text normalizer instead of local copies", async () => {
   const moduleUrls = [
     new URL("../core/background-local-media.js", import.meta.url),

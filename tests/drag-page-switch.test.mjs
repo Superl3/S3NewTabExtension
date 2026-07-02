@@ -23,6 +23,7 @@ test("resolveEdgeDirectionFromPointer returns edge direction from viewport", () 
   assert.equal(resolveEdgeDirectionFromPointer(480, viewportRect, 42), 1);
   assert.equal(resolveEdgeDirectionFromPointer(300, viewportRect, 42), 0);
   assert.equal(resolveEdgeDirectionFromPointer(300, null, 42), 0);
+  assert.equal(resolveEdgeDirectionFromPointer(100, viewportRect, -42), -1);
 });
 
 test("createDeferredEdgeSwitchScheduler triggers once when edge is stable", async () => {
