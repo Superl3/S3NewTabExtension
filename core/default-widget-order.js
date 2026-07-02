@@ -1,4 +1,4 @@
-import { clamp, toPositiveInteger } from "./utils/number.js";
+import { clamp, toPositiveInteger, toTruthyNumberOrFallback } from "./utils/number.js";
 
 export const FALLBACK_DEFAULT_WIDGET_TYPES = Object.freeze([
   "clock",
@@ -57,8 +57,14 @@ export function assignFallbackDefaultGridLayouts(widgetTypes, {
   columns = FALLBACK_DEFAULT_GRID.columns,
   rows = FALLBACK_DEFAULT_GRID.rows
 } = {}) {
-  const gridColumns = toPositiveInteger(Number(columns) || FALLBACK_DEFAULT_GRID.columns, FALLBACK_DEFAULT_GRID.columns);
-  const gridRows = toPositiveInteger(Number(rows) || FALLBACK_DEFAULT_GRID.rows, FALLBACK_DEFAULT_GRID.rows);
+  const gridColumns = toPositiveInteger(
+    toTruthyNumberOrFallback(columns, FALLBACK_DEFAULT_GRID.columns),
+    FALLBACK_DEFAULT_GRID.columns
+  );
+  const gridRows = toPositiveInteger(
+    toTruthyNumberOrFallback(rows, FALLBACK_DEFAULT_GRID.rows),
+    FALLBACK_DEFAULT_GRID.rows
+  );
   const occupancyByPage = [createOccupancy(gridRows, gridColumns)];
 
   return (Array.isArray(widgetTypes) ? widgetTypes : []).map((type) => {

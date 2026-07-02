@@ -526,6 +526,13 @@ test("core modules use shared integer helpers instead of local copies", async ()
   }
 });
 
+test("default widget order uses shared truthy fallback for grid dimensions", async () => {
+  const source = await fs.readFile(new URL("../core/default-widget-order.js", import.meta.url), "utf8");
+  assert.match(source, /toTruthyNumberOrFallback\(columns, FALLBACK_DEFAULT_GRID\.columns\)/);
+  assert.match(source, /toTruthyNumberOrFallback\(rows, FALLBACK_DEFAULT_GRID\.rows\)/);
+  assert.doesNotMatch(source, /toPositiveInteger\(Number\((?:columns|rows)\) \|\| FALLBACK_DEFAULT_GRID\.(?:columns|rows)/);
+});
+
 test("alarm dispatcher uses native finite timestamp checks directly", async () => {
   const source = await fs.readFile(new URL("../core/alarm/notification-dispatcher.js", import.meta.url), "utf8");
   assert.match(source, /Number\.isFinite\(value\.at\)/);
