@@ -209,6 +209,22 @@ test("ensureCachedLoopVideoResponse fetches and prunes overflow cache", async ()
   assert.equal(harness.cache.store.has("s3newtab-video-cache:old-1"), false);
 });
 
+test("pruneLoopVideoCache preserves keep-count fallback semantics", async () => {
+  const harness = createHarness();
+  const cache = createCache([
+    ["s3newtab-video-cache:old-1", {}],
+    ["s3newtab-video-cache:old-2", {}],
+    ["s3newtab-video-cache:old-3", {}]
+  ]);
+
+  await harness.runtime.pruneLoopVideoCache(cache, 0);
+
+  assert.equal(cache.store.size, 2);
+  assert.equal(cache.store.has("s3newtab-video-cache:old-1"), false);
+  assert.equal(cache.store.has("s3newtab-video-cache:old-2"), true);
+  assert.equal(cache.store.has("s3newtab-video-cache:old-3"), true);
+});
+
 test("loadVideoLoop applies object URL and persists cache metadata", async () => {
   const harness = createHarness({
     hasCaches: () => false

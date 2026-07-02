@@ -314,6 +314,12 @@ test("truthy fallback scalar clamps use the shared number helper", async () => {
   }
 });
 
+test("background video cache uses shared keep-count clamp", async () => {
+  const source = await fs.readFile(new URL("../core/background-video-cache-runtime.js", import.meta.url), "utf8");
+  assert.match(source, /clampTruthyNumberOrFallback\(keepCount, deps\.videoCacheMaxEntries, 1, 24\)/);
+  assert.doesNotMatch(source, /deps\.clamp\(Number\(keepCount\) \|\| deps\.videoCacheMaxEntries, 1, 24\)/);
+});
+
 test("state timestamp fields use shared non-negative number normalization", async () => {
   const moduleUrls = [
     new URL("../core/hydrate-state.js", import.meta.url),
