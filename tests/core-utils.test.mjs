@@ -594,6 +594,20 @@ test("core profile utilities use shared object helpers", async () => {
   assert.doesNotMatch(source, /^function isPlainObject\(/m);
 });
 
+test("core snapshot modules use shared object ownership helper", async () => {
+  const moduleUrls = [
+    new URL("../core/history-snapshot-materialize.js", import.meta.url),
+    new URL("../core/runtimeSnapshotPolicy.js", import.meta.url)
+  ];
+
+  for (const moduleUrl of moduleUrls) {
+    const source = await fs.readFile(moduleUrl, "utf8");
+    assert.match(source, /utils\/object\.js/, moduleUrl.pathname);
+    assert.match(source, /hasOwn\(/, moduleUrl.pathname);
+    assert.doesNotMatch(source, /Object\.prototype\.hasOwnProperty\.call/, moduleUrl.pathname);
+  }
+});
+
 test("preset management uses shared truthy clamp normalization for z-index", async () => {
   const source = await fs.readFile(new URL("../core/preset-management-runtime.js", import.meta.url), "utf8");
   assert.match(source, /utils\/number\.js/);

@@ -1,4 +1,5 @@
 import { toNonNegativeNumberOrFallback } from "./utils/number.js";
+import { hasOwn } from "./utils/object.js";
 
 export function materializeHistorySnapshotRuntime(historySnapshotInput, deps) {
   const base = deps.buildSessionSnapshot();
@@ -46,12 +47,12 @@ export function materializeHistorySnapshotRuntime(historySnapshotInput, deps) {
     merged.ui.monday = deps.normalizeMondayGlobalSettings(historyUi.monday);
   }
 
-  if (Object.prototype.hasOwnProperty.call(historyUi, "defaultProfileSnapshot")) {
+  if (hasOwn(historyUi, "defaultProfileSnapshot")) {
     merged.ui.defaultProfileSnapshot =
       historyUi.defaultProfileSnapshot === null ? null : structuredClone(historyUi.defaultProfileSnapshot);
   }
 
-  if (Object.prototype.hasOwnProperty.call(historyUi, "defaultProfileUpdatedAt")) {
+  if (hasOwn(historyUi, "defaultProfileUpdatedAt")) {
     merged.ui.defaultProfileUpdatedAt = toNonNegativeNumberOrFallback(historyUi.defaultProfileUpdatedAt);
   }
 

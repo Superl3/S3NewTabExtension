@@ -1,3 +1,5 @@
+import { hasOwn } from "./utils/object.js";
+
 const RUNTIME_ONLY_WIDGET_CONFIG_DEFAULTS = Object.freeze({
   container: Object.freeze({
     expanded: false
@@ -40,7 +42,7 @@ export function stripRuntimeOnlyWidgetConfigFields(widgetType, config) {
   }
 
   for (const key of Object.keys(defaults)) {
-    if (Object.prototype.hasOwnProperty.call(config, key)) {
+    if (hasOwn(config, key)) {
       delete config[key];
     }
   }
@@ -94,7 +96,7 @@ export function applyRuntimeOnlyPolicyToSnapshot(snapshot) {
 
   if (snapshot.ui && typeof snapshot.ui === "object" && !Array.isArray(snapshot.ui)) {
     snapshot.ui.activeTab = "global";
-    if (Object.prototype.hasOwnProperty.call(snapshot.ui, "settingsOpen")) {
+    if (hasOwn(snapshot.ui, "settingsOpen")) {
       delete snapshot.ui.settingsOpen;
     }
     if (snapshot.ui.home && typeof snapshot.ui.home === "object" && !Array.isArray(snapshot.ui.home)) {
