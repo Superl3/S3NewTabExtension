@@ -346,6 +346,24 @@ test("mondayMeetingNote fallback scan can include newer items in later groups", 
   assert.equal(latest?.id, "latest-in-separate-group");
 });
 
+test("mondayMeetingNote extracts column text with display fallback", async () => {
+  const { extractColumnText } = await loadWidgetInternals(
+    "widgets/mondayMeetingNote.js",
+    ["extractColumnText"],
+    {
+      createAuthSessionStorage: () => ({
+        load: async () => null,
+        save: async () => {},
+        clear: async () => {}
+      })
+    }
+  );
+
+  assert.equal(extractColumnText({ text: " Note body ", display_value: "Display fallback" }), "Note body");
+  assert.equal(extractColumnText({ text: "", display_value: " Display fallback " }), "Display fallback");
+  assert.equal(extractColumnText({}), "");
+});
+
 test("mondayMeetingNote extracts doc id from JSON column values", async () => {
   const { extractMeetingNote } = await loadWidgetInternals(
     "widgets/mondayMeetingNote.js",
