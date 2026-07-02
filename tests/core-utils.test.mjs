@@ -1252,6 +1252,7 @@ test("GitHub widgets share repository and API helpers", async () => {
     assert.doesNotMatch(source, /formatUpdatedLabelFromTimestamp\(Number\(pull\.updatedAt\)\)/, moduleUrl.pathname);
     assert.doesNotMatch(source, /Math\.max\(0, normalizeCacheNumber\(/, moduleUrl.pathname);
     assert.doesNotMatch(source, /normalizeText\(rawConfig\?\.cacheTokenFingerprint\) === tokenFingerprint/, moduleUrl.pathname);
+    assert.doesNotMatch(source, /normalizeText\(currentCfg\?\.cacheTokenFingerprint\) === expectedTokenHash/, moduleUrl.pathname);
   }
 });
 

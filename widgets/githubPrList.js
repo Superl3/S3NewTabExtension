@@ -319,7 +319,7 @@ export const githubPrListWidget = {
 
       const unchanged =
         normalizeRepository(currentCfg?.cacheRepository) === cfg.repository &&
-        normalizeText(currentCfg?.cacheTokenFingerprint) === expectedTokenHash &&
+        matchesGitHubCacheTokenFingerprint(currentCfg?.cacheTokenFingerprint, cfg.accessToken) &&
         JSON.stringify(currentCachePullItems) === JSON.stringify(cachePullItems);
 
       if (unchanged) {
