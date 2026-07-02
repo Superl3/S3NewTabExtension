@@ -904,6 +904,7 @@ test("Flex shared row helpers use core integer primitives", async () => {
   assert.doesNotMatch(source, /Math\.floor\(Number/, "flexWorktimeRows.js");
   assert.doesNotMatch(source, /Number\.isFinite\(Number\(/, "flexWorktimeRows.js");
   assert.doesNotMatch(source, /Number\(totalMinutes\) \|\| 0/, "flexWorktimeRows.js");
+  assert.doesNotMatch(source, /toFiniteNumber\(unitMatch\[[12]\], 0\) \|\| 0/, "flexWorktimeRows.js");
   assert.doesNotMatch(source, /Number\(scraped\?\.extractedAt\) \|\| Date\.now\(\)/, "flexWorktimeRows.js");
 });
 
