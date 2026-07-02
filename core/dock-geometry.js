@@ -1,11 +1,5 @@
+import { pointInsideRect } from "./utils/geometry.js";
 import { clampFiniteOrMin } from "./utils/number.js";
-
-function pointInsideRect(clientX, clientY, rect) {
-  if (!rect) {
-    return false;
-  }
-  return clientX >= rect.left && clientX <= rect.right && clientY >= rect.top && clientY <= rect.bottom;
-}
 
 export function isHorizontalDockPosition(position = "bottom") {
   return position === "top" || position === "bottom";

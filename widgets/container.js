@@ -1,4 +1,5 @@
 import { DROP_SILHOUETTE_Z_INDEX, resolveFolderPanelZIndex } from "../core/drag-layering.js";
+import { pointInsideRect } from "../core/utils/geometry.js";
 import { clamp, normalizeIntegerInRange } from "../core/utils/number.js";
 import { normalizeText } from "../core/utils/text.js";
 
@@ -78,13 +79,6 @@ function applyEmbeddedCardVisual(card, widget) {
     card.style.removeProperty("--widget-custom-accent");
     card.style.removeProperty("--widget-custom-surface");
   }
-}
-
-function pointInsideRect(x, y, rect) {
-  if (!Number.isFinite(x) || !Number.isFinite(y) || !rect) {
-    return false;
-  }
-  return x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom;
 }
 
 export const containerWidget = {
