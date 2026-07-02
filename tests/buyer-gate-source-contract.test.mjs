@@ -133,7 +133,7 @@ test("account-backed setup states do not leak raw browser API or terse setup cop
   for (const source of [files.mondayAssigned, files.mondayMeetingNote]) {
     assert.match(source, /getStorageArea: getChromeStorageLocal/);
     assert.match(source, /const identityApi = getChromeIdentity\(\)/);
-    assert.match(source, /getChromeStorageChanges\(\)/);
+    assert.match(source, /createChromeStorageChangeSubscription/);
     assert.doesNotMatch(source, /getStorageArea:\s*\(\)\s*=>\s*chrome\?\.storage/);
     assert.doesNotMatch(source, /chrome\.storage/);
     assert.doesNotMatch(source, /chrome\.identity/);
@@ -145,5 +145,6 @@ test("auth widgets use a shared chrome API seam", async () => {
 
   assert.match(source, /export function getChromeStorageLocal/);
   assert.match(source, /export function getChromeStorageChanges/);
+  assert.match(source, /export function createChromeStorageChangeSubscription/);
   assert.match(source, /export function getChromeIdentity/);
 });
