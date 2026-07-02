@@ -1,4 +1,4 @@
-import { hasOwn } from "./utils/object.js";
+import { hasOwn, isPlainObject } from "./utils/object.js";
 
 const RUNTIME_ONLY_WIDGET_CONFIG_DEFAULTS = Object.freeze({
   container: Object.freeze({
@@ -24,7 +24,7 @@ function cloneRuntimeDefaultValue(value) {
 
 export function applyRuntimeOnlyWidgetConfigDefaults(widgetType, config) {
   const defaults = runtimeOnlyWidgetConfigDefaults(widgetType);
-  if (!defaults || !config || typeof config !== "object" || Array.isArray(config)) {
+  if (!defaults || !isPlainObject(config)) {
     return config;
   }
 
@@ -37,7 +37,7 @@ export function applyRuntimeOnlyWidgetConfigDefaults(widgetType, config) {
 
 export function stripRuntimeOnlyWidgetConfigFields(widgetType, config) {
   const defaults = runtimeOnlyWidgetConfigDefaults(widgetType);
-  if (!defaults || !config || typeof config !== "object" || Array.isArray(config)) {
+  if (!defaults || !isPlainObject(config)) {
     return config;
   }
 
@@ -51,7 +51,7 @@ export function stripRuntimeOnlyWidgetConfigFields(widgetType, config) {
 }
 
 export function buildPersistableWidgetConfigPatch(widgetType, patch) {
-  if (!patch || typeof patch !== "object" || Array.isArray(patch)) {
+  if (!isPlainObject(patch)) {
     return {};
   }
 
@@ -61,22 +61,22 @@ export function buildPersistableWidgetConfigPatch(widgetType, patch) {
 }
 
 export function applyRuntimeOnlyPolicyToPresetSnapshot(snapshot) {
-  if (!snapshot || typeof snapshot !== "object" || Array.isArray(snapshot)) {
+  if (!isPlainObject(snapshot)) {
     return snapshot;
   }
 
-  if (snapshot.ui && typeof snapshot.ui === "object" && !Array.isArray(snapshot.ui)) {
-    if (snapshot.ui.home && typeof snapshot.ui.home === "object" && !Array.isArray(snapshot.ui.home)) {
+  if (isPlainObject(snapshot.ui)) {
+    if (isPlainObject(snapshot.ui.home)) {
       snapshot.ui.home.activePage = 0;
     }
   }
 
   if (Array.isArray(snapshot.instances)) {
     for (const instance of snapshot.instances) {
-      if (!instance || typeof instance !== "object" || Array.isArray(instance)) {
+      if (!isPlainObject(instance)) {
         continue;
       }
-      if (!instance.config || typeof instance.config !== "object" || Array.isArray(instance.config)) {
+      if (!isPlainObject(instance.config)) {
         continue;
       }
       stripRuntimeOnlyWidgetConfigFields(instance.type, instance.config);
@@ -87,36 +87,32 @@ export function applyRuntimeOnlyPolicyToPresetSnapshot(snapshot) {
 }
 
 export function applyRuntimeOnlyPolicyToSnapshot(snapshot) {
-  if (!snapshot || typeof snapshot !== "object" || Array.isArray(snapshot)) {
+  if (!isPlainObject(snapshot)) {
     return snapshot;
   }
 
   snapshot.mode = "use";
   snapshot.selectedWidgetId = "";
 
-  if (snapshot.ui && typeof snapshot.ui === "object" && !Array.isArray(snapshot.ui)) {
+  if (isPlainObject(snapshot.ui)) {
     snapshot.ui.activeTab = "global";
     if (hasOwn(snapshot.ui, "settingsOpen")) {
       delete snapshot.ui.settingsOpen;
     }
-    if (snapshot.ui.home && typeof snapshot.ui.home === "object" && !Array.isArray(snapshot.ui.home)) {
+    if (isPlainObject(snapshot.ui.home)) {
       snapshot.ui.home.activePage = 0;
     }
-    if (
-      snapshot.ui.defaultProfileSnapshot &&
-      typeof snapshot.ui.defaultProfileSnapshot === "object" &&
-      !Array.isArray(snapshot.ui.defaultProfileSnapshot)
-    ) {
+    if (isPlainObject(snapshot.ui.defaultProfileSnapshot)) {
       applyRuntimeOnlyPolicyToPresetSnapshot(snapshot.ui.defaultProfileSnapshot);
     }
   }
 
   if (Array.isArray(snapshot.presets)) {
     for (const preset of snapshot.presets) {
-      if (!preset || typeof preset !== "object" || Array.isArray(preset)) {
+      if (!isPlainObject(preset)) {
         continue;
       }
-      if (!preset.snapshot || typeof preset.snapshot !== "object" || Array.isArray(preset.snapshot)) {
+      if (!isPlainObject(preset.snapshot)) {
         continue;
       }
       applyRuntimeOnlyPolicyToPresetSnapshot(preset.snapshot);
@@ -125,10 +121,10 @@ export function applyRuntimeOnlyPolicyToSnapshot(snapshot) {
 
   if (Array.isArray(snapshot.instances)) {
     for (const instance of snapshot.instances) {
-      if (!instance || typeof instance !== "object" || Array.isArray(instance)) {
+      if (!isPlainObject(instance)) {
         continue;
       }
-      if (!instance.config || typeof instance.config !== "object" || Array.isArray(instance.config)) {
+      if (!isPlainObject(instance.config)) {
         continue;
       }
       stripRuntimeOnlyWidgetConfigFields(instance.type, instance.config);
