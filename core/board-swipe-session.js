@@ -1,3 +1,5 @@
+import { toTruthyNumberOrFallback } from "./utils/number.js";
+
 export function beginBoardSwipeSession(event, {
   elements,
   state,
@@ -41,7 +43,7 @@ export function beginBoardSwipeSession(event, {
   boardSwipeState.captureTarget = captureHost;
   boardSwipeState.startX = event.clientX;
   boardSwipeState.startY = event.clientY;
-  boardSwipeState.startAt = Number(performanceNow?.()) || Date.now();
+  boardSwipeState.startAt = toTruthyNumberOrFallback(performanceNow?.(), Date.now);
   boardSwipeState.dragOffsetX = 0;
   boardSwipeState.dragging = false;
   captureHost?.setPointerCapture?.(event.pointerId);
@@ -105,7 +107,7 @@ export function endBoardSwipeSession(event, { cancelled = false } = {}, {
   }
 
   const dx = event.clientX - boardSwipeState.startX;
-  const elapsed = Math.max(1, (Number(performanceNow?.()) || Date.now()) - boardSwipeState.startAt);
+  const elapsed = Math.max(1, toTruthyNumberOrFallback(performanceNow?.(), Date.now) - boardSwipeState.startAt);
   const velocity = dx / elapsed;
   const didDrag = boardSwipeState.dragging;
 
