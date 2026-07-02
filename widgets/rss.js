@@ -1,3 +1,4 @@
+import { arrayOrEmpty } from "../core/utils/array.js";
 import { normalizeIntegerInRange } from "../core/utils/number.js";
 import { normalizeText } from "../core/utils/text.js";
 import { formatLocalDateTimeLabel as formatDateLabel } from "./shared/dateLabels.js";
@@ -105,7 +106,7 @@ function feedPresetFromUrl(value) {
     return "";
   }
   return RSS_FEED_PRESETS.find((preset) => {
-    const urls = [preset.feedUrl, ...(Array.isArray(preset.aliases) ? preset.aliases : [])];
+    const urls = [preset.feedUrl, ...arrayOrEmpty(preset.aliases)];
     return urls.some((url) => normalizeComparableUrl(url) === comparable);
   })?.value || "";
 }
@@ -116,7 +117,7 @@ function feedUrlForPreset(value) {
 
 function fallbackUrlsForPreset(value) {
   const fallbackUrls = RSS_FEED_PRESETS.find((preset) => preset.value === value)?.fallbackUrls;
-  return Array.isArray(fallbackUrls) ? fallbackUrls : [];
+  return arrayOrEmpty(fallbackUrls);
 }
 
 function normalizeFeedPreset(value, feedUrl, fallback = DEFAULT_FEED_PRESET) {

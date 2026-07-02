@@ -1,5 +1,6 @@
 import { dispatchAlarmNotification } from "../core/alarm/notification-dispatcher.js";
 import { createAlarmRuntime } from "../core/alarm/alarm-runtime.js";
+import { arrayOrEmpty } from "../core/utils/array.js";
 import { addLocalDays as addDays, toLocalDateKey as formatDateKey } from "./shared/localDates.js";
 
 function uid() {
@@ -517,7 +518,7 @@ export const todoWidget = {
 
     function getItems() {
       const cfg = getConfig();
-      const rawItems = Array.isArray(cfg.items) ? cfg.items : [];
+      const rawItems = arrayOrEmpty(cfg.items);
       return rawItems.map(normalizeItem);
     }
 

@@ -1477,3 +1477,27 @@ test("widgets share link URL helpers instead of local copies", async () => {
   assert.match(calendarSource, /normalizeHttpUrl\(normalized\)/);
   assert.doesNotMatch(calendarSource, /new URL\(normalized\)/);
 });
+
+test("general widgets use shared array fallback helper", async () => {
+  const moduleUrls = [
+    new URL("../widgets/container.js", import.meta.url),
+    new URL("../widgets/rss.js", import.meta.url),
+    new URL("../widgets/todo.js", import.meta.url)
+  ];
+
+  for (const moduleUrl of moduleUrls) {
+    const source = await fs.readFile(moduleUrl, "utf8");
+    assert.match(source, /core\/utils\/array\.js/, moduleUrl.pathname);
+    assert.match(source, /arrayOrEmpty\(/, moduleUrl.pathname);
+  }
+
+  const containerSource = await fs.readFile(new URL("../widgets/container.js", import.meta.url), "utf8");
+  assert.doesNotMatch(containerSource, /Array\.isArray\(list\) \? list : \[\]/);
+
+  const rssSource = await fs.readFile(new URL("../widgets/rss.js", import.meta.url), "utf8");
+  assert.doesNotMatch(rssSource, /Array\.isArray\(preset\.aliases\) \? preset\.aliases : \[\]/);
+  assert.doesNotMatch(rssSource, /Array\.isArray\(fallbackUrls\) \? fallbackUrls : \[\]/);
+
+  const todoSource = await fs.readFile(new URL("../widgets/todo.js", import.meta.url), "utf8");
+  assert.doesNotMatch(todoSource, /Array\.isArray\(cfg\.items\) \? cfg\.items : \[\]/);
+});

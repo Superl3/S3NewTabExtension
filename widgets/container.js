@@ -1,4 +1,5 @@
 import { DROP_SILHOUETTE_Z_INDEX, resolveFolderPanelZIndex } from "../core/drag-layering.js";
+import { arrayOrEmpty } from "../core/utils/array.js";
 import { pointInsideRect } from "../core/utils/geometry.js";
 import {
   clamp,
@@ -222,7 +223,7 @@ export const containerWidget = {
 
     function listAllWidgets() {
       const list = typeof getAllWidgets === "function" ? getAllWidgets() : [];
-      return Array.isArray(list) ? list : [];
+      return arrayOrEmpty(list);
     }
 
     function findFolderCard(folderId) {
