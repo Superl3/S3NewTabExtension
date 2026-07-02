@@ -1,3 +1,5 @@
+import { toInteger, toPositiveInteger } from "./utils/number.js";
+
 export const DROP_PLAN_KIND = Object.freeze({
   NONE: "NONE",
   DELETE_ZONE: "DELETE_ZONE",
@@ -46,7 +48,7 @@ export function createContainerDropPlan({
         kind: containerKind,
         folderId: containerKind === DROP_CONTAINER_KIND.FOLDER ? String(containerId || "") : ""
       },
-      insertIndex: Number.isFinite(Number(insertIndex)) ? Math.max(0, Math.floor(Number(insertIndex))) : 0
+      insertIndex: Math.max(0, toInteger(insertIndex, 0))
     },
     projection
   };
@@ -59,8 +61,8 @@ export function createBoardPageDropPlan({ policyPage, internalPage, projection =
       kind: DROP_SPACE_KIND.BOARD,
       board: {
         kind: DROP_BOARD_KIND.PAGE,
-        page: Number.isFinite(Number(policyPage)) ? Math.floor(Number(policyPage)) : 1,
-        internalPage: Number.isFinite(Number(internalPage)) ? Math.floor(Number(internalPage)) : 0
+        page: toInteger(policyPage, 1),
+        internalPage: toInteger(internalPage, 0)
       }
     },
     projection
@@ -75,12 +77,8 @@ export function createBoardPlaceholderDropPlan({ edge, policyPlaceholderPage, in
       board: {
         kind: DROP_BOARD_KIND.PLACEHOLDER_PAGE,
         edge,
-        placeholderPage: Number.isFinite(Number(policyPlaceholderPage))
-          ? Math.floor(Number(policyPlaceholderPage))
-          : 0,
-        internalPlaceholderPage: Number.isFinite(Number(internalPlaceholderPage))
-          ? Math.floor(Number(internalPlaceholderPage))
-          : -1
+        placeholderPage: toInteger(policyPlaceholderPage, 0),
+        internalPlaceholderPage: toInteger(internalPlaceholderPage, -1)
       }
     },
     projection
@@ -108,23 +106,17 @@ export function isBoardRealPageDropPlan(plan) {
 }
 
 export function policyRealPageFromInternalPage(internalPage) {
-  const page = Number(internalPage);
-  if (!Number.isFinite(page)) {
-    return 1;
-  }
+  const page = toInteger(internalPage, 0);
   return Math.max(1, Math.floor(page) + 1);
 }
 
 export function internalPageFromPolicyRealPage(policyPage) {
-  const page = Number(policyPage);
-  if (!Number.isFinite(page)) {
-    return 0;
-  }
+  const page = toInteger(policyPage, 1);
   return Math.max(0, Math.floor(page) - 1);
 }
 
 export function policyPlaceholderPageFromInternalPlaceholder(internalPlaceholderPage, pageCount) {
-  const count = Math.max(1, Math.floor(Number(pageCount) || 1));
+  const count = toPositiveInteger(pageCount, 1);
   const page = Number(internalPlaceholderPage);
   if (page < 0) {
     return 0;
@@ -133,7 +125,7 @@ export function policyPlaceholderPageFromInternalPlaceholder(internalPlaceholder
 }
 
 export function placeholderEdgeFromInternalPlaceholder(internalPlaceholderPage, pageCount) {
-  const count = Math.max(1, Math.floor(Number(pageCount) || 1));
+  const count = toPositiveInteger(pageCount, 1);
   const page = Number(internalPlaceholderPage);
   if (!Number.isFinite(page)) {
     return null;
@@ -148,7 +140,7 @@ export function placeholderEdgeFromInternalPlaceholder(internalPlaceholderPage, 
 }
 
 export function internalPlaceholderFromPlaceholderEdge(edge, pageCount) {
-  const count = Math.max(1, Math.floor(Number(pageCount) || 1));
+  const count = toPositiveInteger(pageCount, 1);
   if (edge === PLACEHOLDER_EDGE.HEAD) {
     return -1;
   }
