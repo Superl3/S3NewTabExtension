@@ -56,17 +56,10 @@ import {
   resolveMondaySiteUrl
 } from "./shared/mondayClient.js";
 
-const DONE_GROUP_TITLES = new Set(["done", "completed", "완료"]);
-const DONE_STATUS_LABELS = new Set(["done", "completed", "완료"]);
+const DONE_LABELS = new Set(["done", "completed", "완료"]);
 
-function isDoneGroupTitle(value) {
-  const normalized = normalizeText(value).toLowerCase();
-  return normalized ? DONE_GROUP_TITLES.has(normalized) : false;
-}
-
-function isDoneStatusLabel(value) {
-  const normalized = normalizeText(value).toLowerCase();
-  return normalized ? DONE_STATUS_LABELS.has(normalized) : false;
+function isDoneLabel(value) {
+  return DONE_LABELS.has(normalizeText(value).toLowerCase());
 }
 
 function normalizePeopleColumnSelectorList(value, fallback = "") {
@@ -492,7 +485,7 @@ function hasDoneStatusOnItem(item, statusColumnIds = []) {
     if (!id || !targetIds.has(id)) {
       continue;
     }
-    if (isDoneStatusLabel(value?.text)) {
+    if (isDoneLabel(value?.text)) {
       return true;
     }
   }
@@ -1364,7 +1357,7 @@ export const mondayAssignedWidget = {
 
     function renderGroupedIssues(targetList, grouped, cfg, scopeKey = "") {
       for (const bucket of grouped) {
-        if (isDoneGroupTitle(bucket.title)) {
+        if (isDoneLabel(bucket.title)) {
           continue;
         }
 
