@@ -6,15 +6,12 @@ import {
   hasLocalMediaData,
   resolveSelectedLocalMediaName
 } from "../core/background-local-media.js";
-
-function normalizeText(value, fallback = "") {
-  const text = String(value || "").trim();
-  return text || fallback;
-}
+import { normalizeText } from "../core/utils/text.js";
 
 test("hasLocalMediaData detects non-empty local media data URL", () => {
   assert.equal(hasLocalMediaData({ localMediaDataUrl: "data:image/png;base64,abc" }, normalizeText), true);
   assert.equal(hasLocalMediaData({ localMediaDataUrl: "   " }, normalizeText), false);
+  assert.equal(hasLocalMediaData({ localMediaDataUrl: "data:image/png;base64,abc" }), true);
 });
 
 test("resolveSelectedLocalMediaName resolves name with fallback", () => {
