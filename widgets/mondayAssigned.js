@@ -69,14 +69,6 @@ function isDoneStatusLabel(value) {
   return normalized ? DONE_STATUS_LABELS.has(normalized) : false;
 }
 
-function normalizeMaxItems(value, fallback = 15) {
-  return normalizeIntegerInRange(value, fallback, 1, 120);
-}
-
-function normalizeHour(value, fallback, min, max) {
-  return normalizeIntegerInRange(value, fallback, min, max);
-}
-
 function normalizePeopleColumnSelectorList(value, fallback = "") {
   return normalizeColumnSelectorList(value, {
     fallback,
@@ -203,8 +195,8 @@ const authSessionStorage = createAuthSessionStorage({
 
 function normalizedConfig(config) {
   const boardIds = normalizeBoardIds(config?.boardIds, [config?.boardId]);
-  let workStartHour = normalizeHour(config?.workStartHour, 9, 0, 23);
-  let workEndHour = normalizeHour(config?.workEndHour, 18, 1, 24);
+  let workStartHour = normalizeIntegerInRange(config?.workStartHour, 9, 0, 23);
+  let workEndHour = normalizeIntegerInRange(config?.workEndHour, 18, 1, 24);
 
   if (workEndHour <= workStartHour) {
     workEndHour = Math.min(24, workStartHour + 9);
@@ -219,7 +211,7 @@ function normalizedConfig(config) {
     boardIds,
     boardId: boardIds[0] || 0,
     peopleColumnId: normalizePeopleColumnSelectorList(config?.peopleColumnId),
-    maxItems: normalizeMaxItems(config?.maxItems, 15),
+    maxItems: normalizeIntegerInRange(config?.maxItems, 15, 1, 120),
     workStartHour,
     workEndHour,
     openInNewTab: config?.openInNewTab !== false,
