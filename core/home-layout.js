@@ -3,14 +3,8 @@ import {
   normalizeLauncherPageIndexList,
   normalizePageCount
 } from "./launcher-pages.js";
+import { clampFiniteOrMin } from "./utils/number.js";
 import { normalizeText } from "./utils/text.js";
-
-function clamp(value, min, max) {
-  if (!Number.isFinite(value)) {
-    return min;
-  }
-  return Math.min(max, Math.max(min, value));
-}
 
 export function normalizeHomeMode(value, fallback = "grid") {
   if (value === "grid" || value === "free") {
@@ -66,17 +60,17 @@ export function normalizeDockPosition(value, fallback = "bottom") {
 export function normalizeDockLength(value, fallback = 6) {
   const num = Number(value);
   if (!Number.isFinite(num)) {
-    return clamp(Math.floor(fallback), 5, 14);
+    return clampFiniteOrMin(Math.floor(fallback), 5, 14);
   }
-  return clamp(Math.floor(num), 5, 14);
+  return clampFiniteOrMin(Math.floor(num), 5, 14);
 }
 
 export function normalizeDockHeight(value, fallback = 44) {
   const num = Number(value);
   if (!Number.isFinite(num)) {
-    return clamp(Math.round(fallback), 36, 72);
+    return clampFiniteOrMin(Math.round(fallback), 36, 72);
   }
-  return clamp(Math.round(num), 36, 72);
+  return clampFiniteOrMin(Math.round(num), 36, 72);
 }
 
 export function normalizeDockSize(value, fallback = 44) {
@@ -117,8 +111,8 @@ export function normalizeHomeLayout(layout, { gridMaxColumns = 16, gridMaxRows =
 
   return {
     mode: normalizeHomeMode(base.mode, "grid"),
-    gridColumns: clamp(Number(base.gridColumns) || 4, 1, gridMaxColumns),
-    gridRows: clamp(Number(base.gridRows) || 3, 1, gridMaxRows),
+    gridColumns: clampFiniteOrMin(Number(base.gridColumns) || 4, 1, gridMaxColumns),
+    gridRows: clampFiniteOrMin(Number(base.gridRows) || 3, 1, gridMaxRows),
     marginHorizontal: normalizeMarginPreset(base.marginHorizontal, "medium"),
     marginVertical: normalizeMarginPreset(base.marginVertical, "medium"),
     itemGap: normalizeGapPreset(base.itemGap, "narrow"),

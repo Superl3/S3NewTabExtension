@@ -4,7 +4,7 @@ import fs from "node:fs/promises";
 
 import { normalizeErrorMessage } from "../core/utils/error.js";
 import { parseJsonOrNull } from "../core/utils/json.js";
-import { clamp, normalizeIntegerInRange } from "../core/utils/number.js";
+import { clamp, clampFiniteOrMin, normalizeIntegerInRange } from "../core/utils/number.js";
 import { normalizeText } from "../core/utils/text.js";
 import { clamp as layoutClamp } from "../core/layout-primitives.js";
 
@@ -18,6 +18,12 @@ test("clamp bounds values inside min and max", () => {
   assert.equal(clamp(9, 1, 5), 5);
   assert.equal(clamp(-2, 1, 5), 1);
   assert.equal(clamp(3, 1, 5), 3);
+});
+
+test("clampFiniteOrMin bounds finite values and uses min for non-finite values", () => {
+  assert.equal(clampFiniteOrMin(9, 1, 5), 5);
+  assert.equal(clampFiniteOrMin(-2, 1, 5), 1);
+  assert.equal(clampFiniteOrMin(Number.NaN, 1, 5), 1);
 });
 
 test("normalizeIntegerInRange rounds finite values and clamps fallback values", () => {
@@ -74,6 +80,24 @@ test("core modules use the shared text normalizer instead of local copies", asyn
   for (const moduleUrl of moduleUrls) {
     const source = await fs.readFile(moduleUrl, "utf8");
     assert.doesNotMatch(source, /^function normalizeText\(/m, moduleUrl.pathname);
+  }
+});
+
+test("core modules use the shared finite clamp helper instead of local copies", async () => {
+  const moduleUrls = [
+    new URL("../core/board-swipe.js", import.meta.url),
+    new URL("../core/dock-geometry.js", import.meta.url),
+    new URL("../core/drag-positioning.js", import.meta.url),
+    new URL("../core/drag-preview.js", import.meta.url),
+    new URL("../core/home-layout.js", import.meta.url),
+    new URL("../core/launcher-pages.js", import.meta.url),
+    new URL("../core/launcher-viewport.js", import.meta.url),
+    new URL("../core/resize-drag.js", import.meta.url)
+  ];
+
+  for (const moduleUrl of moduleUrls) {
+    const source = await fs.readFile(moduleUrl, "utf8");
+    assert.doesNotMatch(source, /^function clamp\(/m, moduleUrl.pathname);
   }
 });
 

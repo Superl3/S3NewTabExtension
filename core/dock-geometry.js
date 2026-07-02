@@ -1,9 +1,4 @@
-function clamp(value, min, max) {
-  if (!Number.isFinite(value)) {
-    return min;
-  }
-  return Math.min(max, Math.max(min, value));
-}
+import { clampFiniteOrMin } from "./utils/number.js";
 
 function pointInsideRect(clientX, clientY, rect) {
   if (!rect) {
@@ -41,15 +36,15 @@ export function resolveDockSlotIndexAtPoint(
 
   const step = Math.max(1, unit + gapSize);
   const local = horizontal
-    ? clamp(clientX - stripRect.left, 0, Math.max(0, stripRect.width - 1))
-    : clamp(clientY - stripRect.top, 0, Math.max(0, stripRect.height - 1));
+    ? clampFiniteOrMin(clientX - stripRect.left, 0, Math.max(0, stripRect.width - 1))
+    : clampFiniteOrMin(clientY - stripRect.top, 0, Math.max(0, stripRect.height - 1));
 
   const slot = Math.floor((local + gapSize * 0.5) / step);
   if (slot < 0 || slot >= count) {
     if (!clampToRange) {
       return null;
     }
-    return clamp(slot, 0, count - 1);
+    return clampFiniteOrMin(slot, 0, count - 1);
   }
   return slot;
 }
