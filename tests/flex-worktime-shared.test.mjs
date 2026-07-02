@@ -15,6 +15,7 @@ import {
   FLEX_WORKTIME_CACHE_MAX_ENTRIES,
   FLEX_WORKTIME_DEFAULT_HOME_URL,
   FLEX_WORKTIME_DEFAULT_REFRESH_MINUTES,
+  buildFlexWidgetConfigSignature,
   formatClockMinutes,
   formatDurationMinutes,
   formatFlexHomeScrapeError,
@@ -213,6 +214,19 @@ test("Flex base config normalizer preserves shared widget defaults", () => {
       detailUrlTemplate: "https://example.com/{date}",
       openInNewTab: false
     }
+  );
+});
+
+test("Flex config signature helper preserves shared prefix and explicit suffix order", () => {
+  assert.equal(
+    buildFlexWidgetConfigSignature(
+      {
+        flexHomeUrl: " https://flex.team/home ",
+        openFlexTabIfMissing: false
+      },
+      ["custom", "2026-04-10", "", 1]
+    ),
+    "https://flex.team/home|0|custom|2026-04-10||1"
   );
 });
 

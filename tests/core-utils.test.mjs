@@ -1091,9 +1091,12 @@ test("Flex worktime widgets share row helpers instead of local copies", async ()
     const source = await fs.readFile(moduleUrl, "utf8");
     assert.match(source, /shared\/flexWorktimeRows\.js/, moduleUrl.pathname);
     assert.match(source, /normalizeFlexWidgetBaseConfig/, moduleUrl.pathname);
+    assert.match(source, /buildFlexWidgetConfigSignature/, moduleUrl.pathname);
     assert.match(source, /resolveFlexSyncState/, moduleUrl.pathname);
     assert.match(source, /FLEX_WORKTIME_DEFAULT_HOME_URL/, moduleUrl.pathname);
     assert.doesNotMatch(source, localHelperPattern, moduleUrl.pathname);
+    assert.doesNotMatch(source, /normalizeText\(config\.flexHomeUrl\)/, moduleUrl.pathname);
+    assert.doesNotMatch(source, /config\.openFlexTabIfMissing \? 1 : 0/, moduleUrl.pathname);
     assert.doesNotMatch(source, /normalizeFlexHomeUrl,\n|normalizeFlexRefreshMinutes/, moduleUrl.pathname);
     assert.doesNotMatch(source, /^const (?:FLEX_WORKTIME_CACHE_MAX_ENTRIES|FLEX_HOME_TAB_LOAD_TIMEOUT_MS|DEFAULT_FLEX_WORKTIME_REFRESH_MINUTES|DEFAULT_FLEX_HOME_URL)\s*=/m, moduleUrl.pathname);
   }

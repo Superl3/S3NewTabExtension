@@ -30,6 +30,7 @@ import {
   FLEX_WORKTIME_CACHE_MAX_ENTRIES,
   FLEX_WORKTIME_DEFAULT_HOME_URL,
   FLEX_WORKTIME_DEFAULT_REFRESH_MINUTES,
+  buildFlexWidgetConfigSignature,
   formatFlexHomeScrapeError as formatSourceError,
   normalizeCachedWorktimeRow as normalizeCachedRow,
   normalizeFlexHomeScrapeRow,
@@ -43,12 +44,10 @@ import {
 const FLEX_WORKTIME_CACHE_PREFIX = "s3newtab:flex-worktime-cache:v1";
 
 function configSignature(config) {
-  return [
-    normalizeText(config.flexHomeUrl),
-    config.openFlexTabIfMissing ? 1 : 0,
+  return buildFlexWidgetConfigSignature(config, [
     normalizeText(config.detailUrlTemplate),
     config.openInNewTab ? 1 : 0
-  ].join("|");
+  ]);
 }
 
 const {

@@ -42,6 +42,7 @@ import {
   FLEX_WORKTIME_CACHE_MAX_ENTRIES,
   FLEX_WORKTIME_DEFAULT_HOME_URL,
   FLEX_WORKTIME_DEFAULT_REFRESH_MINUTES,
+  buildFlexWidgetConfigSignature,
   formatClockMinutes,
   formatDurationMinutes,
   formatFlexWorkRecordScrapeError as formatSourceError,
@@ -398,14 +399,12 @@ function inferTimelineFromSummary(summary, queryDate, now = new Date()) {
 }
 
 function configSignature(config) {
-  return [
-    normalizeText(config.flexHomeUrl),
-    config.openFlexTabIfMissing ? 1 : 0,
+  return buildFlexWidgetConfigSignature(config, [
     normalizeText(config.dateMode),
     normalizeText(config.customDate),
     normalizeText(config.detailUrlTemplate),
     config.openInNewTab ? 1 : 0
-  ].join("|");
+  ]);
 }
 
 const {
