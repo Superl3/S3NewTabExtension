@@ -3,17 +3,10 @@ import {
   resolveGridResizeLayout,
   resolveSnappedSize
 } from "./resize-drag.js";
+import { toFiniteNumber } from "./utils/number.js";
 
 function resolveEventTarget(eventTarget = null) {
   return eventTarget || globalThis.window || null;
-}
-
-function toFinite(value, fallback = 0) {
-  const numeric = Number(value);
-  if (!Number.isFinite(numeric)) {
-    return fallback;
-  }
-  return numeric;
 }
 
 export function startGridResizeSession({
@@ -82,8 +75,8 @@ export function startFreeResizeSession({
     const nextSize = resolveFreeResizeDimensions({
       startW,
       startH,
-      dx: toFinite(moveEvent?.clientX, startX) - startX,
-      dy: toFinite(moveEvent?.clientY, startY) - startY,
+      dx: toFiniteNumber(moveEvent?.clientX, startX) - startX,
+      dy: toFiniteNumber(moveEvent?.clientY, startY) - startY,
       layoutX: layoutPosition?.x,
       layoutY: layoutPosition?.y,
       boardRect

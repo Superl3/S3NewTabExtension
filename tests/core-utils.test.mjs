@@ -4,7 +4,7 @@ import fs from "node:fs/promises";
 
 import { normalizeErrorMessage } from "../core/utils/error.js";
 import { parseJsonOrNull } from "../core/utils/json.js";
-import { clamp, clampFiniteOrMin, normalizeIntegerInRange } from "../core/utils/number.js";
+import { clamp, clampFiniteOrMin, normalizeIntegerInRange, toFiniteNumber } from "../core/utils/number.js";
 import { normalizeText } from "../core/utils/text.js";
 import { clamp as layoutClamp } from "../core/layout-primitives.js";
 
@@ -24,6 +24,12 @@ test("clampFiniteOrMin bounds finite values and uses min for non-finite values",
   assert.equal(clampFiniteOrMin(9, 1, 5), 5);
   assert.equal(clampFiniteOrMin(-2, 1, 5), 1);
   assert.equal(clampFiniteOrMin(Number.NaN, 1, 5), 1);
+});
+
+test("toFiniteNumber returns numeric values and falls back for non-finite values", () => {
+  assert.equal(toFiniteNumber("4.5", 1), 4.5);
+  assert.equal(toFiniteNumber("bad", 7), 7);
+  assert.equal(toFiniteNumber(null, 7), 0);
 });
 
 test("normalizeIntegerInRange rounds finite values and clamps fallback values", () => {
@@ -101,6 +107,20 @@ test("core modules use the shared finite clamp helper instead of local copies", 
   }
 });
 
+test("core drag and resize modules use the shared finite number helper", async () => {
+  const moduleUrls = [
+    new URL("../core/drag-drop-evaluation.js", import.meta.url),
+    new URL("../core/drag-positioning.js", import.meta.url),
+    new URL("../core/resize-drag.js", import.meta.url),
+    new URL("../core/resize-session.js", import.meta.url)
+  ];
+
+  for (const moduleUrl of moduleUrls) {
+    const source = await fs.readFile(moduleUrl, "utf8");
+    assert.doesNotMatch(source, /^function toFinite(Number)?\(/m, moduleUrl.pathname);
+  }
+});
+
 async function collectWidgetSources(dirUrl) {
   const entries = await fs.readdir(dirUrl, { withFileTypes: true });
   const sources = [];
@@ -155,4 +175,13 @@ test("widgets use the shared integer range normalizer for rounded clamps", async
       source.name
     );
   }
+});
+
+test("widgets keep only blank-aware local finite number normalization", async () => {
+  const sources = await collectWidgetSources(new URL("../widgets/", import.meta.url));
+  const localFiniteNormalizers = sources
+    .filter((source) => /^function asFiniteNumber\(/m.test(source.text))
+    .map((source) => source.name.replace(/^.*\/widgets\//, "widgets/"));
+
+  assert.deepEqual(localFiniteNormalizers, ["widgets/weather.js"]);
 });
