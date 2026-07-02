@@ -106,6 +106,22 @@ test("addWidgetFlow adds widget and advances ids in free layout mode", () => {
   assert.equal(zCounter, 11);
 });
 
+test("addWidgetFlow preserves z-index fallback semantics", () => {
+  let zCounter = 0;
+  const deps = createBaseDeps({
+    getZCounter: () => "bad",
+    setZCounter: (value) => {
+      zCounter = value;
+    }
+  });
+
+  const added = addWidgetFlow("note", {}, deps);
+
+  assert.equal(added, true);
+  assert.equal(deps.state.instances[0].zIndex, 2);
+  assert.equal(zCounter, 2);
+});
+
 test("addWidgetFlow shows toast and aborts when grid has no slot", () => {
   const toasts = [];
 

@@ -1,3 +1,5 @@
+import { toTruthyNumberOrFallback } from "./utils/number.js";
+
 export function addWidgetFlow(type, options = {}, deps = {}) {
   const {
     state,
@@ -105,7 +107,7 @@ export function addWidgetFlow(type, options = {}, deps = {}) {
       def,
       options,
       nextId: state.nextId,
-      zIndex: (Number(getZCounter?.()) || 1) + 1,
+      zIndex: toTruthyNumberOrFallback(getZCounter?.(), 1) + 1,
       targetPage,
       gridPlacement,
       pageLocalIndex,
