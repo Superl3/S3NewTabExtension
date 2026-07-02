@@ -1,3 +1,5 @@
+import { clampRoundedTruthyNumberOrFallback } from "./utils/number.js";
+
 export function createContainerOrderRuntime(deps) {
   function moveInstanceToStateIndex(instanceId, destinationIndex) {
     const state = deps.getState();
@@ -11,7 +13,7 @@ export function createContainerOrderRuntime(deps) {
       return false;
     }
 
-    const boundedIndex = deps.clamp(Math.round(Number(destinationIndex) || 0), 0, list.length);
+    const boundedIndex = clampRoundedTruthyNumberOrFallback(destinationIndex, 0, 0, list.length);
     const targetIndex = fromIndex < boundedIndex ? boundedIndex - 1 : boundedIndex;
     if (fromIndex === targetIndex) {
       return false;
@@ -77,7 +79,7 @@ export function createContainerOrderRuntime(deps) {
         String(entry.id) !== String(widgetId)
       );
     });
-    const clampedInsertIndex = deps.clamp(Math.round(Number(insertIndex) || 0), 0, siblings.length);
+    const clampedInsertIndex = clampRoundedTruthyNumberOrFallback(insertIndex, 0, 0, siblings.length);
 
     let changed = false;
     if (clampedInsertIndex < siblings.length) {

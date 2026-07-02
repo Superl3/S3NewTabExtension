@@ -331,6 +331,13 @@ test("geometry edge gaps use shared non-negative number normalization", async ()
   }
 });
 
+test("container order runtime uses shared rounded truthy clamp normalization", async () => {
+  const source = await fs.readFile(new URL("../core/container-order-runtime.js", import.meta.url), "utf8");
+  assert.match(source, /utils\/number\.js/);
+  assert.match(source, /clampRoundedTruthyNumberOrFallback/);
+  assert.doesNotMatch(source, /Math\.round\(Number\((?:destinationIndex|insertIndex)\) \|\| 0\)/);
+});
+
 test("core modules use the shared text normalizer instead of local copies", async () => {
   const moduleUrls = [
     new URL("../core/background-local-media.js", import.meta.url),

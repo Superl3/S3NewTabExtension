@@ -63,6 +63,10 @@ test("moveInstanceToStateIndex reorders by destination index", () => {
 
   assert.equal(moved, true);
   assert.deepEqual(harness.state.instances.map((item) => item.id), ["a", "c", "d", "b"]);
+
+  const rounded = harness.runtime.moveInstanceToStateIndex("d", 1.4);
+  assert.equal(rounded, true);
+  assert.deepEqual(harness.state.instances.map((item) => item.id), ["a", "d", "c", "b"]);
 });
 
 test("appendWidgetToContainerOrder places widget after last sibling", () => {
@@ -100,6 +104,10 @@ test("reorderWidgetInContainerByIndex reorders and records history", () => {
   assert.equal(harness.calls.renderSettings, 1);
   assert.equal(harness.calls.refreshWidgets.length, 0);
   assert.equal(harness.calls.save, 1);
+
+  const changedToEnd = harness.runtime.reorderWidgetInContainerByIndex("w3", "c1", Number.POSITIVE_INFINITY);
+  assert.equal(changedToEnd, true);
+  assert.deepEqual(harness.state.instances.map((item) => item.id), ["c1", "w1", "w2", "w3"]);
 });
 
 test("reorderWidgetInContainerByIndex supports non-recorded non-rerender path", () => {
