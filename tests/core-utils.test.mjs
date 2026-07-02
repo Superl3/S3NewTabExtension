@@ -662,6 +662,13 @@ test("Monday widgets share auto-refresh slot primitives", async () => {
   }
 });
 
+test("auto refresh slot primitives use core integer helpers", async () => {
+  const source = await fs.readFile(new URL("../widgets/shared/autoRefreshSlots.js", import.meta.url), "utf8");
+  assert.match(source, /core\/utils\/number\.js/);
+  assert.doesNotMatch(source, /Math\.floor\(Number/, "autoRefreshSlots.js");
+  assert.doesNotMatch(source, /Number\.isFinite\(Number\(/, "autoRefreshSlots.js");
+});
+
 test("Monday widgets share config predicates instead of local copies", async () => {
   const moduleUrls = [
     new URL("../widgets/mondayAssigned.js", import.meta.url),
