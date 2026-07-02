@@ -1,4 +1,4 @@
-import { clampFiniteOrMin } from "./utils/number.js";
+import { clampFiniteOrMin, toInteger, toPositiveInteger } from "./utils/number.js";
 
 export function isPlaceholderLauncherPage(page, pageCount = 1) {
   return page === -1 || page === pageCount;
@@ -18,24 +18,25 @@ export function resolveLauncherViewportPage({
   virtualPage = null,
   allowPlaceholderPages = false
 } = {}) {
-  const active = clampFiniteOrMin(Math.floor(Number(activePage) || 0), 0, Math.max(0, Math.floor(Number(pageCount) || 1) - 1));
+  const normalizedPageCount = toPositiveInteger(pageCount, 1);
+  const active = clampFiniteOrMin(toInteger(activePage, 0), 0, normalizedPageCount - 1);
   if (!allowPlaceholderPages) {
     return active;
   }
 
   const hasVirtualPage = virtualPage !== null && virtualPage !== undefined && virtualPage !== "";
-  const virtual = hasVirtualPage ? Number(virtualPage) : NaN;
-  if (!Number.isFinite(virtual)) {
+  const virtual = hasVirtualPage ? toInteger(virtualPage, null) : null;
+  if (virtual === null) {
     return active;
   }
 
-  return clampFiniteOrMin(Math.floor(virtual), -1, Math.max(1, Math.floor(Number(pageCount) || 1)));
+  return clampFiniteOrMin(virtual, -1, normalizedPageCount);
 }
 
 export function clampLauncherVirtualPage(value, pageCount = 1) {
-  const page = Number(value);
-  if (!Number.isFinite(page)) {
+  const page = toInteger(value, null);
+  if (page === null) {
     return null;
   }
-  return clampFiniteOrMin(Math.floor(page), -1, Math.max(1, Math.floor(Number(pageCount) || 1)));
+  return clampFiniteOrMin(page, -1, toPositiveInteger(pageCount, 1));
 }

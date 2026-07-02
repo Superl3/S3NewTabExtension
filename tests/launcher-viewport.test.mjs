@@ -53,8 +53,31 @@ test("resolves viewport page with and without virtual page", () => {
   );
 });
 
+test("resolves viewport page fallbacks for invalid and blank page inputs", () => {
+  assert.equal(
+    resolveLauncherViewportPage({
+      activePage: "bad",
+      pageCount: 0,
+      virtualPage: "",
+      allowPlaceholderPages: true
+    }),
+    0
+  );
+
+  assert.equal(
+    resolveLauncherViewportPage({
+      activePage: 2.9,
+      pageCount: 3,
+      virtualPage: "bad",
+      allowPlaceholderPages: true
+    }),
+    2
+  );
+});
+
 test("clamps virtual page range", () => {
   assert.equal(clampLauncherVirtualPage(-5, 4), -1);
   assert.equal(clampLauncherVirtualPage(99, 4), 4);
   assert.equal(clampLauncherVirtualPage("bad", 4), null);
+  assert.equal(clampLauncherVirtualPage("", 0), 0);
 });
