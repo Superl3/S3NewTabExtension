@@ -1,3 +1,5 @@
+import { clampTruthyNumberOrFallback } from "./utils/number.js";
+
 export function hydrateState(raw, deps = {}) {
   const {
     defaultState,
@@ -282,7 +284,7 @@ export function hydrateState(raw, deps = {}) {
   background.videoCacheSignature = normalizeText(background.videoCacheSignature);
   background.videoCacheStoredAt = Math.max(0, Number(background.videoCacheStoredAt) || 0);
   background.blurAmount = clamp(Number(background.blurAmount) || 0, 0, 28);
-  background.overlayOpacity = clamp(Number(background.overlayOpacity) || 0.24, 0, 0.85);
+  background.overlayOpacity = clampTruthyNumberOrFallback(background.overlayOpacity, 0.24, 0, 0.85);
 
   for (const instance of normalized) {
     const hasSavedOverrides = Boolean(instance.commonOverrides && Object.values(instance.commonOverrides).some(Boolean));

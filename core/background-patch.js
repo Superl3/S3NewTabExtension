@@ -1,3 +1,5 @@
+import { clampTruthyNumberOrFallback } from "./utils/number.js";
+
 export function patchBackgroundRuntime(patch, deps) {
   const state = deps.getState();
 
@@ -47,7 +49,7 @@ export function patchBackgroundRuntime(patch, deps) {
   }
 
   state.ui.background.blurAmount = deps.clamp(Number(state.ui.background.blurAmount) || 0, 0, 28);
-  state.ui.background.overlayOpacity = deps.clamp(Number(state.ui.background.overlayOpacity) || 0.24, 0, 0.85);
+  state.ui.background.overlayOpacity = clampTruthyNumberOrFallback(state.ui.background.overlayOpacity, 0.24, 0, 0.85);
 
   deps.applyBackground();
   deps.refreshAllWidgetCardsVisual();

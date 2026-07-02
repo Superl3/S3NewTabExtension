@@ -15,6 +15,7 @@ import {
   clamp,
   clampFiniteOrMin,
   clampNumberOrFallback,
+  clampTruthyNumberOrFallback,
   normalizeIntegerInRange,
   roundFiniteOrFallback,
   toFiniteNumber,
@@ -59,6 +60,14 @@ test("clampNumberOrFallback coerces numbers and preserves fallback values", () =
   assert.equal(clampNumberOrFallback("9", 1, 1, 5), 5);
   assert.equal(clampNumberOrFallback("-2", 1, 1, 5), 1);
   assert.equal(clampNumberOrFallback("bad", 150, 0, 100), 150);
+});
+
+test("clampTruthyNumberOrFallback preserves legacy falsy fallback semantics", () => {
+  assert.equal(clampTruthyNumberOrFallback(0, 0.24, 0, 0.85), 0.24);
+  assert.equal(clampTruthyNumberOrFallback("", 0.24, 0, 0.85), 0.24);
+  assert.equal(clampTruthyNumberOrFallback(null, 0.24, 0, 0.85), 0.24);
+  assert.equal(clampTruthyNumberOrFallback(-1, 0.24, 0, 0.85), 0);
+  assert.equal(clampTruthyNumberOrFallback(2, 0.24, 0, 0.85), 0.85);
 });
 
 test("toFiniteNumber returns numeric values and falls back for non-finite values", () => {
@@ -231,7 +240,23 @@ test("widget common style shares number clamp helpers", async () => {
 test("widget common style centralizes backdrop overlay opacity normalization", async () => {
   const source = await fs.readFile(new URL("../core/widget-common-style.js", import.meta.url), "utf8");
   assert.match(source, /normalizeBackdropOverlayOpacity/);
+  assert.match(source, /clampTruthyNumberOrFallback/);
   assert.doesNotMatch(source, /Number\(ui\?\.background\?\.overlayOpacity\) \|\| 0\.24/);
+});
+
+test("background overlay opacity uses shared truthy clamp semantics", async () => {
+  const moduleUrls = [
+    new URL("../core/background-runtime.js", import.meta.url),
+    new URL("../core/background-patch.js", import.meta.url),
+    new URL("../core/hydrate-state.js", import.meta.url),
+    new URL("../core/widget-common-style.js", import.meta.url),
+    new URL("../widgets/label.js", import.meta.url)
+  ];
+
+  for (const moduleUrl of moduleUrls) {
+    const source = await fs.readFile(moduleUrl, "utf8");
+    assert.doesNotMatch(source, /Number\([^)]*overlayOpacity[^)]*\) \|\| 0\.24/, moduleUrl.pathname);
+  }
 });
 
 test("core modules use the shared text normalizer instead of local copies", async () => {

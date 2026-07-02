@@ -1,12 +1,17 @@
 import { clamp } from "../core/utils/number.js";
-import { luminanceFromHex, normalizeHexColor, normalizeTitleAlign } from "../core/widget-common-style.js";
+import {
+  luminanceFromHex,
+  normalizeBackdropOverlayOpacity,
+  normalizeHexColor,
+  normalizeTitleAlign
+} from "../core/widget-common-style.js";
 
 const AUTO_LIGHT_TEXT = "#f3f7ff";
 const AUTO_DARK_TEXT = "#151a23";
 
 function estimateBackdropLuminance(ui) {
   const mode = String(ui?.background?.mode || "gradient");
-  const overlay = clamp(Number(ui?.background?.overlayOpacity) || 0.24, 0, 0.85);
+  const overlay = normalizeBackdropOverlayOpacity(ui?.background?.overlayOpacity);
   const overlayLum = luminanceFromHex("#080B10");
 
   const themeBackgroundLum = luminanceFromHex(normalizeHexColor(ui?.theme?.background, "#f3efe6"));

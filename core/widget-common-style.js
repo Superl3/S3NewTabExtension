@@ -1,4 +1,4 @@
-import { clamp, clampNumberOrFallback, normalizeIntegerInRange } from "./utils/number.js";
+import { clamp, clampNumberOrFallback, clampTruthyNumberOrFallback, normalizeIntegerInRange } from "./utils/number.js";
 
 export const WIDGET_COMMON_MASTER_KEYS = [
   "viewMode",
@@ -159,7 +159,7 @@ export function normalizeTransparentGhostStrength(value, fallback = 100) {
 }
 
 export function normalizeBackdropOverlayOpacity(value, fallback = 0.24) {
-  return clamp(Number(value) || fallback, 0, 0.85);
+  return clampTruthyNumberOrFallback(value, fallback, 0, 0.85);
 }
 
 export function hexToRgb(hex, fallback = "#000000") {
