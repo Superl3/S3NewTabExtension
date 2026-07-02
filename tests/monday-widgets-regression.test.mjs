@@ -14,6 +14,7 @@ import {
   normalizeLocalAuthConnectorUrl as normalizeConnectorUrl,
   rewriteAuthorizationLoadError
 } from "../widgets/shared/authConnector.js";
+import { formatLocalDateTimeLabel as formatDateLabel } from "../widgets/shared/dateLabels.js";
 
 const REPO_ROOT = process.cwd();
 
@@ -39,6 +40,7 @@ async function loadWidgetInternals(relativePath, exportedNames, injected = {}) {
     getChromeStorageLocal: () => null,
     isAuthCancelledMessage,
     LOCAL_AUTH_CONNECTOR_URL,
+    formatDateLabel,
     normalizeErrorMessage,
     normalizeConnectorUrl,
     parseJsonOrNull,

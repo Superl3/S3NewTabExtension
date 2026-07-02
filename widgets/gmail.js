@@ -1,6 +1,7 @@
 import { normalizeErrorMessage } from "../core/utils/error.js";
 import { normalizeIntegerInRange } from "../core/utils/number.js";
 import { normalizeText } from "../core/utils/text.js";
+import { formatLocalDateTimeLabel as formatDateLabel } from "./shared/dateLabels.js";
 
 const GMAIL_WEB_BASE_URL = "https://mail.google.com/mail";
 
@@ -79,14 +80,6 @@ function atomAlternateLink(entry) {
   }
 
   return fallback;
-}
-
-function formatDateLabel(rawDate) {
-  const parsed = Date.parse(rawDate);
-  if (!Number.isFinite(parsed)) {
-    return "";
-  }
-  return new Date(parsed).toLocaleString();
 }
 
 function isGmailLoginPage(responseUrl, bodyText) {

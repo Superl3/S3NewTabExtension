@@ -1,5 +1,6 @@
 import { normalizeIntegerInRange } from "../core/utils/number.js";
 import { normalizeText } from "../core/utils/text.js";
+import { formatLocalDateTimeLabel as formatDateLabel } from "./shared/dateLabels.js";
 
 export const GEEK_NEWS_FEED_URL = "https://news.hada.io/rss/news";
 const GEEK_NEWS_FETCH_URL = "https://feeds.feedburner.com/geeknews-feed";
@@ -237,14 +238,6 @@ function atomLink(entry) {
   }
 
   return fallback;
-}
-
-function formatDateLabel(rawDate) {
-  const parsed = Date.parse(rawDate);
-  if (!Number.isFinite(parsed)) {
-    return "";
-  }
-  return new Date(parsed).toLocaleString();
 }
 
 function parseRssItem(node, index) {

@@ -18,6 +18,7 @@ import {
   toLocalDayKey,
   updateAutoRefreshSlotsDoneForToday
 } from "./shared/autoRefreshSlots.js";
+import { formatLocalDateTimeLabel as formatDateLabel } from "./shared/dateLabels.js";
 import {
   createAuthSessionStorage,
   hasAuthSessionStorageChange,
@@ -263,14 +264,6 @@ function readCachedSnapshot(rawConfig, cfg) {
     ],
     cacheAt
   };
-}
-
-function formatDateLabel(rawDateTime) {
-  const parsed = Date.parse(rawDateTime);
-  if (!Number.isFinite(parsed)) {
-    return "";
-  }
-  return new Date(parsed).toLocaleString();
 }
 
 function resolveBoardUrl(boardId) {

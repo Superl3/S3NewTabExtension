@@ -406,3 +406,18 @@ test("account auth widgets share local connector auth helpers", async () => {
     assert.doesNotMatch(source, localAuthConnectorPattern, moduleUrl.pathname);
   }
 });
+
+test("feed and monday widgets share local date-time label formatting", async () => {
+  const moduleUrls = [
+    new URL("../widgets/gmail.js", import.meta.url),
+    new URL("../widgets/rss.js", import.meta.url),
+    new URL("../widgets/mondayAssigned.js", import.meta.url),
+    new URL("../widgets/mondayMeetingNote.js", import.meta.url)
+  ];
+
+  for (const moduleUrl of moduleUrls) {
+    const source = await fs.readFile(moduleUrl, "utf8");
+    assert.match(source, /shared\/dateLabels\.js/, moduleUrl.pathname);
+    assert.doesNotMatch(source, /^function formatDateLabel\(/m, moduleUrl.pathname);
+  }
+});
