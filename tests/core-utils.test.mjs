@@ -1290,6 +1290,7 @@ test("GitHub widgets share repository and API helpers", async () => {
     assert.doesNotMatch(source, /new URLSearchParams\(/, moduleUrl.pathname);
     assert.doesNotMatch(source, /\/repos\/\$\{/, moduleUrl.pathname);
     assert.doesNotMatch(source, /githubRepositoryParts as repositoryParts/, moduleUrl.pathname);
+    assert.doesNotMatch(source, /^function buildPullsUrl\(/m, moduleUrl.pathname);
     assert.doesNotMatch(source, /^function formatUpdatedLabel\(/m, moduleUrl.pathname);
     assert.doesNotMatch(
       source,
