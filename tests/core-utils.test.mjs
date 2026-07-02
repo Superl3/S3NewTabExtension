@@ -269,3 +269,18 @@ test("widgets use shared object helpers instead of local copies", async () => {
     assert.doesNotMatch(source.text, /Object\.prototype\.hasOwnProperty\.call/, source.name);
   }
 });
+
+test("Flex worktime widgets share row helpers instead of local copies", async () => {
+  const moduleUrls = [
+    new URL("../widgets/flexWorktime.js", import.meta.url),
+    new URL("../widgets/flexWorktimeTimeline.js", import.meta.url)
+  ];
+  const localHelperPattern =
+    /^function (formatDurationMinutes|formatSyncedLabel|formatTimeFromRef|normalizeCachedRow|normalizeTabId|normalizeWorktimeRow|sanitizePlaceholderMap|toCachedRow)\(/m;
+
+  for (const moduleUrl of moduleUrls) {
+    const source = await fs.readFile(moduleUrl, "utf8");
+    assert.match(source, /shared\/flexWorktimeRows\.js/, moduleUrl.pathname);
+    assert.doesNotMatch(source, localHelperPattern, moduleUrl.pathname);
+  }
+});

@@ -1,6 +1,6 @@
 import { normalizeErrorMessage } from "../core/utils/error.js";
 import { parseJsonOrNull } from "../core/utils/json.js";
-import { clamp, normalizeIntegerInRange, toFiniteNumber } from "../core/utils/number.js";
+import { clamp } from "../core/utils/number.js";
 import { hasOwn, isPlainObject } from "../core/utils/object.js";
 import { normalizeText } from "../core/utils/text.js";
 import { executeScript, hasScriptingApi } from "../core/platform/chrome-scripting.js";
@@ -12,6 +12,22 @@ import {
   updateTab,
   waitForTabReady
 } from "../core/platform/chrome-tabs.js";
+import {
+  formatClockMinutes,
+  formatDurationMinutes,
+  formatFlexSourceError,
+  formatSyncedLabel,
+  formatTimeFromRef,
+  normalizeCachedWorktimeRow as normalizeCachedRow,
+  normalizeFlexHomeUrl,
+  normalizeFlexRefreshMinutes as normalizeRefreshMinutes,
+  normalizeTabId,
+  normalizeWorktimeRow,
+  parseTimeOfDayMinutes,
+  sanitizePlaceholderMap,
+  toCachedWorktimeRow as toCachedRow,
+  toLocalDateKey
+} from "./shared/flexWorktimeRows.js";
 import { pruneCacheIndex, touchCacheIndex } from "./shared/localStorageCacheIndex.js";
 
 const FLEX_WORKTIME_CACHE_PREFIX = "s3newtab:flex-worktime-timeline-cache:v1";
@@ -58,75 +74,6 @@ const FLEX_TIMELINE_TOOLTIP_SUMMARY_RE = /(?:오전|오후)\s*\d{1,2}:\d{2}.*휴
 const FLEX_TIMELINE_TIME_TOKEN_RE = /((?:오전|오후)\s*\d{1,2}:\d{2}|\d{1,2}:\d{2}|기록\s*중)/gu;
 const DATE_MODE_VALUES = new Set(["today", "yesterday", "tomorrow", "custom"]);
 
-const NAME_FIELDS = [
-  "employeeName",
-  "name",
-  "userName",
-  "username",
-  "fullName",
-  "employee",
-  "staffName",
-  "memberName",
-  "displayName"
-];
-
-const STATUS_FIELDS = [
-  "status",
-  "workStatus",
-  "attendanceStatus",
-  "state",
-  "resultStatus",
-  "workState"
-];
-
-const IN_TIME_FIELDS = [
-  "workIn",
-  "startAt",
-  "clockIn",
-  "workStart",
-  "inTime",
-  "checkIn",
-  "startTime",
-  "work_in",
-  "clock_in"
-];
-
-const OUT_TIME_FIELDS = [
-  "workOut",
-  "endAt",
-  "clockOut",
-  "workEnd",
-  "outTime",
-  "checkOut",
-  "endTime",
-  "work_out",
-  "clock_out"
-];
-
-const NOTE_FIELDS = ["note", "memo", "remark", "description", "comment", "message", "reason"];
-
-const ID_FIELDS = ["id", "entryId", "recordId", "employeeId", "userId", "memberId", "uuid"];
-
-const DURATION_MINUTE_FIELDS = [
-  "workedMinutes",
-  "workMinutes",
-  "durationMinutes",
-  "totalMinutes",
-  "minutes",
-  "minute"
-];
-
-const DURATION_HOUR_FIELDS = ["workedHours", "workHours", "durationHours", "totalHours", "hours", "hour"];
-
-const DURATION_GENERIC_FIELDS = [
-  "duration",
-  "workDuration",
-  "totalDuration",
-  "durationText",
-  "elapsed"
-];
-
-
 function createFlexAuthRequiredError(message) {
   const error = new Error(
     normalizeText(message, "Flex login is required. Sign in on Flex, then refresh this widget.")
@@ -151,15 +98,6 @@ function isFlexLoginUrl(value) {
   } catch {
     return FLEX_AUTH_LOGIN_FALLBACK_RE.test(text);
   }
-}
-
-function normalizeRefreshMinutes(value, fallback = 10) {
-  return normalizeIntegerInRange(value, fallback, 1, 720);
-}
-
-function normalizeFlexHomeUrl(value, fallback = DEFAULT_FLEX_HOME_URL) {
-  const text = normalizeText(value, fallback);
-  return text || DEFAULT_FLEX_HOME_URL;
 }
 
 function normalizeDateMode(value, fallback = "today") {
@@ -189,34 +127,6 @@ function normalizeIsoDate(value) {
     return "";
   }
   return text;
-}
-
-function toLocalDateKey(date) {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-}
-
-function formatClockMinutes(totalMinutes) {
-  const minutes = clamp(Math.floor(Number(totalMinutes) || 0), 0, 1439);
-  const hour = Math.floor(minutes / 60);
-  const minute = minutes % 60;
-  return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
-}
-
-function parseTimeOfDayMinutes(value) {
-  const text = normalizeText(value);
-  const match = text.match(/^([01]?\d|2[0-3]):([0-5]\d)(?::([0-5]\d))?$/);
-  if (!match) {
-    return null;
-  }
-  const hour = Number(match[1]);
-  const minute = Number(match[2]);
-  if (!Number.isFinite(hour) || !Number.isFinite(minute)) {
-    return null;
-  }
-  return hour * 60 + minute;
 }
 
 function parseMeridiemTimeOfDayMinutes(value) {
@@ -478,35 +388,6 @@ function summarizeFlexTimeline(timeline) {
   };
 }
 
-function formatTimeFromRef(timeRef) {
-  if (!timeRef) {
-    return "--";
-  }
-  if (timeRef.type === "minute") {
-    return formatClockMinutes(timeRef.value);
-  }
-  if (timeRef.type === "timestamp") {
-    return new Date(timeRef.value).toLocaleTimeString([], {
-      hour: "2-digit",
-      minute: "2-digit"
-    });
-  }
-  return "--";
-}
-
-function formatDurationMinutes(totalMinutes) {
-  const minutes = Math.max(0, Math.round(Number(totalMinutes) || 0));
-  const hours = Math.floor(minutes / 60);
-  const remains = minutes % 60;
-  if (hours > 0 && remains > 0) {
-    return `${hours}h ${remains}m`;
-  }
-  if (hours > 0) {
-    return `${hours}h`;
-  }
-  return `${remains}m`;
-}
-
 function parseDurationLabelMinutes(value) {
   const text = normalizeText(value).replace(/\s+/g, " ").trim();
   if (!text || text === "--") {
@@ -579,31 +460,12 @@ function inferTimelineFromSummary(summary, queryDate, now = new Date()) {
   };
 }
 
-function formatSyncedLabel(timestampMs) {
-  const ts = Number(timestampMs);
-  if (!Number.isFinite(ts) || ts <= 0) {
-    return "";
-  }
-  return new Date(ts).toLocaleTimeString([], {
-    hour: "2-digit",
-    minute: "2-digit"
-  });
-}
-
 function sourceModeLabel() {
   return "Flex Work Record scrape";
 }
 
 function formatSourceError(config, error) {
-  const prefix = sourceModeLabel();
-  const message = normalizeErrorMessage(error);
-  if (!message) {
-    return `${prefix} failed.`;
-  }
-  if (message.toLowerCase().startsWith(prefix.toLowerCase())) {
-    return message;
-  }
-  return `${prefix}: ${message}`;
+  return formatFlexSourceError(sourceModeLabel(), error);
 }
 
 function configSignature(config) {
@@ -625,67 +487,6 @@ function flexWorktimeCacheStorageKey(config, queryDate) {
   const encodedSignature = encodeURIComponent(configSignature(config));
   const encodedDate = encodeURIComponent(normalizeText(queryDate));
   return `${FLEX_WORKTIME_CACHE_PREFIX}:${encodedSignature}:${encodedDate}`;
-}
-
-function sanitizePlaceholderMap(source) {
-  if (!isPlainObject(source)) {
-    return {};
-  }
-
-  const out = {};
-  for (const [key, rawValue] of Object.entries(source)) {
-    const normalizedKey = normalizeText(key);
-    if (!normalizedKey) {
-      continue;
-    }
-    if (rawValue === null || rawValue === undefined) {
-      continue;
-    }
-    if (typeof rawValue === "object") {
-      continue;
-    }
-    const textValue = String(rawValue);
-    out[normalizedKey] = textValue;
-  }
-  return out;
-}
-
-function normalizeCachedRow(entry) {
-  if (!isPlainObject(entry)) {
-    return null;
-  }
-
-  const name = normalizeText(entry.name);
-  const id = normalizeText(entry.id, name);
-  if (!id && !name) {
-    return null;
-  }
-
-  return {
-    id: id || name || "entry",
-    name: name || "Unknown",
-    status: normalizeText(entry.status),
-    inLabel: normalizeText(entry.inLabel, "--"),
-    outLabel: normalizeText(entry.outLabel, "--"),
-    durationLabel: normalizeText(entry.durationLabel, "--"),
-    note: normalizeText(entry.note),
-    placeholders: sanitizePlaceholderMap(entry.placeholders),
-    rawEntry: isPlainObject(entry.rawEntry) ? entry.rawEntry : {}
-  };
-}
-
-function toCachedRow(row) {
-  return {
-    id: normalizeText(row?.id),
-    name: normalizeText(row?.name),
-    status: normalizeText(row?.status),
-    inLabel: normalizeText(row?.inLabel, "--"),
-    outLabel: normalizeText(row?.outLabel, "--"),
-    durationLabel: normalizeText(row?.durationLabel, "--"),
-    note: normalizeText(row?.note),
-    placeholders: sanitizePlaceholderMap(row?.placeholders),
-    rawEntry: isPlainObject(row?.rawEntry) ? row.rawEntry : {}
-  };
 }
 
 function readCachedSnapshot(config, queryDate) {
@@ -754,291 +555,6 @@ function writeCachedSnapshot(config, queryDate, rows, fetchedAt = Date.now()) {
   } catch {
     // noop
   }
-}
-
-function normalizeValueText(value) {
-  if (value === null || value === undefined) {
-    return "";
-  }
-  if (typeof value === "string") {
-    return normalizeText(value);
-  }
-  if (typeof value === "number" || typeof value === "boolean") {
-    return String(value);
-  }
-  if (isPlainObject(value)) {
-    const fromLabel = normalizeText(value.label);
-    if (fromLabel) {
-      return fromLabel;
-    }
-    const fromName = normalizeText(value.name);
-    if (fromName) {
-      return fromName;
-    }
-    const fromText = normalizeText(value.text);
-    if (fromText) {
-      return fromText;
-    }
-    const fromValue = normalizeText(value.value);
-    if (fromValue) {
-      return fromValue;
-    }
-  }
-  return "";
-}
-
-function lowerKeyMap(entry) {
-  const map = new Map();
-  for (const [key, value] of Object.entries(entry || {})) {
-    if (!map.has(key.toLowerCase())) {
-      map.set(key.toLowerCase(), value);
-    }
-  }
-  return map;
-}
-
-function pickEntryValue(entry, keyMap, candidates) {
-  for (const key of candidates) {
-    if (hasOwn(entry, key)) {
-      return entry[key];
-    }
-    const lowerKey = key.toLowerCase();
-    if (keyMap.has(lowerKey)) {
-      return keyMap.get(lowerKey);
-    }
-  }
-  return undefined;
-}
-
-function parseTimeReference(value) {
-  if (value === null || value === undefined || value === "") {
-    return null;
-  }
-
-  if (value instanceof Date && Number.isFinite(value.getTime())) {
-    return { type: "timestamp", value: value.getTime() };
-  }
-
-  if (typeof value === "number") {
-    if (!Number.isFinite(value)) {
-      return null;
-    }
-
-    if (value >= 0 && value <= 24 && Number.isInteger(value)) {
-      const minuteValue = value * 60;
-      return { type: "minute", value: clamp(minuteValue, 0, 1439) };
-    }
-
-    if (value >= 0 && value <= 1440) {
-      const minuteValue = Math.floor(value);
-      return { type: "minute", value: clamp(minuteValue, 0, 1439) };
-    }
-
-    if (value > 1440 && value <= 86400) {
-      const minuteValue = Math.floor(value / 60);
-      return { type: "minute", value: clamp(minuteValue, 0, 1439) };
-    }
-
-    const ts = value < 1e11 ? value * 1000 : value;
-    const date = new Date(ts);
-    if (Number.isFinite(date.getTime())) {
-      return { type: "timestamp", value: date.getTime() };
-    }
-
-    return null;
-  }
-
-  const text = normalizeText(value);
-  if (!text) {
-    return null;
-  }
-
-  const minuteValue = parseTimeOfDayMinutes(text);
-  if (minuteValue !== null) {
-    return { type: "minute", value: minuteValue };
-  }
-
-  const numericText = Number(text);
-  if (Number.isFinite(numericText)) {
-    return parseTimeReference(numericText);
-  }
-
-  const parsedTimestamp = Date.parse(text);
-  if (Number.isFinite(parsedTimestamp)) {
-    return { type: "timestamp", value: parsedTimestamp };
-  }
-
-  return null;
-}
-
-function parseGenericDurationMinutes(value) {
-  if (value === null || value === undefined || value === "") {
-    return null;
-  }
-
-  if (typeof value === "number") {
-    if (!Number.isFinite(value) || value < 0) {
-      return null;
-    }
-    if (value > 86400) {
-      return Math.round(value / 60000);
-    }
-    if (value > 1440) {
-      return Math.round(value / 60);
-    }
-    if (value <= 24) {
-      return Math.round(value * 60);
-    }
-    return Math.round(value);
-  }
-
-  const text = normalizeText(value);
-  if (!text) {
-    return null;
-  }
-
-  const clockMatch = text.match(/^(\d{1,3}):(\d{2})(?::(\d{2}))?$/);
-  if (clockMatch) {
-    const hours = Number(clockMatch[1]);
-    const minutes = Number(clockMatch[2]);
-    const seconds = Number(clockMatch[3] || 0);
-    if (Number.isFinite(hours) && Number.isFinite(minutes) && Number.isFinite(seconds)) {
-      return Math.round(hours * 60 + minutes + seconds / 60);
-    }
-  }
-
-  const unitMatch = text
-    .toLowerCase()
-    .match(/^(?:(\d+(?:\.\d+)?)\s*h(?:ours?)?)?\s*(?:(\d+(?:\.\d+)?)\s*m(?:in(?:ute)?s?)?)?$/);
-  if (unitMatch) {
-    const hours = toFiniteNumber(unitMatch[1], 0) || 0;
-    const minutes = toFiniteNumber(unitMatch[2], 0) || 0;
-    if (hours > 0 || minutes > 0) {
-      return Math.round(hours * 60 + minutes);
-    }
-  }
-
-  const numericText = Number(text);
-  if (Number.isFinite(numericText)) {
-    return parseGenericDurationMinutes(numericText);
-  }
-
-  return null;
-}
-
-function diffMinutesFromRefs(inRef, outRef) {
-  if (!inRef || !outRef) {
-    return null;
-  }
-
-  if (inRef.type === "timestamp" && outRef.type === "timestamp") {
-    const minutes = Math.round((outRef.value - inRef.value) / 60000);
-    return Math.max(0, minutes);
-  }
-
-  if (inRef.type === "minute" && outRef.type === "minute") {
-    let minutes = outRef.value - inRef.value;
-    if (minutes < 0) {
-      minutes += 24 * 60;
-    }
-    return Math.max(0, minutes);
-  }
-
-  return null;
-}
-
-function appendPrimitivePlaceholders(target, source, prefix = "", depth = 0) {
-  if (!isPlainObject(source) || depth > 1) {
-    return;
-  }
-
-  for (const [key, rawValue] of Object.entries(source)) {
-    const normalizedKey = normalizeText(key);
-    if (!normalizedKey) {
-      continue;
-    }
-
-    const composedKey = `${prefix}${normalizedKey}`;
-    if (rawValue === null || rawValue === undefined) {
-      continue;
-    }
-
-    if (isPlainObject(rawValue) && depth < 1) {
-      appendPrimitivePlaceholders(target, rawValue, `${composedKey}.`, depth + 1);
-      continue;
-    }
-
-    if (typeof rawValue === "object") {
-      continue;
-    }
-
-    target[composedKey] = String(rawValue);
-  }
-}
-
-function normalizeWorktimeRow(entry, index) {
-  const source = isPlainObject(entry) ? entry : {};
-  const keyMap = lowerKeyMap(source);
-
-  const nameValue = pickEntryValue(source, keyMap, NAME_FIELDS);
-  const statusValue = pickEntryValue(source, keyMap, STATUS_FIELDS);
-  const inValue = pickEntryValue(source, keyMap, IN_TIME_FIELDS);
-  const outValue = pickEntryValue(source, keyMap, OUT_TIME_FIELDS);
-  const noteValue = pickEntryValue(source, keyMap, NOTE_FIELDS);
-  const idValue = pickEntryValue(source, keyMap, ID_FIELDS);
-
-  const inRef = parseTimeReference(inValue);
-  const outRef = parseTimeReference(outValue);
-
-  const minuteDurationField = pickEntryValue(source, keyMap, DURATION_MINUTE_FIELDS);
-  const hourDurationField = pickEntryValue(source, keyMap, DURATION_HOUR_FIELDS);
-  const genericDurationField = pickEntryValue(source, keyMap, DURATION_GENERIC_FIELDS);
-
-  const explicitMinutes = toFiniteNumber(minuteDurationField, null);
-  const explicitHours = toFiniteNumber(hourDurationField, null);
-  const genericMinutes = parseGenericDurationMinutes(genericDurationField);
-
-  let durationMinutes = null;
-  if (explicitMinutes !== null) {
-    durationMinutes = Math.max(0, Math.round(explicitMinutes));
-  } else if (explicitHours !== null) {
-    durationMinutes = Math.max(0, Math.round(explicitHours * 60));
-  } else if (genericMinutes !== null) {
-    durationMinutes = Math.max(0, Math.round(genericMinutes));
-  } else {
-    durationMinutes = diffMinutesFromRefs(inRef, outRef);
-  }
-
-  const name = normalizeText(normalizeValueText(nameValue), `Entry ${index + 1}`);
-  const statusText = normalizeText(normalizeValueText(statusValue));
-  const status =
-    statusText || (outRef ? "Checked out" : inRef ? "Checked in" : durationMinutes !== null ? "Recorded" : "");
-  const note = normalizeText(normalizeValueText(noteValue));
-
-  const row = {
-    id: normalizeText(normalizeValueText(idValue), `${name}-${index + 1}`),
-    name,
-    status,
-    inLabel: formatTimeFromRef(inRef),
-    outLabel: formatTimeFromRef(outRef),
-    durationLabel: durationMinutes === null ? "--" : formatDurationMinutes(durationMinutes),
-    note,
-    placeholders: {},
-    rawEntry: source
-  };
-
-  const placeholders = {};
-  appendPrimitivePlaceholders(placeholders, source);
-  placeholders.id = row.id;
-  placeholders.name = row.name;
-  placeholders.status = row.status;
-  placeholders.in = row.inLabel;
-  placeholders.out = row.outLabel;
-  placeholders.duration = row.durationLabel;
-  placeholders.note = row.note;
-  row.placeholders = sanitizePlaceholderMap(placeholders);
-
-  return row;
 }
 
 function resolveQueryDate(config) {
@@ -1224,14 +740,6 @@ function parseAllowedFlexTabUrl(value) {
   }
 
   return parsed;
-}
-
-function normalizeTabId(value) {
-  if (value === null || value === undefined || value === "") {
-    return null;
-  }
-  const tabId = Number(value);
-  return Number.isInteger(tabId) && tabId >= 0 ? tabId : null;
 }
 
 function getReusableScrapeTabId(scrapeFlowState) {
