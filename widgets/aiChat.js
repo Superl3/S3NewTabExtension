@@ -11,6 +11,7 @@ import {
 } from "./shared/authConnector.js";
 import {
   createAuthSessionStorage,
+  createStoredAuthSessionForConnectorResult,
   resolveActiveAuthSession
 } from "./shared/authSessionStorage.js";
 import { getChromeIdentity, getChromeStorageLocal } from "./shared/chromeApi.js";
@@ -360,12 +361,13 @@ export const aiChatWidget = {
           getIdentityApi: getChromeIdentity
         });
 
-        if (!configuredToken) {
-          storedSession = {
-            connectorUrl,
-            accessToken: result.accessToken,
-            accountLabel: result.accountLabel
-          };
+        const nextStoredSession = createStoredAuthSessionForConnectorResult({
+          connectorUrl,
+          configuredAccessToken: configuredToken,
+          result
+        });
+        if (nextStoredSession) {
+          storedSession = nextStoredSession;
           await authSessionStorage.save(storedSession);
         }
 

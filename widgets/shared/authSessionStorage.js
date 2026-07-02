@@ -76,6 +76,22 @@ export async function loadActiveAuthSessionForConfig({
   });
 }
 
+export function createStoredAuthSessionForConnectorResult({
+  connectorUrl = "",
+  configuredAccessToken = "",
+  result = null
+} = {}) {
+  if (normalizeText(configuredAccessToken)) {
+    return null;
+  }
+
+  return {
+    connectorUrl,
+    accessToken: result?.accessToken,
+    accountLabel: result?.accountLabel
+  };
+}
+
 export function hasActiveAuthConnection({
   config = null,
   connected = false,
