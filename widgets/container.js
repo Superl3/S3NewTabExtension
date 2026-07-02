@@ -4,10 +4,6 @@ import { clamp, normalizeIntegerInRange } from "../core/utils/number.js";
 import { normalizeText } from "../core/utils/text.js";
 import { isUrlIcon } from "./shared/linkUrls.js";
 
-function normalizeCount(value, fallback, min, max) {
-  return normalizeIntegerInRange(value, fallback, min, max);
-}
-
 function normalizeTitleAlign(value, fallback = "center") {
   if (value === "left" || value === "center" || value === "right") {
     return value;
@@ -19,11 +15,11 @@ function normalizeFolderConfig(config) {
   const raw = config && typeof config === "object" ? config : {};
   return {
     expanded: raw.expanded === true,
-    expandedCols: normalizeCount(raw.expandedCols, 4, 1, 16),
-    expandedRows: normalizeCount(raw.expandedRows, 3, 1, 16),
+    expandedCols: normalizeIntegerInRange(raw.expandedCols, 4, 1, 16),
+    expandedRows: normalizeIntegerInRange(raw.expandedRows, 3, 1, 16),
     icon: normalizeText(raw.icon),
     useGlobalIconSize: raw.useGlobalIconSize !== false,
-    iconSizePercent: normalizeCount(raw.iconSizePercent, 100, 40, 220)
+    iconSizePercent: normalizeIntegerInRange(raw.iconSizePercent, 100, 40, 220)
   };
 }
 
