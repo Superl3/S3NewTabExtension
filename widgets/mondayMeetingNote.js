@@ -253,10 +253,6 @@ function resolveMondayUrl(boardEntries, accountValue) {
 
 function pickSingleNote(value) {
   const normalized = normalizeText(value).replace(/\r\n?/g, "\n");
-  if (!normalized) {
-    return "";
-  }
-
   const lines = normalized
     .split("\n")
     .map((line) => normalizeText(line))

@@ -1671,6 +1671,7 @@ test("Monday widgets share list array fallback normalization", async () => {
   assert.doesNotMatch(meetingNoteSource, /boardRelationDisplay/);
   assert.doesNotMatch(meetingNoteSource, /const mirrorText = normalizeText\(columnValue\?\.display_value\)/);
   assert.doesNotMatch(meetingNoteSource, /^function normalizeLineBreaks\(/m);
+  assert.doesNotMatch(meetingNoteSource, /if \(!normalized\) \{\s*return "";\s*\}/);
 });
 
 test("Monday meeting notes reuse the shared safe URL parser", async () => {
