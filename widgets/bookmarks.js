@@ -1,4 +1,5 @@
 import { areBookmarksAvailable, resolveBookmarkRoot } from "../bookmarks.js";
+import { arrayOrEmpty } from "../core/utils/array.js";
 import { clamp, toFiniteNumber } from "../core/utils/number.js";
 import { normalizeText } from "../core/utils/text.js";
 import { buildGoogleFaviconUrl, isUrlIcon, normalizeHttpUrl } from "./shared/linkUrls.js";
@@ -95,7 +96,7 @@ function findNodeById(node, targetId) {
   if (node.id === targetId) {
     return node;
   }
-  for (const child of node.children || []) {
+  for (const child of arrayOrEmpty(node.children)) {
     const found = findNodeById(child, targetId);
     if (found) {
       return found;
@@ -105,7 +106,7 @@ function findNodeById(node, targetId) {
 }
 
 function buildParentMap(node, map = {}) {
-  for (const child of node.children || []) {
+  for (const child of arrayOrEmpty(node.children)) {
     map[child.id] = node.id;
     buildParentMap(child, map);
   }
@@ -113,7 +114,7 @@ function buildParentMap(node, map = {}) {
 }
 
 function flattenLinks(node, out = []) {
-  for (const child of node.children || []) {
+  for (const child of arrayOrEmpty(node.children)) {
     if (child.url) {
       out.push(child);
       continue;
@@ -509,7 +510,7 @@ export const bookmarksWidget = {
       }
 
       if (cfg.showFolders) {
-        return [...(activeFolder.children || [])];
+        return [...arrayOrEmpty(activeFolder.children)];
       }
 
       return flattenLinks(activeFolder, []);
