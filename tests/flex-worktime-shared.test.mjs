@@ -11,6 +11,7 @@ import {
 } from "../widgets/shared/flexTabs.js";
 import { createFlexWorktimeCache } from "../widgets/shared/flexWorktimeCache.js";
 import {
+  formatClockMinutes,
   normalizeFlexWidgetBaseConfig,
   resolveFlexWorktimeDetailUrl
 } from "../widgets/shared/flexWorktimeRows.js";
@@ -200,6 +201,13 @@ test("Flex base config normalizer preserves shared widget defaults", () => {
       openInNewTab: false
     }
   );
+});
+
+test("Flex shared clock formatter preserves bounded minute semantics", () => {
+  assert.equal(formatClockMinutes(61.9), "01:01");
+  assert.equal(formatClockMinutes("bad"), "00:00");
+  assert.equal(formatClockMinutes(-4), "00:00");
+  assert.equal(formatClockMinutes(1500), "23:59");
 });
 
 test("Flex worktime detail URL helper resolves placeholders safely", () => {

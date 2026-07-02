@@ -1,5 +1,5 @@
 import { normalizeErrorMessage } from "../../core/utils/error.js";
-import { clamp, normalizeIntegerInRange, toFiniteNumber } from "../../core/utils/number.js";
+import { clamp, normalizeIntegerInRange, toFiniteNumber, toInteger } from "../../core/utils/number.js";
 import { hasOwn, isPlainObject } from "../../core/utils/object.js";
 import { normalizeText } from "../../core/utils/text.js";
 import { toLocalDateKey } from "./localDates.js";
@@ -91,7 +91,7 @@ export function normalizeFlexWidgetBaseConfig(config, options = {}) {
 export { toLocalDateKey };
 
 export function formatClockMinutes(totalMinutes) {
-  const minutes = clamp(Math.floor(Number(totalMinutes) || 0), 0, 1439);
+  const minutes = clamp(toInteger(totalMinutes, 0), 0, 1439);
   const hour = Math.floor(minutes / 60);
   const minute = minutes % 60;
   return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;

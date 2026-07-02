@@ -546,6 +546,13 @@ test("Flex worktime widgets share row helpers instead of local copies", async ()
   }
 });
 
+test("Flex shared row helpers use core integer primitives", async () => {
+  const source = await fs.readFile(new URL("../widgets/shared/flexWorktimeRows.js", import.meta.url), "utf8");
+  assert.match(source, /core\/utils\/number\.js/);
+  assert.doesNotMatch(source, /Math\.floor\(Number/, "flexWorktimeRows.js");
+  assert.doesNotMatch(source, /Number\.isFinite\(Number\(/, "flexWorktimeRows.js");
+});
+
 test("Flex worktime widgets share auth helpers instead of local copies", async () => {
   const moduleUrls = [
     new URL("../widgets/flexWorktime.js", import.meta.url),
