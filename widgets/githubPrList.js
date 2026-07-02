@@ -123,11 +123,6 @@ function buildPullsUrl(config) {
   });
 }
 
-function formatUpdatedLabel(rawDate) {
-  const parsed = Date.parse(rawDate);
-  return formatUpdatedLabelFromTimestamp(parsed);
-}
-
 async function fetchPullRequests(config) {
   const pullsUrl = buildPullsUrl(config);
   if (!pullsUrl) {
@@ -165,7 +160,7 @@ async function fetchPullRequests(config) {
       author: normalizeText(item?.user?.login, "unknown"),
       draft: item?.draft === true,
       updatedAt: normalizeCacheTimestamp(updatedAt),
-      updatedLabel: formatUpdatedLabel(updatedAtRaw),
+      updatedLabel: formatUpdatedLabelFromTimestamp(updatedAt),
       headRef: normalizeText(item?.head?.ref),
       baseRef: normalizeText(item?.base?.ref),
       reviewRequested,
