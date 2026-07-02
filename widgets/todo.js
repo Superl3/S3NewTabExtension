@@ -1,5 +1,6 @@
 import { dispatchAlarmNotification } from "../core/alarm/notification-dispatcher.js";
 import { createAlarmRuntime } from "../core/alarm/alarm-runtime.js";
+import { addLocalDays as addDays, toLocalDateKey as formatDateKey } from "./shared/localDates.js";
 
 function uid() {
   return `${Date.now()}-${Math.random().toString(16).slice(2, 8)}`;
@@ -31,13 +32,6 @@ const OPTION_MINUTES = {
   "60m": 60
 };
 
-function formatDateKey(date) {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-}
-
 function parseDateKey(value) {
   if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
     return null;
@@ -51,12 +45,6 @@ function parseDateKey(value) {
     return null;
   }
   return date;
-}
-
-function addDays(date, count) {
-  const next = new Date(date.getFullYear(), date.getMonth(), date.getDate());
-  next.setDate(next.getDate() + count);
-  return next;
 }
 
 function dayStart(date) {
