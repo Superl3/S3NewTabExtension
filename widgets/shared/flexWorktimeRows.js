@@ -379,8 +379,8 @@ function parseGenericDurationMinutes(value) {
     .toLowerCase()
     .match(/^(?:(\d+(?:\.\d+)?)\s*h(?:ours?)?)?\s*(?:(\d+(?:\.\d+)?)\s*m(?:in(?:ute)?s?)?)?$/);
   if (unitMatch) {
-    const hours = toFiniteNumber(unitMatch[1], 0) || 0;
-    const minutes = toFiniteNumber(unitMatch[2], 0) || 0;
+    const hours = toFiniteNumber(unitMatch[1], 0);
+    const minutes = toFiniteNumber(unitMatch[2], 0);
     if (hours > 0 || minutes > 0) {
       return Math.round(hours * 60 + minutes);
     }
