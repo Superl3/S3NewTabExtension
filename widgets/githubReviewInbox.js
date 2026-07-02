@@ -492,7 +492,7 @@ async function fetchReviewInboxItems(config) {
 
   const reviewItems = [];
   for (const pull of openPulls) {
-    const pullNumber = Number(pull?.number) || 0;
+    const pullNumber = normalizeCacheNumber(pull?.number);
     if (!pullNumber) {
       continue;
     }

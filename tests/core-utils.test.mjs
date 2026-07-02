@@ -669,8 +669,16 @@ test("GitHub widgets share repository and API helpers", async () => {
     assert.doesNotMatch(source, /githubRepositoryParts as repositoryParts/, moduleUrl.pathname);
     assert.doesNotMatch(source, /Math\.floor\(Number\(entry\?\.teamCount\)/, moduleUrl.pathname);
     assert.doesNotMatch(source, /Number\(rawConfig\?\.cacheAt\) \|\| 0/, moduleUrl.pathname);
+    assert.doesNotMatch(source, /Number\(pull\?\.number\) \|\| 0/, moduleUrl.pathname);
     assert.doesNotMatch(source, /Math\.max\(0, normalizeCacheNumber\(/, moduleUrl.pathname);
   }
+});
+
+test("GitHub review inbox logic uses shared cache timestamp normalization", async () => {
+  const source = await fs.readFile(new URL("../widgets/shared/githubReviewInboxLogic.js", import.meta.url), "utf8");
+  assert.match(source, /shared\/githubApi\.js|\.\/githubApi\.js/);
+  assert.match(source, /normalizeGitHubCacheTimestamp/);
+  assert.doesNotMatch(source, /Math\.max\(0, Number\(latestAttentionAt \?\? latestCodeUpdateAt\) \|\| 0\)/);
 });
 
 test("Monday widgets share auto-refresh slot primitives", async () => {
