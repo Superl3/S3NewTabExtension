@@ -1262,6 +1262,8 @@ test("Flex worktime widgets share cache helpers instead of local copies", async 
 test("Flex worktime cache uses core number helpers", async () => {
   const source = await fs.readFile(new URL("../widgets/shared/flexWorktimeCache.js", import.meta.url), "utf8");
   assert.match(source, /core\/utils\/number\.js/);
+  assert.match(source, /toPositiveInteger\(options\.maxEntries, 1\)/);
+  assert.doesNotMatch(source, /^function normalizeMaxEntries\(/m, "flexWorktimeCache.js");
   assert.doesNotMatch(source, /Number\(value\) \|\| 1/, "flexWorktimeCache.js");
   assert.doesNotMatch(source, /Number\(fetchedAt\) \|\| Date\.now\(\)/, "flexWorktimeCache.js");
 });
