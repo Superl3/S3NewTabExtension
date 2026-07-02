@@ -1,3 +1,4 @@
+import { arrayOrEmpty } from "../../core/utils/array.js";
 import { parseJsonOrNull } from "../../core/utils/json.js";
 import { toFiniteNumber, toPositiveInteger } from "../../core/utils/number.js";
 import { isPlainObject } from "../../core/utils/object.js";
@@ -61,9 +62,9 @@ export function createFlexWorktimeCache(options = {}) {
     }
 
     const fetchedAt = Number(parsed.fetchedAt);
-    const rows = Array.isArray(parsed.rows)
-      ? parsed.rows.map(normalizeCachedRow).filter(Boolean)
-      : [];
+    const rows = arrayOrEmpty(parsed.rows)
+      .map(normalizeCachedRow)
+      .filter(Boolean);
 
     if (!Number.isFinite(fetchedAt) || fetchedAt <= 0) {
       return null;
@@ -96,7 +97,7 @@ export function createFlexWorktimeCache(options = {}) {
     const key = cacheStorageKey(config, queryDate);
     const payload = {
       fetchedAt: Math.max(1, Math.round(toFiniteNumber(fetchedAt, Date.now()))),
-      rows: Array.isArray(rows) ? rows.map(toCachedRow).filter(Boolean) : []
+      rows: arrayOrEmpty(rows).map(toCachedRow).filter(Boolean)
     };
 
     try {

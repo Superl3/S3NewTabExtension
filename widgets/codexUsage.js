@@ -1,5 +1,6 @@
 import { executeScript } from "../core/platform/chrome-scripting.js";
 import { waitForTabReady } from "../core/platform/chrome-tabs.js";
+import { arrayOrEmpty } from "../core/utils/array.js";
 import { normalizeErrorMessage } from "../core/utils/error.js";
 import { toFiniteNumber, toTruthyFiniteNumberOrFallback } from "../core/utils/number.js";
 import { normalizeText } from "../core/utils/text.js";
@@ -195,13 +196,11 @@ function normalizeSnapshot(raw) {
   const capturedAt = toFiniteNumber(raw.capturedAt, 0);
   const sourceUrl = normalizeText(raw.sourceUrl);
   const title = normalizeText(raw.title, "Codex Usage");
-  const metrics = Array.isArray(raw.metrics) ? raw.metrics.map(normalizeMetric).filter(Boolean) : [];
-  const lines = Array.isArray(raw.lines)
-    ? raw.lines
-        .map((line) => normalizeText(line))
-        .filter(Boolean)
-        .slice(0, 24)
-    : [];
+  const metrics = arrayOrEmpty(raw.metrics).map(normalizeMetric).filter(Boolean);
+  const lines = arrayOrEmpty(raw.lines)
+    .map((line) => normalizeText(line))
+    .filter(Boolean)
+    .slice(0, 24);
 
   if (!metrics.length && !lines.length) {
     return null;
@@ -281,7 +280,7 @@ async function queryUsageTabs() {
     (callback) => chrome.tabs.query({ url: [CHATGPT_TAB_MATCH] }, callback),
     "Unable to query ChatGPT usage tabs."
   );
-  const safeTabs = Array.isArray(tabs) ? tabs.filter((tab) => Number.isFinite(tab?.id)) : [];
+  const safeTabs = arrayOrEmpty(tabs).filter((tab) => Number.isFinite(tab?.id));
   return safeTabs.filter((tab) => isUsagePageUrl(readTabUrl(tab)));
 }
 
@@ -293,7 +292,7 @@ async function queryChatGptTabs() {
     (callback) => chrome.tabs.query({ url: [CHATGPT_TAB_MATCH] }, callback),
     "Unable to query ChatGPT tabs."
   );
-  return Array.isArray(tabs) ? tabs.filter((tab) => Number.isFinite(tab?.id)) : [];
+  return arrayOrEmpty(tabs).filter((tab) => Number.isFinite(tab?.id));
 }
 
 async function navigateTabToUsage(tabId) {
@@ -688,6 +687,6 @@ export function normalizeCodexSnapshotForContractTest(raw) {
 }
 
 export function buildCodexSlotMapForContractTest(metrics) {
-  const normalizedMetrics = Array.isArray(metrics) ? metrics.map(normalizeMetric).filter(Boolean) : [];
+  const normalizedMetrics = arrayOrEmpty(metrics).map(normalizeMetric).filter(Boolean);
   return buildSlotMap(normalizedMetrics);
 }

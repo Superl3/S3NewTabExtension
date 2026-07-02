@@ -1268,6 +1268,35 @@ test("Codex usage widget uses core number helpers", async () => {
   assert.doesNotMatch(source, /new Date\(Number\(capturedAt\) \|\| Date\.now\(\)\)/);
 });
 
+test("account and cached widgets use shared array fallback helper", async () => {
+  const moduleUrls = [
+    new URL("../widgets/aiChat.js", import.meta.url),
+    new URL("../widgets/codexUsage.js", import.meta.url),
+    new URL("../widgets/shared/flexWorktimeCache.js", import.meta.url)
+  ];
+
+  for (const moduleUrl of moduleUrls) {
+    const source = await fs.readFile(moduleUrl, "utf8");
+    assert.match(source, /core\/utils\/array\.js/, moduleUrl.pathname);
+    assert.match(source, /arrayOrEmpty\(/, moduleUrl.pathname);
+  }
+
+  const aiChatSource = await fs.readFile(new URL("../widgets/aiChat.js", import.meta.url), "utf8");
+  assert.doesNotMatch(aiChatSource, /!Array\.isArray\(value\)/);
+  assert.doesNotMatch(aiChatSource, /Array\.isArray\(data\?\.output\) \? data\.output : \[\]/);
+  assert.doesNotMatch(aiChatSource, /Array\.isArray\(cfg\.history\) \? cfg\.history : \[\]/);
+
+  const codexUsageSource = await fs.readFile(new URL("../widgets/codexUsage.js", import.meta.url), "utf8");
+  assert.doesNotMatch(codexUsageSource, /Array\.isArray\(raw\.metrics\)/);
+  assert.doesNotMatch(codexUsageSource, /Array\.isArray\(raw\.lines\)/);
+  assert.doesNotMatch(codexUsageSource, /Array\.isArray\(tabs\) \? tabs\.filter/);
+  assert.doesNotMatch(codexUsageSource, /Array\.isArray\(metrics\) \? metrics\.map/);
+
+  const flexCacheSource = await fs.readFile(new URL("../widgets/shared/flexWorktimeCache.js", import.meta.url), "utf8");
+  assert.doesNotMatch(flexCacheSource, /Array\.isArray\(parsed\.rows\)/);
+  assert.doesNotMatch(flexCacheSource, /Array\.isArray\(rows\) \? rows\.map/);
+});
+
 test("Monday widgets share auto-refresh slot primitives", async () => {
   const moduleUrls = [
     new URL("../widgets/mondayAssigned.js", import.meta.url),
