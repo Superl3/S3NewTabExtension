@@ -5,7 +5,14 @@ import fs from "node:fs/promises";
 import { normalizeErrorMessage } from "../core/utils/error.js";
 import { callIfFunction } from "../core/utils/function.js";
 import { parseJsonOrNull } from "../core/utils/json.js";
-import { clamp, clampFiniteOrMin, normalizeIntegerInRange, toFiniteNumber } from "../core/utils/number.js";
+import {
+  clamp,
+  clampFiniteOrMin,
+  normalizeIntegerInRange,
+  toFiniteNumber,
+  toInteger,
+  toPositiveInteger
+} from "../core/utils/number.js";
 import { hasOwn, isPlainObject } from "../core/utils/object.js";
 import { normalizeText } from "../core/utils/text.js";
 import { clamp as layoutClamp } from "../core/layout-primitives.js";
@@ -32,6 +39,13 @@ test("toFiniteNumber returns numeric values and falls back for non-finite values
   assert.equal(toFiniteNumber("4.5", 1), 4.5);
   assert.equal(toFiniteNumber("bad", 7), 7);
   assert.equal(toFiniteNumber(null, 7), 0);
+});
+
+test("integer utilities floor finite values and preserve fallback semantics", () => {
+  assert.equal(toInteger("4.8", 1), 4);
+  assert.equal(toInteger("bad", 7), 7);
+  assert.equal(toPositiveInteger("0.4", 1), 1);
+  assert.equal(toPositiveInteger("bad", 0), 0);
 });
 
 test("normalizeIntegerInRange rounds finite values and clamps fallback values", () => {
@@ -135,6 +149,21 @@ test("core drag and resize modules use the shared finite number helper", async (
   for (const moduleUrl of moduleUrls) {
     const source = await fs.readFile(moduleUrl, "utf8");
     assert.doesNotMatch(source, /^function toFinite(Number)?\(/m, moduleUrl.pathname);
+  }
+});
+
+test("core modules use shared integer helpers instead of local copies", async () => {
+  const moduleUrls = [
+    new URL("../core/drag-drop-evaluation.js", import.meta.url),
+    new URL("../core/drag-drop-orchestration.js", import.meta.url),
+    new URL("../core/widget-card-drag-session.js", import.meta.url),
+    new URL("../core/launcher-page-affordances.js", import.meta.url),
+    new URL("../core/widget-modal-fields.js", import.meta.url)
+  ];
+
+  for (const moduleUrl of moduleUrls) {
+    const source = await fs.readFile(moduleUrl, "utf8");
+    assert.doesNotMatch(source, /^function (toInteger|normalizeInteger|toPositiveInteger)\(/m, moduleUrl.pathname);
   }
 });
 

@@ -3,15 +3,7 @@ import {
   DROP_PLAN_KIND,
   isBoardRealPageDropPlan
 } from "./launcherDropPlan.js";
-import { toFiniteNumber } from "./utils/number.js";
-
-function toInteger(value, fallback = 0) {
-  const numeric = Number(value);
-  if (!Number.isFinite(numeric)) {
-    return fallback;
-  }
-  return Math.floor(numeric);
-}
+import { toFiniteNumber, toInteger } from "./utils/number.js";
 
 export function resolveDropPoint(pointerEvent, fallbackX, fallbackY) {
   const eventX = Number(pointerEvent?.clientX);
