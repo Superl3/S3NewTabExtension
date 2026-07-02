@@ -2,10 +2,6 @@ function isNonEmptyString(value) {
   return typeof value === "string" && value.trim().length > 0;
 }
 
-function isValidAlarmTimestamp(value) {
-  return Number.isFinite(value);
-}
-
 function getNotificationApi(notificationApi) {
   if (notificationApi) {
     return notificationApi;
@@ -20,7 +16,7 @@ export function isAlarmEventContract(value) {
 
   return (
     isNonEmptyString(value.key) &&
-    isValidAlarmTimestamp(value.at) &&
+    Number.isFinite(value.at) &&
     isNonEmptyString(value.title) &&
     isNonEmptyString(value.body)
   );
