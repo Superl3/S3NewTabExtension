@@ -446,6 +446,21 @@ test("widgets use shared color primitives instead of local copies", async () => 
   assert.match(labelSource.text, /normalizeHexColor/, labelSource.name);
 });
 
+test("widgets use shared title alignment normalization instead of local copies", async () => {
+  const sources = await collectWidgetSources(new URL("../widgets/", import.meta.url));
+  const alignedSources = sources.filter((source) =>
+    /\/widgets\/(?:clock|container|label)\.js$/.test(source.name)
+  );
+
+  for (const source of alignedSources) {
+    assert.match(source.text, /widget-common-style\.js/, source.name);
+    assert.match(source.text, /normalizeTitleAlign/, source.name);
+    assert.doesNotMatch(source.text, /^function normalizeTitleAlign\(/m, source.name);
+    assert.doesNotMatch(source.text, /\["left", "center", "right"\]\.includes/, source.name);
+    assert.doesNotMatch(source.text, /textAlign === "left" \|\| .*textAlign === "right"/, source.name);
+  }
+});
+
 test("widgets use the shared integer range normalizer for rounded clamps", async () => {
   const sources = await collectWidgetSources(new URL("../widgets/", import.meta.url));
   for (const source of sources) {

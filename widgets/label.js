@@ -1,5 +1,5 @@
 import { clamp } from "../core/utils/number.js";
-import { luminanceFromHex, normalizeHexColor } from "../core/widget-common-style.js";
+import { luminanceFromHex, normalizeHexColor, normalizeTitleAlign } from "../core/widget-common-style.js";
 
 const AUTO_LIGHT_TEXT = "#f3f7ff";
 const AUTO_DARK_TEXT = "#151a23";
@@ -83,7 +83,7 @@ export const labelWidget = {
       const ui = typeof getUi === "function" ? getUi() : null;
       const useAutoContrast = cfg.autoContrastOnTransparent !== false;
       const isTransparent = widget?.surfaceMode === "transparent";
-      const align = ["left", "center", "right"].includes(cfg.align) ? cfg.align : "center";
+      const align = normalizeTitleAlign(cfg.align, "center");
       const manualColor = normalizeHexColor(cfg.color, "#ffffff");
       const autoFallbackColor = resolveAutoColor(ui);
 
