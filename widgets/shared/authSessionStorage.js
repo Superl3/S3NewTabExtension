@@ -54,6 +54,28 @@ export function resolveActiveAuthSession({
   return null;
 }
 
+export async function loadActiveAuthSessionForConfig({
+  config = null,
+  loadStoredSession = null,
+  normalizeConnectorUrl = null
+} = {}) {
+  const normalizeConnector = resolveConnectorNormalizer(normalizeConnectorUrl);
+  const connectorUrl = normalizeConnector(config?.connectorUrl, "");
+  const configuredAccessToken = normalizeText(config?.accessToken);
+  if (!connectorUrl && !configuredAccessToken) {
+    return null;
+  }
+
+  const storedSession =
+    connectorUrl && typeof loadStoredSession === "function" ? await loadStoredSession() : null;
+
+  return resolveActiveAuthSession({
+    connectorUrl,
+    configuredAccessToken,
+    storedSession
+  });
+}
+
 export function hasActiveAuthConnection({
   config = null,
   connected = false,

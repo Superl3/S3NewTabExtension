@@ -21,7 +21,7 @@ import {
   createAuthSessionStorage,
   hasActiveAuthConnection,
   hasAuthSessionStorageChange,
-  resolveActiveAuthSession
+  loadActiveAuthSessionForConfig
 } from "./shared/authSessionStorage.js";
 import {
   createChromeStorageChangeSubscription,
@@ -938,23 +938,15 @@ export const mondayMeetingNoteWidget = {
 
     async function syncStoredSessionForConfig(config) {
       const syncId = ++sessionSyncSerial;
-      const connectorUrl = normalizeConnectorUrl(config?.connectorUrl);
-      const configuredToken = normalizeText(config?.accessToken);
-      if (!connectorUrl && !configuredToken) {
-        await clearConnectionState({ clearStored: false });
-        return false;
-      }
-
-      const stored = connectorUrl ? await authSessionStorage.load() : null;
+      const activeSession = await loadActiveAuthSessionForConfig({
+        config,
+        loadStoredSession: () => authSessionStorage.load(),
+        normalizeConnectorUrl
+      });
       if (syncId !== sessionSyncSerial) {
         return false;
       }
 
-      const activeSession = resolveActiveAuthSession({
-        connectorUrl,
-        configuredAccessToken: configuredToken,
-        storedSession: stored
-      });
       if (activeSession) {
         connected = true;
         accessToken = activeSession.accessToken;
