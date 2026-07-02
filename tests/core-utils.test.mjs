@@ -1105,6 +1105,12 @@ test("Flex worktime timeline uses shared local date arithmetic", async () => {
   assert.doesNotMatch(source, /\.setDate\(/);
 });
 
+test("Flex worktime timeline uses shared local date validation", async () => {
+  const source = await fs.readFile(new URL("../widgets/flexWorktimeTimeline.js", import.meta.url), "utf8");
+  assert.match(source, /normalizeLocalDateKey/);
+  assert.doesNotMatch(source, /^function normalizeIsoDate\(/m);
+});
+
 test("Flex shared row helpers use core integer primitives", async () => {
   const source = await fs.readFile(new URL("../widgets/shared/flexWorktimeRows.js", import.meta.url), "utf8");
   assert.match(source, /core\/utils\/number\.js/);
