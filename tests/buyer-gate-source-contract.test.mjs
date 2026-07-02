@@ -116,12 +116,14 @@ test("account-backed setup states do not leak raw browser API or terse setup cop
     githubReviewInbox: await fs.readFile(new URL("../widgets/githubReviewInbox.js", import.meta.url), "utf8"),
     mondayAssigned: await fs.readFile(new URL("../widgets/mondayAssigned.js", import.meta.url), "utf8"),
     mondayMeetingNote: await fs.readFile(new URL("../widgets/mondayMeetingNote.js", import.meta.url), "utf8"),
+    mondayAuth: await fs.readFile(new URL("../widgets/shared/mondayAuth.js", import.meta.url), "utf8"),
     rss: await fs.readFile(new URL("../widgets/rss.js", import.meta.url), "utf8")
   };
 
   assert.match(files.githubPrList, /Add a repository in widget settings to load pull requests/);
   assert.match(files.githubReviewInbox, /Add your GitHub login in widget settings to match review requests/);
-  assert.match(files.mondayAssigned, /Add a connector URL or Monday access token in settings before connecting/);
+  assert.match(files.mondayAssigned, /MONDAY_CONNECT_REQUIRED_MESSAGE/);
+  assert.match(files.mondayAuth, /Add a connector URL or Monday access token in settings before connecting/);
   assert.match(files.mondayMeetingNote, /Check Monday settings and try again/);
   assert.match(files.rss, /Add a feed URL in widget settings before refreshing/);
   assert.match(files.rss, /Feed is not reachable\. Check the feed URL or browser network access/);
@@ -133,7 +135,7 @@ test("account-backed setup states do not leak raw browser API or terse setup cop
 
   for (const source of [files.mondayAssigned, files.mondayMeetingNote]) {
     assert.match(source, /getStorageArea: getChromeStorageLocal/);
-    assert.match(source, /connectWithAuthConnector/);
+    assert.match(source, /connectWithMondayAuthConnector/);
     assert.match(source, /getIdentityApi: getChromeIdentity/);
     assert.match(source, /createChromeStorageChangeSubscription/);
     assert.doesNotMatch(source, /getStorageArea:\s*\(\)\s*=>\s*chrome\?\.storage/);

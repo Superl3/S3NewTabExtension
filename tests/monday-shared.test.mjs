@@ -13,6 +13,12 @@ import {
   parseColumnSelectorList
 } from "../widgets/shared/mondayConfig.js";
 import {
+  connectWithMondayAuthConnector,
+  formatMondayAuthConnectorErrorMessage,
+  MONDAY_CONNECT_CANCELLED_MESSAGE,
+  MONDAY_CONNECT_UNABLE_TOKEN_MESSAGE
+} from "../widgets/shared/mondayAuth.js";
+import {
   mondayFetchGraphql,
   parseUrlSafely,
   resolveMondaySiteUrl
@@ -66,6 +72,32 @@ test("monday config normalizes cached board base fields for widget reuse", () =>
     }
   );
   assert.equal(normalizeCachedMondayBoardBase({ boardId: 0 }), null);
+});
+
+test("monday auth wrapper preserves provider defaults and shared error copy", async () => {
+  assert.deepEqual(
+    await connectWithMondayAuthConnector({
+      connectorUrl: "http://localhost:8787/api/auth/start",
+      accessToken: "configured-token",
+      getIdentityApi: () => {
+        throw new Error("identity should not be used for configured token");
+      }
+    }),
+    {
+      accessToken: "configured-token",
+      accountLabel: "Configured token"
+    }
+  );
+
+  assert.equal(
+    formatMondayAuthConnectorErrorMessage(new Error("User cancelled interaction")),
+    MONDAY_CONNECT_CANCELLED_MESSAGE
+  );
+  assert.equal(
+    formatMondayAuthConnectorErrorMessage(new Error("Authorization page was not loaded")),
+    "Authorization page could not be loaded. Check that connector server is running at http://localhost:8787 and then try Connect again."
+  );
+  assert.match(MONDAY_CONNECT_UNABLE_TOKEN_MESSAGE, /Monday connector token/);
 });
 
 test("monday client resolves site url from account label before fallback urls", () => {
