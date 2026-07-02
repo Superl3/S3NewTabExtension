@@ -9,6 +9,8 @@ import {
   instanceCommonValue,
   normalizeCommonOverrides,
   normalizeHexColor,
+  normalizeTransparency,
+  normalizeWidgetContentFontScale,
   normalizeWidgetColor,
   normalizeWidgetCommonMaster,
   resolveTransparentGhostOpacity,
@@ -26,6 +28,15 @@ test("normalizeHexColor keeps valid hex and falls back for invalid", () => {
 test("normalizeWidgetColor uppercases normalized values", () => {
   assert.equal(normalizeWidgetColor("#abc", "#112233"), "#ABC");
   assert.equal(normalizeWidgetColor("#112233", "#445566"), "#112233");
+});
+
+test("numeric common style normalizers preserve fallback semantics", () => {
+  assert.equal(normalizeTransparency("2", 0.94), 1);
+  assert.equal(normalizeTransparency("bad", 2), 1);
+  assert.equal(Number.isNaN(normalizeTransparency("bad", "bad")), true);
+  assert.equal(normalizeWidgetContentFontScale("0.25", 1), 0.5);
+  assert.equal(normalizeWidgetContentFontScale("bad", 3), 2);
+  assert.equal(normalizeWidgetContentFontScale("bad", 0), 1);
 });
 
 test("resolveWidgetPadding resolves directional and uniform paddings", () => {

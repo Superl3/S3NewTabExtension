@@ -220,6 +220,14 @@ test("core style and layout modules share number utilities for rounded clamps", 
   }
 });
 
+test("widget common style shares number clamp helpers", async () => {
+  const source = await fs.readFile(new URL("../core/widget-common-style.js", import.meta.url), "utf8");
+  assert.match(source, /utils\/number\.js/);
+  assert.match(source, /clampNumberOrFallback/);
+  assert.doesNotMatch(source, /const num = Number\(value\)/);
+  assert.doesNotMatch(source, /Number\(fallback\) \|\| 1/);
+});
+
 test("core modules use the shared text normalizer instead of local copies", async () => {
   const moduleUrls = [
     new URL("../core/background-local-media.js", import.meta.url),
