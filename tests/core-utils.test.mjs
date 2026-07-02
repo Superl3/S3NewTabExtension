@@ -375,3 +375,18 @@ test("GitHub widgets share repository and API helpers", async () => {
     assert.doesNotMatch(source, localGitHubPattern, moduleUrl.pathname);
   }
 });
+
+test("Monday widgets share auto-refresh slot primitives", async () => {
+  const moduleUrls = [
+    new URL("../widgets/mondayAssigned.js", import.meta.url),
+    new URL("../widgets/mondayMeetingNote.js", import.meta.url)
+  ];
+  const localSlotPattern =
+    /^function (dateAtMinute|parseAutoSlotsDone|serializeAutoSlotsDone|toLocalDayKey|updateDoneSlotsForToday)\(/m;
+
+  for (const moduleUrl of moduleUrls) {
+    const source = await fs.readFile(moduleUrl, "utf8");
+    assert.match(source, /shared\/autoRefreshSlots\.js/, moduleUrl.pathname);
+    assert.doesNotMatch(source, localSlotPattern, moduleUrl.pathname);
+  }
+});

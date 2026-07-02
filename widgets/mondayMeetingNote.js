@@ -10,6 +10,12 @@ import {
   parseAuthFlowResult
 } from "./shared/authConnector.js";
 import {
+  autoRefreshDoneSetForDay,
+  dateAtMinute,
+  toLocalDayKey,
+  updateAutoRefreshSlotsDoneForToday
+} from "./shared/autoRefreshSlots.js";
+import {
   createAuthSessionStorage,
   hasAuthSessionStorageChange,
   resolveActiveAuthSession
@@ -87,56 +93,9 @@ async function clearStoredAuthSession() {
   await authSessionStorage.clear();
 }
 
-function toLocalDayKey(date) {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-}
-
 function isWeekday(date) {
   const day = date.getDay();
   return day >= 1 && day <= 5;
-}
-
-function parseAutoSlotsDone(value) {
-  const text = normalizeText(value);
-  if (!text) {
-    return new Set();
-  }
-
-  const out = new Set();
-  for (const part of text.split(",")) {
-    const num = Number(part);
-    if (
-      Number.isInteger(num) &&
-      num >= 0 &&
-      num < WEEKDAY_AUTO_SLOTS_MINUTES.length
-    ) {
-      out.add(num);
-    }
-  }
-  return out;
-}
-
-function serializeAutoSlotsDone(slotSet) {
-  return Array.from(slotSet)
-    .sort((a, b) => a - b)
-    .join(",");
-}
-
-function dateAtMinute(sourceDate, minuteOfDay) {
-  const hours = Math.floor(minuteOfDay / 60);
-  const minutes = minuteOfDay % 60;
-  return new Date(
-    sourceDate.getFullYear(),
-    sourceDate.getMonth(),
-    sourceDate.getDate(),
-    hours,
-    minutes,
-    0,
-    0
-  );
 }
 
 function dueAutoSlotIndices(config, now = new Date()) {
@@ -146,10 +105,7 @@ function dueAutoSlotIndices(config, now = new Date()) {
 
   const nowMinutes = now.getHours() * 60 + now.getMinutes();
   const dayKey = toLocalDayKey(now);
-  const doneSet =
-    config.autoRefreshDayKey === dayKey
-      ? parseAutoSlotsDone(config.autoRefreshSlotsDone)
-      : new Set();
+  const doneSet = autoRefreshDoneSetForDay(config, dayKey, WEEKDAY_AUTO_SLOTS_MINUTES.length);
 
   const due = [];
   for (let index = 0; index < WEEKDAY_AUTO_SLOTS_MINUTES.length; index += 1) {
@@ -185,10 +141,7 @@ function nextAutoSlot(config, now = new Date()) {
   if (isWeekday(now)) {
     const nowMinutes = now.getHours() * 60 + now.getMinutes();
     const dayKey = toLocalDayKey(now);
-    const doneSet =
-      config.autoRefreshDayKey === dayKey
-        ? parseAutoSlotsDone(config.autoRefreshSlotsDone)
-        : new Set();
+    const doneSet = autoRefreshDoneSetForDay(config, dayKey, WEEKDAY_AUTO_SLOTS_MINUTES.length);
 
     for (let index = 0; index < WEEKDAY_AUTO_SLOTS_MINUTES.length; index += 1) {
       if (doneSet.has(index)) {
@@ -207,23 +160,6 @@ function nextAutoSlot(config, now = new Date()) {
   return {
     slotIndex: 0,
     runAt: dateAtMinute(nextDay, WEEKDAY_AUTO_SLOTS_MINUTES[0])
-  };
-}
-
-function updateDoneSlotsForToday(config, now, indicesToMark) {
-  const dayKey = toLocalDayKey(now);
-  const doneSet =
-    config.autoRefreshDayKey === dayKey
-      ? parseAutoSlotsDone(config.autoRefreshSlotsDone)
-      : new Set();
-
-  for (const index of indicesToMark) {
-    doneSet.add(index);
-  }
-
-  return {
-    dayKey,
-    slotsDone: serializeAutoSlotsDone(doneSet)
   };
 }
 
@@ -1207,7 +1143,12 @@ export const mondayMeetingNoteWidget = {
         return;
       }
 
-      const next = updateDoneSlotsForToday(config, now, dueIndices);
+      const next = updateAutoRefreshSlotsDoneForToday(
+        config,
+        now,
+        dueIndices,
+        WEEKDAY_AUTO_SLOTS_MINUTES.length
+      );
       if (
         next.dayKey === config.autoRefreshDayKey &&
         next.slotsDone === config.autoRefreshSlotsDone
