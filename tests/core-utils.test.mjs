@@ -676,6 +676,13 @@ test("Monday widgets share config predicates instead of local copies", async () 
   }
 });
 
+test("Monday shared config uses core integer helpers", async () => {
+  const source = await fs.readFile(new URL("../widgets/shared/mondayConfig.js", import.meta.url), "utf8");
+  assert.match(source, /core\/utils\/number\.js/);
+  assert.doesNotMatch(source, /Math\.floor\(Number/, "mondayConfig.js");
+  assert.doesNotMatch(source, /Number\.isFinite\(Number\(/, "mondayConfig.js");
+});
+
 test("Monday widgets share cached board base normalization", async () => {
   const moduleUrls = [
     new URL("../widgets/mondayAssigned.js", import.meta.url),
