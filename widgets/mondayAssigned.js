@@ -29,6 +29,7 @@ import {
 import {
   hasMondayBoardConfig as hasBoardConfig,
   hasMondayConnectorConfig as hasConnectorConfig,
+  MONDAY_AUTH_STORAGE_KEY,
   normalizeBoardId,
   normalizeBoardIds,
   normalizeCachedMondayBoardBase,
@@ -43,8 +44,6 @@ import {
   MONDAY_WEB_URL,
   resolveMondaySiteUrl
 } from "./shared/mondayClient.js";
-
-const MONDAY_AUTH_STORAGE_KEY = "s3newtab-monday-auth-session-v1";
 
 const DONE_GROUP_TITLES = new Set(["done", "completed", "완료"]);
 const DONE_STATUS_LABELS = new Set(["done", "completed", "완료"]);

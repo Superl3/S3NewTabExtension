@@ -1368,6 +1368,22 @@ test("Monday widgets share config predicates instead of local copies", async () 
   }
 });
 
+test("Monday widgets share auth storage key constant", async () => {
+  const moduleUrls = [
+    new URL("../widgets/mondayAssigned.js", import.meta.url),
+    new URL("../widgets/mondayMeetingNote.js", import.meta.url)
+  ];
+  const mondayConfigSource = await fs.readFile(new URL("../widgets/shared/mondayConfig.js", import.meta.url), "utf8");
+
+  assert.match(mondayConfigSource, /export const MONDAY_AUTH_STORAGE_KEY = "s3newtab-monday-auth-session-v1"/);
+
+  for (const moduleUrl of moduleUrls) {
+    const source = await fs.readFile(moduleUrl, "utf8");
+    assert.match(source, /MONDAY_AUTH_STORAGE_KEY/, moduleUrl.pathname);
+    assert.doesNotMatch(source, /const MONDAY_AUTH_STORAGE_KEY = "s3newtab-monday-auth-session-v1"/);
+  }
+});
+
 test("Monday widgets share chrome storage change subscription primitive", async () => {
   const moduleUrls = [
     new URL("../widgets/mondayAssigned.js", import.meta.url),
