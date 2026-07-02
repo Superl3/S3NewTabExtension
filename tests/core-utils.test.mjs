@@ -867,6 +867,7 @@ test("widgets use the shared integer range normalizer for rounded clamps", async
   assert.match(containerSource.text, /normalizeIntegerInRange/, containerSource.name);
   assert.match(containerSource.text, /widget-common-style\.js/, containerSource.name);
   assert.match(containerSource.text, /clampRoundedTruthyNumberOrFallback/, containerSource.name);
+  assert.match(containerSource.text, /toTruthyNumberOrFallback/, containerSource.name);
   assert.doesNotMatch(containerSource.text, /^function normalizeCount\(/m, containerSource.name);
   assert.doesNotMatch(containerSource.text, /^function normalizeTitleAlign\(/m, containerSource.name);
   assert.doesNotMatch(
@@ -875,6 +876,12 @@ test("widgets use the shared integer range normalizer for rounded clamps", async
     containerSource.name
   );
   assert.doesNotMatch(containerSource.text, /clamp\(Number\(widget\?\.transparency\) \|\| 0\.94/, containerSource.name);
+  assert.doesNotMatch(
+    containerSource.text,
+    /clamp\(Math\.(?:floor|round)\(Number\((?:folder\.gridLayout\.(?:col|row)|child\?\.gridLayout\?\.(?:colSpan|rowSpan))\) \|\| [01]\)/,
+    containerSource.name
+  );
+  assert.doesNotMatch(containerSource.text, /Number\(child\.page\) \|\| 0/, containerSource.name);
 });
 
 test("widgets keep only blank-aware local finite number normalization", async () => {
