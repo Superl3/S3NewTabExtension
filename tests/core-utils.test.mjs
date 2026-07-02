@@ -661,6 +661,7 @@ test("GitHub widgets share repository and API helpers", async () => {
     assert.match(source, /buildGitHubRepoApiUrl/, moduleUrl.pathname);
     assert.match(source, /parseGitHubJsonResponse/, moduleUrl.pathname);
     assert.match(source, /normalizeGitHubCache(Number|Count)/, moduleUrl.pathname);
+    assert.match(source, /normalizeGitHubCacheTimestamp/, moduleUrl.pathname);
     assert.doesNotMatch(source, localGitHubPattern, moduleUrl.pathname);
     assert.doesNotMatch(source, /JSON\.parse/, moduleUrl.pathname);
     assert.doesNotMatch(source, /new URLSearchParams\(/, moduleUrl.pathname);
@@ -668,6 +669,7 @@ test("GitHub widgets share repository and API helpers", async () => {
     assert.doesNotMatch(source, /githubRepositoryParts as repositoryParts/, moduleUrl.pathname);
     assert.doesNotMatch(source, /Math\.floor\(Number\(entry\?\.teamCount\)/, moduleUrl.pathname);
     assert.doesNotMatch(source, /Number\(rawConfig\?\.cacheAt\) \|\| 0/, moduleUrl.pathname);
+    assert.doesNotMatch(source, /Math\.max\(0, normalizeCacheNumber\(/, moduleUrl.pathname);
   }
 });
 

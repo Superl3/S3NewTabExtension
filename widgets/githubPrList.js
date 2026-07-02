@@ -8,6 +8,7 @@ import {
   formatGitHubSyncedLabel as formatSyncedLabel,
   normalizeGitHubCacheCount as normalizeCacheCount,
   normalizeGitHubCacheNumber as normalizeCacheNumber,
+  normalizeGitHubCacheTimestamp as normalizeCacheTimestamp,
   githubTokenFingerprint as tokenFingerprint,
   normalizeGitHubMaxItems as normalizeMaxItems,
   normalizeGitHubRefreshMinutes as normalizeRefreshMinutes,
@@ -25,7 +26,7 @@ function normalizeCachedPullItem(entry) {
     return null;
   }
 
-  const normalizedUpdatedAt = normalizeCacheNumber(entry?.updatedAt);
+  const normalizedUpdatedAt = normalizeCacheTimestamp(entry?.updatedAt);
 
   return {
     id,
@@ -91,7 +92,7 @@ function readCachedSnapshot(rawConfig, cfg) {
   const cachedPullItems = Array.isArray(rawConfig?.cachePullItems)
     ? rawConfig.cachePullItems.map(normalizeCachedPullItem).filter(Boolean)
     : [];
-  const cacheAt = Math.max(0, normalizeCacheNumber(rawConfig?.cacheAt));
+  const cacheAt = normalizeCacheTimestamp(rawConfig?.cacheAt);
   if (!cachedPullItems.length && !cacheAt) {
     return null;
   }
@@ -179,7 +180,7 @@ async function fetchPullRequests(config) {
       htmlUrl: normalizeText(item?.html_url),
       author: normalizeText(item?.user?.login, "unknown"),
       draft: item?.draft === true,
-      updatedAt: normalizeCacheNumber(updatedAt),
+      updatedAt: normalizeCacheTimestamp(updatedAt),
       updatedLabel: formatUpdatedLabel(updatedAtRaw),
       headRef: normalizeText(item?.head?.ref),
       baseRef: normalizeText(item?.base?.ref),

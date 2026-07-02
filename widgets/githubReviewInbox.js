@@ -27,6 +27,7 @@ import {
   githubTokenFingerprint as tokenFingerprint,
   normalizeGitHubCacheCount as normalizeCacheCount,
   normalizeGitHubCacheNumber as normalizeCacheNumber,
+  normalizeGitHubCacheTimestamp as normalizeCacheTimestamp,
   normalizeGitHubMaxItems as normalizeMaxItems,
   normalizeGitHubRefreshMinutes as normalizeRefreshMinutes,
   normalizeGitHubRepository as normalizeRepository,
@@ -82,8 +83,8 @@ function splitReviewItemsByTab(items, githubLogin) {
 
 function sortReviewItemsByCreatedAt(items) {
   return (Array.isArray(items) ? items : []).slice().sort((left, right) => {
-    const leftCreatedAt = Math.max(0, normalizeCacheNumber(left?.createdAt));
-    const rightCreatedAt = Math.max(0, normalizeCacheNumber(right?.createdAt));
+    const leftCreatedAt = normalizeCacheTimestamp(left?.createdAt);
+    const rightCreatedAt = normalizeCacheTimestamp(right?.createdAt);
     if (leftCreatedAt !== rightCreatedAt) {
       if (!leftCreatedAt) {
         return 1;
@@ -108,7 +109,7 @@ function resolveAgingThresholds(config) {
 }
 
 function computeReviewInboxAgeSeverity(createdAt, config, nowMs = Date.now()) {
-  const createdTimestamp = Math.max(0, normalizeCacheNumber(createdAt));
+  const createdTimestamp = normalizeCacheTimestamp(createdAt);
   if (!createdTimestamp) {
     return "";
   }
@@ -179,7 +180,7 @@ function buildReviewInboxReadScopeKey(config) {
 }
 
 function readReviewInboxLatestAttentionAt(item) {
-  return Math.max(0, normalizeCacheNumber(item?.latestAttentionAt ?? item?.latestCodeUpdateAt));
+  return normalizeCacheTimestamp(item?.latestAttentionAt ?? item?.latestCodeUpdateAt);
 }
 
 function buildReviewInboxReadItemKey(item) {
@@ -191,7 +192,7 @@ function buildReviewInboxReadItemKey(item) {
   return [
     number,
     readReviewInboxLatestAttentionAt(item),
-    Math.max(0, normalizeCacheNumber(item?.latestParticipationAt)),
+    normalizeCacheTimestamp(item?.latestParticipationAt),
     normalizeText(item?.reason),
     item?.reviewRequested === true ? "requested" : "not-requested"
   ].join("|");
@@ -219,7 +220,7 @@ function shouldAutoIgnoreReviewInboxItem(item, tabId) {
   return (
     normalizeReviewInboxTab(tabId) === REVIEW_INBOX_TAB_NEEDS_REVIEW &&
     item?.reviewRequested !== true &&
-    Math.max(0, normalizeCacheNumber(item?.latestParticipationAt)) <= 0
+    normalizeCacheTimestamp(item?.latestParticipationAt) <= 0
   );
 }
 
@@ -361,7 +362,7 @@ function normalizeCachedItem(entry) {
     title: normalizeText(entry?.title, "(No title)"),
     htmlUrl: normalizeText(entry?.htmlUrl),
     author: normalizeText(entry?.author, "unknown"),
-    createdAt: Math.max(0, normalizeCacheNumber(entry?.createdAt)),
+    createdAt: normalizeCacheTimestamp(entry?.createdAt),
     draft: entry?.draft === true,
     reviewRequested: entry?.reviewRequested === true,
     reviewerNames: normalizeText(entry?.reviewerNames),
@@ -369,8 +370,8 @@ function normalizeCachedItem(entry) {
     reason: normalizeText(entry?.reason),
     reasonLabel: normalizeText(entry?.reasonLabel),
     latestAttentionAt: readReviewInboxLatestAttentionAt(entry),
-    latestParticipationAt: Math.max(0, normalizeCacheNumber(entry?.latestParticipationAt)),
-    latestApprovalAt: Math.max(0, normalizeCacheNumber(entry?.latestApprovalAt)),
+    latestParticipationAt: normalizeCacheTimestamp(entry?.latestParticipationAt),
+    latestApprovalAt: normalizeCacheTimestamp(entry?.latestApprovalAt),
     warning: normalizeText(entry?.warning)
   };
 }
@@ -436,7 +437,7 @@ function readCachedSnapshot(rawConfig, cfg) {
   const cachedItems = Array.isArray(rawConfig?.cacheReviewItems)
     ? rawConfig.cacheReviewItems.map(normalizeCachedItem).filter(Boolean)
     : [];
-  const cacheAt = Math.max(0, normalizeCacheNumber(rawConfig?.cacheAt));
+  const cacheAt = normalizeCacheTimestamp(rawConfig?.cacheAt);
   const tokenUserWarning = normalizeText(rawConfig?.cacheTokenUserWarning);
   if (!cachedItems.length && !cacheAt && !tokenUserWarning) {
     return null;
