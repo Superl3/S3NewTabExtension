@@ -1,3 +1,4 @@
+import { normalizeErrorMessage } from "../../core/utils/error.js";
 import { parseJsonOrNull } from "../../core/utils/json.js";
 import { normalizeText } from "../../core/utils/text.js";
 
@@ -107,4 +108,62 @@ export async function fetchConnectorToken(connectorUrl, provider) {
     normalizeText(payload?.user) ||
     normalizeText(payload?.name);
   return { accessToken: token, accountLabel };
+}
+
+export async function connectWithAuthConnector({
+  connectorUrl = "",
+  configuredAccessToken = "",
+  provider = "",
+  providerLabel = "Account",
+  missingAuthFlowTokenMessage = "Auth connector did not return access_token.",
+  unableTokenMessage = `${providerLabel} connection failed. Check connector server or configure access token manually.`,
+  getIdentityApi = () => null
+} = {}) {
+  let token = normalizeText(configuredAccessToken);
+  let accountLabel = token ? "Configured token" : "";
+  let tokenRelayFailureMessage = "";
+
+  if (!token && connectorUrl) {
+    try {
+      const fallback = await fetchConnectorToken(connectorUrl, provider);
+      token = fallback.accessToken;
+      accountLabel = fallback.accountLabel;
+    } catch (relayError) {
+      tokenRelayFailureMessage = normalizeErrorMessage(relayError);
+    }
+  }
+
+  if (!token) {
+    const identityApi = getIdentityApi();
+    if (!identityApi?.launchWebAuthFlow || !identityApi?.getRedirectURL) {
+      throw new Error(tokenRelayFailureMessage || unableTokenMessage);
+    }
+
+    const state = createAuthState();
+    const redirectUri = identityApi.getRedirectURL(`${provider}-auth`);
+    const startUrl = buildAuthConnectorStartUrl(connectorUrl, redirectUri, state, provider);
+    const callbackUrl = await identityApi.launchWebAuthFlow({
+      url: startUrl,
+      interactive: true
+    });
+
+    const result = parseAuthFlowResult(callbackUrl);
+    if (result.error || result.errorDescription) {
+      throw new Error(result.errorDescription || result.error || `${providerLabel} connection failed.`);
+    }
+    if (!result.state || result.state !== state) {
+      throw new Error(`${providerLabel} connection failed (invalid state).`);
+    }
+
+    token = normalizeText(result.accessToken);
+    if (!token) {
+      throw new Error(missingAuthFlowTokenMessage);
+    }
+    accountLabel = normalizeText(result.accountLabel);
+  }
+
+  return {
+    accessToken: token,
+    accountLabel
+  };
 }
