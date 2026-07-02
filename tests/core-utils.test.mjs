@@ -443,6 +443,14 @@ test("board swipe session uses shared truthy timestamp fallback", async () => {
   assert.doesNotMatch(source, /Number\(performanceNow\?\.\(\)\) \|\| Date\.now\(\)/);
 });
 
+test("board wheel navigation uses shared number normalization", async () => {
+  const source = await fs.readFile(new URL("../core/board-wheel-navigation.js", import.meta.url), "utf8");
+  assert.match(source, /utils\/number\.js/);
+  assert.match(source, /toFiniteNumber\(event\?\.deltaX, 0\)/);
+  assert.match(source, /toTruthyNumberOrFallback\(nowMs\?\.\(\), Date\.now\)/);
+  assert.doesNotMatch(source, /Number\((?:event\?\.deltaX|event\?\.deltaY|nowMs\?\.\(\)|boardWheelState\.(?:cooldownUntil|lastEventAt))\) \|\|/);
+});
+
 test("widget card drag session shares finite clamp fallback", async () => {
   const source = await fs.readFile(new URL("../core/widget-card-drag-session.js", import.meta.url), "utf8");
   assert.match(source, /utils\/number\.js/);
