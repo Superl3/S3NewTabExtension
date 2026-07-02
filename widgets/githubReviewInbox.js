@@ -58,11 +58,7 @@ const REVIEW_INBOX_TABS = [
 ];
 
 function normalizeAgingDays(value, fallback) {
-  const text = normalizeText(value);
-  if (!text) {
-    return normalizeIntegerInRange(fallback, fallback, 1, 90);
-  }
-  return normalizeIntegerInRange(text, fallback, 1, 90);
+  return normalizeIntegerInRange(normalizeText(value, fallback), fallback, 1, 90);
 }
 
 function normalizeReviewInboxTab(value) {
