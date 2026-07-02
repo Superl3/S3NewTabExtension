@@ -10,7 +10,10 @@ import {
   selectPreferredFlexTab
 } from "../widgets/shared/flexTabs.js";
 import { createFlexWorktimeCache } from "../widgets/shared/flexWorktimeCache.js";
-import { resolveFlexWorktimeDetailUrl } from "../widgets/shared/flexWorktimeRows.js";
+import {
+  normalizeFlexWidgetBaseConfig,
+  resolveFlexWorktimeDetailUrl
+} from "../widgets/shared/flexWorktimeRows.js";
 
 class FakeStorage {
   constructor() {
@@ -172,6 +175,31 @@ test("Flex tab finder checks active, current, then all tabs", async () => {
     { currentWindow: true },
     {}
   ]);
+});
+
+test("Flex base config normalizer preserves shared widget defaults", () => {
+  assert.deepEqual(
+    normalizeFlexWidgetBaseConfig(
+      {
+        flexHomeUrl: "",
+        openFlexTabIfMissing: false,
+        refreshMinutes: 0,
+        detailUrlTemplate: "  https://example.com/{date}  ",
+        openInNewTab: false
+      },
+      {
+        defaultFlexHomeUrl: "https://flex.team/home",
+        defaultRefreshMinutes: 1
+      }
+    ),
+    {
+      flexHomeUrl: "https://flex.team/home",
+      openFlexTabIfMissing: false,
+      refreshMinutes: 1,
+      detailUrlTemplate: "https://example.com/{date}",
+      openInNewTab: false
+    }
+  );
 });
 
 test("Flex worktime detail URL helper resolves placeholders safely", () => {

@@ -426,7 +426,9 @@ test("Flex worktime widgets share row helpers instead of local copies", async ()
   for (const moduleUrl of moduleUrls) {
     const source = await fs.readFile(moduleUrl, "utf8");
     assert.match(source, /shared\/flexWorktimeRows\.js/, moduleUrl.pathname);
+    assert.match(source, /normalizeFlexWidgetBaseConfig/, moduleUrl.pathname);
     assert.doesNotMatch(source, localHelperPattern, moduleUrl.pathname);
+    assert.doesNotMatch(source, /normalizeFlexHomeUrl,\n|normalizeFlexRefreshMinutes/, moduleUrl.pathname);
   }
 });
 

@@ -39,8 +39,7 @@ import {
   formatTimeFromRef,
   normalizeCachedWorktimeRow as normalizeCachedRow,
   normalizeFlexHomeScrapeRow,
-  normalizeFlexHomeUrl,
-  normalizeFlexRefreshMinutes as normalizeRefreshMinutes,
+  normalizeFlexWidgetBaseConfig,
   normalizeTabId,
   parseTimeOfDayMinutes,
   resolveFlexWorktimeDetailUrl as resolveDetailUrl,
@@ -500,13 +499,12 @@ function formatTimelineCaption(queryDate) {
 
 function normalizedConfig(config) {
   return {
-    flexHomeUrl: normalizeFlexHomeUrl(config?.flexHomeUrl, DEFAULT_FLEX_HOME_URL),
-    openFlexTabIfMissing: config?.openFlexTabIfMissing !== false,
+    ...normalizeFlexWidgetBaseConfig(config, {
+      defaultFlexHomeUrl: DEFAULT_FLEX_HOME_URL,
+      defaultRefreshMinutes: DEFAULT_FLEX_WORKTIME_REFRESH_MINUTES
+    }),
     dateMode: normalizeDateMode(config?.dateMode, "today"),
-    customDate: normalizeIsoDate(config?.customDate),
-    refreshMinutes: normalizeRefreshMinutes(config?.refreshMinutes, DEFAULT_FLEX_WORKTIME_REFRESH_MINUTES),
-    detailUrlTemplate: normalizeText(config?.detailUrlTemplate),
-    openInNewTab: config?.openInNewTab !== false
+    customDate: normalizeIsoDate(config?.customDate)
   };
 }
 
