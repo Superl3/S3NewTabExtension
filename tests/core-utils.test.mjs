@@ -1816,6 +1816,7 @@ test("data widgets use shared integer range normalization directly", async () =>
   const moduleUrls = [
     new URL("../widgets/calendar.js", import.meta.url),
     new URL("../widgets/gmail.js", import.meta.url),
+    new URL("../widgets/mondayAssigned.js", import.meta.url),
     new URL("../widgets/rss.js", import.meta.url),
     new URL("../widgets/weather.js", import.meta.url)
   ];
@@ -1826,7 +1827,7 @@ test("data widgets use shared integer range normalization directly", async () =>
     assert.match(source, /normalizeIntegerInRange/, moduleUrl.pathname);
     assert.doesNotMatch(
       source,
-      /^function normalize(MaxResults|MaxItems|DaysAhead|RefreshMinutes)\(/m,
+      /^function normalize(MaxResults|MaxItems|DaysAhead|RefreshMinutes|Hour)\(/m,
       moduleUrl.pathname
     );
   }
