@@ -29,7 +29,8 @@ import {
   normalizeGitHubRefreshMinutes as normalizeRefreshMinutes,
   normalizeGitHubRepository as normalizeRepository,
   normalizeGitHubReviewerNames as normalizeReviewerNames,
-  parseGitHubError
+  parseGitHubError,
+  parseGitHubJsonResponse
 } from "./shared/githubApi.js";
 
 const REVIEW_INBOX_ERROR_FALLBACK = "GitHub review inbox is not available. Check repository and login settings.";
@@ -271,11 +272,7 @@ async function fetchJson(url, headers) {
     throw new Error(parseGitHubError(bodyText, response.status));
   }
 
-  try {
-    return bodyText ? JSON.parse(bodyText) : null;
-  } catch {
-    throw new Error("GitHub response parse failed.");
-  }
+  return parseGitHubJsonResponse(bodyText, null);
 }
 
 function findNextPageUrl(linkHeader) {
@@ -310,12 +307,7 @@ async function fetchPagedJson(baseUrl, headers, maxPages = 20) {
       throw new Error(parseGitHubError(bodyText, response.status));
     }
 
-    let payload;
-    try {
-      payload = bodyText ? JSON.parse(bodyText) : null;
-    } catch {
-      throw new Error("GitHub response parse failed.");
-    }
+    const payload = parseGitHubJsonResponse(bodyText, null);
 
     const list = Array.isArray(payload) ? payload : [];
     items.push(...list);

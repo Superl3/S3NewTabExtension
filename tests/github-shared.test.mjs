@@ -12,7 +12,8 @@ import {
   normalizeGitHubRefreshMinutes,
   normalizeGitHubRepository,
   normalizeGitHubReviewerNames,
-  parseGitHubError
+  parseGitHubError,
+  parseGitHubJsonResponse
 } from "../widgets/shared/githubApi.js";
 
 test("GitHub shared helpers normalize repositories and settings", () => {
@@ -43,6 +44,14 @@ test("GitHub shared helpers preserve API formatting semantics", () => {
   assert.equal(parseGitHubError("", 500), "GitHub request failed: HTTP 500");
   assert.equal(normalizeGitHubReviewerNames([{ login: "alice" }, { login: " bob " }, {}]), "alice, bob");
   assert.equal(githubTokenFingerprint("abc"), "3:590");
+});
+
+test("GitHub shared helpers parse response JSON without widget-local parsing", () => {
+  const fallback = [];
+  assert.deepEqual(parseGitHubJsonResponse("[{\"id\":1}]", fallback), [{ id: 1 }]);
+  assert.equal(parseGitHubJsonResponse("null", fallback), null);
+  assert.equal(parseGitHubJsonResponse("", fallback), fallback);
+  assert.throws(() => parseGitHubJsonResponse("not-json", fallback), /GitHub response parse failed/);
 });
 
 test("GitHub shared relative timestamp formatter matches widget labels", () => {
