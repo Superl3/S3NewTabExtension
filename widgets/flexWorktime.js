@@ -1,6 +1,6 @@
 import { normalizeErrorMessage } from "../core/utils/error.js";
 import { parseJsonOrNull } from "../core/utils/json.js";
-import { hasOwn, isPlainObject } from "../core/utils/object.js";
+import { isPlainObject } from "../core/utils/object.js";
 import { normalizeText } from "../core/utils/text.js";
 import { hasScriptingApi } from "../core/platform/chrome-scripting.js";
 import {
@@ -32,8 +32,7 @@ import {
   normalizeFlexHomeUrl,
   normalizeFlexRefreshMinutes as normalizeRefreshMinutes,
   normalizeTabId,
-  normalizeWorktimeRow,
-  sanitizePlaceholderMap,
+  resolveFlexWorktimeDetailUrl as resolveDetailUrl,
   toCachedWorktimeRow as toCachedRow,
   toLocalDateKey
 } from "./shared/flexWorktimeRows.js";
@@ -285,83 +284,6 @@ export async function fetchFlexHomeScrapeRows(config, queryDate, scrapeFlowState
 
 async function fetchRowsBySource(config, queryDate, scrapeFlowState = null) {
   return fetchFlexHomeScrapeRows(config, queryDate, scrapeFlowState);
-}
-
-function resolvePathValue(source, path) {
-  if (!path) {
-    return undefined;
-  }
-
-  if (isPlainObject(source) && hasOwn(source, path)) {
-    return source[path];
-  }
-
-  const segments = path.split(".").filter(Boolean);
-  if (!segments.length) {
-    return undefined;
-  }
-
-  let current = source;
-  for (const segment of segments) {
-    if (!current || typeof current !== "object") {
-      return undefined;
-    }
-    if (!hasOwn(current, segment)) {
-      return undefined;
-    }
-    current = current[segment];
-  }
-  return current;
-}
-
-function applyTemplate(template, context) {
-  const text = normalizeText(template);
-  if (!text) {
-    return "";
-  }
-
-  return text.replace(/\{([A-Za-z0-9_.-]+)\}/g, (fullMatch, key) => {
-    const value = resolvePathValue(context, key);
-    if (value === null || value === undefined) {
-      return "";
-    }
-    return encodeURIComponent(String(value));
-  });
-}
-
-function resolveDetailUrl(config, queryDate, entry) {
-  const template = normalizeText(config.detailUrlTemplate);
-  if (!template) {
-    return "";
-  }
-
-  const row = isPlainObject(entry) && isPlainObject(entry.placeholders)
-    ? entry
-    : normalizeWorktimeRow(entry, 0);
-
-  const context = {
-    date: queryDate,
-    entry: isPlainObject(row.rawEntry) ? row.rawEntry : {},
-    ...sanitizePlaceholderMap(row.placeholders)
-  };
-
-  const resolved = applyTemplate(template, context);
-  if (!resolved) {
-    return "";
-  }
-
-  let parsed;
-  try {
-    parsed = new URL(resolved);
-  } catch {
-    return "";
-  }
-
-  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
-    return "";
-  }
-
-  return parsed.toString();
 }
 
 export const flexWorktimeWidget = {

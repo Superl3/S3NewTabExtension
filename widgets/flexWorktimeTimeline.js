@@ -41,8 +41,8 @@ import {
   normalizeFlexHomeUrl,
   normalizeFlexRefreshMinutes as normalizeRefreshMinutes,
   normalizeTabId,
-  normalizeWorktimeRow,
   parseTimeOfDayMinutes,
+  resolveFlexWorktimeDetailUrl as resolveDetailUrl,
   sanitizePlaceholderMap,
   toCachedWorktimeRow as toCachedRow,
   toLocalDateKey
@@ -1743,83 +1743,6 @@ export async function fetchFlexWorkRecordRows(config, queryDate, scrapeFlowState
 
 async function fetchRowsBySource(config, queryDate, scrapeFlowState = null) {
   return fetchFlexWorkRecordRows(config, queryDate, scrapeFlowState);
-}
-
-function resolvePathValue(source, path) {
-  if (!path) {
-    return undefined;
-  }
-
-  if (isPlainObject(source) && hasOwn(source, path)) {
-    return source[path];
-  }
-
-  const segments = path.split(".").filter(Boolean);
-  if (!segments.length) {
-    return undefined;
-  }
-
-  let current = source;
-  for (const segment of segments) {
-    if (!current || typeof current !== "object") {
-      return undefined;
-    }
-    if (!hasOwn(current, segment)) {
-      return undefined;
-    }
-    current = current[segment];
-  }
-  return current;
-}
-
-function applyTemplate(template, context) {
-  const text = normalizeText(template);
-  if (!text) {
-    return "";
-  }
-
-  return text.replace(/\{([A-Za-z0-9_.-]+)\}/g, (fullMatch, key) => {
-    const value = resolvePathValue(context, key);
-    if (value === null || value === undefined) {
-      return "";
-    }
-    return encodeURIComponent(String(value));
-  });
-}
-
-function resolveDetailUrl(config, queryDate, entry) {
-  const template = normalizeText(config.detailUrlTemplate);
-  if (!template) {
-    return "";
-  }
-
-  const row = isPlainObject(entry) && isPlainObject(entry.placeholders)
-    ? entry
-    : normalizeWorktimeRow(entry, 0);
-
-  const context = {
-    date: queryDate,
-    entry: isPlainObject(row.rawEntry) ? row.rawEntry : {},
-    ...sanitizePlaceholderMap(row.placeholders)
-  };
-
-  const resolved = applyTemplate(template, context);
-  if (!resolved) {
-    return "";
-  }
-
-  let parsed;
-  try {
-    parsed = new URL(resolved);
-  } catch {
-    return "";
-  }
-
-  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
-    return "";
-  }
-
-  return parsed.toString();
 }
 
 export const flexWorktimeTimelineWidget = {
