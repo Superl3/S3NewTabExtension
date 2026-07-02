@@ -58,8 +58,8 @@ test("GitHub shared helpers preserve API formatting semantics", () => {
   assert.equal(matchesGitHubCacheTokenFingerprint("3:590", "abc"), true);
   assert.equal(matchesGitHubCacheTokenFingerprint("3:590", "abcd"), false);
   assert.equal(matchesGitHubCacheTokenFingerprint("", ""), false);
-  assert.equal(matchesGitHubCacheTokenFingerprint("", "", { allowMissingWhenTokenEmpty: true }), true);
-  assert.equal(matchesGitHubCacheTokenFingerprint("", "abc", { allowMissingWhenTokenEmpty: true }), false);
+  assert.equal(matchesGitHubCacheTokenFingerprint("", "", true), true);
+  assert.equal(matchesGitHubCacheTokenFingerprint("", "abc", true), false);
 });
 
 test("GitHub shared helpers parse response JSON without widget-local parsing", () => {

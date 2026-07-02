@@ -81,11 +81,7 @@ function readCachedSnapshot(rawConfig, cfg) {
     return null;
   }
 
-  if (
-    !matchesGitHubCacheTokenFingerprint(rawConfig?.cacheTokenFingerprint, cfg.accessToken, {
-      allowMissingWhenTokenEmpty: true
-    })
-  ) {
+  if (!matchesGitHubCacheTokenFingerprint(rawConfig?.cacheTokenFingerprint, cfg.accessToken, true)) {
     return null;
   }
 
