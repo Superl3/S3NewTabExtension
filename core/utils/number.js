@@ -9,6 +9,14 @@ export function clampFiniteOrMin(value, min, max) {
   return clamp(value, min, max);
 }
 
+export function toFiniteNumber(value, fallback = 0) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) {
+    return fallback;
+  }
+  return numeric;
+}
+
 export function normalizeIntegerInRange(value, fallback, min, max) {
   const num = Number(value);
   const rounded = Number.isFinite(num) ? Math.round(num) : Math.round(fallback);

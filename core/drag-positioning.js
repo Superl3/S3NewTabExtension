@@ -1,12 +1,4 @@
-import { clampFiniteOrMin } from "./utils/number.js";
-
-function toFiniteNumber(value, fallback = 0) {
-  const numeric = Number(value);
-  if (!Number.isFinite(numeric)) {
-    return fallback;
-  }
-  return numeric;
-}
+import { clampFiniteOrMin, toFiniteNumber } from "./utils/number.js";
 
 export function resolveDraftPlacementAtPointer(
   clientX,

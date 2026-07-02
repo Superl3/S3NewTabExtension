@@ -1,26 +1,18 @@
-import { clampFiniteOrMin } from "./utils/number.js";
-
-function toFinite(value, fallback = 0) {
-  const numeric = Number(value);
-  if (!Number.isFinite(numeric)) {
-    return fallback;
-  }
-  return numeric;
-}
+import { clampFiniteOrMin, toFiniteNumber } from "./utils/number.js";
 
 export function resolveGridResizeLayout(startGrid = {}, metrics = {}, pointer = {}) {
-  const stepX = Math.max(1, toFinite(metrics.cellW, 1) + toFinite(metrics.gapX, 0));
-  const stepY = Math.max(1, toFinite(metrics.cellH, 1) + toFinite(metrics.gapY, 0));
+  const stepX = Math.max(1, toFiniteNumber(metrics.cellW, 1) + toFiniteNumber(metrics.gapX, 0));
+  const stepY = Math.max(1, toFiniteNumber(metrics.cellH, 1) + toFiniteNumber(metrics.gapY, 0));
 
-  const dCol = Math.round((toFinite(pointer.clientX, 0) - toFinite(pointer.startX, 0)) / stepX);
-  const dRow = Math.round((toFinite(pointer.clientY, 0) - toFinite(pointer.startY, 0)) / stepY);
+  const dCol = Math.round((toFiniteNumber(pointer.clientX, 0) - toFiniteNumber(pointer.startX, 0)) / stepX);
+  const dRow = Math.round((toFiniteNumber(pointer.clientY, 0) - toFiniteNumber(pointer.startY, 0)) / stepY);
 
-  const startCol = Math.floor(toFinite(startGrid.col, 0));
-  const startColSpan = Math.max(1, Math.floor(toFinite(startGrid.colSpan, 1)));
-  const startRowSpan = Math.max(1, Math.floor(toFinite(startGrid.rowSpan, 1)));
+  const startCol = Math.floor(toFiniteNumber(startGrid.col, 0));
+  const startColSpan = Math.max(1, Math.floor(toFiniteNumber(startGrid.colSpan, 1)));
+  const startRowSpan = Math.max(1, Math.floor(toFiniteNumber(startGrid.rowSpan, 1)));
 
-  const maxColSpan = Math.max(1, Math.floor(toFinite(metrics.cols, 1)) - startCol);
-  const maxRowSpan = Math.max(1, Math.floor(toFinite(metrics.rows, 1)) - Math.floor(toFinite(startGrid.row, 0)));
+  const maxColSpan = Math.max(1, Math.floor(toFiniteNumber(metrics.cols, 1)) - startCol);
+  const maxRowSpan = Math.max(1, Math.floor(toFiniteNumber(metrics.rows, 1)) - Math.floor(toFiniteNumber(startGrid.row, 0)));
 
   return {
     ...startGrid,
@@ -40,21 +32,21 @@ export function resolveFreeResizeDimensions(
     boardRect = null
   } = {}
 ) {
-  const maxW = Math.max(1, Math.floor(toFinite(boardRect?.width, 1) - toFinite(layoutX, 0)));
-  const maxH = Math.max(1, Math.floor(toFinite(boardRect?.height, 1) - toFinite(layoutY, 0)));
+  const maxW = Math.max(1, Math.floor(toFiniteNumber(boardRect?.width, 1) - toFiniteNumber(layoutX, 0)));
+  const maxH = Math.max(1, Math.floor(toFiniteNumber(boardRect?.height, 1) - toFiniteNumber(layoutY, 0)));
   const minW = Math.min(80, maxW);
   const minH = Math.min(80, maxH);
 
   return {
-    w: clampFiniteOrMin(toFinite(startW, minW) + toFinite(dx, 0), minW, maxW),
-    h: clampFiniteOrMin(toFinite(startH, minH) + toFinite(dy, 0), minH, maxH)
+    w: clampFiniteOrMin(toFiniteNumber(startW, minW) + toFiniteNumber(dx, 0), minW, maxW),
+    h: clampFiniteOrMin(toFiniteNumber(startH, minH) + toFiniteNumber(dy, 0), minH, maxH)
   };
 }
 
 export function resolveSnappedSize(width, height, snap = 20) {
-  const unit = Math.max(1, Math.floor(toFinite(snap, 1)));
-  const w = toFinite(width, 0);
-  const h = toFinite(height, 0);
+  const unit = Math.max(1, Math.floor(toFiniteNumber(snap, 1)));
+  const w = toFiniteNumber(width, 0);
+  const h = toFiniteNumber(height, 0);
   return {
     w: Math.round(w / unit) * unit,
     h: Math.round(h / unit) * unit

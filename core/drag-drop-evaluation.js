@@ -3,14 +3,7 @@ import {
   DROP_PLAN_KIND,
   isBoardRealPageDropPlan
 } from "./launcherDropPlan.js";
-
-function toFiniteNumber(value, fallback = 0) {
-  const numeric = Number(value);
-  if (!Number.isFinite(numeric)) {
-    return fallback;
-  }
-  return numeric;
-}
+import { toFiniteNumber } from "./utils/number.js";
 
 function toInteger(value, fallback = 0) {
   const numeric = Number(value);

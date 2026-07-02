@@ -1,6 +1,6 @@
 import { normalizeErrorMessage } from "../core/utils/error.js";
 import { parseJsonOrNull } from "../core/utils/json.js";
-import { clamp, normalizeIntegerInRange } from "../core/utils/number.js";
+import { clamp, normalizeIntegerInRange, toFiniteNumber } from "../core/utils/number.js";
 import { normalizeText } from "../core/utils/text.js";
 import { executeScript, hasScriptingApi } from "../core/platform/chrome-scripting.js";
 import {
@@ -153,11 +153,6 @@ function isPlainObject(value) {
 
 function hasOwn(source, key) {
   return Boolean(source) && Object.prototype.hasOwnProperty.call(source, key);
-}
-
-function asFiniteNumber(value, fallback = null) {
-  const num = Number(value);
-  return Number.isFinite(num) ? num : fallback;
 }
 
 function normalizeRefreshMinutes(value, fallback = 10) {
@@ -552,8 +547,8 @@ function parseGenericDurationMinutes(value) {
     .toLowerCase()
     .match(/^(?:(\d+(?:\.\d+)?)\s*h(?:ours?)?)?\s*(?:(\d+(?:\.\d+)?)\s*m(?:in(?:ute)?s?)?)?$/);
   if (unitMatch) {
-    const hours = asFiniteNumber(unitMatch[1], 0) || 0;
-    const minutes = asFiniteNumber(unitMatch[2], 0) || 0;
+    const hours = toFiniteNumber(unitMatch[1], 0) || 0;
+    const minutes = toFiniteNumber(unitMatch[2], 0) || 0;
     if (hours > 0 || minutes > 0) {
       return Math.round(hours * 60 + minutes);
     }
@@ -635,8 +630,8 @@ function normalizeWorktimeRow(entry, index) {
   const hourDurationField = pickEntryValue(source, keyMap, DURATION_HOUR_FIELDS);
   const genericDurationField = pickEntryValue(source, keyMap, DURATION_GENERIC_FIELDS);
 
-  const explicitMinutes = asFiniteNumber(minuteDurationField, null);
-  const explicitHours = asFiniteNumber(hourDurationField, null);
+  const explicitMinutes = toFiniteNumber(minuteDurationField, null);
+  const explicitHours = toFiniteNumber(hourDurationField, null);
   const genericMinutes = parseGenericDurationMinutes(genericDurationField);
 
   let durationMinutes = null;
