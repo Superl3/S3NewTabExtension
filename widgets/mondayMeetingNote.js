@@ -28,6 +28,7 @@ import {
 } from "./shared/chromeApi.js";
 import {
   areMondayCachedBoardsEqual as areCachedBoardsEqual,
+  formatMondayGraphqlStringList,
   hasMondayBoardConfig as hasBoardConfig,
   hasMondayConnectorConfig as hasConnectorConfig,
   MONDAY_AUTH_STORAGE_KEY,
@@ -685,7 +686,7 @@ function buildColumnValuesSelection(columnIds) {
   }
 
   const idsFragment = normalizedIds.length
-    ? `(ids: [${normalizedIds.map((id) => JSON.stringify(id)).join(", ")}])`
+    ? `(ids: [${formatMondayGraphqlStringList(normalizedIds)}])`
     : "";
 
   return `

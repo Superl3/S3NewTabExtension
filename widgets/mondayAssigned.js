@@ -27,6 +27,7 @@ import {
 } from "./shared/chromeApi.js";
 import {
   areMondayCachedBoardsEqual as areCachedBoardsEqual,
+  formatMondayGraphqlStringList,
   hasMondayBoardConfig as hasBoardConfig,
   hasMondayConnectorConfig as hasConnectorConfig,
   MONDAY_AUTH_STORAGE_KEY,
@@ -479,7 +480,7 @@ function buildStatusColumnValuesSelection(statusColumnIds) {
   if (!ids.length) {
     return "";
   }
-  const idsLiteral = ids.map((id) => JSON.stringify(id)).join(", ");
+  const idsLiteral = formatMondayGraphqlStringList(ids);
   return `
             column_values(ids: [${idsLiteral}]) {
               id
@@ -873,7 +874,7 @@ async function fetchAssignedSubitemsAcrossBoard(config, meId, peopleColumnIds, a
   }
 
   const scanLimit = clamp(Math.max(config.maxItems * 20, 120), 50, 300);
-  const idsLiteral = columnIds.map((id) => JSON.stringify(id)).join(", ");
+  const idsLiteral = formatMondayGraphqlStringList(columnIds);
   const query = `
     query {
       boards(ids: [${config.boardId}]) {
