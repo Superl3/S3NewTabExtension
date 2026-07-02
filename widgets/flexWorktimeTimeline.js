@@ -37,6 +37,7 @@ import {
   FLEX_WORKTIME_CACHE_MAX_ENTRIES,
   FLEX_WORKTIME_DEFAULT_HOME_URL,
   FLEX_WORKTIME_DEFAULT_REFRESH_MINUTES,
+  addLocalDays,
   formatClockMinutes,
   formatDurationMinutes,
   formatFlexWorkRecordScrapeError as formatSourceError,
@@ -44,10 +45,10 @@ import {
   normalizeCachedWorktimeRow as normalizeCachedRow,
   normalizeFlexHomeScrapeRow,
   normalizeFlexWidgetBaseConfig,
+  normalizeLocalDateKey,
   normalizeTabId,
-  resolveFlexSyncState,
-  addLocalDays,
   parseTimeOfDayMinutes,
+  resolveFlexSyncState,
   resolveFlexWorktimeDetailUrl as resolveDetailUrl,
   sanitizePlaceholderMap,
   toCachedWorktimeRow as toCachedRow,
@@ -65,30 +66,6 @@ const DATE_MODE_VALUES = new Set(["today", "yesterday", "tomorrow", "custom"]);
 function normalizeDateMode(value, fallback = "today") {
   const mode = normalizeText(value, fallback).toLowerCase();
   return DATE_MODE_VALUES.has(mode) ? mode : "today";
-}
-
-function normalizeIsoDate(value) {
-  const text = normalizeText(value);
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(text)) {
-    return "";
-  }
-
-  const year = Number(text.slice(0, 4));
-  const month = Number(text.slice(5, 7));
-  const day = Number(text.slice(8, 10));
-  if (!Number.isInteger(year) || !Number.isInteger(month) || !Number.isInteger(day)) {
-    return "";
-  }
-
-  const date = new Date(year, month - 1, day);
-  if (
-    date.getFullYear() !== year ||
-    date.getMonth() !== month - 1 ||
-    date.getDate() !== day
-  ) {
-    return "";
-  }
-  return text;
 }
 
 function parseMeridiemTimeOfDayMinutes(value) {
@@ -458,7 +435,7 @@ function resolveQueryDate(config) {
     return toLocalDateKey(addLocalDays(today, 1));
   }
 
-  const customDate = normalizeIsoDate(config.customDate);
+  const customDate = normalizeLocalDateKey(config.customDate);
   if (!customDate) {
     throw new Error("Custom date must use YYYY-MM-DD format.");
   }
@@ -470,7 +447,7 @@ function resolveQueryDateForSource(config) {
 }
 
 function formatTimelineCaption(queryDate) {
-  const target = normalizeIsoDate(queryDate);
+  const target = normalizeLocalDateKey(queryDate);
   const today = toLocalDateKey(new Date());
   if (!target || target === today) {
     return "Today timeline";
@@ -490,7 +467,7 @@ function normalizedConfig(config) {
       defaultRefreshMinutes: FLEX_WORKTIME_DEFAULT_REFRESH_MINUTES
     }),
     dateMode: normalizeDateMode(config?.dateMode, "today"),
-    customDate: normalizeIsoDate(config?.customDate)
+    customDate: normalizeLocalDateKey(config?.customDate)
   };
 }
 

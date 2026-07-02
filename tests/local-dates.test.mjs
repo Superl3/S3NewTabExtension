@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { addLocalDays, toLocalDateKey } from "../widgets/shared/localDates.js";
+import { addLocalDays, normalizeLocalDateKey, toLocalDateKey } from "../widgets/shared/localDates.js";
 
 test("toLocalDateKey formats local dates as stable date keys", () => {
   assert.equal(toLocalDateKey(new Date(2030, 0, 5, 23, 30)), "2030-01-05");
@@ -17,4 +17,12 @@ test("addLocalDays returns a new local-midnight date with overflow support", () 
   assert.equal(next.getHours(), 0);
   assert.equal(toLocalDateKey(previous), "2029-12-31");
   assert.equal(source.getHours(), 9);
+});
+
+test("normalizeLocalDateKey accepts real YYYY-MM-DD local dates only", () => {
+  assert.equal(normalizeLocalDateKey(" 2030-01-05 "), "2030-01-05");
+  assert.equal(normalizeLocalDateKey("2030-02-29"), "");
+  assert.equal(normalizeLocalDateKey("2030-2-5"), "");
+  assert.equal(normalizeLocalDateKey("bad-date"), "");
+  assert.equal(normalizeLocalDateKey(null), "");
 });
