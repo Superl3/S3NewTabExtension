@@ -1,3 +1,5 @@
+import { clampTruthyNumberOrFallback } from "./utils/number.js";
+
 export function applyProfileSnapshotFlow(snapshotInput, scope = "all", deps) {
   const applyGlobal = scope === "all" || scope === "global";
   const applyBackgroundOnly = scope === "all" || scope === "background";
@@ -48,7 +50,7 @@ export function applyProfileSnapshotFlow(snapshotInput, scope = "all", deps) {
   state.ui.home = deps.normalizeHomeLayout(hydrated.ui.home);
   state.ui.widgetCommonMaster = deps.normalizeWidgetCommonMaster(hydrated.ui.widgetCommonMaster);
   state.ui.shortcuts = {
-    iconSizePercent: deps.clamp(Number(hydrated.ui.shortcuts?.iconSizePercent) || 100, 40, 220)
+    iconSizePercent: clampTruthyNumberOrFallback(hydrated.ui.shortcuts?.iconSizePercent, 100, 40, 220)
   };
   state.ui.monday = deps.normalizeMondayGlobalSettings(hydrated.ui.monday);
 

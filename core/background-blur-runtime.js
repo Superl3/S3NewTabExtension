@@ -1,3 +1,5 @@
+import { clampTruthyNumberOrFallback } from "./utils/number.js";
+
 export function createBackgroundBlurRuntime(deps) {
   function clearBlurLayer() {
     deps.incrementBlurComputeToken();
@@ -43,7 +45,7 @@ export function createBackgroundBlurRuntime(deps) {
   }
 
   async function updateBlurFromImage(url) {
-    const blur = deps.clamp(Number(deps.getBlurAmount()) || 0, 0, 28);
+    const blur = clampTruthyNumberOrFallback(deps.getBlurAmount(), 0, 0, 28);
     if (blur <= 0 || !url) {
       clearBlurLayer();
       return;

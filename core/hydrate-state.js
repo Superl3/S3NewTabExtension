@@ -220,7 +220,7 @@ export function hydrateState(raw, deps = {}) {
   }
   const widgetCommonMaster = normalizeWidgetCommonMaster(rawUi.widgetCommonMaster || {});
   const shortcuts = {
-    iconSizePercent: clamp(Number(rawUi.shortcuts?.iconSizePercent) || 100, 40, 220)
+    iconSizePercent: clampTruthyNumberOrFallback(rawUi.shortcuts?.iconSizePercent, 100, 40, 220)
   };
   const monday = normalizeMondayGlobalSettings(rawUi.monday);
   const defaultProfileSnapshot =
@@ -255,14 +255,14 @@ export function hydrateState(raw, deps = {}) {
   theme.surface = normalizeHexColor(theme.surface, defaultTheme().surface);
   theme.text = normalizeHexColor(theme.text, defaultTheme().text);
   theme.line = normalizeHexColor(theme.line, defaultTheme().line);
-  theme.fontScale = clamp(Number(theme.fontScale) || 1, 0.5, 2);
+  theme.fontScale = clampTruthyNumberOrFallback(theme.fontScale, 1, 0.5, 2);
 
   background.solidColor = normalizeHexColor(background.solidColor, defaultBackground().solidColor);
   background.wallpaperProvider = normalizeWallpaperProvider(background.wallpaperProvider, "picsum");
   background.wallpaperTheme = normalizeText(background.wallpaperTheme, "nature");
   background.redditSubreddit = normalizeText(background.redditSubreddit, "EarthPorn");
   background.redditTime = normalizeText(background.redditTime, "week");
-  background.rotateMinutes = clamp(Number(background.rotateMinutes) || 15, 1, 240);
+  background.rotateMinutes = clampTruthyNumberOrFallback(background.rotateMinutes, 15, 1, 240);
   background.wallpaperCachedUrl = normalizeText(background.wallpaperCachedUrl);
   background.wallpaperCachedSignature = normalizeText(background.wallpaperCachedSignature);
   background.wallpaperCachedAt = Math.max(0, Number(background.wallpaperCachedAt) || 0);
@@ -283,7 +283,7 @@ export function hydrateState(raw, deps = {}) {
   background.localMediaFit = normalizeLocalMediaFit(background.localMediaFit, "stretch");
   background.videoCacheSignature = normalizeText(background.videoCacheSignature);
   background.videoCacheStoredAt = Math.max(0, Number(background.videoCacheStoredAt) || 0);
-  background.blurAmount = clamp(Number(background.blurAmount) || 0, 0, 28);
+  background.blurAmount = clampTruthyNumberOrFallback(background.blurAmount, 0, 0, 28);
   background.overlayOpacity = clampTruthyNumberOrFallback(background.overlayOpacity, 0.24, 0, 0.85);
 
   for (const instance of normalized) {

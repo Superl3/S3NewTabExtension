@@ -1,3 +1,5 @@
+import { clampTruthyNumberOrFallback } from "./utils/number.js";
+
 export function createBackgroundWallpaperRuntime(deps) {
   const scheduleTimeout =
     typeof deps.setTimeout === "function"
@@ -14,7 +16,7 @@ export function createBackgroundWallpaperRuntime(deps) {
   }
 
   function wallpaperRotateMs(cfg) {
-    return deps.clamp(Number(cfg.rotateMinutes) || 15, 1, 240) * 60000;
+    return clampTruthyNumberOrFallback(cfg.rotateMinutes, 15, 1, 240) * 60000;
   }
 
   function hasWallpaperCacheRecord(cfg, signature) {

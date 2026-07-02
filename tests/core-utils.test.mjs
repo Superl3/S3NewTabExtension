@@ -259,6 +259,27 @@ test("background overlay opacity uses shared truthy clamp semantics", async () =
   }
 });
 
+test("truthy fallback scalar clamps use the shared number helper", async () => {
+  const moduleUrls = [
+    new URL("../core/background-blur-runtime.js", import.meta.url),
+    new URL("../core/background-patch.js", import.meta.url),
+    new URL("../core/background-wallpaper-runtime.js", import.meta.url),
+    new URL("../core/hydrate-state.js", import.meta.url),
+    new URL("../core/profile-apply-flow.js", import.meta.url),
+    new URL("../core/shortcut-icon-editor-runtime.js", import.meta.url),
+    new URL("../widgets/label.js", import.meta.url)
+  ];
+
+  const localTruthyClampPattern =
+    /(?:deps\.)?clamp\(Number\([^)]*(?:blurAmount|fontScale|fontSize|fontWeight|iconSizePercent|rotateMinutes|scale|textSize)[^)]*\) \|\| (?:0|1|15|36|58|100|700),/;
+
+  for (const moduleUrl of moduleUrls) {
+    const source = await fs.readFile(moduleUrl, "utf8");
+    assert.match(source, /clampTruthyNumberOrFallback/, moduleUrl.pathname);
+    assert.doesNotMatch(source, localTruthyClampPattern, moduleUrl.pathname);
+  }
+});
+
 test("core modules use the shared text normalizer instead of local copies", async () => {
   const moduleUrls = [
     new URL("../core/background-local-media.js", import.meta.url),
