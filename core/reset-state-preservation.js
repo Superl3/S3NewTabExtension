@@ -1,4 +1,5 @@
 import { callIfFunction as call } from "./utils/function.js";
+import { toNonNegativeNumberOrFallback } from "./utils/number.js";
 
 export function captureResetPreservedData(state, deps = {}) {
   const { readUserMutationClock, clonePresetSnapshot } = deps;
@@ -9,7 +10,7 @@ export function captureResetPreservedData(state, deps = {}) {
     state?.ui?.defaultProfileSnapshot && typeof state.ui.defaultProfileSnapshot === "object"
       ? call(clonePresetSnapshot, state.ui.defaultProfileSnapshot)
       : null;
-  const defaultProfileUpdatedAt = Math.max(0, Number(state?.ui?.defaultProfileUpdatedAt) || 0);
+  const defaultProfileUpdatedAt = toNonNegativeNumberOrFallback(state?.ui?.defaultProfileUpdatedAt);
 
   return {
     mutationClock,

@@ -20,6 +20,7 @@ import {
   roundFiniteOrFallback,
   toFiniteNumber,
   toInteger,
+  toNonNegativeNumberOrFallback,
   toPositiveInteger
 } from "../core/utils/number.js";
 import { hasOwn, isPlainObject } from "../core/utils/object.js";
@@ -68,6 +69,13 @@ test("clampTruthyNumberOrFallback preserves legacy falsy fallback semantics", ()
   assert.equal(clampTruthyNumberOrFallback(null, 0.24, 0, 0.85), 0.24);
   assert.equal(clampTruthyNumberOrFallback(-1, 0.24, 0, 0.85), 0);
   assert.equal(clampTruthyNumberOrFallback(2, 0.24, 0, 0.85), 0.85);
+});
+
+test("toNonNegativeNumberOrFallback preserves legacy non-negative number semantics", () => {
+  assert.equal(toNonNegativeNumberOrFallback(4.5), 4.5);
+  assert.equal(toNonNegativeNumberOrFallback(-1), 0);
+  assert.equal(toNonNegativeNumberOrFallback("bad"), 0);
+  assert.equal(toNonNegativeNumberOrFallback("", 7), 7);
 });
 
 test("toFiniteNumber returns numeric values and falls back for non-finite values", () => {
@@ -277,6 +285,24 @@ test("truthy fallback scalar clamps use the shared number helper", async () => {
     const source = await fs.readFile(moduleUrl, "utf8");
     assert.match(source, /clampTruthyNumberOrFallback/, moduleUrl.pathname);
     assert.doesNotMatch(source, localTruthyClampPattern, moduleUrl.pathname);
+  }
+});
+
+test("state timestamp fields use shared non-negative number normalization", async () => {
+  const moduleUrls = [
+    new URL("../core/hydrate-state.js", import.meta.url),
+    new URL("../core/history-snapshot-materialize.js", import.meta.url),
+    new URL("../core/reset-state-preservation.js", import.meta.url)
+  ];
+
+  for (const moduleUrl of moduleUrls) {
+    const source = await fs.readFile(moduleUrl, "utf8");
+    assert.match(source, /toNonNegativeNumberOrFallback/, moduleUrl.pathname);
+    assert.doesNotMatch(
+      source,
+      /Math\.max\(0, Number\([^)]*(?:defaultProfileUpdatedAt|lastUserMutationAt|videoCacheStoredAt|wallpaperCachedAt)[^)]*\) \|\| 0\)/,
+      moduleUrl.pathname
+    );
   }
 });
 
