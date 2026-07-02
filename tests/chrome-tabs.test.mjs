@@ -195,3 +195,33 @@ test("waitForTabReady rejects on timeout", async () => {
   await assert.rejects(readyPromise, /Timed out waiting for browser tab to finish loading/);
   assert.equal(harness.hasListener(), false);
 });
+
+test("waitForTabReady preserves timeout fallback and floor semantics", async () => {
+  const harness = createChromeApi();
+  const delays = [];
+  harness.chromeApi.tabs.get = (tabId, callback) => {
+    callback({ id: tabId, status: "complete" });
+  };
+
+  await waitForTabReady(11, {
+    chromeApi: harness.chromeApi,
+    timeoutMs: 0,
+    setTimeoutFn(handler, delay) {
+      delays.push(delay);
+      return { handler };
+    },
+    clearTimeoutFn() {}
+  });
+
+  await waitForTabReady(12, {
+    chromeApi: harness.chromeApi,
+    timeoutMs: 5,
+    setTimeoutFn(handler, delay) {
+      delays.push(delay);
+      return { handler };
+    },
+    clearTimeoutFn() {}
+  });
+
+  assert.deepEqual(delays, [20000, 1000]);
+});

@@ -620,6 +620,13 @@ test("core chrome modules use the shared chrome API resolver", async () => {
   }
 });
 
+test("chrome tab readiness timeout uses shared truthy clamp", async () => {
+  const source = await fs.readFile(new URL("../core/platform/chrome-tabs.js", import.meta.url), "utf8");
+  assert.match(source, /utils\/number\.js/);
+  assert.match(source, /clampTruthyNumberOrFallback\(timeoutMs, DEFAULT_READY_TIMEOUT_MS, DEFAULT_READY_TIMEOUT_FLOOR_MS, Number\.POSITIVE_INFINITY\)/);
+  assert.doesNotMatch(source, /Math\.max\(DEFAULT_READY_TIMEOUT_FLOOR_MS, Number\(timeoutMs\) \|\| DEFAULT_READY_TIMEOUT_MS\)/);
+});
+
 test("core drag modules use shared browser and grid helpers instead of local copies", async () => {
   const browserApiModuleUrls = [
     new URL("../core/drag-page-switch.js", import.meta.url),
