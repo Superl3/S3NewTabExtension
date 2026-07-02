@@ -251,12 +251,8 @@ function resolveMondayUrl(boardEntries, accountValue) {
   return resolveMondaySiteUrl(accountValue, candidateUrls);
 }
 
-function normalizeLineBreaks(value) {
-  return normalizeText(value).replace(/\r\n?/g, "\n");
-}
-
 function pickSingleNote(value) {
-  const normalized = normalizeLineBreaks(value);
+  const normalized = normalizeText(value).replace(/\r\n?/g, "\n");
   if (!normalized) {
     return "";
   }

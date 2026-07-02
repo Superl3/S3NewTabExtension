@@ -346,6 +346,24 @@ test("mondayMeetingNote fallback scan can include newer items in later groups", 
   assert.equal(latest?.id, "latest-in-separate-group");
 });
 
+test("mondayMeetingNote picks the first normalized note line", async () => {
+  const { pickSingleNote } = await loadWidgetInternals(
+    "widgets/mondayMeetingNote.js",
+    ["pickSingleNote"],
+    {
+      createAuthSessionStorage: () => ({
+        load: async () => null,
+        save: async () => {},
+        clear: async () => {}
+      })
+    }
+  );
+
+  assert.equal(pickSingleNote(" \r\n  first line\r\nsecond line "), "first line");
+  assert.equal(pickSingleNote("   "), "");
+  assert.equal(pickSingleNote("x".repeat(700)).length, 600);
+});
+
 test("mondayMeetingNote extracts column text with display fallback", async () => {
   const { extractColumnText } = await loadWidgetInternals(
     "widgets/mondayMeetingNote.js",
