@@ -36,7 +36,7 @@ import {
   normalizeBoardIds,
   normalizeCachedMondayBoardBase,
   normalizeColumnSelector,
-  normalizeColumnSelectorList as normalizeSharedColumnSelectorList,
+  normalizeColumnSelectorList,
   normalizeMondayCachedBoards,
   normalizeMondayCacheTimestamp,
   parseColumnSelectorList
@@ -59,17 +59,6 @@ import {
 const WEEKDAY_AUTO_SLOTS_MINUTES = [9 * 60, 13 * 60];
 const DEFAULT_MEETING_NOTE_COLUMN_SELECTOR = "미팅 노트, monday Doc";
 const FALLBACK_LATEST_SCAN_LIMIT = 300;
-
-function normalizeColumnSelectorList(value, fallback = DEFAULT_MEETING_NOTE_COLUMN_SELECTOR) {
-  return normalizeSharedColumnSelectorList(value, {
-    fallback,
-    maxLength: 120
-  });
-}
-
-function parseSelectorList(value) {
-  return parseColumnSelectorList(value, { maxLength: 120 });
-}
 
 const authSessionStorage = createAuthSessionStorage({
   storageKey: MONDAY_AUTH_STORAGE_KEY,
@@ -122,15 +111,19 @@ function nextAutoSlot(config, now = new Date()) {
 
 function normalizedConfig(config) {
   const boardIds = normalizeBoardIds(config?.boardIds, [config?.boardId]);
+  const legacyMeetingNoteColumnId = normalizeColumnSelectorList(config?.meetingNodeColumnId, {
+    fallback: DEFAULT_MEETING_NOTE_COLUMN_SELECTOR,
+    maxLength: 120
+  });
   return {
     connectorUrl: normalizeConnectorUrl(config?.connectorUrl),
     accessToken: normalizeText(config?.accessToken),
     boardIds,
     boardId: boardIds[0] || 0,
-    meetingNoteColumnId: normalizeColumnSelectorList(
-      config?.meetingNoteColumnId,
-      normalizeColumnSelectorList(config?.meetingNodeColumnId)
-    ),
+    meetingNoteColumnId: normalizeColumnSelectorList(config?.meetingNoteColumnId, {
+      fallback: legacyMeetingNoteColumnId,
+      maxLength: 120
+    }),
     openInNewTab: config?.openInNewTab !== false,
     autoRefreshDayKey: normalizeText(config?.autoRefreshDayKey),
     autoRefreshSlotsDone: normalizeText(config?.autoRefreshSlotsDone)
@@ -776,7 +769,7 @@ function canFallbackWithoutOrder(error) {
 
 async function fetchLatestMeetingNote(boardId, selectorText, accessToken) {
   const boardContext = await fetchBoardContext(boardId, accessToken);
-  const selectorList = parseSelectorList(selectorText);
+  const selectorList = parseColumnSelectorList(selectorText, { maxLength: 120 });
   const resolvedColumnIds = resolveMeetingNoteColumnIds(
     boardContext.columns,
     selectorList
