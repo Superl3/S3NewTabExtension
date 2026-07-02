@@ -76,6 +76,14 @@ export function githubTokenFingerprint(token) {
   return `${text.length}:${checksum}`;
 }
 
+export function matchesGitHubCacheTokenFingerprint(cacheTokenFingerprint, accessToken, options = {}) {
+  const cached = normalizeText(cacheTokenFingerprint);
+  if (cached) {
+    return cached === githubTokenFingerprint(accessToken);
+  }
+  return options.allowMissingWhenTokenEmpty === true && !normalizeText(accessToken);
+}
+
 export function formatGitHubRelativeTimestamp(parsedTimestamp) {
   const parsed = Number(parsedTimestamp);
   if (!Number.isFinite(parsed) || parsed <= 0) {

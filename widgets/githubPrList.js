@@ -7,6 +7,7 @@ import {
   buildGitHubRepoPullsPageUrl as buildRepoPullsPageUrl,
   formatGitHubRelativeTimestamp as formatUpdatedLabelFromTimestamp,
   formatGitHubSyncedLabel as formatSyncedLabel,
+  matchesGitHubCacheTokenFingerprint,
   normalizeGitHubCacheCount as normalizeCacheCount,
   normalizeGitHubCacheNumber as normalizeCacheNumber,
   normalizeGitHubCacheTimestamp as normalizeCacheTimestamp,
@@ -80,13 +81,11 @@ function readCachedSnapshot(rawConfig, cfg) {
     return null;
   }
 
-  const expectedTokenHash = tokenFingerprint(cfg.accessToken);
-  const cachedTokenHash = normalizeText(rawConfig?.cacheTokenFingerprint);
-  if (cachedTokenHash) {
-    if (cachedTokenHash !== expectedTokenHash) {
-      return null;
-    }
-  } else if (normalizeText(cfg.accessToken)) {
+  if (
+    !matchesGitHubCacheTokenFingerprint(rawConfig?.cacheTokenFingerprint, cfg.accessToken, {
+      allowMissingWhenTokenEmpty: true
+    })
+  ) {
     return null;
   }
 
