@@ -272,6 +272,7 @@ test("core drag and resize modules use the shared finite number helper", async (
 
 test("core modules use shared integer helpers instead of local copies", async () => {
   const moduleUrls = [
+    new URL("../core/dock-geometry.js", import.meta.url),
     new URL("../core/dock-state.js", import.meta.url),
     new URL("../core/drag-page-switch.js", import.meta.url),
     new URL("../core/drag-drop-evaluation.js", import.meta.url),
