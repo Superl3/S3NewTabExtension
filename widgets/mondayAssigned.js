@@ -6,8 +6,11 @@ import {
   buildAuthConnectorStartUrl,
   createAuthState,
   fetchConnectorToken,
-  normalizeConnectorUrl as normalizeSharedConnectorUrl,
-  parseAuthFlowResult
+  isAuthCancelledMessage,
+  LOCAL_AUTH_CONNECTOR_URL,
+  normalizeLocalAuthConnectorUrl as normalizeConnectorUrl,
+  parseAuthFlowResult,
+  rewriteAuthorizationLoadError
 } from "./shared/authConnector.js";
 import {
   autoRefreshDoneSetForDay,
@@ -35,7 +38,6 @@ import {
 } from "./shared/mondayClient.js";
 
 const MONDAY_AUTH_STORAGE_KEY = "s3newtab-monday-auth-session-v1";
-const LOCAL_AUTH_CONNECTOR_URL = "http://localhost:8787/api/auth/start";
 
 const DONE_GROUP_TITLES = new Set(["done", "completed", "완료"]);
 const DONE_STATUS_LABELS = new Set(["done", "completed", "완료"]);
@@ -83,30 +85,6 @@ function resolveBoardPeopleColumnSelector(config, boardIndex) {
     return selectors[0];
   }
   return selectors[boardIndex] || "";
-}
-
-function normalizeConnectorUrl(value, fallback = LOCAL_AUTH_CONNECTOR_URL) {
-  return normalizeSharedConnectorUrl(value, fallback);
-}
-
-function rewriteAuthorizationLoadError(message) {
-  const text = normalizeText(message).toLowerCase();
-  if (text.includes("authorization page") && (text.includes("load") || text.includes("not loaded"))) {
-    return "Authorization page could not be loaded. Check that connector server is running at http://localhost:8787 and then try Connect again.";
-  }
-  return message;
-}
-
-function isAuthCancelledMessage(message) {
-  const text = normalizeText(message).toLowerCase();
-  return (
-    text.includes("cancel") ||
-    text.includes("canceled") ||
-    text.includes("cancelled") ||
-    text.includes("did not approve") ||
-    text.includes("closed") ||
-    text.includes("interaction")
-  );
 }
 
 function formatDateLabel(rawDateTime) {

@@ -3,8 +3,12 @@ import assert from "node:assert/strict";
 
 import {
   buildAuthConnectorStartUrl,
+  isAuthCancelledMessage,
+  LOCAL_AUTH_CONNECTOR_URL,
+  normalizeLocalAuthConnectorUrl,
   normalizeConnectorUrl,
-  parseAuthFlowResult
+  parseAuthFlowResult,
+  rewriteAuthorizationLoadError
 } from "../widgets/shared/authConnector.js";
 import {
   hasAuthSessionStorageChange,
@@ -22,6 +26,17 @@ test("normalizes connector URL and removes hash", () => {
     "http://localhost:8787/api/auth/start"
   );
   assert.equal(normalizeConnectorUrl("http://example.com/start"), "");
+});
+
+test("normalizes local auth connector defaults and shared auth messages", () => {
+  assert.equal(normalizeLocalAuthConnectorUrl(""), LOCAL_AUTH_CONNECTOR_URL);
+  assert.equal(
+    rewriteAuthorizationLoadError("Authorization page was not loaded"),
+    "Authorization page could not be loaded. Check that connector server is running at http://localhost:8787 and then try Connect again."
+  );
+  assert.equal(rewriteAuthorizationLoadError("different failure"), "different failure");
+  assert.equal(isAuthCancelledMessage("User cancelled interaction"), true);
+  assert.equal(isAuthCancelledMessage("network failed"), false);
 });
 
 test("builds auth connector start URL with provider", () => {

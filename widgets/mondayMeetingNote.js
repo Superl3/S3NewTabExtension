@@ -6,8 +6,11 @@ import {
   buildAuthConnectorStartUrl,
   createAuthState,
   fetchConnectorToken,
-  normalizeConnectorUrl as normalizeSharedConnectorUrl,
-  parseAuthFlowResult
+  isAuthCancelledMessage,
+  LOCAL_AUTH_CONNECTOR_URL,
+  normalizeLocalAuthConnectorUrl as normalizeConnectorUrl,
+  parseAuthFlowResult,
+  rewriteAuthorizationLoadError
 } from "./shared/authConnector.js";
 import {
   autoRefreshDoneSetForDay,
@@ -35,7 +38,6 @@ import {
 } from "./shared/mondayClient.js";
 
 const MONDAY_AUTH_STORAGE_KEY = "s3newtab-monday-auth-session-v1";
-const LOCAL_AUTH_CONNECTOR_URL = "http://localhost:8787/api/auth/start";
 const WEEKDAY_AUTO_SLOTS_MINUTES = [9 * 60, 13 * 60];
 const DEFAULT_MEETING_NOTE_COLUMN_SELECTOR = "미팅 노트, monday Doc";
 const FALLBACK_LATEST_SCAN_LIMIT = 300;
@@ -49,30 +51,6 @@ function normalizeColumnSelectorList(value, fallback = DEFAULT_MEETING_NOTE_COLU
 
 function parseSelectorList(value) {
   return parseColumnSelectorList(value, { maxLength: 120 });
-}
-
-function normalizeConnectorUrl(value, fallback = LOCAL_AUTH_CONNECTOR_URL) {
-  return normalizeSharedConnectorUrl(value, fallback);
-}
-
-function rewriteAuthorizationLoadError(message) {
-  const text = normalizeText(message).toLowerCase();
-  if (text.includes("authorization page") && (text.includes("load") || text.includes("not loaded"))) {
-    return "Authorization page could not be loaded. Check that connector server is running at http://localhost:8787 and then try Connect again.";
-  }
-  return message;
-}
-
-function isAuthCancelledMessage(message) {
-  const text = normalizeText(message).toLowerCase();
-  return (
-    text.includes("cancel") ||
-    text.includes("canceled") ||
-    text.includes("cancelled") ||
-    text.includes("did not approve") ||
-    text.includes("closed") ||
-    text.includes("interaction")
-  );
 }
 
 const authSessionStorage = createAuthSessionStorage({
