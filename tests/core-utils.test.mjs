@@ -405,7 +405,9 @@ test("widgets use shared core utility functions instead of local copies", async 
   );
   for (const source of clampSharedWidgetSources) {
     assert.match(source.text, /utils\/number\.js/, source.name);
+    assert.match(source.text, /toFiniteNumber/, source.name);
     assert.doesNotMatch(source.text, /Math\.min\([^;\n]*Math\.max\(/, source.name);
+    assert.doesNotMatch(source.text, /Number\.isFinite\(Number\(/, source.name);
   }
 });
 
