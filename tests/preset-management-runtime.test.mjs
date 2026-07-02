@@ -84,6 +84,13 @@ test("inferNextId computes next numeric suffix", () => {
   assert.equal(nextFromLow, 13);
 });
 
+test("inferNextId preserves fallback normalization semantics", () => {
+  const harness = createHarness();
+  assert.equal(harness.runtime.inferNextId([], 0), 100);
+  assert.equal(harness.runtime.inferNextId([], "bad"), 100);
+  assert.equal(harness.runtime.inferNextId([{ id: "clock-9" }], Infinity), Infinity);
+});
+
 test("savePreset creates and updates same-name preset", () => {
   const harness = createHarness();
   harness.state.instances[0].zIndex = -10;

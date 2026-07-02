@@ -573,6 +573,12 @@ test("preset management uses shared truthy clamp normalization for z-index", asy
   assert.doesNotMatch(source, /Math\.max\(1, Number\(instance\.zIndex\) \|\| 1\)/);
 });
 
+test("preset management uses shared truthy fallback for next ids", async () => {
+  const source = await fs.readFile(new URL("../core/preset-management-runtime.js", import.meta.url), "utf8");
+  assert.match(source, /toTruthyNumberOrFallback\(fallback, 100\)/);
+  assert.doesNotMatch(source, /Number\(fallback\) \|\| 100/);
+});
+
 test("core modules use the shared optional function caller instead of local wrappers", async () => {
   const moduleUrls = [
     new URL("../core/board-grid-slot.js", import.meta.url),

@@ -1,4 +1,4 @@
-import { clampTruthyNumberOrFallback } from "./utils/number.js";
+import { clampTruthyNumberOrFallback, toTruthyNumberOrFallback } from "./utils/number.js";
 
 export function createPresetManagementRuntime(deps) {
   function clonePresetSnapshot(snapshot) {
@@ -44,7 +44,7 @@ export function createPresetManagementRuntime(deps) {
   }
 
   function inferNextId(instances, fallback) {
-    let maxId = Number(fallback) || 100;
+    let maxId = toTruthyNumberOrFallback(fallback, 100);
     for (const instance of instances || []) {
       const id = String(instance?.id || "");
       const match = id.match(/-(\d+)$/);
