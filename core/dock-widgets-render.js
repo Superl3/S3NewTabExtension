@@ -1,3 +1,4 @@
+import { arrayOrEmpty } from "./utils/array.js";
 import { createDockWidgetShell } from "./dock-widget-shell.js";
 import { mountDockWidgetRuntime } from "./dock-widget-runtime-mount.js";
 import { startDockWidgetDragSession } from "./dock-widget-drag-session.js";
@@ -44,7 +45,7 @@ export function renderDockWidgetsView({
   }
   const config = buildDockConfig?.(homeState);
   const horizontalDock = isHorizontalDock?.(config);
-  const items = dockedInstances?.() || [];
+  const items = arrayOrEmpty(dockedInstances?.());
   strip.classList.toggle("is-empty", items.length === 0);
 
   if (!items.length) {
