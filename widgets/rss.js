@@ -75,14 +75,6 @@ const PINNED_FEED_SETTINGS_SCHEMA = RSS_SETTINGS_SCHEMA.filter(
   (field) => field.key !== "feedPreset" && field.key !== "feedUrl"
 );
 
-function normalizeMaxItems(value, fallback = 8) {
-  return normalizeIntegerInRange(value, fallback, 1, 30);
-}
-
-function normalizeRefreshMinutes(value, fallback = 15) {
-  return normalizeIntegerInRange(value, fallback, 1, 240);
-}
-
 function normalizeErrorMessage(error) {
   const fallback = "Feed is not available. Check the feed URL and try again.";
   if (!error) {
@@ -241,9 +233,9 @@ function normalizedConfig(config, defaults = {}) {
   return {
     feedPreset,
     feedUrl: presetFeedUrl || normalizeText(config?.feedUrl, defaults.feedUrl || DEFAULT_FEED_URL),
-    maxItems: normalizeMaxItems(config?.maxItems, defaults.maxItems || 8),
+    maxItems: normalizeIntegerInRange(config?.maxItems, defaults.maxItems || 8, 1, 30),
     showSummary: config?.showSummary ?? defaults.showSummary ?? true,
-    refreshMinutes: normalizeRefreshMinutes(config?.refreshMinutes, defaults.refreshMinutes || 15),
+    refreshMinutes: normalizeIntegerInRange(config?.refreshMinutes, defaults.refreshMinutes || 15, 1, 240),
     openInNewTab: config?.openInNewTab ?? defaults.openInNewTab ?? true
   };
 }
@@ -388,7 +380,7 @@ function createRssWidgetDefinition({
       function scheduleRefresh() {
         clearRefreshTimer();
         const cfg = normalizedConfig(getConfig(), defaultConfig);
-        const delayMs = normalizeRefreshMinutes(cfg.refreshMinutes, 15) * 60000;
+        const delayMs = normalizeIntegerInRange(cfg.refreshMinutes, 15, 1, 240) * 60000;
         timer = setTimeout(() => {
           void loadFeed();
         }, delayMs);

@@ -11,14 +11,6 @@ import { normalizeGoogleAccountIndex as normalizeAccountIndex } from "./shared/g
 
 const GMAIL_WEB_BASE_URL = "https://mail.google.com/mail";
 
-function normalizeMaxResults(value, fallback = 6) {
-  return normalizeIntegerInRange(value, fallback, 1, 20);
-}
-
-function normalizeRefreshMinutes(value, fallback = 5) {
-  return normalizeIntegerInRange(value, fallback, 1, 120);
-}
-
 function buildInboxUrl(accountIndex) {
   return `${GMAIL_WEB_BASE_URL}/u/${normalizeAccountIndex(accountIndex)}/#inbox`;
 }
@@ -131,8 +123,8 @@ function parseFeedXml(xmlText, accountIndex, responseUrl = "") {
 function normalizedConfig(config) {
   return {
     accountIndex: normalizeAccountIndex(config?.accountIndex, 0),
-    maxResults: normalizeMaxResults(config?.maxResults, 6),
-    refreshMinutes: normalizeRefreshMinutes(config?.refreshMinutes, 5),
+    maxResults: normalizeIntegerInRange(config?.maxResults, 6, 1, 20),
+    refreshMinutes: normalizeIntegerInRange(config?.refreshMinutes, 5, 1, 120),
     showSnippet: config?.showSnippet !== false,
     openInNewTab: config?.openInNewTab !== false
   };
