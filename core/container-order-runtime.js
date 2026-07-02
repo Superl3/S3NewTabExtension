@@ -1,3 +1,4 @@
+import { arrayOrEmpty } from "./utils/array.js";
 import { clampRoundedTruthyNumberOrFallback } from "./utils/number.js";
 
 export function createContainerOrderRuntime(deps) {
@@ -31,7 +32,7 @@ export function createContainerOrderRuntime(deps) {
       return false;
     }
 
-    const siblings = (state?.instances || []).filter((entry) => {
+    const siblings = arrayOrEmpty(state?.instances).filter((entry) => {
       return (
         entry &&
         String(entry.id) !== String(instanceId) &&
@@ -71,7 +72,7 @@ export function createContainerOrderRuntime(deps) {
       return false;
     }
 
-    const siblings = (state?.instances || []).filter((entry) => {
+    const siblings = arrayOrEmpty(state?.instances).filter((entry) => {
       return (
         entry &&
         entry.type !== "container" &&
