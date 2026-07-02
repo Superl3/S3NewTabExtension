@@ -3,7 +3,7 @@ import {
   normalizeLauncherPageIndexList,
   normalizePageCount
 } from "./launcher-pages.js";
-import { clampFiniteOrMin } from "./utils/number.js";
+import { clampFiniteOrMin, toTruthyNumberOrFallback } from "./utils/number.js";
 import { normalizeText } from "./utils/text.js";
 
 export function normalizeHomeMode(value, fallback = "grid") {
@@ -111,8 +111,8 @@ export function normalizeHomeLayout(layout, { gridMaxColumns = 16, gridMaxRows =
 
   return {
     mode: normalizeHomeMode(base.mode, "grid"),
-    gridColumns: clampFiniteOrMin(Number(base.gridColumns) || 4, 1, gridMaxColumns),
-    gridRows: clampFiniteOrMin(Number(base.gridRows) || 3, 1, gridMaxRows),
+    gridColumns: clampFiniteOrMin(toTruthyNumberOrFallback(base.gridColumns, 4), 1, gridMaxColumns),
+    gridRows: clampFiniteOrMin(toTruthyNumberOrFallback(base.gridRows, 3), 1, gridMaxRows),
     marginHorizontal: normalizeMarginPreset(base.marginHorizontal, "medium"),
     marginVertical: normalizeMarginPreset(base.marginVertical, "medium"),
     itemGap: normalizeGapPreset(base.itemGap, "narrow"),
