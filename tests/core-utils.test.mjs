@@ -1414,6 +1414,25 @@ test("Monday widgets share active auth session config loading", async () => {
   }
 });
 
+test("auth widgets share connector result session creation", async () => {
+  const moduleUrls = [
+    new URL("../widgets/aiChat.js", import.meta.url),
+    new URL("../widgets/mondayAssigned.js", import.meta.url),
+    new URL("../widgets/mondayMeetingNote.js", import.meta.url)
+  ];
+  const localStoredSessionPattern =
+    /authSessionStorage\.save\(\{\s*connectorUrl[\s\S]*?accountLabel\s*\}\)/;
+  const localAssignedSessionPattern =
+    /storedSession\s*=\s*\{\s*connectorUrl[\s\S]*?accountLabel:\s*result\.accountLabel/;
+
+  for (const moduleUrl of moduleUrls) {
+    const source = await fs.readFile(moduleUrl, "utf8");
+    assert.match(source, /createStoredAuthSessionForConnectorResult/, moduleUrl.pathname);
+    assert.doesNotMatch(source, localStoredSessionPattern, moduleUrl.pathname);
+    assert.doesNotMatch(source, localAssignedSessionPattern, moduleUrl.pathname);
+  }
+});
+
 test("Monday widgets share chrome storage change subscription primitive", async () => {
   const moduleUrls = [
     new URL("../widgets/mondayAssigned.js", import.meta.url),

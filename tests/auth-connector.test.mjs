@@ -13,6 +13,7 @@ import {
   rewriteAuthorizationLoadError
 } from "../widgets/shared/authConnector.js";
 import {
+  createStoredAuthSessionForConnectorResult,
   hasActiveAuthConnection,
   hasAuthSessionStorageChange,
   loadActiveAuthSessionForConfig,
@@ -341,6 +342,36 @@ test("shared auth session config loader preserves token and stored-session resol
     null
   );
   assert.deepEqual(loadCalls, ["configured", "stored"]);
+});
+
+test("shared auth session creator skips configured tokens and preserves connector results", () => {
+  assert.deepEqual(
+    createStoredAuthSessionForConnectorResult({
+      connectorUrl: "http://localhost:8787/api/auth/start",
+      configuredAccessToken: "",
+      result: {
+        accessToken: "connector-token",
+        accountLabel: "user@example.com"
+      }
+    }),
+    {
+      connectorUrl: "http://localhost:8787/api/auth/start",
+      accessToken: "connector-token",
+      accountLabel: "user@example.com"
+    }
+  );
+
+  assert.equal(
+    createStoredAuthSessionForConnectorResult({
+      connectorUrl: "http://localhost:8787/api/auth/start",
+      configuredAccessToken: "configured-token",
+      result: {
+        accessToken: "configured-token",
+        accountLabel: "Configured token"
+      }
+    }),
+    null
+  );
 });
 
 test("shared auth session change detector matches the configured storage key", () => {

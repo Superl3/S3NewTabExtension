@@ -19,6 +19,7 @@ import {
 import { formatLocalDateTimeLabel as formatDateLabel } from "./shared/dateLabels.js";
 import {
   createAuthSessionStorage,
+  createStoredAuthSessionForConnectorResult,
   hasActiveAuthConnection,
   hasAuthSessionStorageChange,
   loadActiveAuthSessionForConfig
@@ -1213,12 +1214,13 @@ export const mondayMeetingNoteWidget = {
         accessToken = result.accessToken;
         accountLabel = result.accountLabel;
         sessionConnectorUrl = cfg.connectorUrl;
-        if (!normalizeText(cfg.accessToken)) {
-          await authSessionStorage.save({
-            connectorUrl: cfg.connectorUrl,
-            accessToken,
-            accountLabel
-          });
+        const storedSession = createStoredAuthSessionForConnectorResult({
+          connectorUrl: cfg.connectorUrl,
+          configuredAccessToken: cfg.accessToken,
+          result
+        });
+        if (storedSession) {
+          await authSessionStorage.save(storedSession);
         }
 
         errorMessage = "";
