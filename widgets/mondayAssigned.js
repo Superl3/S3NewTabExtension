@@ -470,14 +470,8 @@ function resolveBoardPeopleScope(config, boardIndex, peopleColumns) {
   };
 }
 
-function normalizeColumnIds(columnIds) {
-  return arrayOrEmpty(columnIds)
-    .map((value) => normalizeColumnSelector(value))
-    .filter(Boolean);
-}
-
 function buildStatusColumnValuesSelection(statusColumnIds) {
-  const ids = normalizeColumnIds(statusColumnIds);
+  const ids = parseColumnSelectorList(statusColumnIds);
   if (!ids.length) {
     return "";
   }
@@ -496,7 +490,7 @@ function hasDoneStatusOnItem(item, statusColumnIds = []) {
     return false;
   }
 
-  const targetIds = new Set(normalizeColumnIds(statusColumnIds));
+  const targetIds = new Set(parseColumnSelectorList(statusColumnIds));
   if (!targetIds.size) {
     return false;
   }
@@ -868,7 +862,7 @@ async function fetchAssignedFromColumn(config, meId, peopleColumnId, accessToken
 }
 
 async function fetchAssignedSubitemsAcrossBoard(config, meId, peopleColumnIds, accessToken) {
-  const columnIds = normalizeColumnIds(peopleColumnIds);
+  const columnIds = parseColumnSelectorList(peopleColumnIds);
 
   if (!columnIds.length) {
     return [];
@@ -917,7 +911,7 @@ async function fetchAssignedSubitemsAcrossBoard(config, meId, peopleColumnIds, a
 }
 
 async function fetchAssignedIssues(config, meId, peopleColumnIds, accessToken, statusColumnIds = []) {
-  const columnIds = normalizeColumnIds(peopleColumnIds);
+  const columnIds = parseColumnSelectorList(peopleColumnIds);
 
   if (!columnIds.length) {
     return [];
