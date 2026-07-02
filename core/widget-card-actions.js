@@ -1,3 +1,57 @@
+function createActionButton(className, titleText, iconId, action, onAfter = null) {
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.className = className;
+  btn.title = titleText;
+  btn.innerHTML = `<svg class="icon"><use href="#${iconId}"></use></svg>`;
+  btn.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    const result = Promise.resolve(action?.());
+    if (typeof onAfter === "function") {
+      result.finally(() => {
+        onAfter();
+      });
+    }
+  });
+  return btn;
+}
+
+function placeHeadActionBeforeSelect(btn, selectBtn, headActions) {
+  if (selectBtn?.parentElement === headActions) {
+    headActions.insertBefore(btn, selectBtn);
+  } else {
+    headActions?.prepend(btn);
+  }
+}
+
+function hasControllerMethod(controller, names) {
+  return names.some((name) => typeof controller?.[name] === "function");
+}
+
+function runFirstControllerMethod(controller, names) {
+  const name = names.find((candidate) => typeof controller?.[candidate] === "function");
+  return name ? controller[name]() : null;
+}
+
+function addHeadAndFloatAction({
+  selectBtn,
+  headActions,
+  placeFloatAction,
+  headClassName,
+  floatClassName,
+  titleText,
+  iconId,
+  action,
+  onAfter = null
+}) {
+  const headBtn = createActionButton(headClassName, titleText, iconId, action, onAfter);
+  const floatBtn = createActionButton(floatClassName, titleText, iconId, action, onAfter);
+  placeHeadActionBeforeSelect(headBtn, selectBtn, headActions);
+  placeFloatAction(floatBtn);
+  return [headBtn, floatBtn];
+}
+
 export function attachWidgetTypeActions({
   instance,
   controller,
@@ -11,22 +65,8 @@ export function attachWidgetTypeActions({
   }
 
   if (instance.type === "bookmarks") {
-    const makeActionButton = (className, titleText, iconId, action) => {
-      const btn = document.createElement("button");
-      btn.type = "button";
-      btn.className = className;
-      btn.title = titleText;
-      btn.innerHTML = `<svg class="icon"><use href="#${iconId}"></use></svg>`;
-      btn.addEventListener("click", (event) => {
-        event.preventDefault();
-        event.stopPropagation();
-        Promise.resolve(action?.());
-      });
-      return btn;
-    };
-
     if (typeof controller?.goBack === "function") {
-      const floatBack = makeActionButton("icon-btn widget-float-back", "Go back", "i-undo", () => controller.goBack?.());
+      const floatBack = createActionButton("icon-btn widget-float-back", "Go back", "i-undo", () => controller.goBack?.());
       placeFloatBottomAction(floatBack);
 
       const syncBackState = (canGoBack) => {
@@ -43,7 +83,7 @@ export function attachWidgetTypeActions({
     }
 
     if (typeof controller?.refresh === "function") {
-      const floatRefresh = makeActionButton(
+      const floatRefresh = createActionButton(
         "icon-btn widget-float-refresh",
         "Refresh bookmarks",
         "i-reset",
@@ -54,52 +94,9 @@ export function attachWidgetTypeActions({
   }
 
   if (instance.type === "mondayAssigned" || instance.type === "mondayMeetingNote") {
-    const makeActionButton = (className, titleText, iconId, action, onAfter = null) => {
-      const btn = document.createElement("button");
-      btn.type = "button";
-      btn.className = className;
-      btn.title = titleText;
-      btn.innerHTML = `<svg class="icon"><use href="#${iconId}"></use></svg>`;
-      btn.addEventListener("click", (event) => {
-        event.preventDefault();
-        event.stopPropagation();
-        Promise.resolve(action?.()).finally(() => {
-          onAfter?.();
-        });
-      });
-      return btn;
-    };
-
-    const placeHeadAction = (btn) => {
-      if (selectBtn?.parentElement === headActions) {
-        headActions.insertBefore(btn, selectBtn);
-      } else {
-        headActions?.prepend(btn);
-      }
-    };
-
-    const runRefresh = () => {
-      if (typeof controller?.manualRefresh === "function") {
-        return controller.manualRefresh();
-      } else if (typeof controller?.refresh === "function") {
-        return controller.refresh();
-      }
-      return null;
-    };
-
-    const runOpenMonday = () => {
-      if (typeof controller?.openMonday === "function") {
-        return controller.openMonday();
-      }
-      return null;
-    };
-
-    const runToggleAuth = () => {
-      if (typeof controller?.toggleConnection === "function") {
-        return controller.toggleConnection();
-      }
-      return null;
-    };
+    const runRefresh = () => runFirstControllerMethod(controller, ["manualRefresh", "refresh"]);
+    const runOpenMonday = () => runFirstControllerMethod(controller, ["openMonday"]);
+    const runToggleAuth = () => runFirstControllerMethod(controller, ["toggleConnection"]);
 
     const authButtons = [];
     const syncAuthButtonState = () => {
@@ -115,122 +112,67 @@ export function attachWidgetTypeActions({
       }
     };
 
-    if (
-      typeof controller?.manualRefresh === "function" ||
-      typeof controller?.refresh === "function"
-    ) {
-      const headRefresh = makeActionButton(
-        "icon-btn widget-refresh-btn",
-        "Refresh Monday data",
-        "i-reset",
-        runRefresh,
-        syncAuthButtonState
-      );
-      placeHeadAction(headRefresh);
-
-      const floatRefresh = makeActionButton(
-        "icon-btn widget-float-refresh",
-        "Refresh Monday data",
-        "i-reset",
-        runRefresh,
-        syncAuthButtonState
-      );
-      placeFloatBottomAction(floatRefresh);
+    if (hasControllerMethod(controller, ["manualRefresh", "refresh"])) {
+      addHeadAndFloatAction({
+        selectBtn,
+        headActions,
+        placeFloatAction: placeFloatBottomAction,
+        headClassName: "icon-btn widget-refresh-btn",
+        floatClassName: "icon-btn widget-float-refresh",
+        titleText: "Refresh Monday data",
+        iconId: "i-reset",
+        action: runRefresh,
+        onAfter: syncAuthButtonState
+      });
     }
 
     if (typeof controller?.openMonday === "function") {
-      const headOpen = makeActionButton(
-        "icon-btn widget-open-btn",
-        "Open Monday",
-        "i-open",
-        runOpenMonday
-      );
-      placeHeadAction(headOpen);
-
-      const floatOpen = makeActionButton(
-        "icon-btn widget-float-open",
-        "Open Monday",
-        "i-open",
-        runOpenMonday
-      );
-      placeFloatTopAction(floatOpen);
+      addHeadAndFloatAction({
+        selectBtn,
+        headActions,
+        placeFloatAction: placeFloatTopAction,
+        headClassName: "icon-btn widget-open-btn",
+        floatClassName: "icon-btn widget-float-open",
+        titleText: "Open Monday",
+        iconId: "i-open",
+        action: runOpenMonday
+      });
     }
 
     if (typeof controller?.toggleConnection === "function") {
-      const headAuth = makeActionButton(
-        "icon-btn widget-auth-toggle-btn",
-        "Connect Monday",
-        "i-connect",
-        runToggleAuth,
-        syncAuthButtonState
-      );
-      const floatAuth = makeActionButton(
-        "icon-btn widget-float-auth-toggle",
-        "Connect Monday",
-        "i-connect",
-        runToggleAuth,
-        syncAuthButtonState
-      );
+      const [headAuth, floatAuth] = addHeadAndFloatAction({
+        selectBtn,
+        headActions,
+        placeFloatAction: placeFloatTopAction,
+        headClassName: "icon-btn widget-auth-toggle-btn",
+        floatClassName: "icon-btn widget-float-auth-toggle",
+        titleText: "Connect Monday",
+        iconId: "i-connect",
+        action: runToggleAuth,
+        onAfter: syncAuthButtonState
+      });
       authButtons.push(headAuth, floatAuth);
-      placeHeadAction(headAuth);
-      placeFloatTopAction(floatAuth);
       syncAuthButtonState();
     }
   }
 
   if (instance.type === "gmail" || instance.type === "calendar") {
-    const refreshTitle = instance.type === "gmail" ? "Refresh unread mail" : "Refresh events";
-    const openTitle = instance.type === "gmail" ? "Open Gmail" : "Open Google Calendar";
-    const switchTitle = instance.type === "gmail" ? "Switch Gmail account" : "Switch Calendar account";
-
-    const makeActionButton = (className, titleText, iconId, action) => {
-      const btn = document.createElement("button");
-      btn.type = "button";
-      btn.className = className;
-      btn.title = titleText;
-      btn.innerHTML = `<svg class="icon"><use href="#${iconId}"></use></svg>`;
-      btn.addEventListener("click", (event) => {
-        event.preventDefault();
-        event.stopPropagation();
-        Promise.resolve(action?.());
-      });
-      return btn;
-    };
-
-    const placeHeadAction = (btn) => {
-      if (selectBtn?.parentElement === headActions) {
-        headActions.insertBefore(btn, selectBtn);
-      } else {
-        headActions?.prepend(btn);
+    const labelByType = {
+      gmail: {
+        refresh: "Refresh unread mail",
+        open: "Open Gmail",
+        switchAccount: "Switch Gmail account"
+      },
+      calendar: {
+        refresh: "Refresh events",
+        open: "Open Google Calendar",
+        switchAccount: "Switch Calendar account"
       }
     };
-
-    const runRefresh = () => {
-      if (typeof controller?.manualRefresh === "function") {
-        return controller.manualRefresh();
-      }
-      if (typeof controller?.refresh === "function") {
-        return controller.refresh();
-      }
-      return null;
-    };
-
-    const runOpen = () => {
-      if (typeof controller?.openGmail === "function") {
-        return controller.openGmail();
-      }
-      if (typeof controller?.openCalendar === "function") {
-        return controller.openCalendar();
-      }
-      return null;
-    };
-
-    const runSwitchAccount = () => {
-      if (typeof controller?.switchAccount === "function") {
-        return controller.switchAccount();
-      }
-      return null;
-    };
+    const labels = labelByType[instance.type];
+    const runRefresh = () => runFirstControllerMethod(controller, ["manualRefresh", "refresh"]);
+    const runOpen = () => runFirstControllerMethod(controller, ["openGmail", "openCalendar"]);
+    const runSwitchAccount = () => runFirstControllerMethod(controller, ["switchAccount"]);
 
     const canSwitchAccount = () => {
       if (typeof controller?.canSwitchAccount === "function") {
@@ -239,58 +181,43 @@ export function attachWidgetTypeActions({
       return true;
     };
 
-    if (typeof controller?.manualRefresh === "function" || typeof controller?.refresh === "function") {
-      const headRefresh = makeActionButton(
-        "icon-btn widget-refresh-btn",
-        refreshTitle,
-        "i-reset",
-        runRefresh
-      );
-      placeHeadAction(headRefresh);
-
-      const floatRefresh = makeActionButton(
-        "icon-btn widget-float-refresh",
-        refreshTitle,
-        "i-reset",
-        runRefresh
-      );
-      placeFloatBottomAction(floatRefresh);
+    if (hasControllerMethod(controller, ["manualRefresh", "refresh"])) {
+      addHeadAndFloatAction({
+        selectBtn,
+        headActions,
+        placeFloatAction: placeFloatBottomAction,
+        headClassName: "icon-btn widget-refresh-btn",
+        floatClassName: "icon-btn widget-float-refresh",
+        titleText: labels.refresh,
+        iconId: "i-reset",
+        action: runRefresh
+      });
     }
 
-    if (typeof controller?.openGmail === "function" || typeof controller?.openCalendar === "function") {
-      const headOpen = makeActionButton(
-        "icon-btn widget-open-btn",
-        openTitle,
-        "i-open",
-        runOpen
-      );
-      placeHeadAction(headOpen);
-
-      const floatOpen = makeActionButton(
-        "icon-btn widget-float-open",
-        openTitle,
-        "i-open",
-        runOpen
-      );
-      placeFloatTopAction(floatOpen);
+    if (hasControllerMethod(controller, ["openGmail", "openCalendar"])) {
+      addHeadAndFloatAction({
+        selectBtn,
+        headActions,
+        placeFloatAction: placeFloatTopAction,
+        headClassName: "icon-btn widget-open-btn",
+        floatClassName: "icon-btn widget-float-open",
+        titleText: labels.open,
+        iconId: "i-open",
+        action: runOpen
+      });
     }
 
     if (typeof controller?.switchAccount === "function") {
-      const headSwitch = makeActionButton(
-        "icon-btn widget-switch-account-btn",
-        switchTitle,
-        "i-redo",
-        runSwitchAccount
-      );
-      placeHeadAction(headSwitch);
-
-      const floatSwitch = makeActionButton(
-        "icon-btn widget-float-switch-account",
-        switchTitle,
-        "i-redo",
-        runSwitchAccount
-      );
-      placeFloatTopAction(floatSwitch);
+      const [headSwitch, floatSwitch] = addHeadAndFloatAction({
+        selectBtn,
+        headActions,
+        placeFloatAction: placeFloatTopAction,
+        headClassName: "icon-btn widget-switch-account-btn",
+        floatClassName: "icon-btn widget-float-switch-account",
+        titleText: labels.switchAccount,
+        iconId: "i-redo",
+        action: runSwitchAccount
+      });
 
       const syncSwitchState = () => {
         const enabled = canSwitchAccount();
@@ -305,82 +232,36 @@ export function attachWidgetTypeActions({
   }
 
   if (instance.type === "githubPrList" || instance.type === "githubReviewInbox") {
-    const makeActionButton = (className, titleText, iconId, action) => {
-      const btn = document.createElement("button");
-      btn.type = "button";
-      btn.className = className;
-      btn.title = titleText;
-      btn.innerHTML = `<svg class="icon"><use href="#${iconId}"></use></svg>`;
-      btn.addEventListener("click", (event) => {
-        event.preventDefault();
-        event.stopPropagation();
-        Promise.resolve(action?.());
+    const isReviewInbox = instance.type === "githubReviewInbox";
+    const refreshTitle = isReviewInbox ? "Refresh review inbox" : "Refresh pull requests";
+    const openTitle = isReviewInbox ? "Open repository pull requests" : "Open repository";
+    const runRefresh = () => runFirstControllerMethod(controller, ["manualRefresh", "refresh"]);
+    const runOpenRepository = () => runFirstControllerMethod(controller, ["openRepository"]);
+
+    if (hasControllerMethod(controller, ["manualRefresh", "refresh"])) {
+      addHeadAndFloatAction({
+        selectBtn,
+        headActions,
+        placeFloatAction: placeFloatBottomAction,
+        headClassName: "icon-btn widget-refresh-btn",
+        floatClassName: "icon-btn widget-float-refresh",
+        titleText: refreshTitle,
+        iconId: "i-reset",
+        action: runRefresh
       });
-      return btn;
-    };
-
-    const placeHeadAction = (btn) => {
-      if (selectBtn?.parentElement === headActions) {
-        headActions.insertBefore(btn, selectBtn);
-      } else {
-        headActions?.prepend(btn);
-      }
-    };
-
-    const runRefresh = () => {
-      if (typeof controller?.manualRefresh === "function") {
-        return controller.manualRefresh();
-      }
-      if (typeof controller?.refresh === "function") {
-        return controller.refresh();
-      }
-      return null;
-    };
-
-    const runOpenRepository = () => {
-      if (typeof controller?.openRepository === "function") {
-        return controller.openRepository();
-      }
-      return null;
-    };
-
-    if (
-      typeof controller?.manualRefresh === "function" ||
-      typeof controller?.refresh === "function"
-    ) {
-      const headRefresh = makeActionButton(
-        "icon-btn widget-refresh-btn",
-        instance.type === "githubReviewInbox" ? "Refresh review inbox" : "Refresh pull requests",
-        "i-reset",
-        runRefresh
-      );
-      placeHeadAction(headRefresh);
-
-      const floatRefresh = makeActionButton(
-        "icon-btn widget-float-refresh",
-        instance.type === "githubReviewInbox" ? "Refresh review inbox" : "Refresh pull requests",
-        "i-reset",
-        runRefresh
-      );
-      placeFloatBottomAction(floatRefresh);
     }
 
     if (typeof controller?.openRepository === "function") {
-      const headOpen = makeActionButton(
-        "icon-btn widget-open-btn",
-        instance.type === "githubReviewInbox" ? "Open repository pull requests" : "Open repository",
-        "i-open",
-        runOpenRepository
-      );
-      placeHeadAction(headOpen);
-
-      const floatOpen = makeActionButton(
-        "icon-btn widget-float-open",
-        instance.type === "githubReviewInbox" ? "Open repository pull requests" : "Open repository",
-        "i-open",
-        runOpenRepository
-      );
-      placeFloatTopAction(floatOpen);
+      addHeadAndFloatAction({
+        selectBtn,
+        headActions,
+        placeFloatAction: placeFloatTopAction,
+        headClassName: "icon-btn widget-open-btn",
+        floatClassName: "icon-btn widget-float-open",
+        titleText: openTitle,
+        iconId: "i-open",
+        action: runOpenRepository
+      });
     }
   }
 }
