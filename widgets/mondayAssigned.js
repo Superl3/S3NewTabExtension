@@ -497,7 +497,7 @@ function mapAssignedIssues(rawItems, maxItems, statusColumnIds = []) {
   const seen = new Set();
   const mapped = [];
 
-  for (const entry of rawItems || []) {
+  for (const entry of arrayOrEmpty(rawItems)) {
     const id = normalizeText(entry?.id);
     if (!id || seen.has(id)) {
       continue;
@@ -1494,7 +1494,7 @@ export const mondayAssignedWidget = {
           boardHeaderRow.append(createBoardHeader(first, cfg, arrayOrEmpty(first?.issues).length));
           list.append(boardHeaderRow);
         }
-        const grouped = groupIssuesByGroup(first?.issues || [], first?.boardGroups || []);
+        const grouped = groupIssuesByGroup(first?.issues, first?.boardGroups);
         renderGroupedIssues(list, grouped, cfg, `board-${first?.boardId || cfg.boardId}`);
         return;
       }
@@ -1519,7 +1519,7 @@ export const mondayAssignedWidget = {
           continue;
         }
 
-        const grouped = groupIssuesByGroup(boardIssues, snapshot?.boardGroups || []);
+        const grouped = groupIssuesByGroup(boardIssues, snapshot?.boardGroups);
         const boardList = document.createElement("ul");
         boardList.className = "monday-board-card-list";
         renderGroupedIssues(boardList, grouped, cfg, `board-${snapshot.boardId}`);
