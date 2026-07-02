@@ -1,6 +1,11 @@
 import { normalizeErrorMessage } from "../core/utils/error.js";
 import { parseJsonOrNull } from "../core/utils/json.js";
-import { clamp, clampTruthyNumberOrFallback, normalizeIntegerInRange } from "../core/utils/number.js";
+import {
+  clamp,
+  clampTruthyNumberOrFallback,
+  normalizeIntegerInRange,
+  roundFiniteOrFallback
+} from "../core/utils/number.js";
 import { normalizeText } from "../core/utils/text.js";
 import { pruneCacheIndex, touchCacheIndex } from "./shared/localStorageCacheIndex.js";
 
@@ -97,7 +102,7 @@ function writeWeatherCache(config, snapshot, fetchedAt) {
   if (typeof localStorage === "undefined") {
     return;
   }
-  const timestamp = Number.isFinite(Number(fetchedAt)) ? Math.round(Number(fetchedAt)) : Date.now();
+  const timestamp = roundFiniteOrFallback(fetchedAt, Date.now());
   const payload = {
     fetchedAt: Math.max(1, timestamp),
     snapshot
