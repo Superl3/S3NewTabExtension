@@ -27,7 +27,7 @@ import {
   toTruthyNumberOrFallback,
   toPositiveInteger
 } from "../core/utils/number.js";
-import { hasOwn, isPlainObject } from "../core/utils/object.js";
+import { hasOwn, isPlainObject, objectOrEmpty } from "../core/utils/object.js";
 import { normalizeText } from "../core/utils/text.js";
 import { clamp as layoutClamp } from "../core/layout-primitives.js";
 import {
@@ -238,6 +238,10 @@ test("object utilities preserve plain-object and safe own-property semantics", (
   assert.equal(isPlainObject({ ok: true }), true);
   assert.equal(isPlainObject([]), false);
   assert.equal(isPlainObject(null), false);
+  const value = { ok: true };
+  assert.equal(objectOrEmpty(value), value);
+  assert.deepEqual(objectOrEmpty([]), {});
+  assert.deepEqual(objectOrEmpty(null), {});
   assert.equal(hasOwn({ ok: false }, "ok"), true);
   assert.equal(hasOwn(null, "ok"), false);
 });
@@ -1947,6 +1951,9 @@ test("general widgets use shared array fallback helper", async () => {
   assert.doesNotMatch(containerSource, /Array\.isArray\(list\) \? list : \[\]/);
 
   const bookmarksSource = await fs.readFile(new URL("../widgets/bookmarks.js", import.meta.url), "utf8");
+  assert.match(bookmarksSource, /core\/utils\/object\.js/);
+  assert.match(bookmarksSource, /objectOrEmpty\(/);
+  assert.doesNotMatch(bookmarksSource, /^function asRecord\(/m);
   assert.doesNotMatch(bookmarksSource, /(?:node|activeFolder)\.children \|\| \[\]/);
 
   const rssSource = await fs.readFile(new URL("../widgets/rss.js", import.meta.url), "utf8");
