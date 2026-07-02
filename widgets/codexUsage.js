@@ -1,5 +1,7 @@
 import { executeScript } from "../core/platform/chrome-scripting.js";
 import { waitForTabReady } from "../core/platform/chrome-tabs.js";
+import { normalizeErrorMessage } from "../core/utils/error.js";
+import { normalizeText } from "../core/utils/text.js";
 
 const CODEX_USAGE_URL = "https://chatgpt.com/codex/settings/usage";
 const CHATGPT_TAB_MATCH = "https://chatgpt.com/*";
@@ -14,21 +16,6 @@ const SLOT_DEFINITIONS = [
   { key: "spark-5h", period: "fiveHours", title: "Codex-Spark · 5시간" },
   { key: "spark-weekly", period: "weekly", title: "Codex-Spark · 주간" }
 ];
-
-function normalizeText(value, fallback = "") {
-  const text = String(value || "").trim();
-  return text || fallback;
-}
-
-function normalizeErrorMessage(error, fallback = "Unknown error") {
-  if (!error) {
-    return fallback;
-  }
-  if (typeof error === "string") {
-    return normalizeText(error, fallback);
-  }
-  return normalizeText(error?.message, fallback);
-}
 
 function normalizeCodexModelName(value, fallback = "") {
   const text = normalizeText(value);

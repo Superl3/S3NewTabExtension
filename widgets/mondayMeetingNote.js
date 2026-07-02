@@ -1,4 +1,6 @@
 import { normalizeErrorMessage } from "../core/utils/error.js";
+import { clamp } from "../core/utils/number.js";
+import { normalizeText } from "../core/utils/text.js";
 import {
   buildAuthConnectorStartUrl,
   createAuthState,
@@ -30,15 +32,6 @@ const LOCAL_AUTH_CONNECTOR_URL = "http://localhost:8787/api/auth/start";
 const WEEKDAY_AUTO_SLOTS_MINUTES = [9 * 60, 13 * 60];
 const DEFAULT_MEETING_NOTE_COLUMN_SELECTOR = "미팅 노트, monday Doc";
 const FALLBACK_LATEST_SCAN_LIMIT = 300;
-
-function clamp(value, min, max) {
-  return Math.max(min, Math.min(max, value));
-}
-
-function normalizeText(value, fallback = "") {
-  const text = String(value || "").trim();
-  return text || fallback;
-}
 
 function normalizeColumnSelectorList(value, fallback = DEFAULT_MEETING_NOTE_COLUMN_SELECTOR) {
   return normalizeSharedColumnSelectorList(value, {

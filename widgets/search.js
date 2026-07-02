@@ -1,3 +1,5 @@
+import { normalizeText } from "../core/utils/text.js";
+
 const SEARCH_PROVIDERS = {
   google: {
     label: "Google",
@@ -21,11 +23,6 @@ const SEARCH_PROVIDER_OPTIONS = Object.entries(SEARCH_PROVIDERS).map(([value, de
   value,
   label: def.label
 }));
-
-function normalizeText(value, fallback = "") {
-  const text = String(value || "").trim();
-  return text || fallback;
-}
 
 function normalizeProvider(value, fallback = "google") {
   const key = String(value || "").trim().toLowerCase();

@@ -1,14 +1,11 @@
 import { areBookmarksAvailable, resolveBookmarkRoot } from "../bookmarks.js";
+import { normalizeText } from "../core/utils/text.js";
 
 function asRecord(value) {
   if (value && typeof value === "object" && !Array.isArray(value)) {
     return value;
   }
   return {};
-}
-
-function normalizeText(value) {
-  return String(value || "").trim();
 }
 
 function normalizeSafeLink(value) {

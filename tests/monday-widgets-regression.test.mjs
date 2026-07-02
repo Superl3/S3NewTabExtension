@@ -4,6 +4,10 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import vm from "node:vm";
 
+import { normalizeErrorMessage } from "../core/utils/error.js";
+import { clamp } from "../core/utils/number.js";
+import { normalizeText } from "../core/utils/text.js";
+
 const REPO_ROOT = process.cwd();
 
 async function loadWidgetInternals(relativePath, exportedNames, injected = {}) {
@@ -22,9 +26,12 @@ async function loadWidgetInternals(relativePath, exportedNames, injected = {}) {
     setTimeout,
     clearTimeout,
     chrome: {},
+    clamp,
     getChromeIdentity: () => null,
     getChromeStorageChanges: () => null,
     getChromeStorageLocal: () => null,
+    normalizeErrorMessage,
+    normalizeText,
     ...injected
   };
 

@@ -1,6 +1,4 @@
-function clamp(value, min, max) {
-  return Math.max(min, Math.min(max, value));
-}
+import { clamp } from "../core/utils/number.js";
 
 const AUTO_LIGHT_TEXT = "#f3f7ff";
 const AUTO_DARK_TEXT = "#151a23";
