@@ -1630,6 +1630,9 @@ test("Monday widgets share cached board base normalization", async () => {
   }
 
   const assignedSource = await fs.readFile(new URL("../widgets/mondayAssigned.js", import.meta.url), "utf8");
+  assert.match(assignedSource, /formatMondayGraphqlString/);
+  assert.doesNotMatch(assignedSource, /JSON\.stringify\(peopleColumnId\)/);
+  assert.doesNotMatch(assignedSource, /JSON\.stringify\(legacyFilter\)/);
   assert.doesNotMatch(assignedSource, /Array\.isArray\(rawConfig\?\.cacheIssues\)/);
   assert.doesNotMatch(assignedSource, /Array\.isArray\(rawConfig\?\.cacheGroups\)/);
   assert.doesNotMatch(assignedSource, /Array\.isArray\(cfg\.boardIds\) \? cfg\.boardIds : \[\]/);
