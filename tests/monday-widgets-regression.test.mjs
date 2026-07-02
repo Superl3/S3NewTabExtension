@@ -10,10 +10,9 @@ import { parseJsonOrNull } from "../core/utils/json.js";
 import { clamp } from "../core/utils/number.js";
 import { normalizeText } from "../core/utils/text.js";
 import {
-  isAuthCancelledMessage,
+  formatAuthConnectorErrorMessage,
   LOCAL_AUTH_CONNECTOR_URL,
-  normalizeLocalAuthConnectorUrl as normalizeConnectorUrl,
-  rewriteAuthorizationLoadError
+  normalizeLocalAuthConnectorUrl as normalizeConnectorUrl
 } from "../widgets/shared/authConnector.js";
 import { hasActiveAuthConnection } from "../widgets/shared/authSessionStorage.js";
 import { formatLocalDateTimeLabel as formatDateLabel } from "../widgets/shared/dateLabels.js";
@@ -42,8 +41,8 @@ async function loadWidgetInternals(relativePath, exportedNames, injected = {}) {
     getChromeIdentity: () => null,
     getChromeStorageChanges: () => null,
     getChromeStorageLocal: () => null,
+    formatAuthConnectorErrorMessage,
     hasActiveAuthConnection,
-    isAuthCancelledMessage,
     LOCAL_AUTH_CONNECTOR_URL,
     MONDAY_AUTH_STORAGE_KEY,
     formatDateLabel,
@@ -51,7 +50,6 @@ async function loadWidgetInternals(relativePath, exportedNames, injected = {}) {
     normalizeConnectorUrl,
     parseUrlSafely,
     parseJsonOrNull,
-    rewriteAuthorizationLoadError,
     arrayOrEmpty,
     normalizeText,
     ...injected

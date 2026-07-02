@@ -1,13 +1,11 @@
 import { arrayOrEmpty } from "../core/utils/array.js";
-import { normalizeErrorMessage } from "../core/utils/error.js";
 import { toFiniteNumber } from "../core/utils/number.js";
 import { normalizeText } from "../core/utils/text.js";
 import {
   connectWithAuthConnector,
-  isAuthCancelledMessage,
+  formatAuthConnectorErrorMessage,
   LOCAL_AUTH_CONNECTOR_URL,
-  normalizeLocalAuthConnectorUrl as normalizeConnectorUrl,
-  rewriteAuthorizationLoadError
+  normalizeLocalAuthConnectorUrl as normalizeConnectorUrl
 } from "./shared/authConnector.js";
 import {
   createAuthSessionStorage,
@@ -374,13 +372,10 @@ export const aiChatWidget = {
         updateActiveSessionFromStorage();
         connectionError = "";
       } catch (error) {
-        let message = normalizeErrorMessage(error);
-        message = rewriteAuthorizationLoadError(message);
-        if (isAuthCancelledMessage(message)) {
-          connectionError = "Connector authentication was cancelled.";
-        } else {
-          connectionError = message || "Connector authentication failed.";
-        }
+        connectionError = formatAuthConnectorErrorMessage(error, {
+          cancelledMessage: "Connector authentication was cancelled.",
+          fallbackMessage: "Connector authentication failed."
+        });
       } finally {
         isConnecting = false;
         render();
