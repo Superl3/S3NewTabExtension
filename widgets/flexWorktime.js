@@ -1,5 +1,4 @@
 import { normalizeErrorMessage } from "../core/utils/error.js";
-import { parseJsonOrNull } from "../core/utils/json.js";
 import { isPlainObject } from "../core/utils/object.js";
 import { normalizeText } from "../core/utils/text.js";
 import { hasScriptingApi } from "../core/platform/chrome-scripting.js";
@@ -24,6 +23,7 @@ import {
   isMatchingFlexLoginTabUrl,
   parseFlexHomeTargetUrl
 } from "./shared/flexUrls.js";
+import { createFlexWorktimeCache } from "./shared/flexWorktimeCache.js";
 import {
   formatFlexSourceError,
   formatSyncedLabel,
@@ -36,15 +36,9 @@ import {
   toCachedWorktimeRow as toCachedRow,
   toLocalDateKey
 } from "./shared/flexWorktimeRows.js";
-import { pruneCacheIndex, touchCacheIndex } from "./shared/localStorageCacheIndex.js";
 
 const FLEX_WORKTIME_CACHE_PREFIX = "s3newtab:flex-worktime-cache:v1";
 const FLEX_WORKTIME_CACHE_MAX_ENTRIES = 24;
-const FLEX_WORKTIME_CACHE_INDEX_KEY = `${FLEX_WORKTIME_CACHE_PREFIX}:__index__`;
-const FLEX_WORKTIME_CACHE_INDEX_OPTIONS = {
-  prefix: `${FLEX_WORKTIME_CACHE_PREFIX}:`,
-  indexKey: FLEX_WORKTIME_CACHE_INDEX_KEY
-};
 const FLEX_HOME_TAB_LOAD_TIMEOUT_MS = 20000;
 const DEFAULT_FLEX_WORKTIME_REFRESH_MINUTES = 1;
 const DEFAULT_FLEX_HOME_URL = "https://flex.team/home";
@@ -62,83 +56,18 @@ function configSignature(config) {
   ].join("|");
 }
 
-function requestSignature(config, queryDate) {
-  return `${configSignature(config)}|${normalizeText(queryDate)}`;
-}
-
-function flexWorktimeCacheStorageKey(config, queryDate) {
-  const encodedSignature = encodeURIComponent(configSignature(config));
-  const encodedDate = encodeURIComponent(normalizeText(queryDate));
-  return `${FLEX_WORKTIME_CACHE_PREFIX}:${encodedSignature}:${encodedDate}`;
-}
-
-function readCachedSnapshot(config, queryDate) {
-  if (typeof localStorage === "undefined") {
-    return null;
-  }
-
-  const key = flexWorktimeCacheStorageKey(config, queryDate);
-  let raw = "";
-  try {
-    raw = localStorage.getItem(key) || "";
-  } catch {
-    return null;
-  }
-
-  const parsed = parseJsonOrNull(raw);
-  if (!isPlainObject(parsed)) {
-    return null;
-  }
-
-  const fetchedAt = Number(parsed.fetchedAt);
-  const rows = Array.isArray(parsed.rows)
-    ? parsed.rows.map(normalizeCachedRow).filter(Boolean)
-    : [];
-
-  if (!Number.isFinite(fetchedAt) || fetchedAt <= 0) {
-    return null;
-  }
-
-  return {
-    fetchedAt: Math.round(fetchedAt),
-    rows
-  };
-}
-
-function pruneCacheEntries(maxEntries = FLEX_WORKTIME_CACHE_MAX_ENTRIES) {
-  if (typeof localStorage === "undefined") {
-    return;
-  }
-
-  pruneCacheIndex(localStorage, {
-    ...FLEX_WORKTIME_CACHE_INDEX_OPTIONS,
-    maxEntries
-  });
-}
-
-function writeCachedSnapshot(config, queryDate, rows, fetchedAt = Date.now()) {
-  if (typeof localStorage === "undefined") {
-    return;
-  }
-
-  const key = flexWorktimeCacheStorageKey(config, queryDate);
-  const payload = {
-    fetchedAt: Math.max(1, Math.round(Number(fetchedAt) || Date.now())),
-    rows: Array.isArray(rows) ? rows.map(toCachedRow).filter(Boolean) : []
-  };
-
-  try {
-    localStorage.setItem(key, JSON.stringify(payload));
-    touchCacheIndex(localStorage, {
-      ...FLEX_WORKTIME_CACHE_INDEX_OPTIONS,
-      key,
-      fetchedAt: payload.fetchedAt,
-      maxEntries: FLEX_WORKTIME_CACHE_MAX_ENTRIES
-    });
-  } catch {
-    // noop
-  }
-}
+const {
+  requestSignature,
+  readCachedSnapshot,
+  pruneCacheEntries,
+  writeCachedSnapshot
+} = createFlexWorktimeCache({
+  cachePrefix: FLEX_WORKTIME_CACHE_PREFIX,
+  maxEntries: FLEX_WORKTIME_CACHE_MAX_ENTRIES,
+  configSignature,
+  normalizeCachedRow,
+  toCachedRow
+});
 
 function resolveQueryDateForSource(config) {
   return toLocalDateKey(new Date());

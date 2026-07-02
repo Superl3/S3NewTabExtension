@@ -361,6 +361,22 @@ test("Flex worktime widgets share the Flex Home scrape extractor", async () => {
   }
 });
 
+test("Flex worktime widgets share cache helpers instead of local copies", async () => {
+  const moduleUrls = [
+    new URL("../widgets/flexWorktime.js", import.meta.url),
+    new URL("../widgets/flexWorktimeTimeline.js", import.meta.url)
+  ];
+  const localCachePattern =
+    /^function (flexWorktimeCacheStorageKey|pruneCacheEntries|readCachedSnapshot|requestSignature|writeCachedSnapshot)\(/m;
+
+  for (const moduleUrl of moduleUrls) {
+    const source = await fs.readFile(moduleUrl, "utf8");
+    assert.match(source, /shared\/flexWorktimeCache\.js/, moduleUrl.pathname);
+    assert.doesNotMatch(source, /shared\/localStorageCacheIndex\.js/, moduleUrl.pathname);
+    assert.doesNotMatch(source, localCachePattern, moduleUrl.pathname);
+  }
+});
+
 test("GitHub widgets share repository and API helpers", async () => {
   const moduleUrls = [
     new URL("../widgets/githubPrList.js", import.meta.url),
