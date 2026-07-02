@@ -50,6 +50,42 @@ export function autoRefreshDoneSetForDay(config, dayKey, slotCount) {
     : new Set();
 }
 
+export function dueAutoRefreshSlotIndices(config, slots, now = new Date()) {
+  const nowMinutes = now.getHours() * 60 + now.getMinutes();
+  const dayKey = toLocalDayKey(now);
+  const doneSet = autoRefreshDoneSetForDay(config, dayKey, slots.length);
+  const due = [];
+
+  for (let index = 0; index < slots.length; index += 1) {
+    if (!doneSet.has(index) && slots[index] <= nowMinutes) {
+      due.push(index);
+    }
+  }
+
+  return due;
+}
+
+export function nextAutoRefreshSlot(config, slots, now = new Date(), nextDate = null) {
+  const nowMinutes = now.getHours() * 60 + now.getMinutes();
+  const dayKey = toLocalDayKey(now);
+  const doneSet = autoRefreshDoneSetForDay(config, dayKey, slots.length);
+
+  for (let index = 0; index < slots.length; index += 1) {
+    if (!doneSet.has(index) && slots[index] > nowMinutes) {
+      return {
+        slotIndex: index,
+        runAt: dateAtMinute(now, slots[index])
+      };
+    }
+  }
+
+  const fallbackDate = nextDate || new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 0, 0, 0, 0);
+  return {
+    slotIndex: 0,
+    runAt: dateAtMinute(fallbackDate, slots[0])
+  };
+}
+
 export function updateAutoRefreshSlotsDoneForToday(config, now, indicesToMark, slotCount) {
   const dayKey = toLocalDayKey(now);
   const doneSet = autoRefreshDoneSetForDay(config, dayKey, slotCount);
