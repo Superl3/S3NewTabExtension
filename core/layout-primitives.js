@@ -1,5 +1,5 @@
 import { snapToHalfGridTrack } from "./utils/grid.js";
-import { clamp, normalizeIntegerInRange, toFiniteNumber } from "./utils/number.js";
+import { clamp, normalizeIntegerInRange, toFiniteNumber, toTruthyNumberOrFallback } from "./utils/number.js";
 
 const GRID_MAX_COLUMNS_FALLBACK = 16;
 const GRID_MAX_ROWS_FALLBACK = 16;
@@ -63,10 +63,10 @@ export function normalizeGridLayout(layout, fallback) {
   const rawRow = Number(layout?.row);
   const rawColSpan = Number(layout?.colSpan);
   const rawRowSpan = Number(layout?.rowSpan);
-  const fallbackCol = Number(fallback?.col) || 0;
-  const fallbackRow = Number(fallback?.row) || 0;
-  const fallbackColSpan = Number(fallback?.colSpan) || 1;
-  const fallbackRowSpan = Number(fallback?.rowSpan) || 1;
+  const fallbackCol = toTruthyNumberOrFallback(fallback?.col, 0);
+  const fallbackRow = toTruthyNumberOrFallback(fallback?.row, 0);
+  const fallbackColSpan = toTruthyNumberOrFallback(fallback?.colSpan, 1);
+  const fallbackRowSpan = toTruthyNumberOrFallback(fallback?.rowSpan, 1);
 
   return {
     col: normalizeGridTrackPosition(rawCol, fallbackCol),

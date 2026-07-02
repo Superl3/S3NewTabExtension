@@ -686,6 +686,15 @@ test("grid and layout primitives share half-track snapping", async () => {
   assert.doesNotMatch(layoutSource, /Number\.isFinite\(numeric\) \? numeric/);
 });
 
+test("layout primitives use shared truthy fallback for grid layout fallbacks", async () => {
+  const source = await fs.readFile(new URL("../core/layout-primitives.js", import.meta.url), "utf8");
+  assert.match(source, /toTruthyNumberOrFallback\(fallback\?\.col, 0\)/);
+  assert.match(source, /toTruthyNumberOrFallback\(fallback\?\.row, 0\)/);
+  assert.match(source, /toTruthyNumberOrFallback\(fallback\?\.colSpan, 1\)/);
+  assert.match(source, /toTruthyNumberOrFallback\(fallback\?\.rowSpan, 1\)/);
+  assert.doesNotMatch(source, /Number\(fallback\?\.(?:col|row|colSpan|rowSpan)\) \|\| [01]/);
+});
+
 test("drop guide runtime uses shared number helpers for board slot rectangles", async () => {
   const source = await fs.readFile(new URL("../core/drop-guide-runtime.js", import.meta.url), "utf8");
   assert.match(source, /utils\/number\.js/);
