@@ -13,6 +13,7 @@ import {
   rewriteAuthorizationLoadError
 } from "../widgets/shared/authConnector.js";
 import {
+  hasActiveAuthConnection,
   hasAuthSessionStorageChange,
   resolveActiveAuthSession
 } from "../widgets/shared/authSessionStorage.js";
@@ -237,6 +238,47 @@ test("shared auth session only reuses stored session for matching connector", ()
       storedSession
     }),
     null
+  );
+});
+
+test("shared active auth connection predicate preserves configured-token and stored-session semantics", () => {
+  assert.equal(
+    hasActiveAuthConnection({
+      config: {
+        connectorUrl: "http://localhost:8787/api/auth/start",
+        accessToken: "configured-token"
+      },
+      connected: false,
+      accessToken: "configured-token",
+      sessionConnectorUrl: ""
+    }),
+    true
+  );
+
+  assert.equal(
+    hasActiveAuthConnection({
+      config: {
+        connectorUrl: "http://localhost:8787/api/auth/start",
+        accessToken: ""
+      },
+      connected: true,
+      accessToken: "stored-token",
+      sessionConnectorUrl: "http://localhost:8787/api/auth/start"
+    }),
+    true
+  );
+
+  assert.equal(
+    hasActiveAuthConnection({
+      config: {
+        connectorUrl: "https://other.example.com/start",
+        accessToken: ""
+      },
+      connected: true,
+      accessToken: "stored-token",
+      sessionConnectorUrl: "http://localhost:8787/api/auth/start"
+    }),
+    false
   );
 });
 
