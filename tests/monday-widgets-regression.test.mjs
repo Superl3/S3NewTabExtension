@@ -16,7 +16,11 @@ import {
 } from "../widgets/shared/authConnector.js";
 import { hasActiveAuthConnection } from "../widgets/shared/authSessionStorage.js";
 import { formatLocalDateTimeLabel as formatDateLabel } from "../widgets/shared/dateLabels.js";
-import { MONDAY_AUTH_STORAGE_KEY } from "../widgets/shared/mondayConfig.js";
+import {
+  formatMondayGraphqlStringList,
+  MONDAY_AUTH_STORAGE_KEY,
+  parseColumnSelectorList
+} from "../widgets/shared/mondayConfig.js";
 import { parseUrlSafely } from "../widgets/shared/mondayClient.js";
 
 const REPO_ROOT = process.cwd();
@@ -82,12 +86,13 @@ test("mondayAssigned resolves people column selector without missing normalizer"
   assert.deepEqual(Array.from(resolved), ["people_owner"]);
 });
 
-test("mondayAssigned normalizes column ids without undefined helper", async () => {
-  const { normalizeColumnIds } = await loadWidgetInternals(
+test("mondayAssigned builds status column values selection with shared selector parsing", async () => {
+  const { buildStatusColumnValuesSelection } = await loadWidgetInternals(
     "widgets/mondayAssigned.js",
-    ["normalizeColumnIds"],
+    ["buildStatusColumnValuesSelection"],
     {
-      normalizeColumnSelector: (value) => String(value || "").trim(),
+      formatMondayGraphqlStringList,
+      parseColumnSelectorList,
       createAuthSessionStorage: () => ({
         load: async () => null,
         save: async () => {},
@@ -96,8 +101,8 @@ test("mondayAssigned normalizes column ids without undefined helper", async () =
     }
   );
 
-  const normalized = normalizeColumnIds([" status ", "", "done "]);
-  assert.deepEqual(Array.from(normalized), ["status", "done"]);
+  const selection = buildStatusColumnValuesSelection([" status ", "", "done "]);
+  assert.match(selection, /column_values\(ids: \["status", "done"\]\)/);
 });
 
 test("mondayAssigned keeps per-board people selectors isolated", async () => {
