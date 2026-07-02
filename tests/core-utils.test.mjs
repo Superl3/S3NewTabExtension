@@ -22,6 +22,7 @@ import {
   toFiniteNumber,
   toInteger,
   toNonNegativeNumberOrFallback,
+  toTruthyNumberOrFallback,
   toPositiveInteger
 } from "../core/utils/number.js";
 import { hasOwn, isPlainObject } from "../core/utils/object.js";
@@ -84,6 +85,23 @@ test("toNonNegativeNumberOrFallback preserves legacy non-negative number semanti
   assert.equal(toNonNegativeNumberOrFallback(-1), 0);
   assert.equal(toNonNegativeNumberOrFallback("bad"), 0);
   assert.equal(toNonNegativeNumberOrFallback("", 7), 7);
+});
+
+test("toTruthyNumberOrFallback preserves truthy number fallback semantics", () => {
+  let fallbackCalls = 0;
+  const fallback = () => {
+    fallbackCalls += 1;
+    return 10;
+  };
+
+  assert.equal(toTruthyNumberOrFallback("4.5", 10), 4.5);
+  assert.equal(toTruthyNumberOrFallback("4.5", fallback), 4.5);
+  assert.equal(fallbackCalls, 0);
+  assert.equal(toTruthyNumberOrFallback(0, fallback), 10);
+  assert.equal(fallbackCalls, 1);
+  assert.equal(toTruthyNumberOrFallback("bad", fallback), 10);
+  assert.equal(fallbackCalls, 2);
+  assert.equal(toTruthyNumberOrFallback(-5, 10), -5);
 });
 
 test("toFiniteNumber returns numeric values and falls back for non-finite values", () => {
@@ -312,6 +330,13 @@ test("state timestamp fields use shared non-negative number normalization", asyn
       moduleUrl.pathname
     );
   }
+});
+
+test("hydrate preset timestamp fallbacks use shared truthy number normalization", async () => {
+  const source = await fs.readFile(new URL("../core/hydrate-state.js", import.meta.url), "utf8");
+  assert.match(source, /createdAt: toTruthyNumberOrFallback\(preset\.createdAt, Date\.now\)/);
+  assert.match(source, /updatedAt: toTruthyNumberOrFallback\(preset\.updatedAt, Date\.now\)/);
+  assert.doesNotMatch(source, /(?:createdAt|updatedAt): Number\(preset\.(?:createdAt|updatedAt)\) \|\| Date\.now\(\)/);
 });
 
 test("geometry edge gaps use shared non-negative number normalization", async () => {

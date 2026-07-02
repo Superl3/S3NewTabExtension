@@ -1,4 +1,4 @@
-import { clampTruthyNumberOrFallback, toNonNegativeNumberOrFallback } from "./utils/number.js";
+import { clampTruthyNumberOrFallback, toNonNegativeNumberOrFallback, toTruthyNumberOrFallback } from "./utils/number.js";
 
 export function hydrateState(raw, deps = {}) {
   const {
@@ -241,8 +241,8 @@ export function hydrateState(raw, deps = {}) {
       return {
         id: normalizeText(preset.id, `${Date.now()}-${Math.random().toString(16).slice(2, 8)}`),
         name: normalizeText(preset.name, "Preset"),
-        createdAt: Number(preset.createdAt) || Date.now(),
-        updatedAt: Number(preset.updatedAt) || Date.now(),
+        createdAt: toTruthyNumberOrFallback(preset.createdAt, Date.now),
+        updatedAt: toTruthyNumberOrFallback(preset.updatedAt, Date.now),
         snapshot: clonePresetSnapshot(snapshot)
       };
     })

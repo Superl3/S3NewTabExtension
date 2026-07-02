@@ -25,6 +25,12 @@ export function clampRoundedTruthyNumberOrFallback(value, fallback, min, max) {
   return clamp(Math.round(Number(value) || fallback), min, max);
 }
 
+export function toTruthyNumberOrFallback(value, fallback) {
+  const numeric = Number(value);
+  if (numeric) return numeric;
+  return typeof fallback === "function" ? fallback() : fallback;
+}
+
 export function toNonNegativeNumberOrFallback(value, fallback = 0) {
   return clampTruthyNumberOrFallback(value, fallback, 0, Number.POSITIVE_INFINITY);
 }

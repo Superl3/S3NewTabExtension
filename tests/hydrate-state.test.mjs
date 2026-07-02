@@ -171,3 +171,42 @@ test("hydrateState falls back to base instances when input has no instances arra
   assert.equal(result.instances[0].id, "base-instance");
   assert.equal(result.mode, "use");
 });
+
+test("hydrateState normalizes preset timestamps with truthy fallback semantics", () => {
+  const deps = createDeps();
+  const previousNow = Date.now;
+  Date.now = () => 123456;
+
+  try {
+    const result = hydrateState(
+      {
+        instances: [],
+        presets: [
+          {
+            id: "preset-1",
+            name: "Preset",
+            createdAt: 0,
+            updatedAt: "bad",
+            snapshot: { ui: {}, instances: [] }
+          },
+          {
+            id: "preset-2",
+            name: "Negative",
+            createdAt: -5,
+            updatedAt: 10,
+            snapshot: { ui: {}, instances: [] }
+          }
+        ],
+        ui: {}
+      },
+      deps
+    );
+
+    assert.equal(result.presets[0].createdAt, 123456);
+    assert.equal(result.presets[0].updatedAt, 123456);
+    assert.equal(result.presets[1].createdAt, -5);
+    assert.equal(result.presets[1].updatedAt, 10);
+  } finally {
+    Date.now = previousNow;
+  }
+});
