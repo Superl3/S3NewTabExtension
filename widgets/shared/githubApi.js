@@ -1,5 +1,5 @@
 import { parseJsonOrFallback } from "../../core/utils/json.js";
-import { normalizeIntegerInRange } from "../../core/utils/number.js";
+import { normalizeIntegerInRange, toFiniteNumber, toInteger } from "../../core/utils/number.js";
 import { normalizeText } from "../../core/utils/text.js";
 
 export const GITHUB_API_BASE = "https://api.github.com";
@@ -16,6 +16,14 @@ export function normalizeGitHubMaxItems(value, fallback = 20) {
 
 export function normalizeGitHubRefreshMinutes(value, fallback = 5) {
   return normalizeIntegerInRange(value, fallback, 1, 120);
+}
+
+export function normalizeGitHubCacheNumber(value, fallback = 0) {
+  return toFiniteNumber(value, fallback);
+}
+
+export function normalizeGitHubCacheCount(value, fallback = 0) {
+  return Math.max(0, toInteger(value, fallback));
 }
 
 export function normalizeGitHubRepository(value, fallback = "") {
