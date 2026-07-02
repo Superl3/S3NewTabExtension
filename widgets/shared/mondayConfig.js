@@ -56,6 +56,19 @@ export function hasMondayBoardConfig(config) {
   return Array.isArray(config?.boardIds) && config.boardIds.length > 0;
 }
 
+export function normalizeCachedMondayBoardBase(entry) {
+  const boardId = normalizeBoardId(entry?.boardId, 0);
+  if (!boardId) {
+    return null;
+  }
+
+  return {
+    boardId,
+    boardName: normalizeText(entry?.boardName, `Board ${boardId}`),
+    boardUrl: normalizeText(entry?.boardUrl)
+  };
+}
+
 export function normalizeColumnSelector(value, options = {}) {
   const { fallback = "", maxLength = 120, allowWildcard = false } = options;
   const text = normalizeText(value, fallback);

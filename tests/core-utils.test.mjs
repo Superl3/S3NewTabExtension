@@ -533,6 +533,26 @@ test("Monday widgets share config predicates instead of local copies", async () 
   }
 });
 
+test("Monday widgets share cached board base normalization", async () => {
+  const moduleUrls = [
+    new URL("../widgets/mondayAssigned.js", import.meta.url),
+    new URL("../widgets/mondayMeetingNote.js", import.meta.url)
+  ];
+
+  for (const moduleUrl of moduleUrls) {
+    const source = await fs.readFile(moduleUrl, "utf8");
+    const cachedSnapshotBlock = source.match(
+      /function normalizeCachedBoardSnapshot\([\s\S]*?\n}\n\nfunction readCachedSnapshot/
+    )?.[0] || "";
+    assert.match(source, /normalizeCachedMondayBoardBase/, moduleUrl.pathname);
+    assert.doesNotMatch(
+      cachedSnapshotBlock,
+      /boardName:\s*normalizeText\(entry\?\.boardName,\s*`Board \$\{boardId\}`\)/,
+      moduleUrl.pathname
+    );
+  }
+});
+
 test("Monday meeting notes reuse the shared safe URL parser", async () => {
   const source = await fs.readFile(new URL("../widgets/mondayMeetingNote.js", import.meta.url), "utf8");
   assert.match(source, /parseUrlSafely,\s*\n\s*resolveMondaySiteUrl/s);
