@@ -2,7 +2,7 @@ import { normalizeErrorMessage } from "../../core/utils/error.js";
 import { clamp, normalizeIntegerInRange, toFiniteNumber, toInteger } from "../../core/utils/number.js";
 import { hasOwn, isPlainObject } from "../../core/utils/object.js";
 import { normalizeText } from "../../core/utils/text.js";
-import { toLocalDateKey } from "./localDates.js";
+import { addLocalDays, toLocalDateKey } from "./localDates.js";
 
 const NAME_FIELDS = [
   "employeeName",
@@ -93,7 +93,7 @@ export function normalizeFlexWidgetBaseConfig(config, options = {}) {
   };
 }
 
-export { toLocalDateKey };
+export { addLocalDays, toLocalDateKey };
 
 export function formatClockMinutes(totalMinutes) {
   const minutes = clamp(toInteger(totalMinutes, 0), 0, 1439);

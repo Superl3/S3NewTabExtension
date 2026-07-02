@@ -46,6 +46,7 @@ import {
   normalizeFlexWidgetBaseConfig,
   normalizeTabId,
   resolveFlexSyncState,
+  addLocalDays,
   parseTimeOfDayMinutes,
   resolveFlexWorktimeDetailUrl as resolveDetailUrl,
   sanitizePlaceholderMap,
@@ -443,20 +444,18 @@ const {
 
 function resolveQueryDate(config) {
   const mode = normalizeDateMode(config.dateMode, "today");
-  const base = new Date();
+  const today = new Date();
 
   if (mode === "today") {
-    return toLocalDateKey(base);
+    return toLocalDateKey(today);
   }
 
   if (mode === "yesterday") {
-    base.setDate(base.getDate() - 1);
-    return toLocalDateKey(base);
+    return toLocalDateKey(addLocalDays(today, -1));
   }
 
   if (mode === "tomorrow") {
-    base.setDate(base.getDate() + 1);
-    return toLocalDateKey(base);
+    return toLocalDateKey(addLocalDays(today, 1));
   }
 
   const customDate = normalizeIsoDate(config.customDate);
@@ -477,9 +476,7 @@ function formatTimelineCaption(queryDate) {
     return "Today timeline";
   }
 
-  const yesterdayDate = new Date();
-  yesterdayDate.setDate(yesterdayDate.getDate() - 1);
-  if (target === toLocalDateKey(yesterdayDate)) {
+  if (target === toLocalDateKey(addLocalDays(new Date(), -1))) {
     return "Yesterday timeline";
   }
 
