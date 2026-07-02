@@ -5,24 +5,24 @@ import {
   createTab,
   getTabIfExists,
   removeTab,
-  updateTab,
   waitForTabReady
 } from "../core/platform/chrome-tabs.js";
 import {
   createFlexAuthRequiredError,
-  FLEX_AUTH_FLOW_PENDING_MESSAGE,
-  isFlexAuthRequiredError
+  FLEX_AUTH_FLOW_PENDING_MESSAGE
 } from "./shared/flexAuth.js";
 import {
   assertFlexScrapeApisAvailable,
   extractFlexHomeWorktimeFromTab
 } from "./shared/flexHomeScrape.js";
 import {
-  isLikelyOngoingFlexAuthFlowUrl,
   isMatchingFlexHomeTabUrl,
   parseFlexHomeTargetUrl
 } from "./shared/flexUrls.js";
-import { findFlexTabByPriority } from "./shared/flexTabs.js";
+import {
+  activateFlexAuthFlowTabIfNeeded,
+  findFlexTabByPriority
+} from "./shared/flexTabs.js";
 import { createFlexWorktimeCache } from "./shared/flexWorktimeCache.js";
 import { toLocalDateKey } from "./shared/localDates.js";
 import {
@@ -145,19 +145,17 @@ export async function fetchFlexHomeScrapeRows(config, queryDate, scrapeFlowState
   } catch (error) {
     if (temporaryTabManaged) {
       const currentTab = await getTabIfExists(tabId);
-      const currentTabUrl = normalizeText(currentTab?.url, normalizeText(targetTab?.url));
-      const authFlowLikely =
-        isFlexAuthRequiredError(error) ||
-        isLikelyOngoingFlexAuthFlowUrl(currentTabUrl, targetUrl);
+      const authFlowLikely = await activateFlexAuthFlowTabIfNeeded({
+        tabId,
+        error,
+        currentTab,
+        targetTab,
+        targetUrl
+      });
 
       if (authFlowLikely) {
         keepTemporaryTabOpen = true;
         setReusableScrapeTabId(scrapeFlowState, tabId);
-        try {
-          await updateTab(tabId, { active: true });
-        } catch {
-          // noop
-        }
         throw createFlexAuthRequiredError(FLEX_AUTH_FLOW_PENDING_MESSAGE);
       }
     }

@@ -1,5 +1,13 @@
-import { queryTabs as queryBrowserTabs } from "../../core/platform/chrome-tabs.js";
-import { isMatchingFlexLoginTabUrl } from "./flexUrls.js";
+import {
+  queryTabs as queryBrowserTabs,
+  updateTab as updateBrowserTab
+} from "../../core/platform/chrome-tabs.js";
+import { normalizeText } from "../../core/utils/text.js";
+import { isFlexAuthRequiredError } from "./flexAuth.js";
+import {
+  isLikelyOngoingFlexAuthFlowUrl,
+  isMatchingFlexLoginTabUrl
+} from "./flexUrls.js";
 
 export function selectPreferredFlexTab(tabs, targetUrl, matchTabUrl) {
   const pageMatch = tabs.find((tab) => matchTabUrl(tab?.url, targetUrl));
@@ -27,4 +35,28 @@ export async function findFlexTabByPriority(targetUrl, matchTabUrl, options = {}
 
   const allTabs = await queryTabs({});
   return selectPreferredFlexTab(allTabs, targetUrl, matchTabUrl);
+}
+
+export async function activateFlexAuthFlowTabIfNeeded({
+  tabId,
+  error,
+  currentTab,
+  targetTab,
+  targetUrl,
+  updateTab = updateBrowserTab
+} = {}) {
+  const currentTabUrl = normalizeText(currentTab?.url, normalizeText(targetTab?.url));
+  const authFlowLikely =
+    isFlexAuthRequiredError(error) || isLikelyOngoingFlexAuthFlowUrl(currentTabUrl, targetUrl);
+
+  if (!authFlowLikely) {
+    return false;
+  }
+
+  try {
+    await updateTab(tabId, { active: true });
+  } catch {
+    // noop
+  }
+  return true;
 }

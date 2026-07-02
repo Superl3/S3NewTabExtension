@@ -1213,7 +1213,10 @@ test("Flex worktime widgets share tab priority helpers instead of local copies",
   for (const moduleUrl of moduleUrls) {
     const source = await fs.readFile(moduleUrl, "utf8");
     assert.match(source, /shared\/flexTabs\.js/, moduleUrl.pathname);
+    assert.match(source, /activateFlexAuthFlowTabIfNeeded/, moduleUrl.pathname);
     assert.doesNotMatch(source, /^function findPreferredFlexTab\(/m, moduleUrl.pathname);
+    assert.doesNotMatch(source, /normalizeText\(currentTab\?\.url/, moduleUrl.pathname);
+    assert.doesNotMatch(source, /updateTab\(tabId, \{ active: true \}\)/, moduleUrl.pathname);
     assert.doesNotMatch(source, /queryTabs\(\{ active: true, currentWindow: true \}\)/, moduleUrl.pathname);
   }
 });
