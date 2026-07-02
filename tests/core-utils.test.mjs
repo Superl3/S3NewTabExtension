@@ -1657,6 +1657,9 @@ test("Monday widgets share list array fallback normalization", async () => {
   assert.doesNotMatch(assignedSource, /Array\.isArray\(parentItems\) \? parentItems : \[\]/);
   assert.doesNotMatch(assignedSource, /Array\.isArray\(parent\?\.subitems\) \? parent\.subitems : \[\]/);
   assert.doesNotMatch(assignedSource, /Array\.isArray\(peopleColumnIds\)/);
+  assert.match(assignedSource, /function isDoneLabel\(/);
+  assert.doesNotMatch(assignedSource, /DONE_(?:GROUP_TITLES|STATUS_LABELS)/);
+  assert.doesNotMatch(assignedSource, /^function isDone(?:GroupTitle|StatusLabel)\(/m);
   assert.doesNotMatch(assignedSource, /^function normalizeColumnIds\(/m);
   assert.doesNotMatch(assignedSource, /\.map\(\(value\) => normalizeColumnSelector\(value\)\)/);
 

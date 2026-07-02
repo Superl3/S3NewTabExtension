@@ -105,6 +105,26 @@ test("mondayAssigned builds status column values selection with shared selector 
   assert.match(selection, /column_values\(ids: \["status", "done"\]\)/);
 });
 
+test("mondayAssigned uses one done-label predicate for groups and statuses", async () => {
+  const { isDoneLabel } = await loadWidgetInternals(
+    "widgets/mondayAssigned.js",
+    ["isDoneLabel"],
+    {
+      createAuthSessionStorage: () => ({
+        load: async () => null,
+        save: async () => {},
+        clear: async () => {}
+      })
+    }
+  );
+
+  assert.equal(isDoneLabel(" Done "), true);
+  assert.equal(isDoneLabel("completed"), true);
+  assert.equal(isDoneLabel("완료"), true);
+  assert.equal(isDoneLabel("in progress"), false);
+  assert.equal(isDoneLabel(""), false);
+});
+
 test("mondayAssigned keeps per-board people selectors isolated", async () => {
   const { resolveBoardPeopleColumnSelector } = await loadWidgetInternals(
     "widgets/mondayAssigned.js",
