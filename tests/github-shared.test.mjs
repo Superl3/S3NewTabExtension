@@ -19,7 +19,8 @@ import {
   normalizeGitHubRepository,
   normalizeGitHubReviewerNames,
   parseGitHubError,
-  parseGitHubJsonResponse
+  parseGitHubJsonResponse,
+  parseGitHubTimestamp
 } from "../widgets/shared/githubApi.js";
 
 test("GitHub shared helpers normalize repositories and settings", () => {
@@ -33,6 +34,8 @@ test("GitHub shared helpers normalize repositories and settings", () => {
   assert.equal(normalizeGitHubCacheNumber("bad", 7), 7);
   assert.equal(normalizeGitHubCacheTimestamp("12.5"), 12.5);
   assert.equal(normalizeGitHubCacheTimestamp("-1"), 0);
+  assert.equal(parseGitHubTimestamp("2026-04-02T12:34:00Z"), Date.parse("2026-04-02T12:34:00Z"));
+  assert.equal(parseGitHubTimestamp("not a date"), 0);
   assert.equal(normalizeGitHubCacheCount("4.8"), 4);
   assert.equal(normalizeGitHubCacheCount("-1"), 0);
 });

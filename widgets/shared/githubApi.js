@@ -27,6 +27,10 @@ export function normalizeGitHubCacheTimestamp(value, fallback = 0) {
   return Math.max(0, normalizeGitHubCacheNumber(value, fallback));
 }
 
+export function parseGitHubTimestamp(value) {
+  return normalizeGitHubCacheTimestamp(Date.parse(value || ""));
+}
+
 export function normalizeGitHubCacheCount(value, fallback = 0) {
   return Math.max(0, toInteger(value, fallback));
 }

@@ -1287,7 +1287,9 @@ test("GitHub widgets share repository and API helpers", async () => {
     assert.match(source, /parseGitHubJsonResponse/, moduleUrl.pathname);
     assert.match(source, /normalizeGitHubCache(Number|Count)/, moduleUrl.pathname);
     assert.match(source, /normalizeGitHubCacheTimestamp/, moduleUrl.pathname);
+    assert.match(source, /parseGitHubTimestamp/, moduleUrl.pathname);
     assert.doesNotMatch(source, localGitHubPattern, moduleUrl.pathname);
+    assert.doesNotMatch(source, /Date\.parse\(/, moduleUrl.pathname);
     assert.doesNotMatch(source, /JSON\.parse/, moduleUrl.pathname);
     assert.doesNotMatch(source, /new URLSearchParams\(/, moduleUrl.pathname);
     assert.doesNotMatch(source, /\/repos\/\$\{/, moduleUrl.pathname);
@@ -1325,21 +1327,23 @@ test("GitHub review inbox logic uses shared cache timestamp normalization", asyn
   const source = await fs.readFile(new URL("../widgets/shared/githubReviewInboxLogic.js", import.meta.url), "utf8");
   assert.match(source, /shared\/githubApi\.js|\.\/githubApi\.js/);
   assert.match(source, /normalizeGitHubCacheTimestamp/);
+  assert.match(source, /parseGitHubTimestamp/);
   assert.match(source, /collectOtherUserTimestamps/);
   assert.match(source, /collectUserTimestamps/);
   assert.match(source, /readCommitTimestamp/);
   assert.equal(
-    Array.from(source.matchAll(/parseTimestamp\(commit\?\.commit\?\.author\?\.date\)/g)).length,
+    Array.from(source.matchAll(/parseGitHubTimestamp\(commit\?\.commit\?\.author\?\.date\)/g)).length,
     1
   );
   assert.equal(
-    Array.from(source.matchAll(/parseTimestamp\(commit\?\.commit\?\.committer\?\.date\)/g)).length,
+    Array.from(source.matchAll(/parseGitHubTimestamp\(commit\?\.commit\?\.committer\?\.date\)/g)).length,
     1
   );
   assert.equal(
     Array.from(source.matchAll(/\.filter\(\([^)]*\) => !isSameGithubUser\(/g)).length,
     1
   );
+  assert.doesNotMatch(source, /^export function parseTimestamp\(/m);
   assert.doesNotMatch(source, /for \(const comment of (?:issueComments|reviewComments)\)/);
   assert.doesNotMatch(source, /Math\.max\(0, Number\(latestAttentionAt \?\? latestCodeUpdateAt\) \|\| 0\)/);
 });

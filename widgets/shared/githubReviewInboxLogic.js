@@ -1,5 +1,9 @@
 import { arrayOrEmpty } from "../../core/utils/array.js";
-import { normalizeGitHubCacheTimestamp } from "./githubApi.js";
+import {
+  normalizeGitHubCacheTimestamp,
+  parseGitHubTimestamp
+} from "./githubApi.js";
+export { parseGitHubTimestamp as parseTimestamp } from "./githubApi.js";
 
 const REVIEW_REASON_META = {
   NO_REVIEW_YET: {
@@ -40,11 +44,6 @@ export function normalizeGithubLogin(value) {
   return String(value || "").trim().replace(/^@+/, "").toLowerCase();
 }
 
-export function parseTimestamp(value) {
-  const parsed = Date.parse(value || "");
-  return Number.isFinite(parsed) ? parsed : 0;
-}
-
 export function hasGithubMention(text, githubLogin) {
   const normalizedLogin = normalizeGithubLogin(githubLogin);
   if (!normalizedLogin) {
@@ -79,8 +78,8 @@ function collectUserTimestamps(items, targetLogin, readTimestamp) {
 }
 
 function readCommitTimestamp(commit) {
-  const authoredAt = parseTimestamp(commit?.commit?.author?.date);
-  const committedAt = parseTimestamp(commit?.commit?.committer?.date);
+  const authoredAt = parseGitHubTimestamp(commit?.commit?.author?.date);
+  const committedAt = parseGitHubTimestamp(commit?.commit?.committer?.date);
   return Math.max(authoredAt, committedAt);
 }
 
@@ -94,9 +93,9 @@ export function deriveLatestCodeUpdateAt(pullRequest, commits = []) {
   }
 
   return Math.max(
-    parseTimestamp(pullRequest?.head?.repo?.pushed_at),
-    parseTimestamp(pullRequest?.updated_at),
-    parseTimestamp(pullRequest?.created_at)
+    parseGitHubTimestamp(pullRequest?.head?.repo?.pushed_at),
+    parseGitHubTimestamp(pullRequest?.updated_at),
+    parseGitHubTimestamp(pullRequest?.created_at)
   );
 }
 
@@ -111,17 +110,17 @@ export function deriveLatestOtherActivityAt({
   const otherReviewAt = collectOtherUserTimestamps(
     reviews,
     githubLogin,
-    (review) => parseTimestamp(review?.submitted_at || review?.created_at)
+    (review) => parseGitHubTimestamp(review?.submitted_at || review?.created_at)
   );
   const otherIssueCommentAt = collectOtherUserTimestamps(
     issueComments,
     githubLogin,
-    (comment) => parseTimestamp(comment?.updated_at || comment?.created_at)
+    (comment) => parseGitHubTimestamp(comment?.updated_at || comment?.created_at)
   );
   const otherReviewCommentAt = collectOtherUserTimestamps(
     reviewComments,
     githubLogin,
-    (comment) => parseTimestamp(comment?.updated_at || comment?.created_at)
+    (comment) => parseGitHubTimestamp(comment?.updated_at || comment?.created_at)
   );
 
   const otherCommitAt = commits
@@ -196,7 +195,7 @@ export function collectLatestUserParticipation({
     if (normalizeGithubLogin(review?.user?.login) !== targetLogin) {
       continue;
     }
-    const submittedAt = parseTimestamp(review?.submitted_at || review?.created_at);
+    const submittedAt = parseGitHubTimestamp(review?.submitted_at || review?.created_at);
     if (!submittedAt) {
       continue;
     }
@@ -210,12 +209,12 @@ export function collectLatestUserParticipation({
     ...collectUserTimestamps(
       issueComments,
       targetLogin,
-      (comment) => parseTimestamp(comment?.updated_at || comment?.created_at)
+      (comment) => parseGitHubTimestamp(comment?.updated_at || comment?.created_at)
     ),
     ...collectUserTimestamps(
       reviewComments,
       targetLogin,
-      (comment) => parseTimestamp(comment?.updated_at || comment?.created_at)
+      (comment) => parseGitHubTimestamp(comment?.updated_at || comment?.created_at)
     )
   ];
   for (const timestamp of commentTimestamps) {
@@ -249,7 +248,7 @@ export function hasMentionAfterTimestamp({
     if (isSameGithubUser(comment?.user?.login, targetLogin)) {
       return false;
     }
-    const commentAt = parseTimestamp(comment?.updated_at || comment?.created_at);
+    const commentAt = parseGitHubTimestamp(comment?.updated_at || comment?.created_at);
     if (commentAt <= sinceTimestamp) {
       return false;
     }
