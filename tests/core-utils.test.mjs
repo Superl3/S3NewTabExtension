@@ -399,6 +399,14 @@ test("widgets use shared core utility functions instead of local copies", async 
     assert.doesNotMatch(source.text, /^function clamp\(/m, source.name);
     assert.doesNotMatch(source.text, /^function normalizeText\(/m, source.name);
   }
+
+  const clampSharedWidgetSources = sources.filter((source) =>
+    /\/widgets\/(?:bookmarks|clock|shortcut)\.js$/.test(source.name)
+  );
+  for (const source of clampSharedWidgetSources) {
+    assert.match(source.text, /utils\/number\.js/, source.name);
+    assert.doesNotMatch(source.text, /Math\.min\([^;\n]*Math\.max\(/, source.name);
+  }
 });
 
 test("widgets keep only domain-specific local error normalizers", async () => {

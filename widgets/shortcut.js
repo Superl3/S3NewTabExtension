@@ -1,3 +1,4 @@
+import { clamp } from "../core/utils/number.js";
 import { normalizeText } from "../core/utils/text.js";
 import { buildGoogleFaviconUrl, isUrlIcon, normalizeHttpUrl } from "./shared/linkUrls.js";
 
@@ -233,7 +234,7 @@ export const shortcutWidget = {
       const useGlobal = cfg.useGlobalIconSize !== false;
       const fallbackSize = Number.isFinite(globalSize) ? globalSize : 100;
       const effectiveSize = useGlobal ? fallbackSize : Number.isFinite(localSize) ? localSize : fallbackSize;
-      const clampedSize = Math.min(220, Math.max(40, effectiveSize));
+      const clampedSize = clamp(effectiveSize, 40, 220);
 
       tile.href = url;
       tile.target = cfg.openInNewTab ? "_blank" : "_self";
