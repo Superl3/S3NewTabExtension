@@ -158,6 +158,10 @@ export function normalizeTransparentGhostStrength(value, fallback = 100) {
   return normalizeIntegerInRange(value, fallback, 40, 180);
 }
 
+export function normalizeBackdropOverlayOpacity(value, fallback = 0.24) {
+  return clamp(Number(value) || fallback, 0, 0.85);
+}
+
 export function hexToRgb(hex, fallback = "#000000") {
   const value = normalizeHexColor(hex, fallback).slice(1);
   if (value.length === 3) {
@@ -194,7 +198,7 @@ export function contrastRatio(lumA, lumB) {
 }
 
 export function applyBackdropOverlayLuminance(baseLum, ui) {
-  const overlay = clamp(Number(ui?.background?.overlayOpacity) || 0.24, 0, 0.85);
+  const overlay = normalizeBackdropOverlayOpacity(ui?.background?.overlayOpacity);
   const overlayLum = luminanceFromHex("#080B10");
   return clamp(baseLum, 0, 1) * (1 - overlay) + overlayLum * overlay;
 }
@@ -260,7 +264,7 @@ export function resolveTransparentWidgetText(
 
 export function resolveTransparentGhostOpacity(ui, strengthPercent = 100) {
   const mode = String(ui?.background?.mode || "gradient");
-  const overlay = clamp(Number(ui?.background?.overlayOpacity) || 0.24, 0, 0.85);
+  const overlay = normalizeBackdropOverlayOpacity(ui?.background?.overlayOpacity);
   const base = mode === "wallpaper" || mode === "video" ? 0.16 : 0.08;
   const compensation = overlay < 0.16 ? (0.16 - overlay) * 0.35 : 0;
   const strength = normalizeTransparentGhostStrength(strengthPercent, 100) / 100;

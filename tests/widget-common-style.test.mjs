@@ -7,6 +7,7 @@ import {
   defaultWidgetCommonMaster,
   inferCommonOverrides,
   instanceCommonValue,
+  normalizeBackdropOverlayOpacity,
   normalizeCommonOverrides,
   normalizeHexColor,
   normalizeTransparency,
@@ -37,6 +38,15 @@ test("numeric common style normalizers preserve fallback semantics", () => {
   assert.equal(normalizeWidgetContentFontScale("0.25", 1), 0.5);
   assert.equal(normalizeWidgetContentFontScale("bad", 3), 2);
   assert.equal(normalizeWidgetContentFontScale("bad", 0), 1);
+});
+
+test("overlay opacity normalization preserves falsy fallback behavior", () => {
+  assert.equal(normalizeBackdropOverlayOpacity(0), 0.24);
+  assert.equal(normalizeBackdropOverlayOpacity(""), 0.24);
+  assert.equal(normalizeBackdropOverlayOpacity(null), 0.24);
+  assert.equal(normalizeBackdropOverlayOpacity(-1), 0);
+  assert.equal(normalizeBackdropOverlayOpacity(2), 0.85);
+  assert.equal(normalizeBackdropOverlayOpacity(0.5), 0.5);
 });
 
 test("resolveWidgetPadding resolves directional and uniform paddings", () => {
