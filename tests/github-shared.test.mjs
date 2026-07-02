@@ -9,6 +9,7 @@ import {
   githubRepositoryParts,
   githubTokenFingerprint,
   matchesGitHubCacheTokenFingerprint,
+  normalizeGitHubCachedItemBase,
   normalizeGitHubCacheCount,
   normalizeGitHubCacheNumber,
   normalizeGitHubCacheTimestamp,
@@ -33,6 +34,34 @@ test("GitHub shared helpers normalize repositories and settings", () => {
   assert.equal(normalizeGitHubCacheTimestamp("-1"), 0);
   assert.equal(normalizeGitHubCacheCount("4.8"), 4);
   assert.equal(normalizeGitHubCacheCount("-1"), 0);
+});
+
+test("GitHub shared helpers normalize cached item base fields", () => {
+  assert.deepEqual(
+    normalizeGitHubCachedItemBase({
+      id: 123,
+      number: "45",
+      title: "",
+      htmlUrl: " https://github.com/owner/repo/pull/45 ",
+      author: "",
+      draft: true,
+      reviewRequested: true,
+      reviewerNames: " alice ",
+      teamCount: "2.7"
+    }),
+    {
+      id: "123",
+      number: 45,
+      title: "(No title)",
+      htmlUrl: "https://github.com/owner/repo/pull/45",
+      author: "unknown",
+      draft: true,
+      reviewRequested: true,
+      reviewerNames: "alice",
+      teamCount: 2
+    }
+  );
+  assert.equal(normalizeGitHubCachedItemBase({ title: "missing id" }), null);
 });
 
 test("GitHub shared helpers preserve API formatting semantics", () => {

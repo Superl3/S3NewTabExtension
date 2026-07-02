@@ -31,6 +31,25 @@ export function normalizeGitHubCacheCount(value, fallback = 0) {
   return Math.max(0, toInteger(value, fallback));
 }
 
+export function normalizeGitHubCachedItemBase(entry) {
+  const id = normalizeText(entry?.id);
+  if (!id) {
+    return null;
+  }
+
+  return {
+    id,
+    number: normalizeGitHubCacheNumber(entry?.number),
+    title: normalizeText(entry?.title, "(No title)"),
+    htmlUrl: normalizeText(entry?.htmlUrl),
+    author: normalizeText(entry?.author, "unknown"),
+    draft: entry?.draft === true,
+    reviewRequested: entry?.reviewRequested === true,
+    reviewerNames: normalizeText(entry?.reviewerNames),
+    teamCount: normalizeGitHubCacheCount(entry?.teamCount)
+  };
+}
+
 export function normalizeGitHubRepository(value, fallback = "") {
   let text = normalizeText(value, fallback)
     .replace(/^https?:\/\/(www\.)?github\.com\//i, "")
