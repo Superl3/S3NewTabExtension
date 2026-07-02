@@ -61,6 +61,12 @@ export function normalizeGitHubCachedItems(items, normalizeItem) {
   return arrayOrEmpty(items).map(normalizeItem).filter(Boolean);
 }
 
+export function areGitHubCachedItemsEqual(leftItems, rightItems, normalizeItem) {
+  const left = normalizeGitHubCachedItems(leftItems, normalizeItem);
+  const right = normalizeGitHubCachedItems(rightItems, normalizeItem);
+  return JSON.stringify(left) === JSON.stringify(right);
+}
+
 export function normalizeGitHubRepository(value, fallback = "") {
   let text = normalizeText(value, fallback)
     .replace(/^https?:\/\/(www\.)?github\.com\//i, "")

@@ -2,6 +2,7 @@ import { arrayOrEmpty } from "../core/utils/array.js";
 import { normalizeErrorMessage } from "../core/utils/error.js";
 import { normalizeText } from "../core/utils/text.js";
 import {
+  areGitHubCachedItemsEqual as areCachedItemsEqual,
   buildGitHubApiHeaders,
   buildGitHubRepoApiUrl,
   buildGitHubRepoPullsPageUrl as buildRepoPullsPageUrl,
@@ -276,13 +277,12 @@ export const githubPrListWidget = {
         .slice(0, normalizeMaxItems(cfg.maxItems, 20));
 
       const currentCfg = getConfig();
-      const currentCachePullItems = normalizeCachedItems(currentCfg?.cachePullItems, toCachedPullItem);
       const expectedTokenHash = tokenFingerprint(cfg.accessToken);
 
       const unchanged =
         matchesCacheRepository(currentCfg?.cacheRepository, cfg.repository) &&
         matchesGitHubCacheTokenFingerprint(currentCfg?.cacheTokenFingerprint, cfg.accessToken) &&
-        JSON.stringify(currentCachePullItems) === JSON.stringify(cachePullItems);
+        areCachedItemsEqual(currentCfg?.cachePullItems, cachePullItems, toCachedPullItem);
 
       if (unchanged) {
         return;

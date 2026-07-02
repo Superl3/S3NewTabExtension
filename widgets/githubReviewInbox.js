@@ -18,6 +18,7 @@ import {
   writeScopedItemSnapshot
 } from "./shared/scopedItemStorage.js";
 import {
+  areGitHubCachedItemsEqual as areCachedItemsEqual,
   buildGitHubApiHeaders as buildApiHeaders,
   buildGitHubRepoApiUrl,
   buildGitHubRepoPullsPageUrl as buildRepoPullsPageUrl,
@@ -420,14 +421,12 @@ function readCachedSnapshot(rawConfig, cfg) {
 }
 
 function isReviewInboxSnapshotUnchanged(rawConfig, cfg, items, tokenUserWarning) {
-  const currentCacheItems = normalizeCachedItems(rawConfig?.cacheReviewItems, normalizeCachedItem);
-
   return (
     matchesCacheRepository(rawConfig?.cacheRepository, cfg.repository) &&
     normalizeGithubLogin(rawConfig?.cacheGithubLogin) === cfg.githubLogin &&
     matchesGitHubCacheTokenFingerprint(rawConfig?.cacheTokenFingerprint, cfg.accessToken) &&
     normalizeText(rawConfig?.cacheTokenUserWarning) === normalizeText(tokenUserWarning) &&
-    JSON.stringify(currentCacheItems) === JSON.stringify(buildCacheReviewItems(items))
+    areCachedItemsEqual(rawConfig?.cacheReviewItems, buildCacheReviewItems(items), normalizeCachedItem)
   );
 }
 
