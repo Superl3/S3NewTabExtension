@@ -1,3 +1,4 @@
+import { arrayOrEmpty } from "./utils/array.js";
 import { clamp, toInteger } from "./utils/number.js";
 
 export function normalizePageCount(value, fallback = 1, maxPages = 12) {
@@ -16,11 +17,8 @@ export function normalizeWidgetPage(value, pageCount = 12, fallback = 0) {
 }
 
 export function normalizeLauncherPageIndexList(value, pageCount = 1) {
-  if (!Array.isArray(value)) {
-    return [];
-  }
   const normalized = new Set();
-  for (const item of value) {
+  for (const item of arrayOrEmpty(value)) {
     const page = normalizeWidgetPage(item, pageCount, 0);
     normalized.add(page);
   }
@@ -32,7 +30,7 @@ export function remapLauncherPageIndexList(list, remap, pageCount = 1) {
     return normalizeLauncherPageIndexList(list, pageCount);
   }
   const remapped = [];
-  for (const rawPage of Array.isArray(list) ? list : []) {
+  for (const rawPage of arrayOrEmpty(list)) {
     const page = toInteger(rawPage, Number.NaN);
     if (!Number.isFinite(page)) {
       continue;
@@ -66,10 +64,11 @@ export function shiftLauncherPageIndexListOnDelete(list, deletedPage, pageCount 
 }
 
 export function resolvePageTowardHomeDirection(keptPages, currentPage, homePage) {
-  if (!Array.isArray(keptPages) || !keptPages.length) {
+  const pages = arrayOrEmpty(keptPages);
+  if (!pages.length) {
     return 0;
   }
-  const sorted = [...keptPages].sort((left, right) => left - right);
+  const sorted = [...pages].sort((left, right) => left - right);
   if (sorted.includes(currentPage)) {
     return currentPage;
   }

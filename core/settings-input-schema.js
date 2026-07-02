@@ -1,4 +1,5 @@
 import { resolveChromeApi } from "./platform/chrome-api.js";
+import { arrayOrEmpty } from "./utils/array.js";
 import { normalizeText } from "./utils/text.js";
 
 export function createInputBySchema(schema = {}, value, { chromeApi = null } = {}) {
@@ -13,7 +14,7 @@ export function createInputBySchema(schema = {}, value, { chromeApi = null } = {
 
   if (schema.type === "select") {
     const select = document.createElement("select");
-    const options = Array.isArray(schema.options) ? schema.options : [];
+    const options = arrayOrEmpty(schema.options);
     for (const opt of options) {
       const option = document.createElement("option");
       option.value = String(opt.value);

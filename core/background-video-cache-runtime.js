@@ -1,3 +1,4 @@
+import { arrayOrEmpty } from "./utils/array.js";
 import { clampTruthyNumberOrFallback } from "./utils/number.js";
 
 export function createBackgroundVideoCacheRuntime(deps) {
@@ -14,8 +15,7 @@ export function createBackgroundVideoCacheRuntime(deps) {
 
     const previewVideo = post?.preview?.videos?.[0];
     if (previewVideo) {
-      const variants = Array.isArray(previewVideo?.variants) ? previewVideo.variants : [];
-      for (const variant of variants) {
+      for (const variant of arrayOrEmpty(previewVideo?.variants)) {
         if (variant?.url) {
           candidates.push(variant.url);
         }
