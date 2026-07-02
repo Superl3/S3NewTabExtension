@@ -25,6 +25,8 @@ import {
   formatGitHubSyncedLabel as formatSyncedLabel,
   GITHUB_API_BASE,
   githubTokenFingerprint as tokenFingerprint,
+  normalizeGitHubCacheCount as normalizeCacheCount,
+  normalizeGitHubCacheNumber as normalizeCacheNumber,
   normalizeGitHubMaxItems as normalizeMaxItems,
   normalizeGitHubRefreshMinutes as normalizeRefreshMinutes,
   normalizeGitHubRepository as normalizeRepository,
@@ -80,8 +82,8 @@ function splitReviewItemsByTab(items, githubLogin) {
 
 function sortReviewItemsByCreatedAt(items) {
   return (Array.isArray(items) ? items : []).slice().sort((left, right) => {
-    const leftCreatedAt = Math.max(0, Number(left?.createdAt) || 0);
-    const rightCreatedAt = Math.max(0, Number(right?.createdAt) || 0);
+    const leftCreatedAt = Math.max(0, normalizeCacheNumber(left?.createdAt));
+    const rightCreatedAt = Math.max(0, normalizeCacheNumber(right?.createdAt));
     if (leftCreatedAt !== rightCreatedAt) {
       if (!leftCreatedAt) {
         return 1;
@@ -92,7 +94,7 @@ function sortReviewItemsByCreatedAt(items) {
       return leftCreatedAt - rightCreatedAt;
     }
 
-    return (Number(left?.number) || 0) - (Number(right?.number) || 0);
+    return normalizeCacheNumber(left?.number) - normalizeCacheNumber(right?.number);
   });
 }
 
@@ -106,7 +108,7 @@ function resolveAgingThresholds(config) {
 }
 
 function computeReviewInboxAgeSeverity(createdAt, config, nowMs = Date.now()) {
-  const createdTimestamp = Math.max(0, Number(createdAt) || 0);
+  const createdTimestamp = Math.max(0, normalizeCacheNumber(createdAt));
   if (!createdTimestamp) {
     return "";
   }
@@ -152,7 +154,7 @@ function buildReviewInboxOpenPullsLabel() {
 function buildReviewInboxTabLabel(tabId, count = 0) {
   const normalizedTabId = normalizeReviewInboxTab(tabId);
   const tab = REVIEW_INBOX_TABS.find((candidate) => candidate.id === normalizedTabId);
-  const normalizedCount = Math.max(0, Math.round(Number(count) || 0));
+  const normalizedCount = Math.max(0, Math.round(normalizeCacheNumber(count)));
   return `${tab?.label || "requested"} (${normalizedCount})`;
 }
 
@@ -177,7 +179,7 @@ function buildReviewInboxReadScopeKey(config) {
 }
 
 function readReviewInboxLatestAttentionAt(item) {
-  return Math.max(0, Number(item?.latestAttentionAt ?? item?.latestCodeUpdateAt) || 0);
+  return Math.max(0, normalizeCacheNumber(item?.latestAttentionAt ?? item?.latestCodeUpdateAt));
 }
 
 function buildReviewInboxReadItemKey(item) {
@@ -189,7 +191,7 @@ function buildReviewInboxReadItemKey(item) {
   return [
     number,
     readReviewInboxLatestAttentionAt(item),
-    Math.max(0, Number(item?.latestParticipationAt) || 0),
+    Math.max(0, normalizeCacheNumber(item?.latestParticipationAt)),
     normalizeText(item?.reason),
     item?.reviewRequested === true ? "requested" : "not-requested"
   ].join("|");
@@ -217,7 +219,7 @@ function shouldAutoIgnoreReviewInboxItem(item, tabId) {
   return (
     normalizeReviewInboxTab(tabId) === REVIEW_INBOX_TAB_NEEDS_REVIEW &&
     item?.reviewRequested !== true &&
-    Math.max(0, Number(item?.latestParticipationAt) || 0) <= 0
+    Math.max(0, normalizeCacheNumber(item?.latestParticipationAt)) <= 0
   );
 }
 
@@ -355,20 +357,20 @@ function normalizeCachedItem(entry) {
 
   return {
     id,
-    number: Number(entry?.number) || 0,
+    number: normalizeCacheNumber(entry?.number),
     title: normalizeText(entry?.title, "(No title)"),
     htmlUrl: normalizeText(entry?.htmlUrl),
     author: normalizeText(entry?.author, "unknown"),
-    createdAt: Math.max(0, Number(entry?.createdAt) || 0),
+    createdAt: Math.max(0, normalizeCacheNumber(entry?.createdAt)),
     draft: entry?.draft === true,
     reviewRequested: entry?.reviewRequested === true,
     reviewerNames: normalizeText(entry?.reviewerNames),
-    teamCount: Math.max(0, Math.floor(Number(entry?.teamCount) || 0)),
+    teamCount: normalizeCacheCount(entry?.teamCount),
     reason: normalizeText(entry?.reason),
     reasonLabel: normalizeText(entry?.reasonLabel),
     latestAttentionAt: readReviewInboxLatestAttentionAt(entry),
-    latestParticipationAt: Math.max(0, Number(entry?.latestParticipationAt) || 0),
-    latestApprovalAt: Math.max(0, Number(entry?.latestApprovalAt) || 0),
+    latestParticipationAt: Math.max(0, normalizeCacheNumber(entry?.latestParticipationAt)),
+    latestApprovalAt: Math.max(0, normalizeCacheNumber(entry?.latestApprovalAt)),
     warning: normalizeText(entry?.warning)
   };
 }
@@ -434,7 +436,7 @@ function readCachedSnapshot(rawConfig, cfg) {
   const cachedItems = Array.isArray(rawConfig?.cacheReviewItems)
     ? rawConfig.cacheReviewItems.map(normalizeCachedItem).filter(Boolean)
     : [];
-  const cacheAt = Math.max(0, Number(rawConfig?.cacheAt) || 0);
+  const cacheAt = Math.max(0, normalizeCacheNumber(rawConfig?.cacheAt));
   const tokenUserWarning = normalizeText(rawConfig?.cacheTokenUserWarning);
   if (!cachedItems.length && !cacheAt && !tokenUserWarning) {
     return null;

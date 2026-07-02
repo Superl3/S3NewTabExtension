@@ -6,6 +6,8 @@ import {
   buildGitHubRepoPullsPageUrl as buildRepoPullsPageUrl,
   formatGitHubRelativeTimestamp as formatUpdatedLabelFromTimestamp,
   formatGitHubSyncedLabel as formatSyncedLabel,
+  normalizeGitHubCacheCount as normalizeCacheCount,
+  normalizeGitHubCacheNumber as normalizeCacheNumber,
   githubTokenFingerprint as tokenFingerprint,
   normalizeGitHubMaxItems as normalizeMaxItems,
   normalizeGitHubRefreshMinutes as normalizeRefreshMinutes,
@@ -23,12 +25,11 @@ function normalizeCachedPullItem(entry) {
     return null;
   }
 
-  const updatedAt = Number(entry?.updatedAt);
-  const normalizedUpdatedAt = Number.isFinite(updatedAt) ? updatedAt : 0;
+  const normalizedUpdatedAt = normalizeCacheNumber(entry?.updatedAt);
 
   return {
     id,
-    number: Number(entry?.number) || 0,
+    number: normalizeCacheNumber(entry?.number),
     title: normalizeText(entry?.title, "(No title)"),
     htmlUrl: normalizeText(entry?.htmlUrl),
     author: normalizeText(entry?.author, "unknown"),
@@ -41,7 +42,7 @@ function normalizeCachedPullItem(entry) {
     baseRef: normalizeText(entry?.baseRef),
     reviewRequested: entry?.reviewRequested === true,
     reviewerNames: normalizeText(entry?.reviewerNames),
-    teamCount: Math.max(0, Math.floor(Number(entry?.teamCount) || 0))
+    teamCount: normalizeCacheCount(entry?.teamCount)
   };
 }
 
@@ -90,7 +91,7 @@ function readCachedSnapshot(rawConfig, cfg) {
   const cachedPullItems = Array.isArray(rawConfig?.cachePullItems)
     ? rawConfig.cachePullItems.map(normalizeCachedPullItem).filter(Boolean)
     : [];
-  const cacheAt = Math.max(0, Number(rawConfig?.cacheAt) || 0);
+  const cacheAt = Math.max(0, normalizeCacheNumber(rawConfig?.cacheAt));
   if (!cachedPullItems.length && !cacheAt) {
     return null;
   }
@@ -173,12 +174,12 @@ async function fetchPullRequests(config) {
 
     return {
       id: String(item?.id || item?.number || Math.random()),
-      number: Number(item?.number) || 0,
+      number: normalizeCacheNumber(item?.number),
       title: normalizeText(item?.title, "(No title)"),
       htmlUrl: normalizeText(item?.html_url),
       author: normalizeText(item?.user?.login, "unknown"),
       draft: item?.draft === true,
-      updatedAt: Number.isFinite(updatedAt) ? updatedAt : 0,
+      updatedAt: normalizeCacheNumber(updatedAt),
       updatedLabel: formatUpdatedLabel(updatedAtRaw),
       headRef: normalizeText(item?.head?.ref),
       baseRef: normalizeText(item?.base?.ref),

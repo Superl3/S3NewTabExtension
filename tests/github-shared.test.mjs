@@ -8,6 +8,8 @@ import {
   formatGitHubRelativeTimestamp,
   githubRepositoryParts,
   githubTokenFingerprint,
+  normalizeGitHubCacheCount,
+  normalizeGitHubCacheNumber,
   normalizeGitHubMaxItems,
   normalizeGitHubRefreshMinutes,
   normalizeGitHubRepository,
@@ -23,6 +25,10 @@ test("GitHub shared helpers normalize repositories and settings", () => {
   assert.deepEqual(githubRepositoryParts("owner/repo"), { owner: "owner", repo: "repo" });
   assert.equal(normalizeGitHubMaxItems("999", 20), 50);
   assert.equal(normalizeGitHubRefreshMinutes("0", 5), 1);
+  assert.equal(normalizeGitHubCacheNumber("12.5"), 12.5);
+  assert.equal(normalizeGitHubCacheNumber("bad", 7), 7);
+  assert.equal(normalizeGitHubCacheCount("4.8"), 4);
+  assert.equal(normalizeGitHubCacheCount("-1"), 0);
 });
 
 test("GitHub shared helpers preserve API formatting semantics", () => {
