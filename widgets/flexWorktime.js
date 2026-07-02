@@ -24,6 +24,7 @@ import {
 } from "./shared/flexUrls.js";
 import { findFlexTabByPriority } from "./shared/flexTabs.js";
 import { createFlexWorktimeCache } from "./shared/flexWorktimeCache.js";
+import { toLocalDateKey } from "./shared/localDates.js";
 import {
   FLEX_HOME_TAB_LOAD_TIMEOUT_MS,
   FLEX_WORKTIME_CACHE_MAX_ENTRIES,
@@ -36,8 +37,7 @@ import {
   resolveFlexSyncState,
   normalizeTabId,
   resolveFlexWorktimeDetailUrl as resolveDetailUrl,
-  toCachedWorktimeRow as toCachedRow,
-  toLocalDateKey
+  toCachedWorktimeRow as toCachedRow
 } from "./shared/flexWorktimeRows.js";
 
 const FLEX_WORKTIME_CACHE_PREFIX = "s3newtab:flex-worktime-cache:v1";
