@@ -356,6 +356,12 @@ test("geometry edge gaps use shared non-negative number normalization", async ()
   }
 });
 
+test("dock geometry uses shared truthy clamp normalization for unit size", async () => {
+  const source = await fs.readFile(new URL("../core/dock-geometry.js", import.meta.url), "utf8");
+  assert.match(source, /clampTruthyNumberOrFallback\(unitSize, 44, 1, Number\.POSITIVE_INFINITY\)/);
+  assert.doesNotMatch(source, /Math\.max\(1, Number\(unitSize\) \|\| 44\)/);
+});
+
 test("container order runtime uses shared rounded truthy clamp normalization", async () => {
   const source = await fs.readFile(new URL("../core/container-order-runtime.js", import.meta.url), "utf8");
   assert.match(source, /utils\/number\.js/);
