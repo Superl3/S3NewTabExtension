@@ -8,6 +8,12 @@ import { normalizeErrorMessage } from "../core/utils/error.js";
 import { parseJsonOrNull } from "../core/utils/json.js";
 import { clamp } from "../core/utils/number.js";
 import { normalizeText } from "../core/utils/text.js";
+import {
+  isAuthCancelledMessage,
+  LOCAL_AUTH_CONNECTOR_URL,
+  normalizeLocalAuthConnectorUrl as normalizeConnectorUrl,
+  rewriteAuthorizationLoadError
+} from "../widgets/shared/authConnector.js";
 
 const REPO_ROOT = process.cwd();
 
@@ -31,8 +37,12 @@ async function loadWidgetInternals(relativePath, exportedNames, injected = {}) {
     getChromeIdentity: () => null,
     getChromeStorageChanges: () => null,
     getChromeStorageLocal: () => null,
+    isAuthCancelledMessage,
+    LOCAL_AUTH_CONNECTOR_URL,
     normalizeErrorMessage,
+    normalizeConnectorUrl,
     parseJsonOrNull,
+    rewriteAuthorizationLoadError,
     normalizeText,
     ...injected
   };

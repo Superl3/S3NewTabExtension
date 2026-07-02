@@ -4,22 +4,17 @@ import {
   buildAuthConnectorStartUrl,
   createAuthState,
   fetchConnectorToken,
-  normalizeConnectorUrl as normalizeSharedConnectorUrl,
-  parseAuthFlowResult
+  isAuthCancelledMessage,
+  LOCAL_AUTH_CONNECTOR_URL,
+  normalizeLocalAuthConnectorUrl as normalizeConnectorUrl,
+  parseAuthFlowResult,
+  rewriteAuthorizationLoadError
 } from "./shared/authConnector.js";
 import { createAuthSessionStorage } from "./shared/authSessionStorage.js";
 import { getChromeIdentity, getChromeStorageLocal } from "./shared/chromeApi.js";
 
 function toMessage(role, content) {
   return { role, content, ts: Date.now() };
-}
-
-function rewriteAuthorizationLoadError(message) {
-  const text = normalizeText(message).toLowerCase();
-  if (text.includes("authorization page") && (text.includes("load") || text.includes("not loaded"))) {
-    return "Authorization page could not be loaded. Check that connector server is running at http://localhost:8787 and then try Connect again.";
-  }
-  return message;
 }
 
 function resolveEndpoint(cfg) {
@@ -106,12 +101,6 @@ function extractAssistantText(data) {
 }
 
 const AI_CHAT_AUTH_STORAGE_KEY = "s3newtab-ai-chat-auth-session-v1";
-const LOCAL_AUTH_CONNECTOR_URL = "http://localhost:8787/api/auth/start";
-
-function normalizeConnectorUrl(value, fallback = LOCAL_AUTH_CONNECTOR_URL) {
-  return normalizeSharedConnectorUrl(value, fallback);
-}
-
 const authSessionStorage = createAuthSessionStorage({
   storageKey: AI_CHAT_AUTH_STORAGE_KEY,
   getStorageArea: getChromeStorageLocal,
@@ -132,18 +121,6 @@ export function resolveAiChatActiveSession({ connectorUrl, configuredAccessToken
   }
 
   return null;
-}
-
-function isAuthCancelledMessage(message) {
-  const text = normalizeText(message).toLowerCase();
-  return (
-    text.includes("cancel") ||
-    text.includes("canceled") ||
-    text.includes("cancelled") ||
-    text.includes("did not approve") ||
-    text.includes("closed") ||
-    text.includes("interaction")
-  );
 }
 
 async function throwHttpError(response) {

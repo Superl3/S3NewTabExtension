@@ -390,3 +390,19 @@ test("Monday widgets share auto-refresh slot primitives", async () => {
     assert.doesNotMatch(source, localSlotPattern, moduleUrl.pathname);
   }
 });
+
+test("account auth widgets share local connector auth helpers", async () => {
+  const moduleUrls = [
+    new URL("../widgets/aiChat.js", import.meta.url),
+    new URL("../widgets/mondayAssigned.js", import.meta.url),
+    new URL("../widgets/mondayMeetingNote.js", import.meta.url)
+  ];
+  const localAuthConnectorPattern =
+    /^(const LOCAL_AUTH_CONNECTOR_URL|function (?:isAuthCancelledMessage|normalizeConnectorUrl|rewriteAuthorizationLoadError)\()/m;
+
+  for (const moduleUrl of moduleUrls) {
+    const source = await fs.readFile(moduleUrl, "utf8");
+    assert.match(source, /shared\/authConnector\.js/, moduleUrl.pathname);
+    assert.doesNotMatch(source, localAuthConnectorPattern, moduleUrl.pathname);
+  }
+});
