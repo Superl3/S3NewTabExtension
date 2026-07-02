@@ -6,6 +6,7 @@ import {
   executeFlexScriptInTab
 } from "../widgets/shared/flexHomeScrape.js";
 import {
+  activateFlexAuthFlowTabIfNeeded,
   findFlexTabByPriority,
   selectPreferredFlexTab
 } from "../widgets/shared/flexTabs.js";
@@ -186,6 +187,50 @@ test("Flex tab finder checks active, current, then all tabs", async () => {
     { currentWindow: true },
     {}
   ]);
+});
+
+test("Flex auth flow tab activator handles pending auth tabs", async () => {
+  const activatedTabs = [];
+  const updateTab = async (tabId, update) => {
+    activatedTabs.push([tabId, update]);
+  };
+
+  assert.equal(
+    await activateFlexAuthFlowTabIfNeeded({
+      tabId: 7,
+      error: { code: "FLEX_AUTH_REQUIRED" },
+      targetTab: { url: "https://flex.team/home" },
+      targetUrl: new URL("https://flex.team/home"),
+      updateTab
+    }),
+    true
+  );
+  assert.deepEqual(activatedTabs, [[7, { active: true }]]);
+
+  assert.equal(
+    await activateFlexAuthFlowTabIfNeeded({
+      tabId: 8,
+      error: new Error("still loading"),
+      currentTab: { url: "https://accounts.google.com/o/oauth2/v2/auth?client_id=demo" },
+      targetUrl: new URL("https://flex.team/home"),
+      updateTab: async () => {
+        throw new Error("tab update failed");
+      }
+    }),
+    true
+  );
+
+  assert.equal(
+    await activateFlexAuthFlowTabIfNeeded({
+      tabId: 9,
+      error: new Error("page crashed"),
+      currentTab: { url: "https://example.com/" },
+      targetUrl: new URL("https://flex.team/home"),
+      updateTab
+    }),
+    false
+  );
+  assert.deepEqual(activatedTabs, [[7, { active: true }]]);
 });
 
 test("Flex base config normalizer preserves shared widget defaults", () => {
