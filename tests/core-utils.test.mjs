@@ -6,6 +6,7 @@ import {
   resolveBrowserEventTarget,
   resolveBrowserTimerApi
 } from "../core/platform/browser-api.js";
+import { arrayOrEmpty } from "../core/utils/array.js";
 import { normalizeErrorMessage } from "../core/utils/error.js";
 import { callIfFunction } from "../core/utils/function.js";
 import { pointInsideRect } from "../core/utils/geometry.js";
@@ -238,6 +239,13 @@ test("object utilities preserve plain-object and safe own-property semantics", (
   assert.equal(isPlainObject(null), false);
   assert.equal(hasOwn({ ok: false }, "ok"), true);
   assert.equal(hasOwn(null, "ok"), false);
+});
+
+test("array utility preserves arrays and normalizes non-arrays", () => {
+  const values = [1, 2];
+  assert.equal(arrayOrEmpty(values), values);
+  assert.deepEqual(arrayOrEmpty(null), []);
+  assert.deepEqual(arrayOrEmpty({ length: 1 }), []);
 });
 
 test("Flex auth helpers preserve auth-required and login URL semantics", () => {
@@ -1132,6 +1140,15 @@ test("GitHub review inbox logic uses shared cache timestamp normalization", asyn
   assert.match(source, /shared\/githubApi\.js|\.\/githubApi\.js/);
   assert.match(source, /normalizeGitHubCacheTimestamp/);
   assert.doesNotMatch(source, /Math\.max\(0, Number\(latestAttentionAt \?\? latestCodeUpdateAt\) \|\| 0\)/);
+});
+
+test("GitHub review inbox widget uses shared array fallback helper", async () => {
+  const source = await fs.readFile(new URL("../widgets/githubReviewInbox.js", import.meta.url), "utf8");
+  assert.match(source, /core\/utils\/array\.js/);
+  assert.match(source, /arrayOrEmpty\(/);
+  assert.doesNotMatch(source, /Array\.isArray\(items\) \? items : \[\]/);
+  assert.doesNotMatch(source, /Array\.isArray\(payload\) \? payload : \[\]/);
+  assert.doesNotMatch(source, /Array\.isArray\(tabData\?\.items\) \? tabData\.items : \[\]/);
 });
 
 test("Codex usage widget uses core number helpers", async () => {

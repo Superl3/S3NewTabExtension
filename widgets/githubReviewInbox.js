@@ -1,3 +1,4 @@
+import { arrayOrEmpty } from "../core/utils/array.js";
 import { normalizeErrorMessage } from "../core/utils/error.js";
 import { normalizeIntegerInRange } from "../core/utils/number.js";
 import { normalizeText } from "../core/utils/text.js";
@@ -70,7 +71,7 @@ function splitReviewItemsByTab(items, githubLogin) {
   const opened = [];
   const normalizedLogin = normalizeGithubLogin(githubLogin);
 
-  for (const item of Array.isArray(items) ? items : []) {
+  for (const item of arrayOrEmpty(items)) {
     if (normalizeGithubLogin(item?.author) === normalizedLogin) {
       opened.push(item);
     } else {
@@ -82,7 +83,7 @@ function splitReviewItemsByTab(items, githubLogin) {
 }
 
 function sortReviewItemsByCreatedAt(items) {
-  return (Array.isArray(items) ? items : []).slice().sort((left, right) => {
+  return arrayOrEmpty(items).slice().sort((left, right) => {
     const leftCreatedAt = normalizeCacheTimestamp(left?.createdAt);
     const rightCreatedAt = normalizeCacheTimestamp(right?.createdAt);
     if (leftCreatedAt !== rightCreatedAt) {
@@ -231,7 +232,7 @@ function decorateReviewItemsForTab(items, config, tabId, showIgnored = false) {
   const decoratedItems = [];
   let ignoredCount = 0;
 
-  for (const item of Array.isArray(items) ? items : []) {
+  for (const item of arrayOrEmpty(items)) {
     const autoIgnored = shouldAutoIgnoreReviewInboxItem(item, tabId);
     const manuallyIgnored = isIgnoredItem(scopeKey, buildReviewInboxItemKey(item));
     const ignored = autoIgnored || manuallyIgnored;
@@ -259,7 +260,7 @@ function decorateReviewItemsForTab(items, config, tabId, showIgnored = false) {
 
 function countUnreadReviewItems(...tabDataList) {
   return tabDataList.reduce((total, tabData) => {
-    const items = Array.isArray(tabData?.items) ? tabData.items : [];
+    const items = arrayOrEmpty(tabData?.items);
     return total + items.filter((item) => !item.ignored && !item.read).length;
   }, 0);
 }
@@ -312,7 +313,7 @@ async function fetchPagedJson(baseUrl, headers, maxPages = 20) {
 
     const payload = parseGitHubJsonResponse(bodyText, null);
 
-    const list = Array.isArray(payload) ? payload : [];
+    const list = arrayOrEmpty(payload);
     items.push(...list);
 
     const linkHeader = response.headers?.get?.("link") || response.headers?.get?.("Link") || "";
@@ -385,7 +386,7 @@ function toCachedItem(entry) {
 }
 
 function buildCacheReviewItems(items) {
-  return (Array.isArray(items) ? items : [])
+  return arrayOrEmpty(items)
     .map(toCachedItem)
     .filter(Boolean);
 }
