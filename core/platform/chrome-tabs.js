@@ -1,11 +1,12 @@
 import { resolveChromeApi } from "./chrome-api.js";
 import { fromChromeCallback } from "./chrome-callback.js";
+import { clampTruthyNumberOrFallback } from "../utils/number.js";
 
 const DEFAULT_READY_TIMEOUT_MS = 20000;
 const DEFAULT_READY_TIMEOUT_FLOOR_MS = 1000;
 
 function resolveReadyTimeout(timeoutMs) {
-  return Math.max(DEFAULT_READY_TIMEOUT_FLOOR_MS, Number(timeoutMs) || DEFAULT_READY_TIMEOUT_MS);
+  return clampTruthyNumberOrFallback(timeoutMs, DEFAULT_READY_TIMEOUT_MS, DEFAULT_READY_TIMEOUT_FLOOR_MS, Number.POSITIVE_INFINITY);
 }
 
 function runTabsCallback(run, fallbackMessage, chromeApi) {
