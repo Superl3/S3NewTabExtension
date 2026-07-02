@@ -37,6 +37,7 @@ import {
 import {
   mondayFetchGraphql,
   MONDAY_WEB_URL,
+  parseUrlSafely,
   resolveMondaySiteUrl
 } from "./shared/mondayClient.js";
 
@@ -362,19 +363,6 @@ function normalizeDocId(value) {
     return "";
   }
   return text;
-}
-
-function parseUrlSafely(rawUrl) {
-  const text = normalizeText(rawUrl);
-  if (!text) {
-    return null;
-  }
-
-  try {
-    return new URL(text);
-  } catch {
-    return null;
-  }
 }
 
 function extractDocIdFromUrl(urlText) {

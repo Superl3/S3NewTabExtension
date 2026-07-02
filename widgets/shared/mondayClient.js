@@ -14,7 +14,7 @@ function normalizeHostname(value) {
   return text;
 }
 
-function parseUrlSafely(rawUrl) {
+export function parseUrlSafely(rawUrl) {
   const text = normalizeText(rawUrl);
   if (!text) {
     return null;

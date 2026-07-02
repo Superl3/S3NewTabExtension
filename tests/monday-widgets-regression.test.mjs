@@ -15,6 +15,7 @@ import {
   rewriteAuthorizationLoadError
 } from "../widgets/shared/authConnector.js";
 import { formatLocalDateTimeLabel as formatDateLabel } from "../widgets/shared/dateLabels.js";
+import { parseUrlSafely } from "../widgets/shared/mondayClient.js";
 
 const REPO_ROOT = process.cwd();
 
@@ -43,6 +44,7 @@ async function loadWidgetInternals(relativePath, exportedNames, injected = {}) {
     formatDateLabel,
     normalizeErrorMessage,
     normalizeConnectorUrl,
+    parseUrlSafely,
     parseJsonOrNull,
     rewriteAuthorizationLoadError,
     normalizeText,
