@@ -1,22 +1,10 @@
+import { normalizeErrorMessage } from "../core/utils/error.js";
 import { clamp } from "../core/utils/number.js";
 import { normalizeText } from "../core/utils/text.js";
 
 const GITHUB_API_BASE = "https://api.github.com";
 const GITHUB_WEB_BASE = "https://github.com";
-
-function normalizeErrorMessage(error) {
-  const fallback = "GitHub pull requests are not available. Check the repository setting and try again.";
-  if (!error) {
-    return fallback;
-  }
-  if (typeof error === "string") {
-    return normalizeText(error, fallback);
-  }
-  if (typeof error.message === "string") {
-    return normalizeText(error.message, fallback);
-  }
-  return fallback;
-}
+const GITHUB_PR_ERROR_FALLBACK = "GitHub pull requests are not available. Check the repository setting and try again.";
 
 function normalizeMaxItems(value, fallback = 20) {
   const num = Number(value);
@@ -650,7 +638,7 @@ export const githubPrListWidget = {
         if (requestId !== requestSerial) {
           return;
         }
-        errorMessage = normalizeErrorMessage(error);
+        errorMessage = normalizeErrorMessage(error, GITHUB_PR_ERROR_FALLBACK);
       } finally {
         if (requestId !== requestSerial) {
           return;

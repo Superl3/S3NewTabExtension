@@ -1,3 +1,4 @@
+import { normalizeErrorMessage } from "../core/utils/error.js";
 import { clamp } from "../core/utils/number.js";
 import { normalizeText } from "../core/utils/text.js";
 import {
@@ -19,6 +20,7 @@ import {
 
 const GITHUB_API_BASE = "https://api.github.com";
 const GITHUB_WEB_BASE = "https://github.com";
+const REVIEW_INBOX_ERROR_FALLBACK = "GitHub review inbox is not available. Check repository and login settings.";
 const REVIEW_INBOX_TAB_NEEDS_REVIEW = "needsReview";
 const REVIEW_INBOX_TAB_OPENED = "opened";
 const REVIEW_INBOX_SWIPE_START_THRESHOLD_PX = 18;
@@ -32,20 +34,6 @@ const REVIEW_INBOX_TABS = [
   { id: REVIEW_INBOX_TAB_NEEDS_REVIEW, label: "requested" },
   { id: REVIEW_INBOX_TAB_OPENED, label: "opened" }
 ];
-
-function normalizeErrorMessage(error) {
-  const fallback = "GitHub review inbox is not available. Check repository and login settings.";
-  if (!error) {
-    return fallback;
-  }
-  if (typeof error === "string") {
-    return normalizeText(error, fallback);
-  }
-  if (typeof error.message === "string") {
-    return normalizeText(error.message, fallback);
-  }
-  return fallback;
-}
 
 function normalizeMaxItems(value, fallback = 20) {
   const num = Number(value);
@@ -1461,7 +1449,7 @@ export const githubReviewInboxWidget = {
         if (requestId !== requestSerial) {
           return;
         }
-        errorMessage = normalizeErrorMessage(error);
+        errorMessage = normalizeErrorMessage(error, REVIEW_INBOX_ERROR_FALLBACK);
       } finally {
         if (requestId !== requestSerial) {
           return;

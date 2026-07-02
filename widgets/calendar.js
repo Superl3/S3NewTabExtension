@@ -1,3 +1,4 @@
+import { normalizeErrorMessage } from "../core/utils/error.js";
 import { clamp } from "../core/utils/number.js";
 import { normalizeText } from "../core/utils/text.js";
 import { parseIcsEvents } from "./shared/icsParser.js";
@@ -90,19 +91,6 @@ function normalizeEventLink(value, fallback = GOOGLE_CALENDAR_WEB_URL) {
   } catch {
     return fallback;
   }
-}
-
-function normalizeErrorMessage(error) {
-  if (!error) {
-    return "Unknown error";
-  }
-  if (typeof error === "string") {
-    return normalizeText(error, "Unknown error");
-  }
-  if (typeof error.message === "string") {
-    return normalizeText(error.message, "Unknown error");
-  }
-  return "Unknown error";
 }
 
 function toLocalDateKey(date) {
