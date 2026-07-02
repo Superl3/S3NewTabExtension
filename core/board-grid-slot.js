@@ -1,11 +1,5 @@
 import { callIfFunction as call } from "./utils/function.js";
-
-function fallbackClamp(value, min, max) {
-  if (!Number.isFinite(value)) {
-    return min;
-  }
-  return Math.min(max, Math.max(min, value));
-}
+import { clampFiniteOrMin } from "./utils/number.js";
 
 export function findFirstAvailableBoardGridSlot(page, colSpan, rowSpan, deps = {}) {
   const {
@@ -26,7 +20,7 @@ export function findFirstAvailableBoardGridSlot(page, colSpan, rowSpan, deps = {
     return null;
   }
 
-  const clampValue = typeof clamp === "function" ? clamp : fallbackClamp;
+  const clampValue = typeof clamp === "function" ? clamp : clampFiniteOrMin;
   const home = call(syncLauncherPagingState, { expandToFitInstances: true }) || { pageCount: 1 };
   const metrics = call(gridMetrics) || {};
   const cols = Math.max(1, Math.floor(Number(metrics.cols) || 1));

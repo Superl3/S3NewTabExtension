@@ -91,6 +91,22 @@ test("findFirstAvailableBoardGridSlot clamps requested span to grid bounds", () 
   });
 });
 
+test("findFirstAvailableBoardGridSlot uses shared fallback clamp when deps clamp is absent", () => {
+  const { clamp: _clamp, ...depsWithoutClamp } = baseDeps;
+  const slot = findFirstAvailableBoardGridSlot(0, Number.NaN, 99, {
+    ...depsWithoutClamp,
+    isGridLayoutMode: () => true,
+    instances: []
+  });
+
+  assert.deepEqual(slot, {
+    row: 0,
+    col: 0,
+    rowSpan: 3,
+    colSpan: 1
+  });
+});
+
 test("findFirstAvailableBoardGridSlot treats half-track widgets as overlapping both cells", () => {
   const slot = findFirstAvailableBoardGridSlot(0, 1, 1, {
     ...baseDeps,
