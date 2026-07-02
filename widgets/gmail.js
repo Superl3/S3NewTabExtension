@@ -2,6 +2,7 @@ import { normalizeErrorMessage } from "../core/utils/error.js";
 import { normalizeIntegerInRange } from "../core/utils/number.js";
 import { normalizeText } from "../core/utils/text.js";
 import { formatLocalDateTimeLabel as formatDateLabel } from "./shared/dateLabels.js";
+import { readAtomAlternateLink as atomAlternateLink, readFeedNodeText as nodeText } from "./shared/feedXml.js";
 
 const GMAIL_WEB_BASE_URL = "https://mail.google.com/mail";
 
@@ -40,46 +41,6 @@ function normalizeMailLink(value, fallback) {
   } catch {
     return fallback;
   }
-}
-
-function nodeText(parent, tagNames = []) {
-  if (!parent) {
-    return "";
-  }
-
-  for (const tagName of tagNames) {
-    const nodes = parent.getElementsByTagName(tagName);
-    if (!nodes.length) {
-      continue;
-    }
-    const text = normalizeText(nodes[0]?.textContent);
-    if (text) {
-      return text;
-    }
-  }
-
-  return "";
-}
-
-function atomAlternateLink(entry) {
-  const links = Array.from(entry?.getElementsByTagName("link") || []);
-  let fallback = "";
-
-  for (const linkNode of links) {
-    const href = normalizeText(linkNode.getAttribute("href"));
-    if (!href) {
-      continue;
-    }
-    if (!fallback) {
-      fallback = href;
-    }
-    const rel = normalizeText(linkNode.getAttribute("rel")).toLowerCase();
-    if (!rel || rel === "alternate") {
-      return href;
-    }
-  }
-
-  return fallback;
 }
 
 function isGmailLoginPage(responseUrl, bodyText) {
