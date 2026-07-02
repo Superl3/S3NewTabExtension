@@ -152,6 +152,44 @@ export function formatSyncedLabel(timestampMs) {
   });
 }
 
+export function resolveFlexSyncState({
+  loading = false,
+  rowCount = 0,
+  errorMessage = "",
+  lastSyncedAt = 0
+} = {}) {
+  if (loading) {
+    return {
+      label: rowCount ? "Syncing..." : "Loading...",
+      tone: "loading",
+      tooltip: rowCount ? "Refreshing cached worktime data." : "Loading worktime data."
+    };
+  }
+
+  if (errorMessage) {
+    return {
+      label: "Sync failed",
+      tone: "error",
+      tooltip: errorMessage
+    };
+  }
+
+  const synced = formatSyncedLabel(lastSyncedAt);
+  if (synced) {
+    return {
+      label: `Synced ${synced}`,
+      tone: "success",
+      tooltip: `Last synced at ${synced}`
+    };
+  }
+
+  return {
+    label: "Not synced",
+    tone: "idle",
+    tooltip: "No sync history yet."
+  };
+}
+
 export function formatFlexSourceError(prefix, error) {
   const message = normalizeErrorMessage(error);
   if (!message) {

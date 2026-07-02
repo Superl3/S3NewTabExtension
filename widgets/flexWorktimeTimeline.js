@@ -35,12 +35,12 @@ import {
   formatClockMinutes,
   formatDurationMinutes,
   formatFlexWorkRecordScrapeError as formatSourceError,
-  formatSyncedLabel,
   formatTimeFromRef,
   normalizeCachedWorktimeRow as normalizeCachedRow,
   normalizeFlexHomeScrapeRow,
   normalizeFlexWidgetBaseConfig,
   normalizeTabId,
+  resolveFlexSyncState,
   parseTimeOfDayMinutes,
   resolveFlexWorktimeDetailUrl as resolveDetailUrl,
   sanitizePlaceholderMap,
@@ -1816,46 +1816,18 @@ export const flexWorktimeTimelineWidget = {
       return openResolvedDetailHref(href, cfg);
     }
 
-    function resolveSyncState() {
-      if (loading) {
-        return {
-          label: rows.length ? "Syncing..." : "Loading...",
-          tone: "loading",
-          tooltip: rows.length ? "Refreshing cached worktime data." : "Loading worktime data."
-        };
-      }
-
-      if (errorMessage) {
-        return {
-          label: "Sync failed",
-          tone: "error",
-          tooltip: errorMessage
-        };
-      }
-
-      const synced = formatSyncedLabel(lastSyncedAt);
-      if (synced) {
-        return {
-          label: `Synced ${synced}`,
-          tone: "success",
-          tooltip: `Last synced at ${synced}`
-        };
-      }
-
-      return {
-        label: "Not synced",
-        tone: "idle",
-        tooltip: "No sync history yet."
-      };
-    }
-
     function renderList(config, queryDate) {
       list.replaceChildren();
 
       const primaryRow = rows.length > 0 ? rows[0] : null;
       const detailHref = primaryRow ? resolveDetailUrl(config, queryDate, primaryRow) : "";
       const clickable = Boolean(detailHref);
-      const syncState = resolveSyncState();
+      const syncState = resolveFlexSyncState({
+        loading,
+        rowCount: rows.length,
+        errorMessage,
+        lastSyncedAt
+      });
       const timeline = isPlainObject(primaryRow?.rawEntry?.timeline) ? primaryRow.rawEntry.timeline : null;
       const timelineSegments = buildFlexTimelineSegments(timeline);
 
