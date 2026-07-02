@@ -1,4 +1,5 @@
 import { parseJsonOrNull } from "../../core/utils/json.js";
+import { toFiniteNumber, toPositiveInteger } from "../../core/utils/number.js";
 import { isPlainObject } from "../../core/utils/object.js";
 import { normalizeText } from "../../core/utils/text.js";
 import { pruneCacheIndex, touchCacheIndex } from "./localStorageCacheIndex.js";
@@ -11,7 +12,7 @@ function resolveStorageArea(fallbackStorage = null) {
 }
 
 function normalizeMaxEntries(value) {
-  return Math.max(1, Number(value) || 1);
+  return toPositiveInteger(value, 1);
 }
 
 export function createFlexWorktimeCache(options = {}) {
@@ -94,7 +95,7 @@ export function createFlexWorktimeCache(options = {}) {
 
     const key = cacheStorageKey(config, queryDate);
     const payload = {
-      fetchedAt: Math.max(1, Math.round(Number(fetchedAt) || Date.now())),
+      fetchedAt: Math.max(1, Math.round(toFiniteNumber(fetchedAt, Date.now()))),
       rows: Array.isArray(rows) ? rows.map(toCachedRow).filter(Boolean) : []
     };
 
