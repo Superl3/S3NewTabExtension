@@ -54,6 +54,16 @@ test("resolves dock slot index from pointer coordinates", () => {
     clampToRange: false
   });
   assert.equal(negativeGapSlot, 1);
+
+  const fallbackUnitSlot = resolveDockSlotIndexAtPoint(165, 40, {
+    stripRect: rect,
+    slotCount: 4,
+    unitSize: 0,
+    gap: 10,
+    horizontal: true,
+    clampToRange: false
+  });
+  assert.equal(fallbackUnitSlot, 1);
 });
 
 test("resolves dock slot rect relative to host", () => {
@@ -104,6 +114,24 @@ test("resolves dock slot rect relative to host", () => {
       w: 40,
       h: 40,
       borderRadius: 11
+    }
+  );
+
+  assert.deepEqual(
+    resolveDockSlotRectRelativeToHost(1, {
+      hostRect,
+      stripRect,
+      slotCount: 5,
+      unitSize: 0,
+      gap: 8,
+      horizontal: true
+    }),
+    {
+      x: 92,
+      y: 20,
+      w: 44,
+      h: 44,
+      borderRadius: 12
     }
   );
 });

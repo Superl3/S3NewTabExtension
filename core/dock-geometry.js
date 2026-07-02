@@ -1,5 +1,10 @@
 import { pointInsideRect } from "./utils/geometry.js";
-import { clampFiniteOrMin, toNonNegativeNumberOrFallback, toPositiveInteger } from "./utils/number.js";
+import {
+  clampFiniteOrMin,
+  clampTruthyNumberOrFallback,
+  toNonNegativeNumberOrFallback,
+  toPositiveInteger
+} from "./utils/number.js";
 
 export function isHorizontalDockPosition(position = "bottom") {
   return position === "top" || position === "bottom";
@@ -18,7 +23,7 @@ export function resolveDockSlotIndexAtPoint(
   } = {}
 ) {
   const count = toPositiveInteger(slotCount, 1);
-  const unit = Math.max(1, Number(unitSize) || 44);
+  const unit = clampTruthyNumberOrFallback(unitSize, 44, 1, Number.POSITIVE_INFINITY);
   const gapSize = toNonNegativeNumberOrFallback(gap);
 
   if (!stripRect) {
@@ -55,7 +60,7 @@ export function resolveDockSlotRectRelativeToHost(
   } = {}
 ) {
   const count = toPositiveInteger(slotCount, 1);
-  const unit = Math.max(1, Number(unitSize) || 44);
+  const unit = clampTruthyNumberOrFallback(unitSize, 44, 1, Number.POSITIVE_INFINITY);
   const gapSize = toNonNegativeNumberOrFallback(gap);
   const slot = Number(slotIndex);
 
