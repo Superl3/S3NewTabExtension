@@ -228,6 +228,12 @@ test("widget common style shares number clamp helpers", async () => {
   assert.doesNotMatch(source, /Number\(fallback\) \|\| 1/);
 });
 
+test("widget common style centralizes backdrop overlay opacity normalization", async () => {
+  const source = await fs.readFile(new URL("../core/widget-common-style.js", import.meta.url), "utf8");
+  assert.match(source, /normalizeBackdropOverlayOpacity/);
+  assert.doesNotMatch(source, /Number\(ui\?\.background\?\.overlayOpacity\) \|\| 0\.24/);
+});
+
 test("core modules use the shared text normalizer instead of local copies", async () => {
   const moduleUrls = [
     new URL("../core/background-local-media.js", import.meta.url),
