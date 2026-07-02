@@ -360,3 +360,18 @@ test("Flex worktime widgets share the Flex Home scrape extractor", async () => {
     assert.doesNotMatch(source, /^async function extractFlexHomeWorktimeFromTab\(/m, moduleUrl.pathname);
   }
 });
+
+test("GitHub widgets share repository and API helpers", async () => {
+  const moduleUrls = [
+    new URL("../widgets/githubPrList.js", import.meta.url),
+    new URL("../widgets/githubReviewInbox.js", import.meta.url)
+  ];
+  const localGitHubPattern =
+    /^function (buildApiHeaders|buildRepoPullsPageUrl|formatRelativeTimestamp|formatSyncedLabel|formatUpdatedLabelFromTimestamp|isRepoSegment|normalizeMaxItems|normalizeRefreshMinutes|normalizeRepository|normalizeReviewerNames|parseGitHubError|repositoryParts|tokenFingerprint)\(/m;
+
+  for (const moduleUrl of moduleUrls) {
+    const source = await fs.readFile(moduleUrl, "utf8");
+    assert.match(source, /shared\/githubApi\.js/, moduleUrl.pathname);
+    assert.doesNotMatch(source, localGitHubPattern, moduleUrl.pathname);
+  }
+});
