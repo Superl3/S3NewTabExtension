@@ -1291,7 +1291,7 @@ test("widgets share link URL helpers instead of local copies", async () => {
     new URL("../widgets/calendar.js", import.meta.url)
   ];
   const localLinkPattern =
-    /^function (normalizeSafeUrl|normalizeSafeLink|normalizeEventLink|isUrlIcon|bookmarkFavicon)\(/m;
+    /^function (normalizeSafeUrl|normalizeSafeLink|normalizeEventLink|normalizeComparableUrl|isUrlIcon|bookmarkFavicon)\(/m;
 
   for (const moduleUrl of moduleUrls) {
     const source = await fs.readFile(moduleUrl, "utf8");

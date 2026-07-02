@@ -6,7 +6,7 @@ import {
   readAtomAlternateLink as atomLink,
   readFeedNodeText as nodeText
 } from "./shared/feedXml.js";
-import { normalizeHttpUrl } from "./shared/linkUrls.js";
+import { normalizeComparableUrl, normalizeHttpUrl } from "./shared/linkUrls.js";
 
 export const GEEK_NEWS_FEED_URL = "https://news.hada.io/rss/news";
 const GEEK_NEWS_FETCH_URL = "https://feeds.feedburner.com/geeknews-feed";
@@ -97,21 +97,6 @@ function normalizeErrorMessage(error) {
     return "Feed could not be read. Check that the URL points to an RSS or Atom feed.";
   }
   return text;
-}
-
-function normalizeComparableUrl(value) {
-  const text = normalizeText(value);
-  if (!text) {
-    return "";
-  }
-
-  try {
-    const parsed = new URL(text);
-    parsed.hash = "";
-    return parsed.toString();
-  } catch {
-    return "";
-  }
 }
 
 function feedPresetFromUrl(value) {

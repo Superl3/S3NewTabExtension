@@ -18,6 +18,21 @@ export function normalizeHttpUrl(value, fallback = "") {
   }
 }
 
+export function normalizeComparableUrl(value) {
+  const text = normalizeText(value);
+  if (!text) {
+    return "";
+  }
+
+  try {
+    const parsed = new URL(text);
+    parsed.hash = "";
+    return parsed.toString();
+  } catch {
+    return "";
+  }
+}
+
 export function isUrlIcon(value) {
   const text = normalizeText(value);
   return (
