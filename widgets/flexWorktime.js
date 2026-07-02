@@ -1,6 +1,7 @@
 import { normalizeErrorMessage } from "../core/utils/error.js";
 import { parseJsonOrNull } from "../core/utils/json.js";
 import { clamp, normalizeIntegerInRange, toFiniteNumber } from "../core/utils/number.js";
+import { hasOwn, isPlainObject } from "../core/utils/object.js";
 import { normalizeText } from "../core/utils/text.js";
 import { executeScript, hasScriptingApi } from "../core/platform/chrome-scripting.js";
 import {
@@ -145,14 +146,6 @@ function isFlexLoginUrl(value) {
   } catch {
     return FLEX_AUTH_LOGIN_FALLBACK_RE.test(text);
   }
-}
-
-function isPlainObject(value) {
-  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
-}
-
-function hasOwn(source, key) {
-  return Boolean(source) && Object.prototype.hasOwnProperty.call(source, key);
 }
 
 function normalizeRefreshMinutes(value, fallback = 10) {
@@ -435,7 +428,7 @@ function lowerKeyMap(entry) {
 
 function pickEntryValue(entry, keyMap, candidates) {
   for (const key of candidates) {
-    if (Object.prototype.hasOwnProperty.call(entry, key)) {
+    if (hasOwn(entry, key)) {
       return entry[key];
     }
     const lowerKey = key.toLowerCase();
@@ -1349,7 +1342,7 @@ function resolvePathValue(source, path) {
     return undefined;
   }
 
-  if (isPlainObject(source) && Object.prototype.hasOwnProperty.call(source, path)) {
+  if (isPlainObject(source) && hasOwn(source, path)) {
     return source[path];
   }
 
@@ -1363,7 +1356,7 @@ function resolvePathValue(source, path) {
     if (!current || typeof current !== "object") {
       return undefined;
     }
-    if (!Object.prototype.hasOwnProperty.call(current, segment)) {
+    if (!hasOwn(current, segment)) {
       return undefined;
     }
     current = current[segment];

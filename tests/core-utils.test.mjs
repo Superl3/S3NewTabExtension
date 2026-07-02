@@ -5,6 +5,7 @@ import fs from "node:fs/promises";
 import { normalizeErrorMessage } from "../core/utils/error.js";
 import { parseJsonOrNull } from "../core/utils/json.js";
 import { clamp, clampFiniteOrMin, normalizeIntegerInRange, toFiniteNumber } from "../core/utils/number.js";
+import { hasOwn, isPlainObject } from "../core/utils/object.js";
 import { normalizeText } from "../core/utils/text.js";
 import { clamp as layoutClamp } from "../core/layout-primitives.js";
 
@@ -49,6 +50,14 @@ test("parseJsonOrNull parses JSON objects and ignores invalid input", () => {
   assert.equal(parseJsonOrNull(""), null);
   assert.equal(parseJsonOrNull("not-json"), null);
   assert.equal(parseJsonOrNull({ ok: true }), null);
+});
+
+test("object utilities preserve plain-object and safe own-property semantics", () => {
+  assert.equal(isPlainObject({ ok: true }), true);
+  assert.equal(isPlainObject([]), false);
+  assert.equal(isPlainObject(null), false);
+  assert.equal(hasOwn({ ok: false }, "ok"), true);
+  assert.equal(hasOwn(null, "ok"), false);
 });
 
 test("layout-primitives clamp delegates to core utils number module", () => {
@@ -121,6 +130,11 @@ test("core drag and resize modules use the shared finite number helper", async (
   }
 });
 
+test("core profile utilities use shared object helpers", async () => {
+  const source = await fs.readFile(new URL("../core/profile-transfer.js", import.meta.url), "utf8");
+  assert.doesNotMatch(source, /^function isPlainObject\(/m);
+});
+
 async function collectWidgetSources(dirUrl) {
   const entries = await fs.readdir(dirUrl, { withFileTypes: true });
   const sources = [];
@@ -184,4 +198,19 @@ test("widgets keep only blank-aware local finite number normalization", async ()
     .map((source) => source.name.replace(/^.*\/widgets\//, "widgets/"));
 
   assert.deepEqual(localFiniteNormalizers, ["widgets/weather.js"]);
+});
+
+test("widgets use shared object helpers instead of local copies", async () => {
+  const sources = await collectWidgetSources(new URL("../widgets/", import.meta.url));
+  for (const source of sources) {
+    assert.doesNotMatch(source.text, /^function isPlainObject\(/m, source.name);
+    assert.doesNotMatch(source.text, /^function hasOwn\(/m, source.name);
+  }
+
+  const flexSources = sources.filter((source) =>
+    /\/widgets\/flexWorktime(?:Timeline)?\.js$/.test(source.name)
+  );
+  for (const source of flexSources) {
+    assert.doesNotMatch(source.text, /Object\.prototype\.hasOwnProperty\.call/, source.name);
+  }
 });
