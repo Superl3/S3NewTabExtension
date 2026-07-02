@@ -15,7 +15,7 @@ import {
 } from "./launcherDropPlan.js";
 import { normalizeContainerId } from "./container-state.js";
 import { callIfFunction as invoke } from "./utils/function.js";
-import { toInteger as normalizeInteger } from "./utils/number.js";
+import { toInteger } from "./utils/number.js";
 
 export function buildDropPlanProjection(layout = null, page = 0, gridLayout = null) {
   if (!layout) {
@@ -23,7 +23,7 @@ export function buildDropPlanProjection(layout = null, page = 0, gridLayout = nu
   }
   return {
     layout,
-    page: normalizeInteger(page, 0),
+    page: toInteger(page, 0),
     gridLayout: gridLayout || null
   };
 }
@@ -58,13 +58,13 @@ export function resolveWidgetDropPlan(
     projectWidgetBoardDropLayout
   } = deps;
 
-  const pageCount = Math.max(1, normalizeInteger(invoke(currentLauncherPageCount), 1));
-  const activePage = normalizeInteger(invoke(currentLauncherActivePage), 0);
+  const pageCount = Math.max(1, toInteger(invoke(currentLauncherPageCount), 1));
+  const activePage = toInteger(invoke(currentLauncherActivePage), 0);
   const normalizePage = (page, fallback = activePage) => {
     if (typeof normalizeWidgetPage === "function") {
       return normalizeWidgetPage(page, pageCount, fallback);
     }
-    return normalizeInteger(page, fallback);
+    return toInteger(page, fallback);
   };
   const isPlaceholderPage = (page) => Boolean(invoke(isPlaceholderLauncherPage, page, pageCount));
 
@@ -110,7 +110,7 @@ export function resolveWidgetDropPlan(
     });
   }
 
-  const requestedInternalPage = Number.isFinite(requestedPage) ? Math.floor(requestedPage) : null;
+  const requestedInternalPage = toInteger(requestedPage, null);
   if (requestedInternalPage !== null && isPlaceholderPage(requestedInternalPage)) {
     const edge = placeholderEdgeFromInternalPlaceholder(requestedInternalPage, pageCount);
     return createBoardPlaceholderDropPlan({
@@ -161,13 +161,13 @@ export function applyDropPlanIndicators(plan, { silhouette = null } = {}, deps =
     setWidgetDropSilhouetteVisible
   } = deps;
 
-  const pageCount = Math.max(1, normalizeInteger(invoke(currentLauncherPageCount), 1));
-  const activePage = normalizeInteger(invoke(currentLauncherActivePage), 0);
+  const pageCount = Math.max(1, toInteger(invoke(currentLauncherPageCount), 1));
+  const activePage = toInteger(invoke(currentLauncherActivePage), 0);
   const normalizePage = (page) => {
     if (typeof normalizeWidgetPage === "function") {
       return normalizeWidgetPage(page, pageCount, activePage);
     }
-    return normalizeInteger(page, activePage);
+    return toInteger(page, activePage);
   };
 
   const safePlan = plan || createNoneDropPlan();

@@ -285,6 +285,7 @@ test("core modules use shared integer helpers instead of local copies", async ()
     assert.doesNotMatch(source, /^function (toInteger|normalizeInteger|toPositiveInteger)\(/m, moduleUrl.pathname);
     assert.doesNotMatch(source, /^function normalizeHoldMs\(/m, moduleUrl.pathname);
     assert.doesNotMatch(source, /Number\.isFinite\(Number\(/, moduleUrl.pathname);
+    assert.doesNotMatch(source, /toInteger as normalizeInteger/, moduleUrl.pathname);
   }
 });
 
