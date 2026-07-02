@@ -16,6 +16,7 @@ import {
   formatFlexSourceError,
   formatSyncedLabel,
   normalizeCachedWorktimeRow as normalizeCachedRow,
+  normalizeFlexHomeScrapeRow,
   normalizeFlexHomeUrl,
   normalizeFlexRefreshMinutes as normalizeRefreshMinutes,
   normalizeTabId,
@@ -705,53 +706,6 @@ async function extractFlexHomeWorktimeFromTab(tabId) {
   }
 
   return result;
-}
-
-function normalizeFlexHomeScrapeRow(scraped, queryDate, flexHomeUrl) {
-  const duration = normalizeText(scraped?.duration);
-  const status = normalizeText(scraped?.status, "상태 확인 필요");
-  const line = normalizeText(scraped?.line);
-  const combined = normalizeText(`${status} ${duration}`);
-  const note = line && line !== combined ? line : "";
-
-  const rawEntry = {
-    sourceMode: "flexHomeScrape",
-    queryDate: normalizeText(queryDate),
-    sourceUrl: normalizeText(scraped?.url, flexHomeUrl),
-    pageTitle: normalizeText(scraped?.title),
-    extractedAt: Math.max(1, Math.round(Number(scraped?.extractedAt) || Date.now())),
-    status,
-    duration,
-    line
-  };
-
-  const row = {
-    id: `flex-home-${normalizeText(queryDate, toLocalDateKey(new Date()))}`,
-    name: "Flex Home",
-    status,
-    inLabel: "--",
-    outLabel: "--",
-    durationLabel: duration || "--",
-    note,
-    placeholders: {},
-    rawEntry
-  };
-
-  row.placeholders = sanitizePlaceholderMap({
-    id: row.id,
-    name: row.name,
-    status: row.status,
-    in: row.inLabel,
-    out: row.outLabel,
-    duration: row.durationLabel,
-    note: row.note,
-    sourceMode: "flexHomeScrape",
-    queryDate: normalizeText(queryDate),
-    flexHomeUrl: rawEntry.sourceUrl,
-    pageTitle: rawEntry.pageTitle
-  });
-
-  return row;
 }
 
 export async function fetchFlexHomeScrapeRows(config, queryDate, scrapeFlowState = null) {
