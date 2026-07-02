@@ -933,7 +933,7 @@ async function fetchAssignedIssues(config, meId, peopleColumnIds, accessToken, s
 function groupIssuesByGroup(items, boardGroups) {
   const bucketByKey = new Map();
 
-  for (const issue of items || []) {
+  for (const issue of arrayOrEmpty(items)) {
     const groupId = normalizeText(issue?.groupId);
     const groupTitle = normalizeText(issue?.groupTitle, "Ungrouped");
     const key = groupId || groupTitle;
@@ -952,7 +952,7 @@ function groupIssuesByGroup(items, boardGroups) {
 
   const result = [];
   const used = new Set();
-  for (const group of boardGroups || []) {
+  for (const group of arrayOrEmpty(boardGroups)) {
     const key = normalizeText(group?.id);
     if (!key || used.has(key)) {
       continue;
