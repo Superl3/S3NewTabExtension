@@ -656,8 +656,12 @@ test("drop guide runtime uses shared number helpers for board slot rectangles", 
   const source = await fs.readFile(new URL("../core/drop-guide-runtime.js", import.meta.url), "utf8");
   assert.match(source, /utils\/number\.js/);
   assert.match(source, /clampRoundedTruthyNumberOrFallback\(layout\.w, 1, 1, Number\.POSITIVE_INFINITY\)/);
+  assert.match(source, /clampRoundedTruthyNumberOrFallback\(insertIndex, 0, 0, siblingIds\.length\)/);
+  assert.match(source, /clampRoundedTruthyNumberOrFallback\(span\.cols, 1, 1, cols\)/);
   assert.match(source, /toTruthyNumberOrFallback\(draggedInstance\.layout\?\.x, 0\)/);
   assert.doesNotMatch(source, /Number\((?:layout|draggedInstance\.layout\?)\.[xywh]\) \|\|/);
+  assert.doesNotMatch(source, /Math\.round\(Number\(insertIndex\) \|\| 0\)/);
+  assert.doesNotMatch(source, /Math\.round\(span\.(?:cols|rows) \|\| 1\)/);
 });
 
 test("drag layering uses shared number helpers for z-index normalization", async () => {

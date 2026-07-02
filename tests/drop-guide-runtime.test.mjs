@@ -134,6 +134,60 @@ test("createDropGuideRuntime projects board slot rect with truthy fallback seman
   });
 });
 
+test("createDropGuideRuntime clamps container insert index and spans with truthy fallback semantics", () => {
+  const body = createElement({
+    querySelectorAll: () => [],
+    getBoundingClientRect: () => ({ left: 0, top: 0, width: 100, height: 100 })
+  });
+  const host = createElement({
+    classList: {
+      ...createClassList(),
+      contains(name) {
+        return name === "widget-folder-panel";
+      }
+    },
+    querySelector: () => body,
+    getBoundingClientRect: () => ({ left: 0, top: 0, width: 100, height: 100 })
+  });
+  const dragged = { id: "w2", type: "note", enabled: true };
+  const sibling = { id: "w1", type: "note", enabled: true, containerId: "c1" };
+  const instances = new Map([
+    ["c1", { id: "c1", type: "container" }],
+    ["w1", sibling],
+    ["w2", dragged]
+  ]);
+  const runtime = createDropGuideRuntime({
+    elements: {},
+    dragGuideUiState: { host: null },
+    containerDropUiState: { targets: new Map() },
+    state: { instances: [sibling] },
+    widgetPageOffsetX: () => 0,
+    resolveDockDropSlotIndex: () => null,
+    dockSlotRectRelativeToHost: () => null,
+    normalizeContainerId: (id) => String(id || ""),
+    instanceById: (id) => instances.get(id) || null,
+    normalizeText: (value) => String(value || ""),
+    resolveContainerSpan: () => ({ cols: 2, rows: 2 }),
+    resolveContainerInsertIndexFromPointer: () => "bad",
+    resolveWidgetSpanInContainer: (widget) => widget.id === "w2" ? { cols: 0, rows: "bad" } : { cols: 1, rows: 1 },
+    cssPixelValue: () => 0,
+    containerDropTargetAtPoint: () => "",
+    isDockDropPoint: () => false,
+    setContainerDropTargetActive: () => {},
+    setDockDropTargetActive: () => {},
+    isGridLayoutMode: () => false,
+    windowObj: { getComputedStyle: () => ({}) }
+  });
+
+  assert.deepEqual(runtime.containerDropGuideSlotRect("c1", dragged, host, { clientX: 0, clientY: 0 }), {
+    x: 0,
+    y: 0,
+    w: 50,
+    h: 50,
+    borderRadius: 10
+  });
+});
+
 test("createDropGuideRuntime clears existing guide host", () => {
   const host = createElement();
   const runtime = createDropGuideRuntime({
