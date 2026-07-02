@@ -8,10 +8,15 @@ import {
   isFlexLoginUrl
 } from "./flexAuth.js";
 
-function executeScriptInTab(tabId, func) {
+export function executeFlexScriptInTab(
+  tabId,
+  func,
+  args = [],
+  fallbackMessage = "Unable to run script in Flex tab."
+) {
   return executeScript(
-    { target: { tabId }, func },
-    { fallbackMessage: "Unable to run script in Flex Home tab." }
+    { target: { tabId }, func, args },
+    { fallbackMessage }
   );
 }
 
@@ -22,7 +27,9 @@ export function assertFlexScrapeApisAvailable(message) {
 }
 
 export async function extractFlexHomeWorktimeFromTab(tabId) {
-  const results = await executeScriptInTab(tabId, async () => {
+  const results = await executeFlexScriptInTab(
+    tabId,
+    async () => {
     const AUTH_REQUIRED_CODE = "FLEX_AUTH_REQUIRED";
     const STATUS_PATTERNS = [
       { regex: /근무\s*중|업무\s*중/u, label: "근무중" },
@@ -254,7 +261,10 @@ export async function extractFlexHomeWorktimeFromTab(tabId) {
     }
 
     return lastResult || { ok: false, error: "Flex Home scrape timed out." };
-  });
+    },
+    [],
+    "Unable to run script in Flex Home tab."
+  );
 
   const result = Array.isArray(results) && results.length > 0 ? results[0].result : null;
   if (!isPlainObject(result)) {

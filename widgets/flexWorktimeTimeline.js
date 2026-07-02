@@ -2,7 +2,6 @@ import { normalizeErrorMessage } from "../core/utils/error.js";
 import { clamp } from "../core/utils/number.js";
 import { hasOwn, isPlainObject } from "../core/utils/object.js";
 import { normalizeText } from "../core/utils/text.js";
-import { executeScript } from "../core/platform/chrome-scripting.js";
 import {
   createTab,
   getTabIfExists,
@@ -19,6 +18,7 @@ import {
 } from "./shared/flexAuth.js";
 import {
   assertFlexScrapeApisAvailable,
+  executeFlexScriptInTab,
   extractFlexHomeWorktimeFromTab
 } from "./shared/flexHomeScrape.js";
 import {
@@ -584,13 +584,6 @@ function findPreferredFlexTab(tabs, targetUrl, matchTabUrl) {
   return tabs.find((tab) => isMatchingFlexLoginTabUrl(tab?.url, targetUrl)) || null;
 }
 
-function executeScriptInTab(tabId, func, args = [], fallbackMessage = "Unable to run script in Flex tab.") {
-  return executeScript(
-    { target: { tabId }, func, args },
-    { fallbackMessage }
-  );
-}
-
 async function findFlexTab(targetUrl, matchTabUrl) {
   const activeCurrentWindow = await queryTabs({ active: true, currentWindow: true });
   const activeMatch = findPreferredFlexTab(activeCurrentWindow, targetUrl, matchTabUrl);
@@ -787,7 +780,7 @@ async function fetchFlexScrapePayload({
 }
 
 async function extractFlexWorkRecordTimelineFromTab(tabId, queryDate) {
-  const results = await executeScriptInTab(
+  const results = await executeFlexScriptInTab(
     tabId,
     async (targetDateKey) => {
       const AUTH_REQUIRED_CODE = "FLEX_AUTH_REQUIRED";
