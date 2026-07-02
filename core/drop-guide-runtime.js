@@ -13,7 +13,6 @@ export function createDropGuideRuntime({
   normalizeText,
   resolveContainerSpan,
   resolveContainerInsertIndexFromPointer,
-  clamp,
   resolveWidgetSpanInContainer,
   cssPixelValue,
   containerDropTargetAtPoint,
@@ -194,7 +193,7 @@ export function createDropGuideRuntime({
         panelElement: body
       }
     );
-    const clampedInsertIndex = clamp?.(Math.round(Number(insertIndex) || 0), 0, siblingIds.length) ?? 0;
+    const clampedInsertIndex = clampRoundedTruthyNumberOrFallback(insertIndex, 0, 0, siblingIds.length);
 
     const orderedIds = siblingIds.slice();
     orderedIds.splice(clampedInsertIndex, 0, draggedId);
@@ -238,8 +237,8 @@ export function createDropGuideRuntime({
     for (const item of orderedWidgets) {
       const itemId = normalizeText?.(item.id);
       const span = resolveWidgetSpanInContainer?.(item, containerSpan) || { cols: 1, rows: 1 };
-      const colSpan = clamp?.(Math.round(span.cols || 1), 1, cols) ?? 1;
-      const rowSpan = clamp?.(Math.round(span.rows || 1), 1, rows) ?? 1;
+      const colSpan = clampRoundedTruthyNumberOrFallback(span.cols, 1, 1, cols);
+      const rowSpan = clampRoundedTruthyNumberOrFallback(span.rows, 1, 1, rows);
 
       let placed = null;
       for (let row = 0; row < rows && !placed; row += 1) {
