@@ -172,6 +172,42 @@ test("hydrateState falls back to base instances when input has no instances arra
   assert.equal(result.mode, "use");
 });
 
+test("hydrateState preserves z-index and page count fallback semantics", () => {
+  const deps = createDeps();
+  const result = hydrateState(
+    {
+      instances: [
+        { id: "n1", type: "note", zIndex: 0, page: 0 },
+        { id: "n2", type: "note", zIndex: Infinity, page: 4 }
+      ],
+      ui: {
+        home: {
+          pageCount: 0
+        }
+      }
+    },
+    deps
+  );
+
+  assert.equal(result.instances[0].zIndex, 1);
+  assert.equal(result.instances[1].zIndex, Infinity);
+  assert.equal(result.ui.home.pageCount, 5);
+
+  const infinitePageCount = hydrateState(
+    {
+      instances: [],
+      ui: {
+        home: {
+          pageCount: Infinity
+        }
+      }
+    },
+    deps
+  );
+
+  assert.equal(infinitePageCount.ui.home.pageCount, Infinity);
+});
+
 test("hydrateState normalizes preset timestamps with truthy fallback semantics", () => {
   const deps = createDeps();
   const previousNow = Date.now;

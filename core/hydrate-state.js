@@ -149,7 +149,7 @@ export function hydrateState(raw, deps = {}) {
       id: item.id || `${item.type}-${idSuffix()}`,
       type: item.type,
       title: item.title || def.title,
-      zIndex: Math.max(1, Number(item.zIndex) || normalized.length + 1),
+      zIndex: clampTruthyNumberOrFallback(item.zIndex, normalized.length + 1, 1, Number.POSITIVE_INFINITY),
       viewMode,
       surfaceMode,
       transparentAutoContrast: item.transparentAutoContrast !== false,
@@ -210,7 +210,7 @@ export function hydrateState(raw, deps = {}) {
   }, 0);
   const home = normalizeHomeLayout({
     ...(rawUi.home || {}),
-    pageCount: Math.max(Number(rawUi?.home?.pageCount) || 1, maxInstancePage + 1)
+    pageCount: Math.max(toTruthyNumberOrFallback(rawUi?.home?.pageCount, 1), maxInstancePage + 1)
   });
   for (const instance of normalized) {
     instance.page = normalizeWidgetPage(instance.page, home.pageCount, 0);
