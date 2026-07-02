@@ -15,14 +15,7 @@ import {
 } from "./launcherDropPlan.js";
 import { normalizeContainerId } from "./container-state.js";
 import { callIfFunction as invoke } from "./utils/function.js";
-
-function normalizeInteger(value, fallback = 0) {
-  const numeric = Number(value);
-  if (!Number.isFinite(numeric)) {
-    return fallback;
-  }
-  return Math.floor(numeric);
-}
+import { toInteger as normalizeInteger } from "./utils/number.js";
 
 export function buildDropPlanProjection(layout = null, page = 0, gridLayout = null) {
   if (!layout) {

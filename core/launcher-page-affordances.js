@@ -1,10 +1,4 @@
-function toPositiveInteger(value, fallback = 1) {
-  const numeric = Number(value);
-  if (!Number.isFinite(numeric)) {
-    return fallback;
-  }
-  return Math.max(1, Math.floor(numeric));
-}
+import { toPositiveInteger } from "./utils/number.js";
 
 export function resolveLauncherPageLayerStyle(pageIndex, boardWidth, boardHeight) {
   const width = toPositiveInteger(boardWidth, 1);

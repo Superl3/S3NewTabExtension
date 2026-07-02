@@ -1,15 +1,9 @@
+import { toInteger } from "./utils/number.js";
+
 const INTERACTIVE_DRAG_BLOCK_SELECTOR = "button, input, textarea, select, a";
 const PAGE_SWITCH_THRESHOLD = 42;
 const PAGE_SWITCH_HOLD_MS = 280;
 const PAGE_SWITCH_COOLDOWN_MS = 190;
-
-function toInteger(value, fallback = 0) {
-  const numeric = Number(value);
-  if (!Number.isFinite(numeric)) {
-    return fallback;
-  }
-  return Math.floor(numeric);
-}
 
 function applyClamp(clampFn, value, min, max) {
   if (typeof clampFn === "function") {
