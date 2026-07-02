@@ -757,14 +757,19 @@ test("core snapshot modules use shared object ownership helper", async () => {
 
 test("preset management uses shared truthy clamp normalization for z-index", async () => {
   const source = await fs.readFile(new URL("../core/preset-management-runtime.js", import.meta.url), "utf8");
+  assert.match(source, /utils\/array\.js/);
   assert.match(source, /utils\/number\.js/);
+  assert.match(source, /arrayOrEmpty\(snapshot\?\.instances\)\.map/);
   assert.match(source, /clampTruthyNumberOrFallback/);
+  assert.doesNotMatch(source, /Array\.isArray\(snapshot\?\.instances\)/);
   assert.doesNotMatch(source, /Math\.max\(1, Number\(instance\.zIndex\) \|\| 1\)/);
 });
 
 test("preset management uses shared truthy fallback for next ids", async () => {
   const source = await fs.readFile(new URL("../core/preset-management-runtime.js", import.meta.url), "utf8");
+  assert.match(source, /arrayOrEmpty\(instances\)/);
   assert.match(source, /toTruthyNumberOrFallback\(fallback, 100\)/);
+  assert.doesNotMatch(source, /instances \|\| \[\]/);
   assert.doesNotMatch(source, /Number\(fallback\) \|\| 100/);
 });
 
