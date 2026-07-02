@@ -27,6 +27,7 @@ import {
 } from "./shared/chromeApi.js";
 import {
   areMondayCachedBoardsEqual as areCachedBoardsEqual,
+  formatMondayGraphqlString,
   formatMondayGraphqlStringList,
   hasMondayBoardConfig as hasBoardConfig,
   hasMondayConnectorConfig as hasConnectorConfig,
@@ -797,7 +798,7 @@ async function fetchAssignedFromColumn(config, meId, peopleColumnId, accessToken
           query_params: {
             rules: [
               {
-                column_id: ${JSON.stringify(peopleColumnId)}
+                column_id: ${formatMondayGraphqlString(peopleColumnId)}
                 operator: any_of
                 compare_value: ["assigned_to_me"]
               }
@@ -842,8 +843,8 @@ async function fetchAssignedFromColumn(config, meId, peopleColumnId, accessToken
       query {
         items_by_column_values(
           board_id: ${config.boardId}
-          column_id: ${JSON.stringify(peopleColumnId)}
-          column_value: ${JSON.stringify(legacyFilter)}
+          column_id: ${formatMondayGraphqlString(peopleColumnId)}
+          column_value: ${formatMondayGraphqlString(legacyFilter)}
         ) {
           id
           name

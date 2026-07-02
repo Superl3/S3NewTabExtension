@@ -91,8 +91,12 @@ export function areMondayCachedBoardsEqual(leftBoards, rightBoards, normalizeBoa
   return JSON.stringify(left) === JSON.stringify(right);
 }
 
+export function formatMondayGraphqlString(value) {
+  return JSON.stringify(value);
+}
+
 export function formatMondayGraphqlStringList(values) {
-  return arrayOrEmpty(values).map((value) => JSON.stringify(value)).join(", ");
+  return arrayOrEmpty(values).map(formatMondayGraphqlString).join(", ");
 }
 
 export function normalizeColumnSelector(value, options = {}) {
