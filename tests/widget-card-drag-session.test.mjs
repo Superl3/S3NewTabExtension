@@ -551,14 +551,14 @@ test("startWidgetCardDragSession runs grid drag fallback commit when no drop pla
       recordCalls += 1;
     },
     gridMetrics: () => ({
-      cellW: 100,
-      cellH: 80,
-      gapX: 10,
-      gapY: 10,
-      marginX: 0,
-      marginY: 0,
-      cols: 4,
-      rows: 4
+      cellW: "100",
+      cellH: "80",
+      gapX: "10",
+      gapY: "10",
+      marginX: "0",
+      marginY: "0",
+      cols: "4",
+      rows: "4"
     }),
     widgetRegistry: {},
     widgetDefaultGridSize: () => ({ colSpan: 1, rowSpan: 1 }),
