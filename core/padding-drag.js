@@ -1,15 +1,4 @@
-function resolveNormalizePadding(normalizePadding) {
-  if (typeof normalizePadding === "function") {
-    return normalizePadding;
-  }
-  return (value, fallback = 10) => {
-    const numeric = Number(value);
-    if (!Number.isFinite(numeric)) {
-      return fallback;
-    }
-    return Math.max(0, Math.min(100, numeric));
-  };
-}
+import { resolvePaddingNormalizer } from "./utils/padding.js";
 
 export function projectContentPaddingFromDrag(
   {
@@ -22,7 +11,7 @@ export function projectContentPaddingFromDrag(
   } = {},
   { normalizePadding } = {}
 ) {
-  const normalize = resolveNormalizePadding(normalizePadding);
+  const normalize = resolvePaddingNormalizer(normalizePadding);
   const next = {
     top: startPadding.top,
     right: startPadding.right,

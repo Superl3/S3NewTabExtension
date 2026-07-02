@@ -272,6 +272,19 @@ test("core modules use shared integer helpers instead of local copies", async ()
   }
 });
 
+test("core padding modules share fallback padding normalization", async () => {
+  const moduleUrls = [
+    new URL("../core/padding-drag.js", import.meta.url),
+    new URL("../core/widget-padding-normalization.js", import.meta.url)
+  ];
+
+  for (const moduleUrl of moduleUrls) {
+    const source = await fs.readFile(moduleUrl, "utf8");
+    assert.match(source, /utils\/padding\.js/, moduleUrl.pathname);
+    assert.doesNotMatch(source, /^function resolveNormalize(Padding)?\(/m, moduleUrl.pathname);
+  }
+});
+
 test("core profile utilities use shared object helpers", async () => {
   const source = await fs.readFile(new URL("../core/profile-transfer.js", import.meta.url), "utf8");
   assert.doesNotMatch(source, /^function isPlainObject\(/m);

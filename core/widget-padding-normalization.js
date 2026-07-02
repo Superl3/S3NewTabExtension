@@ -1,18 +1,7 @@
-function resolveNormalize(normalizePadding) {
-  if (typeof normalizePadding === "function") {
-    return normalizePadding;
-  }
-  return (value, fallback = 10) => {
-    const numeric = Number(value);
-    if (!Number.isFinite(numeric)) {
-      return fallback;
-    }
-    return Math.max(0, Math.min(100, numeric));
-  };
-}
+import { resolvePaddingNormalizer } from "./utils/padding.js";
 
 export function resolveDirectionalPaddingFromDraft(draft = {}, fallback = 10, normalizePadding) {
-  const normalize = resolveNormalize(normalizePadding);
+  const normalize = resolvePaddingNormalizer(normalizePadding);
   const uniformPadding = normalize(draft.contentPadding, fallback);
   const top = normalize(draft.contentPaddingTop ?? draft.contentPaddingTopRight ?? uniformPadding, uniformPadding);
   const right = normalize(draft.contentPaddingRight ?? draft.contentPaddingTopRight ?? uniformPadding, uniformPadding);
@@ -32,7 +21,7 @@ export function resolveDirectionalPaddingFromDraft(draft = {}, fallback = 10, no
 }
 
 export function resolveAveragePaddingValue(padding = {}, fallback = 10, normalizePadding) {
-  const normalize = resolveNormalize(normalizePadding);
+  const normalize = resolvePaddingNormalizer(normalizePadding);
   const base = normalize(padding.contentPadding, fallback);
   const top = normalize(padding.contentPaddingTop, base);
   const right = normalize(padding.contentPaddingRight, base);
