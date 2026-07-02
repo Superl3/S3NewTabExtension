@@ -1,21 +1,5 @@
 import { normalizeText } from "../core/utils/text.js";
-
-function normalizeSafeUrl(value, fallback = "https://www.google.com") {
-  const text = normalizeText(value, fallback);
-  if (!text) {
-    return fallback;
-  }
-
-  try {
-    const parsed = new URL(text);
-    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
-      return fallback;
-    }
-    return parsed.toString();
-  } catch {
-    return fallback;
-  }
-}
+import { buildGoogleFaviconUrl, isUrlIcon, normalizeHttpUrl } from "./shared/linkUrls.js";
 
 const SHORTCUT_FAVICON_CACHE_KEY = "s3newtab-shortcut-favicon-cache-v1";
 const SHORTCUT_FAVICON_CACHE_LIMIT = 240;
@@ -26,19 +10,6 @@ let shortcutFaviconCacheLoadPromise = null;
 
 function chromeStorageLocal() {
   return globalThis.chrome?.storage?.local || null;
-}
-
-function isUrlIcon(value) {
-  return (
-    value.startsWith("http://") ||
-    value.startsWith("https://") ||
-    value.startsWith("data:") ||
-    value.startsWith("chrome-extension://")
-  );
-}
-
-function bookmarkFavicon(url) {
-  return `https://www.google.com/s2/favicons?sz=64&domain_url=${encodeURIComponent(url)}`;
 }
 
 function normalizeFaviconCache(raw) {
@@ -133,7 +104,7 @@ function blobToDataUrl(blob) {
 }
 
 async function fetchAndCacheFavicon(url, cacheKey) {
-  const response = await fetch(bookmarkFavicon(url), {
+  const response = await fetch(buildGoogleFaviconUrl(url), {
     cache: "force-cache"
   });
   if (!response.ok) {
@@ -254,7 +225,7 @@ export const shortcutWidget = {
 
       const cfg = getConfig();
       const ui = typeof getUi === "function" ? getUi() : null;
-      const url = normalizeSafeUrl(cfg.url, "https://www.google.com");
+      const url = normalizeHttpUrl(cfg.url, "https://www.google.com");
       const text = normalizeText(cfg.label, "Shortcut");
       const iconValue = normalizeText(cfg.icon);
       const globalSize = Number(ui?.shortcuts?.iconSizePercent);
@@ -321,7 +292,7 @@ export const shortcutWidget = {
               return;
             }
             const img = document.createElement("img");
-            img.src = bookmarkFavicon(url);
+            img.src = buildGoogleFaviconUrl(url);
             img.alt = "";
             icon.replaceChildren(img);
           }

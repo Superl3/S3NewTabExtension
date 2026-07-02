@@ -1,42 +1,12 @@
 import { areBookmarksAvailable, resolveBookmarkRoot } from "../bookmarks.js";
 import { normalizeText } from "../core/utils/text.js";
+import { buildGoogleFaviconUrl, isUrlIcon, normalizeHttpUrl } from "./shared/linkUrls.js";
 
 function asRecord(value) {
   if (value && typeof value === "object" && !Array.isArray(value)) {
     return value;
   }
   return {};
-}
-
-function normalizeSafeLink(value) {
-  const raw = normalizeText(value);
-  if (!raw) {
-    return "";
-  }
-
-  try {
-    const parsed = new URL(raw);
-    const protocol = parsed.protocol.toLowerCase();
-    if (protocol === "http:" || protocol === "https:") {
-      return parsed.href;
-    }
-  } catch {
-  }
-
-  return "";
-}
-
-function isUrlIcon(value) {
-  return (
-    value.startsWith("http://") ||
-    value.startsWith("https://") ||
-    value.startsWith("data:") ||
-    value.startsWith("chrome-extension://")
-  );
-}
-
-function bookmarkFavicon(url) {
-  return `https://www.google.com/s2/favicons?sz=64&domain_url=${encodeURIComponent(url)}`;
 }
 
 function buildNodeLabel(node, cfg) {
@@ -53,10 +23,10 @@ function buildNodeUrl(node, cfg) {
     return "";
   }
 
-  const fallbackUrl = normalizeSafeLink(node.url);
+  const fallbackUrl = normalizeHttpUrl(node.url);
   const urlMap = asRecord(cfg.urlMap);
   const custom = normalizeText(urlMap[node.id]);
-  const customUrl = normalizeSafeLink(custom);
+  const customUrl = normalizeHttpUrl(custom);
   if (customUrl) {
     return customUrl;
   }
@@ -83,7 +53,7 @@ function buildIconNode(node, cfg) {
 
   if (node.url && cfg.faviconMode === "site") {
     const img = document.createElement("img");
-    img.src = bookmarkFavicon(node.url);
+    img.src = buildGoogleFaviconUrl(node.url);
     img.alt = "";
     icon.append(img);
     return icon;
