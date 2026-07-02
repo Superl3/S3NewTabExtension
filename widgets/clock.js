@@ -1,4 +1,4 @@
-import { clamp } from "../core/utils/number.js";
+import { clamp, toFiniteNumber } from "../core/utils/number.js";
 import { normalizeTitleAlign } from "../core/widget-common-style.js";
 
 const CLOCK_JUSTIFY_ITEMS = {
@@ -213,8 +213,8 @@ export const clockWidget = {
       const font = cfg.fontFamily === "display" || cfg.fontFamily === "digital" ? cfg.fontFamily : "mono";
       const variant = cfg.styleVariant === "tile" || cfg.styleVariant === "glow" ? cfg.styleVariant : "minimal";
       const align = normalizeTitleAlign(cfg.textAlign, "center");
-      const timeFontSize = Number.isFinite(Number(cfg.timeFontSize)) ? Number(cfg.timeFontSize) : 2.4;
-      const weekdayFontSize = Number.isFinite(Number(cfg.weekdayFontSize)) ? Number(cfg.weekdayFontSize) : 0.88;
+      const timeFontSize = toFiniteNumber(cfg.timeFontSize, 2.4);
+      const weekdayFontSize = toFiniteNumber(cfg.weekdayFontSize, 0.88);
 
       container.classList.add(`clock-font-${font}`);
       container.classList.add(`clock-variant-${variant}`);

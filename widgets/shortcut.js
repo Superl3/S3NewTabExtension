@@ -1,4 +1,4 @@
-import { clamp } from "../core/utils/number.js";
+import { clamp, toFiniteNumber } from "../core/utils/number.js";
 import { normalizeText } from "../core/utils/text.js";
 import { buildGoogleFaviconUrl, isUrlIcon, normalizeHttpUrl } from "./shared/linkUrls.js";
 
@@ -229,11 +229,9 @@ export const shortcutWidget = {
       const url = normalizeHttpUrl(cfg.url, "https://www.google.com");
       const text = normalizeText(cfg.label, "Shortcut");
       const iconValue = normalizeText(cfg.icon);
-      const globalSize = Number(ui?.shortcuts?.iconSizePercent);
-      const localSize = Number(cfg.iconSizePercent);
       const useGlobal = cfg.useGlobalIconSize !== false;
-      const fallbackSize = Number.isFinite(globalSize) ? globalSize : 100;
-      const effectiveSize = useGlobal ? fallbackSize : Number.isFinite(localSize) ? localSize : fallbackSize;
+      const fallbackSize = toFiniteNumber(ui?.shortcuts?.iconSizePercent, 100);
+      const effectiveSize = useGlobal ? fallbackSize : toFiniteNumber(cfg.iconSizePercent, fallbackSize);
       const clampedSize = clamp(effectiveSize, 40, 220);
 
       tile.href = url;
