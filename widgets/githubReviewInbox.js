@@ -1,5 +1,5 @@
 import { normalizeErrorMessage } from "../core/utils/error.js";
-import { clamp } from "../core/utils/number.js";
+import { normalizeIntegerInRange } from "../core/utils/number.js";
 import { normalizeText } from "../core/utils/text.js";
 import {
   buildReviewCandidate,
@@ -36,31 +36,19 @@ const REVIEW_INBOX_TABS = [
 ];
 
 function normalizeMaxItems(value, fallback = 20) {
-  const num = Number(value);
-  if (!Number.isFinite(num)) {
-    return clamp(Math.round(fallback), 1, 50);
-  }
-  return clamp(Math.round(num), 1, 50);
+  return normalizeIntegerInRange(value, fallback, 1, 50);
 }
 
 function normalizeRefreshMinutes(value, fallback = 5) {
-  const num = Number(value);
-  if (!Number.isFinite(num)) {
-    return clamp(Math.round(fallback), 1, 120);
-  }
-  return clamp(Math.round(num), 1, 120);
+  return normalizeIntegerInRange(value, fallback, 1, 120);
 }
 
 function normalizeAgingDays(value, fallback) {
   const text = normalizeText(value);
   if (!text) {
-    return clamp(Math.round(fallback), 1, 90);
+    return normalizeIntegerInRange(fallback, fallback, 1, 90);
   }
-  const num = Number(text);
-  if (!Number.isFinite(num)) {
-    return clamp(Math.round(fallback), 1, 90);
-  }
-  return clamp(Math.round(num), 1, 90);
+  return normalizeIntegerInRange(text, fallback, 1, 90);
 }
 
 function isRepoSegment(value) {

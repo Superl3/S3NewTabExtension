@@ -1,4 +1,4 @@
-import { clamp } from "../core/utils/number.js";
+import { normalizeIntegerInRange } from "../core/utils/number.js";
 import { normalizeText } from "../core/utils/text.js";
 
 export const GEEK_NEWS_FEED_URL = "https://news.hada.io/rss/news";
@@ -68,19 +68,11 @@ const PINNED_FEED_SETTINGS_SCHEMA = RSS_SETTINGS_SCHEMA.filter(
 );
 
 function normalizeMaxItems(value, fallback = 8) {
-  const num = Number(value);
-  if (!Number.isFinite(num)) {
-    return clamp(Math.round(fallback), 1, 30);
-  }
-  return clamp(Math.round(num), 1, 30);
+  return normalizeIntegerInRange(value, fallback, 1, 30);
 }
 
 function normalizeRefreshMinutes(value, fallback = 15) {
-  const num = Number(value);
-  if (!Number.isFinite(num)) {
-    return clamp(Math.round(fallback), 1, 240);
-  }
-  return clamp(Math.round(num), 1, 240);
+  return normalizeIntegerInRange(value, fallback, 1, 240);
 }
 
 function normalizeErrorMessage(error) {

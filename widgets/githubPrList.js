@@ -1,5 +1,5 @@
 import { normalizeErrorMessage } from "../core/utils/error.js";
-import { clamp } from "../core/utils/number.js";
+import { normalizeIntegerInRange } from "../core/utils/number.js";
 import { normalizeText } from "../core/utils/text.js";
 
 const GITHUB_API_BASE = "https://api.github.com";
@@ -7,19 +7,11 @@ const GITHUB_WEB_BASE = "https://github.com";
 const GITHUB_PR_ERROR_FALLBACK = "GitHub pull requests are not available. Check the repository setting and try again.";
 
 function normalizeMaxItems(value, fallback = 20) {
-  const num = Number(value);
-  if (!Number.isFinite(num)) {
-    return clamp(Math.round(fallback), 1, 50);
-  }
-  return clamp(Math.round(num), 1, 50);
+  return normalizeIntegerInRange(value, fallback, 1, 50);
 }
 
 function normalizeRefreshMinutes(value, fallback = 1) {
-  const num = Number(value);
-  if (!Number.isFinite(num)) {
-    return clamp(Math.round(fallback), 1, 120);
-  }
-  return clamp(Math.round(num), 1, 120);
+  return normalizeIntegerInRange(value, fallback, 1, 120);
 }
 
 function isRepoSegment(value) {

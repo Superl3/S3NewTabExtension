@@ -4,7 +4,7 @@ import fs from "node:fs/promises";
 
 import { normalizeErrorMessage } from "../core/utils/error.js";
 import { parseJsonOrNull } from "../core/utils/json.js";
-import { clamp } from "../core/utils/number.js";
+import { clamp, normalizeIntegerInRange } from "../core/utils/number.js";
 import { normalizeText } from "../core/utils/text.js";
 import { clamp as layoutClamp } from "../core/layout-primitives.js";
 
@@ -18,6 +18,12 @@ test("clamp bounds values inside min and max", () => {
   assert.equal(clamp(9, 1, 5), 5);
   assert.equal(clamp(-2, 1, 5), 1);
   assert.equal(clamp(3, 1, 5), 3);
+});
+
+test("normalizeIntegerInRange rounds finite values and clamps fallback values", () => {
+  assert.equal(normalizeIntegerInRange("4.6", 1, 1, 10), 5);
+  assert.equal(normalizeIntegerInRange("bad", 12, 1, 10), 10);
+  assert.equal(normalizeIntegerInRange(-3, 2, 1, 10), 1);
 });
 
 test("normalizeErrorMessage returns safe fallback text", () => {
@@ -81,4 +87,15 @@ test("widgets keep only connector-specific local JSON parsers", async () => {
     .map((source) => source.name.replace(/^.*\/widgets\//, "widgets/"));
 
   assert.deepEqual(localJsonParsers, ["widgets/shared/authConnector.js"]);
+});
+
+test("widgets use the shared integer range normalizer for rounded clamps", async () => {
+  const sources = await collectWidgetSources(new URL("../widgets/", import.meta.url));
+  for (const source of sources) {
+    assert.doesNotMatch(
+      source.text,
+      /const num = Number\(value\);\s*if \(!Number\.isFinite\(num\)\) \{\s*return clamp\(Math\.round\(fallback\),/m,
+      source.name
+    );
+  }
 });

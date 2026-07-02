@@ -1,6 +1,6 @@
 import { normalizeErrorMessage } from "../core/utils/error.js";
 import { parseJsonOrNull } from "../core/utils/json.js";
-import { clamp } from "../core/utils/number.js";
+import { clamp, normalizeIntegerInRange } from "../core/utils/number.js";
 import { normalizeText } from "../core/utils/text.js";
 import {
   buildAuthConnectorStartUrl,
@@ -45,19 +45,11 @@ function isDoneStatusLabel(value) {
 }
 
 function normalizeMaxItems(value, fallback = 15) {
-  const num = Number(value);
-  if (!Number.isFinite(num)) {
-    return clamp(Math.round(fallback), 1, 120);
-  }
-  return clamp(Math.round(num), 1, 120);
+  return normalizeIntegerInRange(value, fallback, 1, 120);
 }
 
 function normalizeHour(value, fallback, min, max) {
-  const num = Number(value);
-  if (!Number.isFinite(num)) {
-    return clamp(Math.round(fallback), min, max);
-  }
-  return clamp(Math.round(num), min, max);
+  return normalizeIntegerInRange(value, fallback, min, max);
 }
 
 function normalizePeopleColumnSelectorList(value, fallback = "") {
