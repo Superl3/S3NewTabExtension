@@ -1,6 +1,12 @@
 import { DROP_SILHOUETTE_Z_INDEX, resolveFolderPanelZIndex } from "../core/drag-layering.js";
 import { pointInsideRect } from "../core/utils/geometry.js";
-import { clamp, clampRoundedTruthyNumberOrFallback, clampTruthyNumberOrFallback, normalizeIntegerInRange } from "../core/utils/number.js";
+import {
+  clamp,
+  clampRoundedTruthyNumberOrFallback,
+  clampTruthyNumberOrFallback,
+  normalizeIntegerInRange,
+  toTruthyNumberOrFallback
+} from "../core/utils/number.js";
 import { normalizeText } from "../core/utils/text.js";
 import { normalizeTitleAlign } from "../core/widget-common-style.js";
 import { isUrlIcon } from "./shared/linkUrls.js";
@@ -273,8 +279,8 @@ export const containerWidget = {
         return { cols: fallbackCols, rows: fallbackRows };
       }
 
-      const col = clamp(Math.floor(Number(folder.gridLayout.col) || 0), 0, Math.max(0, metrics.cols - 1));
-      const row = clamp(Math.floor(Number(folder.gridLayout.row) || 0), 0, Math.max(0, metrics.rows - 1));
+      const col = Math.floor(clampTruthyNumberOrFallback(folder.gridLayout.col, 0, 0, Math.max(0, metrics.cols - 1)));
+      const row = Math.floor(clampTruthyNumberOrFallback(folder.gridLayout.row, 0, 0, Math.max(0, metrics.rows - 1)));
       const maxCols = Math.max(1, metrics.cols - col);
       const maxRows = Math.max(1, metrics.rows - row);
 
@@ -300,8 +306,8 @@ export const containerWidget = {
     }
 
     function resolveChildSpan(child, panelSpan) {
-      const cols = clamp(Math.round(Number(child?.gridLayout?.colSpan) || 1), 1, Math.max(1, panelSpan.cols));
-      const rows = clamp(Math.round(Number(child?.gridLayout?.rowSpan) || 1), 1, Math.max(1, panelSpan.rows));
+      const cols = clampRoundedTruthyNumberOrFallback(child?.gridLayout?.colSpan, 1, 1, Math.max(1, panelSpan.cols));
+      const rows = clampRoundedTruthyNumberOrFallback(child?.gridLayout?.rowSpan, 1, 1, Math.max(1, panelSpan.rows));
       return { cols, rows };
     }
 
@@ -429,7 +435,7 @@ export const containerWidget = {
         let lastPointerX = event.clientX;
         let lastPointerY = event.clientY;
         let dragReleasePage =
-          typeof currentLauncherActivePage === "function" ? currentLauncherActivePage() : Number(child.page) || 0;
+          typeof currentLauncherActivePage === "function" ? currentLauncherActivePage() : toTruthyNumberOrFallback(child.page, 0);
         const pageSwitchThreshold = 42;
         const pageSwitchHoldMs = 280;
         const pageSwitchCooldownMs = 190;
