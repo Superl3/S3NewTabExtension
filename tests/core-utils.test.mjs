@@ -1371,7 +1371,8 @@ test("GitHub widgets use shared array fallback helper", async () => {
   const moduleUrls = [
     new URL("../widgets/githubPrList.js", import.meta.url),
     new URL("../widgets/githubReviewInbox.js", import.meta.url),
-    new URL("../widgets/shared/githubReviewInboxLogic.js", import.meta.url)
+    new URL("../widgets/shared/githubReviewInboxLogic.js", import.meta.url),
+    new URL("../widgets/shared/scopedItemStorage.js", import.meta.url)
   ];
 
   for (const moduleUrl of moduleUrls) {
@@ -1395,6 +1396,8 @@ test("GitHub widgets use shared array fallback helper", async () => {
   );
 
   const inboxSource = await fs.readFile(new URL("../widgets/githubReviewInbox.js", import.meta.url), "utf8");
+  assert.match(inboxSource, /getScopedItemKeys\(REVIEW_INBOX_READ_ITEMS_STORAGE_KEY, readScopeKey\)/);
+  assert.doesNotMatch(inboxSource, /readReviewInboxReadSnapshot\(\)\[readScopeKey\] \|\| \[\]/);
   assert.doesNotMatch(inboxSource, /Array\.isArray\(items\) \? items : \[\]/);
   assert.doesNotMatch(inboxSource, /Array\.isArray\(payload\) \? payload : \[\]/);
   assert.doesNotMatch(inboxSource, /Array\.isArray\(tabData\?\.items\) \? tabData\.items : \[\]/);
@@ -1405,6 +1408,10 @@ test("GitHub widgets use shared array fallback helper", async () => {
   assert.doesNotMatch(inboxLogicSource, /Array\.isArray\(commits\)/);
   assert.doesNotMatch(inboxLogicSource, /Array\.isArray\(issueComments\) \? issueComments : \[\]/);
   assert.doesNotMatch(inboxLogicSource, /Array\.isArray\(reviewComments\) \? reviewComments : \[\]/);
+
+  const scopedStorageSource = await fs.readFile(new URL("../widgets/shared/scopedItemStorage.js", import.meta.url), "utf8");
+  assert.doesNotMatch(scopedStorageSource, /snapshot\[normalizedScopeKey\] \|\| \[\]/);
+  assert.doesNotMatch(scopedStorageSource, /readScopedItemSnapshot\(storageKey, storage\)\[normalizedScopeKey\] \|\| \[\]/);
 });
 
 test("Codex usage widget uses core number helpers", async () => {

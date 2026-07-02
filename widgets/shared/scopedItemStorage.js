@@ -1,3 +1,4 @@
+import { arrayOrEmpty } from "../../core/utils/array.js";
 import { parseJsonOrNull } from "../../core/utils/json.js";
 import { normalizeText } from "../../core/utils/text.js";
 
@@ -19,10 +20,12 @@ function normalizeScopedItemSnapshot(snapshot) {
   const normalized = {};
   for (const [scopeKey, values] of Object.entries(snapshot)) {
     const normalizedScopeKey = normalizeText(scopeKey);
-    if (!normalizedScopeKey || !Array.isArray(values)) {
+    if (!normalizedScopeKey) {
       continue;
     }
-    const normalizedValues = Array.from(new Set(values.map((value) => normalizeText(value)).filter(Boolean))).sort();
+    const normalizedValues = Array.from(
+      new Set(arrayOrEmpty(values).map((value) => normalizeText(value)).filter(Boolean))
+    ).sort();
     if (normalizedValues.length) {
       normalized[normalizedScopeKey] = normalizedValues;
     }
@@ -53,7 +56,7 @@ export function getScopedItemKeys(storageKey, scopeKey, storage = undefined) {
   if (!normalizedScopeKey) {
     return new Set();
   }
-  return new Set(readScopedItemSnapshot(storageKey, storage)[normalizedScopeKey] || []);
+  return new Set(arrayOrEmpty(readScopedItemSnapshot(storageKey, storage)[normalizedScopeKey]));
 }
 
 export function hasScopedItem(storageKey, scopeKey, itemKey, storage = undefined) {
@@ -87,7 +90,7 @@ export function setScopedItem(storageKey, scopeKey, itemKey, enabled = true, sto
   }
 
   const snapshot = readScopedItemSnapshot(storageKey, storage);
-  const currentValues = new Set(snapshot[normalizedScopeKey] || []);
+  const currentValues = new Set(arrayOrEmpty(snapshot[normalizedScopeKey]));
   const hasItem = currentValues.has(normalizedItemKey);
   if (enabled && hasItem) {
     return false;

@@ -12,6 +12,7 @@ import {
   setIgnoredItem
 } from "./shared/ignoredItems.js";
 import {
+  getScopedItemKeys,
   hasScopedItem,
   readScopedItemSnapshot,
   setScopedItem,
@@ -229,7 +230,7 @@ function shouldAutoIgnoreReviewInboxItem(item, tabId) {
 function decorateReviewItemsForTab(items, config, tabId, showIgnored = false) {
   const scopeKey = buildReviewInboxIgnoreScopeKey(config, tabId);
   const readScopeKey = buildReviewInboxReadScopeKey(config);
-  const readKeys = new Set(readReviewInboxReadSnapshot()[readScopeKey] || []);
+  const readKeys = getScopedItemKeys(REVIEW_INBOX_READ_ITEMS_STORAGE_KEY, readScopeKey);
   const decoratedItems = [];
   let ignoredCount = 0;
 
