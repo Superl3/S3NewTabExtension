@@ -1,100 +1,21 @@
 import { normalizeErrorMessage } from "../core/utils/error.js";
-import { normalizeIntegerInRange } from "../core/utils/number.js";
 import { normalizeText } from "../core/utils/text.js";
+import {
+  buildGitHubApiHeaders,
+  buildGitHubRepoPullsPageUrl as buildRepoPullsPageUrl,
+  formatGitHubRelativeTimestamp as formatUpdatedLabelFromTimestamp,
+  formatGitHubSyncedLabel as formatSyncedLabel,
+  GITHUB_API_BASE,
+  githubRepositoryParts as repositoryParts,
+  githubTokenFingerprint as tokenFingerprint,
+  normalizeGitHubMaxItems as normalizeMaxItems,
+  normalizeGitHubRefreshMinutes as normalizeRefreshMinutes,
+  normalizeGitHubRepository as normalizeRepository,
+  normalizeGitHubReviewerNames as normalizeReviewerNames,
+  parseGitHubError
+} from "./shared/githubApi.js";
 
-const GITHUB_API_BASE = "https://api.github.com";
-const GITHUB_WEB_BASE = "https://github.com";
 const GITHUB_PR_ERROR_FALLBACK = "GitHub pull requests are not available. Check the repository setting and try again.";
-
-function normalizeMaxItems(value, fallback = 20) {
-  return normalizeIntegerInRange(value, fallback, 1, 50);
-}
-
-function normalizeRefreshMinutes(value, fallback = 1) {
-  return normalizeIntegerInRange(value, fallback, 1, 120);
-}
-
-function isRepoSegment(value) {
-  return /^[A-Za-z0-9_.-]+$/.test(value);
-}
-
-function normalizeRepository(value, fallback = "") {
-  let text = normalizeText(value, fallback)
-    .replace(/^https?:\/\/(www\.)?github\.com\//i, "")
-    .replace(/^github\.com\//i, "")
-    .replace(/^\/+|\/+$/g, "");
-
-  if (!text) {
-    return "";
-  }
-
-  if (text.endsWith(".git")) {
-    text = text.slice(0, -4);
-  }
-
-  const parts = text.split("/").filter(Boolean);
-  if (parts.length < 2) {
-    return "";
-  }
-
-  const owner = normalizeText(parts[0]);
-  const repo = normalizeText(parts[1]);
-  if (!owner || !repo || !isRepoSegment(owner) || !isRepoSegment(repo)) {
-    return "";
-  }
-
-  return `${owner}/${repo}`;
-}
-
-function repositoryParts(repository) {
-  const normalized = normalizeRepository(repository);
-  if (!normalized) {
-    return { owner: "", repo: "" };
-  }
-  const [owner, repo] = normalized.split("/");
-  return { owner, repo };
-}
-
-function tokenFingerprint(token) {
-  const text = normalizeText(token);
-  let checksum = 0;
-  for (let idx = 0; idx < text.length; idx += 1) {
-    checksum = (checksum + text.charCodeAt(idx) * (idx + 1)) % 1000000007;
-  }
-  return `${text.length}:${checksum}`;
-}
-
-function formatUpdatedLabelFromTimestamp(parsedTimestamp) {
-  const parsed = Number(parsedTimestamp);
-  if (!Number.isFinite(parsed) || parsed <= 0) {
-    return "";
-  }
-
-  const elapsedMs = Date.now() - parsed;
-  if (!Number.isFinite(elapsedMs) || elapsedMs < 0) {
-    return new Date(parsed).toLocaleString();
-  }
-
-  const minutes = Math.floor(elapsedMs / 60000);
-  if (minutes < 1) {
-    return "just now";
-  }
-  if (minutes < 60) {
-    return `${minutes}m ago`;
-  }
-
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) {
-    return `${hours}h ago`;
-  }
-
-  const days = Math.floor(hours / 24);
-  if (days < 7) {
-    return `${days}d ago`;
-  }
-
-  return new Date(parsed).toLocaleDateString();
-}
 
 function normalizeCachedPullItem(entry) {
   const id = normalizeText(entry?.id);
@@ -221,48 +142,9 @@ function buildPullsUrl(config) {
   return `${GITHUB_API_BASE}/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/pulls?${params.toString()}`;
 }
 
-function buildRepoPullsPageUrl(repository) {
-  const normalized = normalizeRepository(repository);
-  if (!normalized) {
-    return GITHUB_WEB_BASE;
-  }
-  return `${GITHUB_WEB_BASE}/${normalized}/pulls`;
-}
-
-function parseGitHubError(text, status) {
-  const fallback = normalizeText(text, `GitHub request failed: HTTP ${status}`);
-  try {
-    const parsed = JSON.parse(text);
-    const message = normalizeText(parsed?.message);
-    if (message) {
-      return message;
-    }
-  } catch {
-  }
-  return fallback;
-}
-
 function formatUpdatedLabel(rawDate) {
   const parsed = Date.parse(rawDate);
   return formatUpdatedLabelFromTimestamp(parsed);
-}
-
-function formatSyncedLabel(timestampMs) {
-  const ts = Number(timestampMs);
-  if (!Number.isFinite(ts) || ts <= 0) {
-    return "";
-  }
-  return new Date(ts).toLocaleTimeString();
-}
-
-function normalizeReviewerNames(reviewers) {
-  if (!Array.isArray(reviewers)) {
-    return "";
-  }
-  const names = reviewers
-    .map((reviewer) => normalizeText(reviewer?.login))
-    .filter(Boolean);
-  return names.join(", ");
 }
 
 async function fetchPullRequests(config) {
@@ -271,14 +153,7 @@ async function fetchPullRequests(config) {
     throw new Error("Repository is required (owner/repo).");
   }
 
-  const headers = {
-    Accept: "application/vnd.github+json",
-    "X-GitHub-Api-Version": "2022-11-28"
-  };
-  const token = normalizeText(config.accessToken);
-  if (token) {
-    headers.Authorization = `Bearer ${token}`;
-  }
+  const headers = buildGitHubApiHeaders(config.accessToken);
 
   const response = await fetch(pullsUrl, {
     headers,
