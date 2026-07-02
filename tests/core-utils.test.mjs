@@ -1290,6 +1290,11 @@ test("GitHub widgets share repository and API helpers", async () => {
     assert.doesNotMatch(source, /new URLSearchParams\(/, moduleUrl.pathname);
     assert.doesNotMatch(source, /\/repos\/\$\{/, moduleUrl.pathname);
     assert.doesNotMatch(source, /githubRepositoryParts as repositoryParts/, moduleUrl.pathname);
+    assert.doesNotMatch(
+      source,
+      /^function build(?:IssueComments|Reviews|ReviewComments|Commits)ApiUrl\(/m,
+      moduleUrl.pathname
+    );
     assert.doesNotMatch(source, /Math\.floor\(Number\(entry\?\.teamCount\)/, moduleUrl.pathname);
     assert.doesNotMatch(source, /Number\(rawConfig\?\.cacheAt\) \|\| 0/, moduleUrl.pathname);
     assert.doesNotMatch(source, /Number\(pull\?\.number\) \|\| 0/, moduleUrl.pathname);
