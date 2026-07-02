@@ -1495,6 +1495,13 @@ test("account auth widgets share connector auth flow primitive", async () => {
   }
 });
 
+test("AI chat reuses shared active auth session resolver", async () => {
+  const source = await fs.readFile(new URL("../widgets/aiChat.js", import.meta.url), "utf8");
+
+  assert.match(source, /resolveActiveAuthSession/, "aiChat.js");
+  assert.doesNotMatch(source, /^(?:export\s+)?function resolveAiChatActiveSession\(/m);
+});
+
 test("AI chat shares core number helpers for request payload numbers", async () => {
   const source = await fs.readFile(new URL("../widgets/aiChat.js", import.meta.url), "utf8");
   assert.match(source, /core\/utils\/number\.js/);

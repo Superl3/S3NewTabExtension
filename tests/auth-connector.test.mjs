@@ -17,8 +17,7 @@ import {
   resolveActiveAuthSession
 } from "../widgets/shared/authSessionStorage.js";
 import {
-  normalizeAiChatTemperature,
-  resolveAiChatActiveSession
+  normalizeAiChatTemperature
 } from "../widgets/aiChat.js";
 
 test("normalizes connector URL and removes hash", () => {
@@ -189,56 +188,12 @@ test("connectWithAuthConnector preserves custom auth flow failure copy", async (
   }
 });
 
-test("aiChat prefers configured access token over stored session", () => {
-  const result = resolveAiChatActiveSession({
-    connectorUrl: "http://localhost:8787/api/auth/start",
-    configuredAccessToken: "configured-token",
-    storedSession: {
-      connectorUrl: "http://localhost:8787/api/auth/start",
-      accessToken: "stored-token",
-      accountLabel: "saved@example.com"
-    }
-  });
-
-  assert.deepEqual(result, {
-    connectorUrl: "http://localhost:8787/api/auth/start",
-    accessToken: "configured-token",
-    accountLabel: "Configured token"
-  });
-});
-
 test("aiChat temperature normalization preserves request payload semantics", () => {
   assert.equal(normalizeAiChatTemperature("1.2"), 1.2);
   assert.equal(normalizeAiChatTemperature(""), 0);
   assert.equal(normalizeAiChatTemperature(null), 0.7);
   assert.equal(normalizeAiChatTemperature(undefined), 0.7);
   assert.equal(normalizeAiChatTemperature("bad"), 0.7);
-});
-
-test("aiChat only reuses stored session for matching connector URL", () => {
-  const storedSession = {
-    connectorUrl: "https://auth.example.com/start",
-    accessToken: "stored-token",
-    accountLabel: "saved@example.com"
-  };
-
-  assert.deepEqual(
-    resolveAiChatActiveSession({
-      connectorUrl: "https://auth.example.com/start",
-      configuredAccessToken: "",
-      storedSession
-    }),
-    storedSession
-  );
-
-  assert.equal(
-    resolveAiChatActiveSession({
-      connectorUrl: "https://other.example.com/start",
-      configuredAccessToken: "",
-      storedSession
-    }),
-    null
-  );
 });
 
 test("shared auth session prefers configured token over stored session", () => {
