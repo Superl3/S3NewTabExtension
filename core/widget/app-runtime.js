@@ -1,3 +1,4 @@
+import { arrayOrEmpty } from "../utils/array.js";
 import {
   createWidgetCardRuntime as createWidgetCardRuntimeCore
 } from "../widget-card-runtime.js";
@@ -266,7 +267,7 @@ export function createAppWidgetRuntime(rawDeps) {
     deps.syncZCounterFromState();
 
     const desiredIds = new Set();
-    for (const instance of state.instances || []) {
+    for (const instance of arrayOrEmpty(state.instances)) {
       if (isRenderableBoardWidget(instance)) {
         desiredIds.add(instance.id);
       }
@@ -279,7 +280,7 @@ export function createAppWidgetRuntime(rawDeps) {
       }
     }
 
-    for (const instance of state.instances || []) {
+    for (const instance of arrayOrEmpty(state.instances)) {
       if (!desiredIds.has(instance.id)) {
         continue;
       }
@@ -305,7 +306,7 @@ export function createAppWidgetRuntime(rawDeps) {
   function refreshBoardCardsAfterLauncherPageMutation({ animate = true } = {}) {
     const state = deps.getState();
 
-    for (const instance of state.instances || []) {
+    for (const instance of arrayOrEmpty(state.instances)) {
       if (!deps.isBoardWidgetInstance(instance)) {
         continue;
       }
