@@ -1,7 +1,11 @@
 import { normalizeIntegerInRange } from "../core/utils/number.js";
 import { normalizeText } from "../core/utils/text.js";
 import { formatLocalDateTimeLabel as formatDateLabel } from "./shared/dateLabels.js";
-import { readAtomAlternateLink as atomLink, readFeedNodeText as nodeText } from "./shared/feedXml.js";
+import {
+  parseFeedXmlDocument,
+  readAtomAlternateLink as atomLink,
+  readFeedNodeText as nodeText
+} from "./shared/feedXml.js";
 import { normalizeHttpUrl } from "./shared/linkUrls.js";
 
 export const GEEK_NEWS_FEED_URL = "https://news.hada.io/rss/news";
@@ -219,11 +223,7 @@ function parseAtomEntry(node, index) {
 }
 
 function parseFeedXml(xmlText) {
-  const parser = new DOMParser();
-  const doc = parser.parseFromString(xmlText, "application/xml");
-  if (doc.querySelector("parsererror")) {
-    throw new Error("Feed XML parse failed.");
-  }
+  const doc = parseFeedXmlDocument(xmlText, "Feed XML parse failed.");
 
   const channel = doc.getElementsByTagName("channel")[0];
   if (channel) {
