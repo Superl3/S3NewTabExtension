@@ -2,6 +2,7 @@ import { DROP_SILHOUETTE_Z_INDEX, resolveFolderPanelZIndex } from "../core/drag-
 import { pointInsideRect } from "../core/utils/geometry.js";
 import { clamp, normalizeIntegerInRange } from "../core/utils/number.js";
 import { normalizeText } from "../core/utils/text.js";
+import { isUrlIcon } from "./shared/linkUrls.js";
 
 function normalizeCount(value, fallback, min, max) {
   return normalizeIntegerInRange(value, fallback, min, max);
@@ -12,15 +13,6 @@ function normalizeTitleAlign(value, fallback = "center") {
     return value;
   }
   return fallback;
-}
-
-function isUrlIcon(value) {
-  return (
-    value.startsWith("http://") ||
-    value.startsWith("https://") ||
-    value.startsWith("data:") ||
-    value.startsWith("chrome-extension://")
-  );
 }
 
 function normalizeFolderConfig(config) {
