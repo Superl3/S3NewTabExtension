@@ -12,6 +12,7 @@ import {
 import { createFlexWorktimeCache } from "../widgets/shared/flexWorktimeCache.js";
 import {
   formatClockMinutes,
+  formatDurationMinutes,
   normalizeFlexWidgetBaseConfig,
   resolveFlexWorktimeDetailUrl
 } from "../widgets/shared/flexWorktimeRows.js";
@@ -208,6 +209,12 @@ test("Flex shared clock formatter preserves bounded minute semantics", () => {
   assert.equal(formatClockMinutes("bad"), "00:00");
   assert.equal(formatClockMinutes(-4), "00:00");
   assert.equal(formatClockMinutes(1500), "23:59");
+});
+
+test("Flex shared duration formatter preserves numeric fallback semantics", () => {
+  assert.equal(formatDurationMinutes(61.9), "1h 2m");
+  assert.equal(formatDurationMinutes("bad"), "0m");
+  assert.equal(formatDurationMinutes(-4), "0m");
 });
 
 test("Flex worktime detail URL helper resolves placeholders safely", () => {

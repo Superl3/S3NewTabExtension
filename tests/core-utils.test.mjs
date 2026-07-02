@@ -551,6 +551,8 @@ test("Flex shared row helpers use core integer primitives", async () => {
   assert.match(source, /core\/utils\/number\.js/);
   assert.doesNotMatch(source, /Math\.floor\(Number/, "flexWorktimeRows.js");
   assert.doesNotMatch(source, /Number\.isFinite\(Number\(/, "flexWorktimeRows.js");
+  assert.doesNotMatch(source, /Number\(totalMinutes\) \|\| 0/, "flexWorktimeRows.js");
+  assert.doesNotMatch(source, /Number\(scraped\?\.extractedAt\) \|\| Date\.now\(\)/, "flexWorktimeRows.js");
 });
 
 test("Flex worktime widgets share auth helpers instead of local copies", async () => {

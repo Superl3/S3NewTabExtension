@@ -129,7 +129,7 @@ export function formatTimeFromRef(timeRef) {
 }
 
 export function formatDurationMinutes(totalMinutes) {
-  const minutes = Math.max(0, Math.round(Number(totalMinutes) || 0));
+  const minutes = Math.max(0, Math.round(toFiniteNumber(totalMinutes, 0)));
   const hours = Math.floor(minutes / 60);
   const remains = minutes % 60;
   if (hours > 0 && remains > 0) {
@@ -521,7 +521,7 @@ export function normalizeFlexHomeScrapeRow(scraped, queryDate, flexHomeUrl) {
     queryDate: normalizeText(queryDate),
     sourceUrl: normalizeText(scraped?.url, flexHomeUrl),
     pageTitle: normalizeText(scraped?.title),
-    extractedAt: Math.max(1, Math.round(Number(scraped?.extractedAt) || Date.now())),
+    extractedAt: Math.max(1, Math.round(toFiniteNumber(scraped?.extractedAt, Date.now()))),
     status,
     duration,
     line
