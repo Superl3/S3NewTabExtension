@@ -272,6 +272,12 @@ test("core modules use shared integer helpers instead of local copies", async ()
   }
 });
 
+test("alarm dispatcher uses native finite timestamp checks directly", async () => {
+  const source = await fs.readFile(new URL("../core/alarm/notification-dispatcher.js", import.meta.url), "utf8");
+  assert.match(source, /Number\.isFinite\(value\.at\)/);
+  assert.doesNotMatch(source, /^function isValidAlarmTimestamp\(/m);
+});
+
 test("core padding modules share fallback padding normalization", async () => {
   const moduleUrls = [
     new URL("../core/padding-drag.js", import.meta.url),
