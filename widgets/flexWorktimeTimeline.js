@@ -1,5 +1,5 @@
 import { normalizeErrorMessage } from "../core/utils/error.js";
-import { clamp } from "../core/utils/number.js";
+import { clamp, toTruthyNumberOrFallback } from "../core/utils/number.js";
 import { hasOwn, isPlainObject } from "../core/utils/object.js";
 import { normalizeText } from "../core/utils/text.js";
 import {
@@ -232,7 +232,7 @@ export function buildFlexTimelineSegments(timeline, now = new Date()) {
     ? timeline.events
       .map((event) => ({
         type: normalizeText(event?.type),
-        minutes: clamp(Math.floor(Number(event?.minutes) || 0), 0, 1439),
+        minutes: clamp(Math.floor(toTruthyNumberOrFallback(event?.minutes, 0)), 0, 1439),
         at: normalizeText(event?.at)
       }))
       .filter((event) => event.type)

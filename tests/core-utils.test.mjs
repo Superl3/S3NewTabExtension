@@ -907,6 +907,12 @@ test("Flex shared row helpers use core integer primitives", async () => {
   assert.doesNotMatch(source, /Number\(scraped\?\.extractedAt\) \|\| Date\.now\(\)/, "flexWorktimeRows.js");
 });
 
+test("Flex worktime timeline uses shared truthy fallback for event minutes", async () => {
+  const source = await fs.readFile(new URL("../widgets/flexWorktimeTimeline.js", import.meta.url), "utf8");
+  assert.match(source, /toTruthyNumberOrFallback\(event\?\.minutes, 0\)/);
+  assert.doesNotMatch(source, /Math\.floor\(Number\(event\?\.minutes\) \|\| 0\)/);
+});
+
 test("Flex worktime widgets share auth helpers instead of local copies", async () => {
   const moduleUrls = [
     new URL("../widgets/flexWorktime.js", import.meta.url),
