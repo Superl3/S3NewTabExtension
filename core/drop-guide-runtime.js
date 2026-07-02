@@ -1,3 +1,5 @@
+import { clampRoundedTruthyNumberOrFallback, toTruthyNumberOrFallback } from "./utils/number.js";
+
 export function createDropGuideRuntime({
   elements,
   dragGuideUiState,
@@ -108,11 +110,12 @@ export function createDropGuideRuntime({
     if (!layout) {
       return null;
     }
+    const pageOffsetX = toTruthyNumberOrFallback(widgetPageOffsetX?.(page), 0);
     return {
-      x: Math.round((Number(layout.x) || 0) + (widgetPageOffsetX?.(page) || 0)),
-      y: Math.round(Number(layout.y) || 0),
-      w: Math.max(1, Math.round(Number(layout.w) || 1)),
-      h: Math.max(1, Math.round(Number(layout.h) || 1))
+      x: Math.round(toTruthyNumberOrFallback(layout.x, 0) + pageOffsetX),
+      y: Math.round(toTruthyNumberOrFallback(layout.y, 0)),
+      w: clampRoundedTruthyNumberOrFallback(layout.w, 1, 1, Number.POSITIVE_INFINITY),
+      h: clampRoundedTruthyNumberOrFallback(layout.h, 1, 1, Number.POSITIVE_INFINITY)
     };
   }
 
@@ -409,10 +412,10 @@ export function createDropGuideRuntime({
       }
     } else {
       const fallbackLayout = {
-        x: Number(draggedInstance.layout?.x) || 0,
-        y: Number(draggedInstance.layout?.y) || 0,
-        w: Number(draggedInstance.layout?.w) || 1,
-        h: Number(draggedInstance.layout?.h) || 1
+        x: toTruthyNumberOrFallback(draggedInstance.layout?.x, 0),
+        y: toTruthyNumberOrFallback(draggedInstance.layout?.y, 0),
+        w: toTruthyNumberOrFallback(draggedInstance.layout?.w, 1),
+        h: toTruthyNumberOrFallback(draggedInstance.layout?.h, 1)
       };
       const rect = projectedBoardSlotRect(boardLayout || fallbackLayout, resolvedBoardPage);
       if (rect) {
