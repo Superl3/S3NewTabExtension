@@ -907,6 +907,16 @@ test("weather mode sizing uses shared truthy clamp fallbacks", async () => {
   assert.doesNotMatch(source, /Math\.max\(1, Number\(widget\.(?:gridLayout\.rowSpan|layout\.h)\) \|\| [01]\)/);
 });
 
+test("weather cache writes use shared finite rounding fallback", async () => {
+  const source = await fs.readFile(new URL("../widgets/weather.js", import.meta.url), "utf8");
+
+  assert.match(source, /roundFiniteOrFallback\(fetchedAt, Date\.now\(\)\)/);
+  assert.doesNotMatch(
+    source,
+    /Number\.isFinite\(Number\(fetchedAt\)\) \? Math\.round\(Number\(fetchedAt\)\) : Date\.now\(\)/
+  );
+});
+
 test("widgets use shared object helpers instead of local copies", async () => {
   const sources = await collectWidgetSources(new URL("../widgets/", import.meta.url));
   for (const source of sources) {
