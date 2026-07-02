@@ -251,6 +251,7 @@ test("core modules use the shared finite clamp helper instead of local copies", 
 
 test("core drag and resize modules use the shared finite number helper", async () => {
   const moduleUrls = [
+    new URL("../core/board-swipe.js", import.meta.url),
     new URL("../core/drag-drop-evaluation.js", import.meta.url),
     new URL("../core/drag-positioning.js", import.meta.url),
     new URL("../core/resize-drag.js", import.meta.url),
@@ -259,7 +260,9 @@ test("core drag and resize modules use the shared finite number helper", async (
 
   for (const moduleUrl of moduleUrls) {
     const source = await fs.readFile(moduleUrl, "utf8");
+    assert.match(source, /toFiniteNumber/, moduleUrl.pathname);
     assert.doesNotMatch(source, /^function toFinite(Number)?\(/m, moduleUrl.pathname);
+    assert.doesNotMatch(source, /Number\.isFinite\(Number\(/, moduleUrl.pathname);
   }
 });
 
