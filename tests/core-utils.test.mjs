@@ -436,6 +436,13 @@ test("board swipe uses shared finite number normalization for deltas", async () 
   assert.doesNotMatch(source, /Number\((?:dx|dy|velocity)\) \|\| 0/);
 });
 
+test("board swipe session uses shared truthy timestamp fallback", async () => {
+  const source = await fs.readFile(new URL("../core/board-swipe-session.js", import.meta.url), "utf8");
+  assert.match(source, /utils\/number\.js/);
+  assert.match(source, /toTruthyNumberOrFallback\(performanceNow\?\.\(\), Date\.now\)/);
+  assert.doesNotMatch(source, /Number\(performanceNow\?\.\(\)\) \|\| Date\.now\(\)/);
+});
+
 test("widget card drag session shares finite clamp fallback", async () => {
   const source = await fs.readFile(new URL("../core/widget-card-drag-session.js", import.meta.url), "utf8");
   assert.match(source, /utils\/number\.js/);

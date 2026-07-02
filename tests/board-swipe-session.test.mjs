@@ -86,6 +86,43 @@ test("beginBoardSwipeSession sets active state when swipe can start", () => {
   assert.deepEqual(captureHost.captures, [7]);
 });
 
+test("beginBoardSwipeSession falls back to Date.now for falsy performance timestamps", () => {
+  const boardSwipeState = {
+    active: false,
+    pointerId: null,
+    captureTarget: null,
+    startX: 0,
+    startY: 0,
+    startAt: 0,
+    dragOffsetX: 0,
+    dragging: false
+  };
+  const previousNow = Date.now;
+  Date.now = () => 789;
+
+  try {
+    beginBoardSwipeSession(createPointerEvent({ pointerId: 9, target: {} }), {
+      elements: {
+        board: {},
+        workspace: createCaptureHost()
+      },
+      state: { ui: { home: {} } },
+      widgetLongPressState: { pending: false },
+      boardSwipeState,
+      canStartBoardSwipeFromTarget: () => true,
+      modalState: { open: false },
+      isAddWidgetModalOpen: () => false,
+      shortcutIconEditorState: { open: false },
+      isDockSettingsModalOpen: () => false,
+      performanceNow: () => 0
+    });
+
+    assert.equal(boardSwipeState.startAt, 789);
+  } finally {
+    Date.now = previousNow;
+  }
+});
+
 test("moveBoardSwipeSession starts drag and renders offset", () => {
   const boardSwipeState = {
     active: true,
