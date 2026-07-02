@@ -1256,6 +1256,13 @@ test("GitHub widgets share repository and API helpers", async () => {
   }
 });
 
+test("GitHub API helpers use shared array fallback helper", async () => {
+  const source = await fs.readFile(new URL("../widgets/shared/githubApi.js", import.meta.url), "utf8");
+  assert.match(source, /core\/utils\/array\.js/);
+  assert.match(source, /arrayOrEmpty\(reviewers\)/);
+  assert.doesNotMatch(source, /Array\.isArray\(reviewers\)/);
+});
+
 test("GitHub review inbox logic uses shared cache timestamp normalization", async () => {
   const source = await fs.readFile(new URL("../widgets/shared/githubReviewInboxLogic.js", import.meta.url), "utf8");
   assert.match(source, /shared\/githubApi\.js|\.\/githubApi\.js/);
