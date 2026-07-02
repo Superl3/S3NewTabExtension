@@ -1,3 +1,4 @@
+import { normalizeErrorMessage } from "../core/utils/error.js";
 import { clamp } from "../core/utils/number.js";
 import { normalizeText } from "../core/utils/text.js";
 
@@ -25,19 +26,6 @@ function normalizeRefreshMinutes(value, fallback = 5) {
     return clamp(Math.round(fallback), 1, 120);
   }
   return clamp(Math.round(num), 1, 120);
-}
-
-function normalizeErrorMessage(error) {
-  if (!error) {
-    return "Unknown error";
-  }
-  if (typeof error === "string") {
-    return normalizeText(error, "Unknown error");
-  }
-  if (typeof error.message === "string") {
-    return normalizeText(error.message, "Unknown error");
-  }
-  return "Unknown error";
 }
 
 function buildInboxUrl(accountIndex) {

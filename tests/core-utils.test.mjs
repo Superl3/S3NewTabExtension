@@ -56,3 +56,12 @@ test("widgets use shared core utility functions instead of local copies", async 
     assert.doesNotMatch(source.text, /^function normalizeText\(/m, source.name);
   }
 });
+
+test("widgets keep only domain-specific local error normalizers", async () => {
+  const sources = await collectWidgetSources(new URL("../widgets/", import.meta.url));
+  const localErrorNormalizers = sources
+    .filter((source) => /^function normalizeErrorMessage\(/m.test(source.text))
+    .map((source) => source.name.replace(/^.*\/widgets\//, "widgets/"));
+
+  assert.deepEqual(localErrorNormalizers, ["widgets/rss.js"]);
+});
