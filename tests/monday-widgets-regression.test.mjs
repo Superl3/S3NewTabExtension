@@ -80,10 +80,10 @@ test("mondayAssigned resolves people column selector without missing normalizer"
   assert.deepEqual(Array.from(resolved), ["people_owner"]);
 });
 
-test("mondayAssigned normalizes status column ids without undefined helper", async () => {
-  const { normalizeStatusColumnIds } = await loadWidgetInternals(
+test("mondayAssigned normalizes column ids without undefined helper", async () => {
+  const { normalizeColumnIds } = await loadWidgetInternals(
     "widgets/mondayAssigned.js",
-    ["normalizeStatusColumnIds"],
+    ["normalizeColumnIds"],
     {
       normalizeColumnSelector: (value) => String(value || "").trim(),
       createAuthSessionStorage: () => ({
@@ -94,7 +94,7 @@ test("mondayAssigned normalizes status column ids without undefined helper", asy
     }
   );
 
-  const normalized = normalizeStatusColumnIds([" status ", "", "done "]);
+  const normalized = normalizeColumnIds([" status ", "", "done "]);
   assert.deepEqual(Array.from(normalized), ["status", "done"]);
 });
 

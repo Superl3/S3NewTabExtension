@@ -1393,6 +1393,10 @@ test("Monday widgets share list array fallback normalization", async () => {
   assert.doesNotMatch(assignedSource, /Array\.isArray\(parentItems\) \? parentItems : \[\]/);
   assert.doesNotMatch(assignedSource, /Array\.isArray\(parent\?\.subitems\) \? parent\.subitems : \[\]/);
   assert.doesNotMatch(assignedSource, /Array\.isArray\(peopleColumnIds\)/);
+  assert.equal(
+    assignedSource.match(/\.map\(\(value\) => normalizeColumnSelector\(value\)\)/g)?.length,
+    1
+  );
 
   assert.doesNotMatch(meetingNoteSource, /Array\.isArray\(columns\) \? columns : \[\]/);
   assert.doesNotMatch(meetingNoteSource, /Array\.isArray\(candidates\) \? candidates : \[\]/);
