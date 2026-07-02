@@ -55,14 +55,14 @@ export function createInputBySchema(schema = {}, value, { chromeApi = null } = {
               option.textContent = nextParts.join("/");
               select.append(option);
             }
-            for (const child of node.children || []) {
+            for (const child of node.children ?? []) {
               if (!child.url) {
                 walk(child, nextParts);
               }
             }
           };
 
-          for (const child of root.children || []) {
+          for (const child of root.children ?? []) {
             if (!child.url) {
               walk(child, []);
             }
