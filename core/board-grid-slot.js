@@ -1,3 +1,4 @@
+import { arrayOrEmpty } from "./utils/array.js";
 import { callIfFunction as call } from "./utils/function.js";
 import { clampFiniteOrMin, toPositiveInteger } from "./utils/number.js";
 
@@ -30,7 +31,7 @@ export function findFirstAvailableBoardGridSlot(page, colSpan, rowSpan, deps = {
   const targetPage = call(normalizeWidgetPage, page, home.pageCount, 0) ?? 0;
   const occupancy = Array.from({ length: rows }, () => Array(cols).fill(false));
 
-  for (const instance of Array.isArray(instances) ? instances : []) {
+  for (const instance of arrayOrEmpty(instances)) {
     if (!instance || instance.enabled === false || call(isWidgetDocked, instance) || call(isWidgetInContainer, instance)) {
       continue;
     }

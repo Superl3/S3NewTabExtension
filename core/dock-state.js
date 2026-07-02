@@ -1,4 +1,5 @@
 import { isWidgetInContainer } from "./container-state.js";
+import { arrayOrEmpty } from "./utils/array.js";
 import { toPositiveInteger } from "./utils/number.js";
 import { normalizeText } from "./utils/text.js";
 
@@ -18,7 +19,7 @@ export function isWidgetDocked(instance) {
 }
 
 export function nextDockOrder(instances = [], { isInContainer = isWidgetInContainer } = {}) {
-  const items = Array.isArray(instances) ? instances : [];
+  const items = arrayOrEmpty(instances);
   let maxOrder = -1;
 
   for (const item of items) {
@@ -42,7 +43,7 @@ export function dockSlotOccupants(instances = [], {
   const count = toPositiveInteger(slotCount, 1);
   const excluded = normalizeText(excludeWidgetId);
   const occupied = new Map();
-  const items = Array.isArray(instances) ? instances : [];
+  const items = arrayOrEmpty(instances);
 
   for (const instance of items) {
     if (!instance || instance.enabled === false || !isWidgetDocked(instance) || isInContainer(instance)) {
@@ -85,12 +86,13 @@ export function normalizeDockedWidgetOrders(instances, {
   slotCount = 1,
   isInContainer = isWidgetInContainer
 } = {}) {
-  if (!Array.isArray(instances) || !instances.length) {
+  const items = arrayOrEmpty(instances);
+  if (!items.length) {
     return false;
   }
 
   const count = toPositiveInteger(slotCount, 1);
-  const docked = instances
+  const docked = items
     .filter((instance) => instance && instance.enabled !== false && isWidgetDocked(instance) && !isInContainer(instance))
     .sort((a, b) => {
       const orderA = normalizeDockOrder(a.dockOrder, Number.MAX_SAFE_INTEGER);
@@ -135,7 +137,7 @@ export function normalizeDockedWidgetOrders(instances, {
     occupied.add(fallback);
   }
 
-  for (const instance of instances) {
+  for (const instance of items) {
     if (!instance || !isWidgetDocked(instance) || !isInContainer(instance)) {
       continue;
     }

@@ -248,6 +248,33 @@ test("array utility preserves arrays and normalizes non-arrays", () => {
   assert.deepEqual(arrayOrEmpty({ length: 1 }), []);
 });
 
+test("core layout modules use shared array fallback helper", async () => {
+  const moduleUrls = [
+    new URL("../core/board-grid-slot.js", import.meta.url),
+    new URL("../core/default-widget-order.js", import.meta.url),
+    new URL("../core/dock-state.js", import.meta.url),
+    new URL("../core/widget-add-plan.js", import.meta.url)
+  ];
+
+  for (const moduleUrl of moduleUrls) {
+    const source = await fs.readFile(moduleUrl, "utf8");
+    assert.match(source, /utils\/array\.js/, moduleUrl.pathname);
+    assert.match(source, /arrayOrEmpty\(/, moduleUrl.pathname);
+  }
+
+  const boardSlotSource = await fs.readFile(new URL("../core/board-grid-slot.js", import.meta.url), "utf8");
+  assert.doesNotMatch(boardSlotSource, /Array\.isArray\(instances\) \? instances : \[\]/);
+
+  const defaultOrderSource = await fs.readFile(new URL("../core/default-widget-order.js", import.meta.url), "utf8");
+  assert.doesNotMatch(defaultOrderSource, /Array\.isArray\(widgetTypes\) \? widgetTypes : \[\]/);
+
+  const dockStateSource = await fs.readFile(new URL("../core/dock-state.js", import.meta.url), "utf8");
+  assert.doesNotMatch(dockStateSource, /Array\.isArray\(instances\)/);
+
+  const widgetAddPlanSource = await fs.readFile(new URL("../core/widget-add-plan.js", import.meta.url), "utf8");
+  assert.doesNotMatch(widgetAddPlanSource, /Array\.isArray\(instances\) \? instances : \[\]/);
+});
+
 test("Flex auth helpers preserve auth-required and login URL semantics", () => {
   const error = createFlexAuthRequiredError("  login needed  ");
   assert.equal(error.message, "login needed");

@@ -1,3 +1,4 @@
+import { arrayOrEmpty } from "./utils/array.js";
 import { clamp, toPositiveInteger, toTruthyNumberOrFallback } from "./utils/number.js";
 
 export const FALLBACK_DEFAULT_WIDGET_TYPES = Object.freeze([
@@ -67,7 +68,7 @@ export function assignFallbackDefaultGridLayouts(widgetTypes, {
   );
   const occupancyByPage = [createOccupancy(gridRows, gridColumns)];
 
-  return (Array.isArray(widgetTypes) ? widgetTypes : []).map((type) => {
+  return arrayOrEmpty(widgetTypes).map((type) => {
     const def = widgetRegistry[type];
     const defaultSize = widgetDefaultGridSize?.(type, def) || { colSpan: 1, rowSpan: 1 };
     const colSpan = clamp(toPositiveInteger(defaultSize.colSpan, 1), 1, gridColumns);
