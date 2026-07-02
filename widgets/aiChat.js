@@ -1,4 +1,5 @@
 import { normalizeErrorMessage } from "../core/utils/error.js";
+import { toFiniteNumber } from "../core/utils/number.js";
 import { normalizeText } from "../core/utils/text.js";
 import {
   buildAuthConnectorStartUrl,
@@ -123,6 +124,10 @@ export function resolveAiChatActiveSession({ connectorUrl, configuredAccessToken
   return null;
 }
 
+export function normalizeAiChatTemperature(value, fallback = 0.7) {
+  return toFiniteNumber(value ?? fallback, fallback);
+}
+
 async function throwHttpError(response) {
   const body = normalizeText(await response.text());
   throw new Error(body ? `HTTP ${response.status}: ${body}` : `HTTP ${response.status}`);
@@ -147,7 +152,7 @@ async function callOpenAIStyleApi(cfg, history, text, accessToken) {
 
   const payload = {
     model: resolveModel(cfg),
-    temperature: Number(cfg.temperature ?? 0.7),
+    temperature: normalizeAiChatTemperature(cfg.temperature),
     messages
   };
 
@@ -190,7 +195,7 @@ async function callOpenAIBrowserMode(cfg, history, text, accessToken) {
     model: resolveModel(cfg),
     input,
     tools: [{ type: "web_search_preview" }],
-    temperature: Number(cfg.temperature ?? 0.7)
+    temperature: normalizeAiChatTemperature(cfg.temperature)
   };
 
   const response = await fetch(resolveEndpoint(cfg), {
