@@ -49,6 +49,32 @@ test("buildFlexTimelineSegments builds work and break spans from parsed timeline
   );
 });
 
+test("buildFlexTimelineSegments preserves event minute fallback semantics", () => {
+  const segments = buildFlexTimelineSegments(
+    {
+      isOngoing: false,
+      events: [
+        { type: "workStart", minutes: "bad", at: "bad" },
+        { type: "breakStart", minutes: 10.9, at: "10" },
+        { type: "breakEnd", minutes: Infinity, at: "infinity" }
+      ]
+    },
+    new Date("2026-04-10T18:47:00")
+  );
+
+  assert.deepEqual(
+    segments.map((segment) => ({
+      type: segment.type,
+      startLabel: segment.startLabel,
+      endLabel: segment.endLabel
+    })),
+    [
+      { type: "work", startLabel: "00:00", endLabel: "00:10" },
+      { type: "break", startLabel: "00:10", endLabel: "23:59" }
+    ]
+  );
+});
+
 test("parseFlexWorkRecordTimelineText returns null for unrelated text", () => {
   assert.equal(parseFlexWorkRecordTimelineText("오늘 근무 합계 8시간 12분", "2026-04-10"), null);
 });
