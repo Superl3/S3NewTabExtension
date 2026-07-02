@@ -274,22 +274,12 @@ function pickSingleNote(value) {
 }
 
 function extractColumnText(columnValue) {
-  const longText = normalizeText(columnValue?.text);
-  if (longText) {
-    return longText;
+  const text = normalizeText(columnValue?.text);
+  if (text) {
+    return text;
   }
 
-  const mirrorText = normalizeText(columnValue?.display_value);
-  if (mirrorText) {
-    return mirrorText;
-  }
-
-  const boardRelationDisplay = normalizeText(columnValue?.display_value);
-  if (boardRelationDisplay) {
-    return boardRelationDisplay;
-  }
-
-  return normalizeText(columnValue?.text);
+  return normalizeText(columnValue?.display_value);
 }
 
 function pushUnique(list, value) {

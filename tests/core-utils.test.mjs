@@ -1668,6 +1668,8 @@ test("Monday widgets share list array fallback normalization", async () => {
   assert.doesNotMatch(meetingNoteSource, /Array\.isArray\(columnIds\) \? columnIds : \[\]/);
   assert.match(meetingNoteSource, /parseColumnSelectorList\(selectorText, \{ maxLength: 120 \}\)/);
   assert.doesNotMatch(meetingNoteSource, /^function (normalizeColumnSelectorList|parseSelectorList)\(/m);
+  assert.doesNotMatch(meetingNoteSource, /boardRelationDisplay/);
+  assert.doesNotMatch(meetingNoteSource, /const mirrorText = normalizeText\(columnValue\?\.display_value\)/);
 });
 
 test("Monday meeting notes reuse the shared safe URL parser", async () => {
