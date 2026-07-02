@@ -8,6 +8,7 @@ import {
   formatGitHubRelativeTimestamp,
   githubRepositoryParts,
   githubTokenFingerprint,
+  matchesGitHubCacheTokenFingerprint,
   normalizeGitHubCacheCount,
   normalizeGitHubCacheNumber,
   normalizeGitHubCacheTimestamp,
@@ -53,6 +54,11 @@ test("GitHub shared helpers preserve API formatting semantics", () => {
   assert.equal(parseGitHubError("", 500), "GitHub request failed: HTTP 500");
   assert.equal(normalizeGitHubReviewerNames([{ login: "alice" }, { login: " bob " }, {}]), "alice, bob");
   assert.equal(githubTokenFingerprint("abc"), "3:590");
+  assert.equal(matchesGitHubCacheTokenFingerprint("3:590", "abc"), true);
+  assert.equal(matchesGitHubCacheTokenFingerprint("3:590", "abcd"), false);
+  assert.equal(matchesGitHubCacheTokenFingerprint("", ""), false);
+  assert.equal(matchesGitHubCacheTokenFingerprint("", "", { allowMissingWhenTokenEmpty: true }), true);
+  assert.equal(matchesGitHubCacheTokenFingerprint("", "abc", { allowMissingWhenTokenEmpty: true }), false);
 });
 
 test("GitHub shared helpers parse response JSON without widget-local parsing", () => {

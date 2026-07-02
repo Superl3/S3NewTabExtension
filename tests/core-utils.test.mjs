@@ -1237,6 +1237,7 @@ test("GitHub widgets share repository and API helpers", async () => {
     const source = await fs.readFile(moduleUrl, "utf8");
     assert.match(source, /shared\/githubApi\.js/, moduleUrl.pathname);
     assert.match(source, /buildGitHubRepoApiUrl/, moduleUrl.pathname);
+    assert.match(source, /matchesGitHubCacheTokenFingerprint/, moduleUrl.pathname);
     assert.match(source, /parseGitHubJsonResponse/, moduleUrl.pathname);
     assert.match(source, /normalizeGitHubCache(Number|Count)/, moduleUrl.pathname);
     assert.match(source, /normalizeGitHubCacheTimestamp/, moduleUrl.pathname);
@@ -1250,6 +1251,7 @@ test("GitHub widgets share repository and API helpers", async () => {
     assert.doesNotMatch(source, /Number\(pull\?\.number\) \|\| 0/, moduleUrl.pathname);
     assert.doesNotMatch(source, /formatUpdatedLabelFromTimestamp\(Number\(pull\.updatedAt\)\)/, moduleUrl.pathname);
     assert.doesNotMatch(source, /Math\.max\(0, normalizeCacheNumber\(/, moduleUrl.pathname);
+    assert.doesNotMatch(source, /normalizeText\(rawConfig\?\.cacheTokenFingerprint\) === tokenFingerprint/, moduleUrl.pathname);
   }
 });
 
