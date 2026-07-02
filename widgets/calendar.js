@@ -1,5 +1,5 @@
 import { normalizeErrorMessage } from "../core/utils/error.js";
-import { clamp } from "../core/utils/number.js";
+import { normalizeIntegerInRange } from "../core/utils/number.js";
 import { normalizeText } from "../core/utils/text.js";
 import { parseIcsEvents } from "./shared/icsParser.js";
 
@@ -7,11 +7,7 @@ const GOOGLE_CALENDAR_HOST = "https://calendar.google.com";
 const GOOGLE_CALENDAR_WEB_URL = `${GOOGLE_CALENDAR_HOST}/calendar/u/0/r`;
 
 function normalizeAccountIndex(value, fallback = 0) {
-  const num = Number(value);
-  if (!Number.isFinite(num)) {
-    return clamp(Math.round(fallback), 0, 9);
-  }
-  return clamp(Math.round(num), 0, 9);
+  return normalizeIntegerInRange(value, fallback, 0, 9);
 }
 
 function calendarAppBaseUrl(accountIndex) {
@@ -27,27 +23,15 @@ function calendarHomeUrl(accountIndex) {
 }
 
 function normalizeMaxResults(value, fallback = 8) {
-  const num = Number(value);
-  if (!Number.isFinite(num)) {
-    return clamp(Math.round(fallback), 1, 30);
-  }
-  return clamp(Math.round(num), 1, 30);
+  return normalizeIntegerInRange(value, fallback, 1, 30);
 }
 
 function normalizeDaysAhead(value, fallback = 21) {
-  const num = Number(value);
-  if (!Number.isFinite(num)) {
-    return clamp(Math.round(fallback), 1, 90);
-  }
-  return clamp(Math.round(num), 1, 90);
+  return normalizeIntegerInRange(value, fallback, 1, 90);
 }
 
 function normalizeRefreshMinutes(value, fallback = 30) {
-  const num = Number(value);
-  if (!Number.isFinite(num)) {
-    return clamp(Math.round(fallback), 1, 240);
-  }
-  return clamp(Math.round(num), 1, 240);
+  return normalizeIntegerInRange(value, fallback, 1, 240);
 }
 
 function normalizeWeekStartsOn(value) {

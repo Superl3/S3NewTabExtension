@@ -1,6 +1,6 @@
 import { normalizeErrorMessage } from "../core/utils/error.js";
 import { parseJsonOrNull } from "../core/utils/json.js";
-import { clamp } from "../core/utils/number.js";
+import { clamp, normalizeIntegerInRange } from "../core/utils/number.js";
 import { normalizeText } from "../core/utils/text.js";
 import { pruneCacheIndex, touchCacheIndex } from "./shared/localStorageCacheIndex.js";
 
@@ -16,11 +16,7 @@ const WEATHER_CACHE_INDEX_OPTIONS = {
 };
 
 function normalizeRefreshMinutes(value, fallback = 30) {
-  const num = Number(value);
-  if (!Number.isFinite(num)) {
-    return clamp(Math.round(fallback), 5, 240);
-  }
-  return clamp(Math.round(num), 5, 240);
+  return normalizeIntegerInRange(value, fallback, 5, 240);
 }
 
 function normalizeTemperatureUnit(value, fallback = "celsius") {

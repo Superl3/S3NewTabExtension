@@ -1,6 +1,6 @@
 import { normalizeErrorMessage } from "../core/utils/error.js";
 import { parseJsonOrNull } from "../core/utils/json.js";
-import { clamp } from "../core/utils/number.js";
+import { clamp, normalizeIntegerInRange } from "../core/utils/number.js";
 import { normalizeText } from "../core/utils/text.js";
 import { executeScript, hasScriptingApi } from "../core/platform/chrome-scripting.js";
 import {
@@ -161,11 +161,7 @@ function asFiniteNumber(value, fallback = null) {
 }
 
 function normalizeRefreshMinutes(value, fallback = 10) {
-  const num = Number(value);
-  if (!Number.isFinite(num)) {
-    return clamp(Math.round(fallback), 1, 720);
-  }
-  return clamp(Math.round(num), 1, 720);
+  return normalizeIntegerInRange(value, fallback, 1, 720);
 }
 
 function normalizeFlexHomeUrl(value, fallback = DEFAULT_FLEX_HOME_URL) {

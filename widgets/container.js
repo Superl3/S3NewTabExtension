@@ -1,13 +1,9 @@
 import { DROP_SILHOUETTE_Z_INDEX, resolveFolderPanelZIndex } from "../core/drag-layering.js";
-import { clamp } from "../core/utils/number.js";
+import { clamp, normalizeIntegerInRange } from "../core/utils/number.js";
 import { normalizeText } from "../core/utils/text.js";
 
 function normalizeCount(value, fallback, min, max) {
-  const num = Number(value);
-  if (!Number.isFinite(num)) {
-    return clamp(Math.round(fallback), min, max);
-  }
-  return clamp(Math.round(num), min, max);
+  return normalizeIntegerInRange(value, fallback, min, max);
 }
 
 function normalizeTitleAlign(value, fallback = "center") {

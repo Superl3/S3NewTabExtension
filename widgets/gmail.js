@@ -1,31 +1,19 @@
 import { normalizeErrorMessage } from "../core/utils/error.js";
-import { clamp } from "../core/utils/number.js";
+import { normalizeIntegerInRange } from "../core/utils/number.js";
 import { normalizeText } from "../core/utils/text.js";
 
 const GMAIL_WEB_BASE_URL = "https://mail.google.com/mail";
 
 function normalizeAccountIndex(value, fallback = 0) {
-  const num = Number(value);
-  if (!Number.isFinite(num)) {
-    return clamp(Math.round(fallback), 0, 9);
-  }
-  return clamp(Math.round(num), 0, 9);
+  return normalizeIntegerInRange(value, fallback, 0, 9);
 }
 
 function normalizeMaxResults(value, fallback = 6) {
-  const num = Number(value);
-  if (!Number.isFinite(num)) {
-    return clamp(Math.round(fallback), 1, 20);
-  }
-  return clamp(Math.round(num), 1, 20);
+  return normalizeIntegerInRange(value, fallback, 1, 20);
 }
 
 function normalizeRefreshMinutes(value, fallback = 5) {
-  const num = Number(value);
-  if (!Number.isFinite(num)) {
-    return clamp(Math.round(fallback), 1, 120);
-  }
-  return clamp(Math.round(num), 1, 120);
+  return normalizeIntegerInRange(value, fallback, 1, 120);
 }
 
 function buildInboxUrl(accountIndex) {
