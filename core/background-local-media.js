@@ -1,13 +1,10 @@
-function normalizeTextFallback(value, fallback = "") {
-  const text = String(value || "").trim();
-  return text || fallback;
-}
+import { normalizeText as defaultNormalizeText } from "./utils/text.js";
 
 function resolveNormalizeText(normalizeText) {
   if (typeof normalizeText === "function") {
     return normalizeText;
   }
-  return normalizeTextFallback;
+  return defaultNormalizeText;
 }
 
 export function hasLocalMediaData(background = {}, normalizeText) {
