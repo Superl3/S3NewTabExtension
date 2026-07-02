@@ -1812,17 +1812,23 @@ test("feed widgets share XML helpers instead of local copies", async () => {
   }
 });
 
-test("feed widgets use shared integer range normalization directly", async () => {
+test("data widgets use shared integer range normalization directly", async () => {
   const moduleUrls = [
+    new URL("../widgets/calendar.js", import.meta.url),
     new URL("../widgets/gmail.js", import.meta.url),
-    new URL("../widgets/rss.js", import.meta.url)
+    new URL("../widgets/rss.js", import.meta.url),
+    new URL("../widgets/weather.js", import.meta.url)
   ];
 
   for (const moduleUrl of moduleUrls) {
     const source = await fs.readFile(moduleUrl, "utf8");
     assert.match(source, /core\/utils\/number\.js/, moduleUrl.pathname);
     assert.match(source, /normalizeIntegerInRange/, moduleUrl.pathname);
-    assert.doesNotMatch(source, /^function normalize(MaxResults|MaxItems|RefreshMinutes)\(/m, moduleUrl.pathname);
+    assert.doesNotMatch(
+      source,
+      /^function normalize(MaxResults|MaxItems|DaysAhead|RefreshMinutes)\(/m,
+      moduleUrl.pathname
+    );
   }
 });
 
