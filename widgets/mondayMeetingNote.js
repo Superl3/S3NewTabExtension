@@ -33,6 +33,7 @@ import {
   normalizeCachedMondayBoardBase,
   normalizeColumnSelector,
   normalizeColumnSelectorList as normalizeSharedColumnSelectorList,
+  normalizeMondayCacheTimestamp,
   parseColumnSelectorList
 } from "./shared/mondayConfig.js";
 import {
@@ -184,7 +185,7 @@ function normalizeCachedBoardSnapshot(entry) {
 }
 
 function readCachedSnapshot(rawConfig, cfg) {
-  const cacheAt = Math.max(0, Number(rawConfig?.cacheAt) || 0);
+  const cacheAt = normalizeMondayCacheTimestamp(rawConfig?.cacheAt);
   const cachedSelectorKey = normalizeSelectorKey(rawConfig?.cacheMeetingNoteColumnId);
   const selectorMatches =
     !cachedSelectorKey ||

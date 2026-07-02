@@ -8,6 +8,8 @@ import {
   normalizeBoardId,
   normalizeBoardIds,
   normalizeColumnSelectorList,
+  normalizeMondayCacheNumber,
+  normalizeMondayCacheTimestamp,
   parseColumnSelectorList
 } from "../widgets/shared/mondayConfig.js";
 import {
@@ -21,6 +23,10 @@ test("monday config normalizes board ids and selector lists for widget reuse", (
   assert.equal(normalizeBoardId("42.8"), 42);
   assert.equal(normalizeBoardId("-4", 7), 0);
   assert.equal(normalizeBoardId("bad", "9.8"), 9);
+  assert.equal(normalizeMondayCacheNumber("12.5"), 12.5);
+  assert.equal(normalizeMondayCacheNumber("bad", 7), 7);
+  assert.equal(normalizeMondayCacheTimestamp("12.5"), 12.5);
+  assert.equal(normalizeMondayCacheTimestamp("-1"), 0);
   assert.equal(
     normalizeColumnSelectorList(" People , *, People ", {
       allowWildcard: true,
