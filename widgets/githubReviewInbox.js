@@ -436,9 +436,9 @@ function readCachedSnapshot(rawConfig, cfg) {
     return null;
   }
 
-  const cachedItems = Array.isArray(rawConfig?.cacheReviewItems)
-    ? rawConfig.cacheReviewItems.map(normalizeCachedItem).filter(Boolean)
-    : [];
+  const cachedItems = arrayOrEmpty(rawConfig?.cacheReviewItems)
+    .map(normalizeCachedItem)
+    .filter(Boolean);
   const cacheAt = normalizeCacheTimestamp(rawConfig?.cacheAt);
   const tokenUserWarning = normalizeText(rawConfig?.cacheTokenUserWarning);
   if (!cachedItems.length && !cacheAt && !tokenUserWarning) {
@@ -453,9 +453,9 @@ function readCachedSnapshot(rawConfig, cfg) {
 }
 
 function isReviewInboxSnapshotUnchanged(rawConfig, cfg, items, tokenUserWarning) {
-  const currentCacheItems = Array.isArray(rawConfig?.cacheReviewItems)
-    ? rawConfig.cacheReviewItems.map(toCachedItem).filter(Boolean)
-    : [];
+  const currentCacheItems = arrayOrEmpty(rawConfig?.cacheReviewItems)
+    .map(toCachedItem)
+    .filter(Boolean);
 
   return (
     normalizeRepository(rawConfig?.cacheRepository) === cfg.repository &&
