@@ -1,9 +1,9 @@
-import { toPositiveInteger } from "./utils/number.js";
+import { toInteger, toPositiveInteger } from "./utils/number.js";
 
 export function resolveLauncherPageLayerStyle(pageIndex, boardWidth, boardHeight) {
   const width = toPositiveInteger(boardWidth, 1);
   const height = toPositiveInteger(boardHeight, 1);
-  const page = Number.isFinite(Number(pageIndex)) ? Math.floor(Number(pageIndex)) : 0;
+  const page = toInteger(pageIndex, 0);
   return {
     left: `${Math.round(page * width)}px`,
     top: "0px",
