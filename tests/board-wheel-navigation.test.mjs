@@ -69,6 +69,7 @@ function createDeps(overrides = {}) {
 test("resolveBoardWheelAxisDelta prefers dominant axis delta", () => {
   assert.equal(resolveBoardWheelAxisDelta({ deltaX: 40, deltaY: 10 }), 40);
   assert.equal(resolveBoardWheelAxisDelta({ deltaX: 5, deltaY: -32 }), -32);
+  assert.equal(resolveBoardWheelAxisDelta({ deltaX: Number.POSITIVE_INFINITY, deltaY: Number.NaN }), 0);
 });
 
 test("handleBoardWheelNavigate does not paginate before threshold", () => {
@@ -80,6 +81,27 @@ test("handleBoardWheelNavigate does not paginate before threshold", () => {
   assert.equal(didPaginate, false);
   assert.equal(event.prevented, false);
   assert.equal(setActiveCalls.length, 0);
+});
+
+test("handleBoardWheelNavigate falls back to Date.now for falsy now provider values", () => {
+  const previousNow = Date.now;
+  Date.now = () => 500;
+
+  try {
+    const event = createWheelEvent({ deltaX: 20, deltaY: 0 });
+    const wheelState = createBoardWheelState();
+    const { deps } = createDeps({
+      boardWheelState: wheelState,
+      nowMs: () => 0
+    });
+
+    const didPaginate = handleBoardWheelNavigate(event, deps);
+
+    assert.equal(didPaginate, false);
+    assert.equal(wheelState.lastEventAt, 500);
+  } finally {
+    Date.now = previousNow;
+  }
 });
 
 test("handleBoardWheelNavigate paginates once and respects cooldown", () => {

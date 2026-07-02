@@ -1,3 +1,5 @@
+import { toFiniteNumber, toTruthyNumberOrFallback } from "./utils/number.js";
+
 export function createBoardWheelState() {
   return {
     accumulatedX: 0,
@@ -7,8 +9,8 @@ export function createBoardWheelState() {
 }
 
 export function resolveBoardWheelAxisDelta(event) {
-  const deltaX = Number(event?.deltaX) || 0;
-  const deltaY = Number(event?.deltaY) || 0;
+  const deltaX = toFiniteNumber(event?.deltaX, 0);
+  const deltaY = toFiniteNumber(event?.deltaY, 0);
   return Math.abs(deltaX) >= Math.abs(deltaY) ? deltaX : deltaY;
 }
 
@@ -53,13 +55,13 @@ export function handleBoardWheelNavigate(event, {
     return false;
   }
 
-  const now = Number(nowMs?.()) || Date.now();
-  const cooldownUntil = Number(boardWheelState.cooldownUntil) || 0;
+  const now = toTruthyNumberOrFallback(nowMs?.(), Date.now);
+  const cooldownUntil = toFiniteNumber(boardWheelState.cooldownUntil, 0);
   if (now < cooldownUntil) {
     return false;
   }
 
-  const lastEventAt = Number(boardWheelState.lastEventAt) || 0;
+  const lastEventAt = toFiniteNumber(boardWheelState.lastEventAt, 0);
   if (lastEventAt <= 0 || now - lastEventAt > resetGapMs) {
     boardWheelState.accumulatedX = 0;
   }
