@@ -10,6 +10,7 @@ import {
   githubTokenFingerprint,
   normalizeGitHubCacheCount,
   normalizeGitHubCacheNumber,
+  normalizeGitHubCacheTimestamp,
   normalizeGitHubMaxItems,
   normalizeGitHubRefreshMinutes,
   normalizeGitHubRepository,
@@ -27,6 +28,8 @@ test("GitHub shared helpers normalize repositories and settings", () => {
   assert.equal(normalizeGitHubRefreshMinutes("0", 5), 1);
   assert.equal(normalizeGitHubCacheNumber("12.5"), 12.5);
   assert.equal(normalizeGitHubCacheNumber("bad", 7), 7);
+  assert.equal(normalizeGitHubCacheTimestamp("12.5"), 12.5);
+  assert.equal(normalizeGitHubCacheTimestamp("-1"), 0);
   assert.equal(normalizeGitHubCacheCount("4.8"), 4);
   assert.equal(normalizeGitHubCacheCount("-1"), 0);
 });
