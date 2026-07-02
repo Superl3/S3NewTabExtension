@@ -60,7 +60,7 @@ export function createBackgroundVideoCacheRuntime(deps) {
     }
 
     const data = await response.json();
-    const candidates = (data?.data?.children || [])
+    const candidates = arrayOrEmpty(data?.data?.children)
       .map((entry) => parseRedditLoopVideoUrl(entry?.data || {}))
       .filter(Boolean);
     const pick = deps.pickRandom(candidates);

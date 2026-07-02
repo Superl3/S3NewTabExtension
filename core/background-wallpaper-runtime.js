@@ -1,3 +1,4 @@
+import { arrayOrEmpty } from "./utils/array.js";
 import { clampTruthyNumberOrFallback } from "./utils/number.js";
 
 export function createBackgroundWallpaperRuntime(deps) {
@@ -99,7 +100,7 @@ export function createBackgroundWallpaperRuntime(deps) {
     }
 
     const data = await response.json();
-    const items = (data?.data?.children || [])
+    const items = arrayOrEmpty(data?.data?.children)
       .map((entry) => parseRedditImage(entry?.data || {}))
       .filter(Boolean);
 
