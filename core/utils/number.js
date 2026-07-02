@@ -21,6 +21,10 @@ export function clampTruthyNumberOrFallback(value, fallback, min, max) {
   return clamp(Number(value) || fallback, min, max);
 }
 
+export function toNonNegativeNumberOrFallback(value, fallback = 0) {
+  return clampTruthyNumberOrFallback(value, fallback, 0, Number.POSITIVE_INFINITY);
+}
+
 export function toFiniteNumber(value, fallback = 0) {
   const numeric = Number(value);
   if (!Number.isFinite(numeric)) {

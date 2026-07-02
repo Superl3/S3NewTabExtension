@@ -1,3 +1,5 @@
+import { toNonNegativeNumberOrFallback } from "./utils/number.js";
+
 export function materializeHistorySnapshotRuntime(historySnapshotInput, deps) {
   const base = deps.buildSessionSnapshot();
   if (!deps.isStateObject(historySnapshotInput)) {
@@ -50,7 +52,7 @@ export function materializeHistorySnapshotRuntime(historySnapshotInput, deps) {
   }
 
   if (Object.prototype.hasOwnProperty.call(historyUi, "defaultProfileUpdatedAt")) {
-    merged.ui.defaultProfileUpdatedAt = Math.max(0, Number(historyUi.defaultProfileUpdatedAt) || 0);
+    merged.ui.defaultProfileUpdatedAt = toNonNegativeNumberOrFallback(historyUi.defaultProfileUpdatedAt);
   }
 
   if (Array.isArray(historySnapshot.presets)) {

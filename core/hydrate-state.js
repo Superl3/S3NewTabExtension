@@ -1,4 +1,4 @@
-import { clampTruthyNumberOrFallback } from "./utils/number.js";
+import { clampTruthyNumberOrFallback, toNonNegativeNumberOrFallback } from "./utils/number.js";
 
 export function hydrateState(raw, deps = {}) {
   const {
@@ -227,7 +227,7 @@ export function hydrateState(raw, deps = {}) {
     rawUi.defaultProfileSnapshot && typeof rawUi.defaultProfileSnapshot === "object" && !Array.isArray(rawUi.defaultProfileSnapshot)
       ? clonePresetSnapshot(rawUi.defaultProfileSnapshot)
       : null;
-  const defaultProfileUpdatedAt = Math.max(0, Number(rawUi.defaultProfileUpdatedAt) || 0);
+  const defaultProfileUpdatedAt = toNonNegativeNumberOrFallback(rawUi.defaultProfileUpdatedAt);
   const rawPresets = Array.isArray(raw?.presets) ? raw.presets : [];
   const presets = rawPresets
     .map((preset) => {
@@ -265,7 +265,7 @@ export function hydrateState(raw, deps = {}) {
   background.rotateMinutes = clampTruthyNumberOrFallback(background.rotateMinutes, 15, 1, 240);
   background.wallpaperCachedUrl = normalizeText(background.wallpaperCachedUrl);
   background.wallpaperCachedSignature = normalizeText(background.wallpaperCachedSignature);
-  background.wallpaperCachedAt = Math.max(0, Number(background.wallpaperCachedAt) || 0);
+  background.wallpaperCachedAt = toNonNegativeNumberOrFallback(background.wallpaperCachedAt);
   background.videoSource = normalizeVideoSource(background.videoSource, "manual");
   background.videoUrl = normalizeText(background.videoUrl);
   background.redditVideoSubreddit = normalizeText(background.redditVideoSubreddit, "loopingvideos");
@@ -282,7 +282,7 @@ export function hydrateState(raw, deps = {}) {
   );
   background.localMediaFit = normalizeLocalMediaFit(background.localMediaFit, "stretch");
   background.videoCacheSignature = normalizeText(background.videoCacheSignature);
-  background.videoCacheStoredAt = Math.max(0, Number(background.videoCacheStoredAt) || 0);
+  background.videoCacheStoredAt = toNonNegativeNumberOrFallback(background.videoCacheStoredAt);
   background.blurAmount = clampTruthyNumberOrFallback(background.blurAmount, 0, 0, 28);
   background.overlayOpacity = clampTruthyNumberOrFallback(background.overlayOpacity, 0.24, 0, 0.85);
 
@@ -299,7 +299,7 @@ export function hydrateState(raw, deps = {}) {
     selectedWidgetId: raw.selectedWidgetId || "",
     nextId: Number(raw.nextId || 100),
     meta: {
-      lastUserMutationAt: Math.max(0, Number(raw?.meta?.lastUserMutationAt) || 0)
+      lastUserMutationAt: toNonNegativeNumberOrFallback(raw?.meta?.lastUserMutationAt)
     },
     ui: {
       activeTab:
