@@ -1218,6 +1218,9 @@ test("Flex worktime timeline uses shared truthy clamp for scan limits", async ()
     /clampTruthyNumberOrFallback\(\s*options\.maxVisibleNodes,\s*MAX_VISIBLE_SCAN_NODES,\s*1,\s*Number\.POSITIVE_INFINITY\s*\)/
   );
   assert.doesNotMatch(source, /Math\.max\(1, Number\(options\.maxVisibleNodes\) \|\| MAX_VISIBLE_SCAN_NODES\)/);
+  assert.match(source, /querySelectorAll\?\.\(TOOLTIP_SELECTOR\) \?\? \[\]/);
+  assert.match(source, /querySelectorAll\?\.\("\[title\], \[aria-label\], \[data-tooltip\], \[data-tip\]"\) \?\? \[\]/);
+  assert.doesNotMatch(source, /querySelectorAll\?\.\([^)]*\) \|\| \[\]/);
 });
 
 test("Flex worktime widgets share auth helpers instead of local copies", async () => {
