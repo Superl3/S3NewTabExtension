@@ -1,3 +1,5 @@
+import { toTruthyNumberOrFallback } from "./utils/number.js";
+
 const DRAG_CLICK_SUPPRESSION_MS = 280;
 const INTERACTIVE_SELECTOR = "button, input, textarea, select, a, [contenteditable='true']";
 
@@ -5,7 +7,7 @@ export function isWithinDragClickSuppressionWindow(lastDragEndAt, {
   now = Date.now(),
   thresholdMs = DRAG_CLICK_SUPPRESSION_MS
 } = {}) {
-  const dragEndAt = Number(lastDragEndAt) || 0;
+  const dragEndAt = toTruthyNumberOrFallback(lastDragEndAt, 0);
   return now - dragEndAt <= thresholdMs;
 }
 
