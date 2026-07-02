@@ -1,11 +1,5 @@
+import { callIfFunction as call } from "./utils/function.js";
 import { refreshWidgetController } from "./widget-refresh.js";
-
-function call(fn, ...args) {
-  if (typeof fn !== "function") {
-    return undefined;
-  }
-  return fn(...args);
-}
 
 export function syncWidgetStateAfterModalApply(instance, previousPage, deps = {}) {
   if (!instance) {

@@ -1,15 +1,10 @@
+import { callIfFunction as call } from "./utils/function.js";
+
 function fallbackClamp(value, min, max) {
   if (!Number.isFinite(value)) {
     return min;
   }
   return Math.min(max, Math.max(min, value));
-}
-
-function call(fn, ...args) {
-  if (typeof fn !== "function") {
-    return undefined;
-  }
-  return fn(...args);
 }
 
 export function findFirstAvailableBoardGridSlot(page, colSpan, rowSpan, deps = {}) {

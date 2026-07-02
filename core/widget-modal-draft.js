@@ -1,9 +1,4 @@
-function call(fn, ...args) {
-  if (typeof fn !== "function") {
-    return undefined;
-  }
-  return fn(...args);
-}
+import { callIfFunction as call } from "./utils/function.js";
 
 export function applyCommonMasterToDraft(draft, instanceType, master, deps = {}) {
   if (!draft || !master) {
