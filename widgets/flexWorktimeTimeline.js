@@ -1,3 +1,4 @@
+import { arrayOrEmpty } from "../core/utils/array.js";
 import { normalizeErrorMessage } from "../core/utils/error.js";
 import { clamp, clampTruthyNumberOrFallback, toTruthyNumberOrFallback } from "../core/utils/number.js";
 import { hasOwn, isPlainObject } from "../core/utils/object.js";
@@ -228,16 +229,14 @@ export function parseFlexWorkRecordTimelineText(text, queryDate, now = new Date(
 }
 
 export function buildFlexTimelineSegments(timeline, now = new Date()) {
-  const events = Array.isArray(timeline?.events)
-    ? timeline.events
-      .map((event) => ({
-        type: normalizeText(event?.type),
-        minutes: clamp(Math.floor(toTruthyNumberOrFallback(event?.minutes, 0)), 0, 1439),
-        at: normalizeText(event?.at)
-      }))
-      .filter((event) => event.type)
-      .sort((left, right) => left.minutes - right.minutes)
-    : [];
+  const events = arrayOrEmpty(timeline?.events)
+    .map((event) => ({
+      type: normalizeText(event?.type),
+      minutes: clamp(Math.floor(toTruthyNumberOrFallback(event?.minutes, 0)), 0, 1439),
+      at: normalizeText(event?.at)
+    }))
+    .filter((event) => event.type)
+    .sort((left, right) => left.minutes - right.minutes);
 
   if (!events.length) {
     return [];
@@ -311,16 +310,14 @@ export function buildFlexTimelineSegments(timeline, now = new Date()) {
 }
 
 function summarizeFlexTimeline(timeline) {
-  const events = Array.isArray(timeline?.events)
-    ? timeline.events
-      .map((event) => ({
-        type: normalizeText(event?.type),
-        at: normalizeText(event?.at),
-        minutes: Number(event?.minutes)
-      }))
-      .filter((event) => event.type)
-      .sort((left, right) => left.minutes - right.minutes)
-    : [];
+  const events = arrayOrEmpty(timeline?.events)
+    .map((event) => ({
+      type: normalizeText(event?.type),
+      at: normalizeText(event?.at),
+      minutes: Number(event?.minutes)
+    }))
+    .filter((event) => event.type)
+    .sort((left, right) => left.minutes - right.minutes);
   const segments = buildFlexTimelineSegments(timeline);
   const workedMinutes = segments
     .filter((segment) => segment.type === "work")
