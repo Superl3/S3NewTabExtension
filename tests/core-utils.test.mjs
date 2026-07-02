@@ -275,6 +275,7 @@ test("core modules use shared integer helpers instead of local copies", async ()
     new URL("../core/widget-card-drag-session.js", import.meta.url),
     new URL("../core/launcher-page-affordances.js", import.meta.url),
     new URL("../core/launcherDropPlan.js", import.meta.url),
+    new URL("../core/widget-state-runtime.js", import.meta.url),
     new URL("../core/widget-modal-fields.js", import.meta.url)
   ];
 

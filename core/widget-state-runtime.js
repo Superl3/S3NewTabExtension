@@ -1,3 +1,5 @@
+import { toInteger } from "./utils/number.js";
+
 export function createWidgetStateRuntime(deps) {
   function setWidgetContainer(instanceId, containerId, { record = true, rerender = true, save = true } = {}) {
     const state = deps.getState();
@@ -79,7 +81,7 @@ export function createWidgetStateRuntime(deps) {
       deps.normalizeWidgetPage(sourceContainer?.page, deps.currentLauncherPageCount(), deps.currentLauncherActivePage())
     );
 
-    const requestedPage = Number.isFinite(Number(payload?.page)) ? Math.floor(Number(payload.page)) : releasePage;
+    const requestedPage = toInteger(payload?.page, releasePage);
     if (deps.isLauncherPlaceholderPolicyActive() && deps.isPlaceholderLauncherPage(requestedPage, deps.currentLauncherPageCount())) {
       return deps.commitPlaceholderPageDrop(widgetId, payload, requestedPage);
     }
@@ -124,7 +126,7 @@ export function createWidgetStateRuntime(deps) {
       return false;
     }
 
-    const requestedPage = Number.isFinite(Number(payload?.page)) ? Math.floor(Number(payload.page)) : deps.currentLauncherActivePage();
+    const requestedPage = toInteger(payload?.page, deps.currentLauncherActivePage());
     if (deps.isLauncherPlaceholderPolicyActive() && deps.isPlaceholderLauncherPage(requestedPage, deps.currentLauncherPageCount())) {
       return deps.commitPlaceholderPageDrop(widgetId, payload, requestedPage);
     }
