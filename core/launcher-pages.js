@@ -1,30 +1,18 @@
-import { clampFiniteOrMin } from "./utils/number.js";
+import { clamp, toInteger } from "./utils/number.js";
 
 export function normalizePageCount(value, fallback = 1, maxPages = 12) {
-  const max = Math.max(1, Math.floor(Number(maxPages) || 12));
-  const num = Number(value);
-  if (!Number.isFinite(num)) {
-    return clampFiniteOrMin(Math.floor(fallback), 1, max);
-  }
-  return clampFiniteOrMin(Math.floor(num), 1, max);
+  const max = Math.max(1, toInteger(maxPages, 12) || 12);
+  return clamp(toInteger(value, toInteger(fallback, 1)), 1, max);
 }
 
 export function normalizeActivePage(value, pageCount = 1, fallback = 0) {
   const maxPage = Math.max(0, normalizePageCount(pageCount, 1) - 1);
-  const num = Number(value);
-  if (!Number.isFinite(num)) {
-    return clampFiniteOrMin(Math.floor(fallback), 0, maxPage);
-  }
-  return clampFiniteOrMin(Math.floor(num), 0, maxPage);
+  return clamp(toInteger(value, toInteger(fallback, 0)), 0, maxPage);
 }
 
 export function normalizeWidgetPage(value, pageCount = 12, fallback = 0) {
-  const num = Number(value);
   const maxPage = Math.max(0, normalizePageCount(pageCount, 1) - 1);
-  if (!Number.isFinite(num)) {
-    return clampFiniteOrMin(Math.floor(fallback), 0, maxPage);
-  }
-  return clampFiniteOrMin(Math.floor(num), 0, maxPage);
+  return clamp(toInteger(value, toInteger(fallback, 0)), 0, maxPage);
 }
 
 export function normalizeLauncherPageIndexList(value, pageCount = 1) {
@@ -45,7 +33,7 @@ export function remapLauncherPageIndexList(list, remap, pageCount = 1) {
   }
   const remapped = [];
   for (const rawPage of Array.isArray(list) ? list : []) {
-    const page = Math.floor(Number(rawPage));
+    const page = toInteger(rawPage, Number.NaN);
     if (!Number.isFinite(page)) {
       continue;
     }

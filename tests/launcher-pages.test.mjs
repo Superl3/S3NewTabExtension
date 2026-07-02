@@ -17,8 +17,11 @@ import {
 test("normalizes page counts and active page bounds", () => {
   assert.equal(normalizePageCount(0), 1);
   assert.equal(normalizePageCount(40), 12);
+  assert.equal(normalizePageCount("bad", 3.8, 0), 3);
   assert.equal(normalizeActivePage(10, 3, 0), 2);
+  assert.equal(normalizeActivePage("bad", 5, 2.8), 2);
   assert.equal(normalizeWidgetPage(-5, 4, 0), 0);
+  assert.equal(normalizeWidgetPage("bad", 4, 2.8), 2);
 });
 
 test("normalizes and remaps manual page index lists", () => {
