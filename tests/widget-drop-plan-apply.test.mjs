@@ -126,6 +126,44 @@ test("applyWidgetDropPlanByKind forwards placeholder page drops", () => {
   ]);
 });
 
+test("applyWidgetDropPlanByKind falls back invalid placeholder page to edge", () => {
+  const instance = createInstance();
+  const plan = createBoardPlaceholderDropPlan({
+    edge: "TAIL",
+    policyPlaceholderPage: 4,
+    internalPlaceholderPage: 3
+  });
+  plan.space.board.internalPlaceholderPage = "bad";
+  const calls = [];
+
+  const moved = applyWidgetDropPlanByKind(
+    instance,
+    plan,
+    { clientX: 50, clientY: 60 },
+    { record: true },
+    {
+      currentLauncherPageCount: () => 3,
+      commitPlaceholderPageDrop: (widgetId, payload, placeholderPage) => {
+        calls.push({ widgetId, payload, placeholderPage });
+        return true;
+      }
+    }
+  );
+
+  assert.equal(moved, true);
+  assert.deepEqual(calls, [
+    {
+      widgetId: "w1",
+      payload: {
+        clientX: 50,
+        clientY: 60,
+        page: 3
+      },
+      placeholderPage: 3
+    }
+  ]);
+});
+
 test("applyWidgetDropPlanByKind returns false when real-page plan causes no change", () => {
   const instance = createInstance({
     page: 1,

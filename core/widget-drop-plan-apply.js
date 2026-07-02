@@ -6,6 +6,7 @@ import {
   isBoardRealPageDropPlan,
   isContainerDropPlan
 } from "./launcherDropPlan.js";
+import { toInteger } from "./utils/number.js";
 
 export function applyWidgetDropPlanByKind(
   instance,
@@ -48,9 +49,10 @@ export function applyWidgetDropPlanByKind(
   if (isBoardPlaceholderDropPlan(plan)) {
     const pageCount = deps.currentLauncherPageCount?.();
     const edge = plan.space.board.edge;
-    const placeholderPage = Number.isFinite(Number(plan.space.board.internalPlaceholderPage))
-      ? Math.floor(Number(plan.space.board.internalPlaceholderPage))
-      : internalPlaceholderFromPlaceholderEdge(edge, pageCount);
+    const placeholderPage = toInteger(
+      plan.space.board.internalPlaceholderPage,
+      internalPlaceholderFromPlaceholderEdge(edge, pageCount)
+    );
     return Boolean(
       deps.commitPlaceholderPageDrop?.(
         instance.id,
