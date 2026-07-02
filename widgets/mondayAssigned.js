@@ -26,6 +26,7 @@ import {
   getChromeStorageLocal
 } from "./shared/chromeApi.js";
 import {
+  areMondayCachedBoardsEqual as areCachedBoardsEqual,
   hasMondayBoardConfig as hasBoardConfig,
   hasMondayConnectorConfig as hasConnectorConfig,
   MONDAY_AUTH_STORAGE_KEY,
@@ -1224,11 +1225,7 @@ export const mondayAssignedWidget = {
       const cacheBoardId = primary?.boardId || 0;
 
       const currentCfg = getConfig();
-      const currentCacheBoards = arrayOrEmpty(currentCfg?.cacheBoards)
-        .map(normalizeCachedBoardSnapshot)
-        .filter(Boolean);
-
-      const unchanged = JSON.stringify(currentCacheBoards) === JSON.stringify(cacheBoards);
+      const unchanged = areCachedBoardsEqual(currentCfg?.cacheBoards, cacheBoards, normalizeCachedBoardSnapshot);
 
       if (unchanged) {
         return;
