@@ -4,7 +4,6 @@ import { normalizeText } from "../core/utils/text.js";
 import {
   createTab,
   getTabIfExists,
-  queryTabs,
   removeTab,
   updateTab,
   waitForTabReady
@@ -21,9 +20,9 @@ import {
 import {
   isLikelyOngoingFlexAuthFlowUrl,
   isMatchingFlexHomeTabUrl,
-  isMatchingFlexLoginTabUrl,
   parseFlexHomeTargetUrl
 } from "./shared/flexUrls.js";
+import { findFlexTabByPriority } from "./shared/flexTabs.js";
 import { createFlexWorktimeCache } from "./shared/flexWorktimeCache.js";
 import {
   formatFlexSourceError,
@@ -102,30 +101,8 @@ function setReusableScrapeTabId(scrapeFlowState, tabId) {
   scrapeFlowState.reusableTabId = normalizeTabId(tabId);
 }
 
-function findPreferredFlexTab(tabs, targetUrl) {
-  const homeMatch = tabs.find((tab) => isMatchingFlexHomeTabUrl(tab?.url, targetUrl));
-  if (homeMatch) {
-    return homeMatch;
-  }
-
-  return tabs.find((tab) => isMatchingFlexLoginTabUrl(tab?.url, targetUrl)) || null;
-}
-
 async function findFlexHomeTab(targetUrl) {
-  const activeCurrentWindow = await queryTabs({ active: true, currentWindow: true });
-  const activeMatch = findPreferredFlexTab(activeCurrentWindow, targetUrl);
-  if (activeMatch) {
-    return activeMatch;
-  }
-
-  const currentWindowTabs = await queryTabs({ currentWindow: true });
-  const currentMatch = findPreferredFlexTab(currentWindowTabs, targetUrl);
-  if (currentMatch) {
-    return currentMatch;
-  }
-
-  const allTabs = await queryTabs({});
-  return findPreferredFlexTab(allTabs, targetUrl);
+  return findFlexTabByPriority(targetUrl, isMatchingFlexHomeTabUrl);
 }
 
 export async function fetchFlexHomeScrapeRows(config, queryDate, scrapeFlowState = null) {
