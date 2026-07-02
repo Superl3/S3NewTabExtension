@@ -1,4 +1,5 @@
 import { snapToHalfGridTrack } from "./utils/grid.js";
+import { clampTruthyNumberOrFallback } from "./utils/number.js";
 
 export function projectWidgetBoardDropLayoutRuntime(instance, payload = {}, { pageFallback = null } = {}, deps) {
   const viewportRect = deps.getLauncherViewportRect();
@@ -65,8 +66,8 @@ export function projectWidgetBoardDropLayoutRuntime(instance, payload = {}, { pa
 
   const maxW = Math.max(80, boardWidth);
   const maxH = Math.max(80, boardHeight);
-  const width = deps.clamp(Number(instance.layout.w) || 320, 80, maxW);
-  const height = deps.clamp(Number(instance.layout.h) || 220, 80, maxH);
+  const width = clampTruthyNumberOrFallback(instance.layout.w, 320, 80, maxW);
+  const height = clampTruthyNumberOrFallback(instance.layout.h, 220, 80, maxH);
   const maxX = Math.max(0, boardWidth - width);
   const maxY = Math.max(0, boardHeight - height);
   const anchorOffsetX = Number.isFinite(dragOffsetX) ? deps.clamp(dragOffsetX, 0, width) : width / 2;
