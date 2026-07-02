@@ -4,8 +4,7 @@ import { normalizeIntegerInRange } from "../core/utils/number.js";
 import { normalizeText } from "../core/utils/text.js";
 import {
   buildReviewCandidate,
-  normalizeGithubLogin,
-  parseTimestamp
+  normalizeGithubLogin
 } from "./shared/githubReviewInboxLogic.js";
 import {
   buildIgnoredScopeKey,
@@ -35,6 +34,7 @@ import {
   normalizeGitHubRefreshMinutes as normalizeRefreshMinutes,
   normalizeGitHubRepository as normalizeRepository,
   normalizeGitHubReviewerNames as normalizeReviewerNames,
+  parseGitHubTimestamp as parseTimestamp,
   parseGitHubError,
   parseGitHubJsonResponse
 } from "./shared/githubApi.js";

@@ -18,7 +18,8 @@ import {
   normalizeGitHubRepository as normalizeRepository,
   normalizeGitHubReviewerNames as normalizeReviewerNames,
   parseGitHubError,
-  parseGitHubJsonResponse
+  parseGitHubJsonResponse,
+  parseGitHubTimestamp
 } from "./shared/githubApi.js";
 
 const GITHUB_PR_ERROR_FALLBACK = "GitHub pull requests are not available. Check the repository setting and try again.";
@@ -137,8 +138,7 @@ async function fetchPullRequests(config) {
     const reviewerNames = normalizeReviewerNames(item?.requested_reviewers);
     const teamCount = arrayOrEmpty(item?.requested_teams).length;
     const reviewRequested = Boolean(reviewerNames) || teamCount > 0;
-    const updatedAtRaw = normalizeText(item?.updated_at);
-    const updatedAt = Date.parse(updatedAtRaw);
+    const updatedAt = parseGitHubTimestamp(item?.updated_at);
 
     return {
       id: String(item?.id || item?.number || Math.random()),
@@ -147,7 +147,7 @@ async function fetchPullRequests(config) {
       htmlUrl: normalizeText(item?.html_url),
       author: normalizeText(item?.user?.login, "unknown"),
       draft: item?.draft === true,
-      updatedAt: normalizeCacheTimestamp(updatedAt),
+      updatedAt,
       updatedLabel: formatUpdatedLabelFromTimestamp(updatedAt),
       headRef: normalizeText(item?.head?.ref),
       baseRef: normalizeText(item?.base?.ref),
