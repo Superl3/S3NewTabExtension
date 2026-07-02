@@ -118,7 +118,7 @@ function parseMeridiemTimeOfDayMinutes(value) {
 }
 
 function formatTimelineTimeLabel(totalMinutes) {
-  const minutes = clamp(Math.floor(Number(totalMinutes) || 0), 0, 1439);
+  const minutes = clamp(Math.floor(toTruthyNumberOrFallback(totalMinutes, 0)), 0, 1439);
   return formatClockMinutes(minutes);
 }
 
