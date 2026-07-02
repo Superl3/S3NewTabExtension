@@ -270,6 +270,15 @@ test("core drag and resize modules use the shared finite number helper", async (
   }
 });
 
+test("widget card drag session shares finite clamp fallback", async () => {
+  const source = await fs.readFile(new URL("../core/widget-card-drag-session.js", import.meta.url), "utf8");
+  assert.match(source, /utils\/number\.js/);
+  assert.match(source, /clampFiniteOrMin/);
+  assert.doesNotMatch(source, /const numeric = Number\(value\)/);
+  assert.doesNotMatch(source, /Number\.isFinite\(numeric\) \? numeric : min/);
+  assert.doesNotMatch(source, /Math\.min\(max, Math\.max\(min, safeValue\)\)/);
+});
+
 test("core modules use shared integer helpers instead of local copies", async () => {
   const moduleUrls = [
     new URL("../core/board-grid-slot.js", import.meta.url),
