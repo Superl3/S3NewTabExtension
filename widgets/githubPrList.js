@@ -9,6 +9,7 @@ import {
   formatGitHubSyncedLabel as formatSyncedLabel,
   matchesGitHubCacheTokenFingerprint,
   normalizeGitHubCachedItemBase as normalizeCachedItemBase,
+  normalizeGitHubCachedItems as normalizeCachedItems,
   normalizeGitHubCacheNumber as normalizeCacheNumber,
   normalizeGitHubCacheTimestamp as normalizeCacheTimestamp,
   githubTokenFingerprint as tokenFingerprint,
@@ -69,9 +70,7 @@ function readCachedSnapshot(rawConfig, cfg) {
     return null;
   }
 
-  const cachedPullItems = arrayOrEmpty(rawConfig?.cachePullItems)
-    .map(normalizeCachedPullItem)
-    .filter(Boolean);
+  const cachedPullItems = normalizeCachedItems(rawConfig?.cachePullItems, normalizeCachedPullItem);
   const cacheAt = normalizeCacheTimestamp(rawConfig?.cacheAt);
   if (!cachedPullItems.length && !cacheAt) {
     return null;
@@ -273,15 +272,11 @@ export const githubPrListWidget = {
         return;
       }
 
-      const cachePullItems = pullItems
-        .map(toCachedPullItem)
-        .filter(Boolean)
+      const cachePullItems = normalizeCachedItems(pullItems, toCachedPullItem)
         .slice(0, normalizeMaxItems(cfg.maxItems, 20));
 
       const currentCfg = getConfig();
-      const currentCachePullItems = arrayOrEmpty(currentCfg?.cachePullItems)
-        .map(toCachedPullItem)
-        .filter(Boolean);
+      const currentCachePullItems = normalizeCachedItems(currentCfg?.cachePullItems, toCachedPullItem);
       const expectedTokenHash = tokenFingerprint(cfg.accessToken);
 
       const unchanged =

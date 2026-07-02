@@ -50,6 +50,13 @@ export function normalizeGitHubCachedItemBase(entry) {
   };
 }
 
+export function normalizeGitHubCachedItems(items, normalizeItem) {
+  if (typeof normalizeItem !== "function") {
+    return [];
+  }
+  return arrayOrEmpty(items).map(normalizeItem).filter(Boolean);
+}
+
 export function normalizeGitHubRepository(value, fallback = "") {
   let text = normalizeText(value, fallback)
     .replace(/^https?:\/\/(www\.)?github\.com\//i, "")
