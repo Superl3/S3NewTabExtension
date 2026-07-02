@@ -2,7 +2,7 @@ import { executeScript } from "../core/platform/chrome-scripting.js";
 import { waitForTabReady } from "../core/platform/chrome-tabs.js";
 import { arrayOrEmpty } from "../core/utils/array.js";
 import { normalizeErrorMessage } from "../core/utils/error.js";
-import { toFiniteNumber, toTruthyFiniteNumberOrFallback } from "../core/utils/number.js";
+import { clamp, toFiniteNumber, toTruthyFiniteNumberOrFallback } from "../core/utils/number.js";
 import { normalizeText } from "../core/utils/text.js";
 
 const CODEX_USAGE_URL = "https://chatgpt.com/codex/settings/usage";
@@ -94,7 +94,7 @@ function parseUsagePercent(value) {
     return null;
   }
 
-  return Math.max(0, Math.min(100, parsed));
+  return clamp(parsed, 0, 100);
 }
 
 function extractStatus(text) {
