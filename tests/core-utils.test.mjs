@@ -1434,17 +1434,25 @@ test("auth widgets share connector result session creation", async () => {
 });
 
 test("auth widgets share connector error formatting", async () => {
-  const moduleUrls = [
-    new URL("../widgets/aiChat.js", import.meta.url),
+  const genericModuleUrls = [
+    new URL("../widgets/aiChat.js", import.meta.url)
+  ];
+  const mondayModuleUrls = [
     new URL("../widgets/mondayAssigned.js", import.meta.url),
     new URL("../widgets/mondayMeetingNote.js", import.meta.url)
   ];
   const localAuthErrorPattern =
     /rewriteAuthorizationLoadError\([\s\S]*?isAuthCancelledMessage\(/;
 
-  for (const moduleUrl of moduleUrls) {
+  for (const moduleUrl of genericModuleUrls) {
     const source = await fs.readFile(moduleUrl, "utf8");
     assert.match(source, /formatAuthConnectorErrorMessage/, moduleUrl.pathname);
+    assert.doesNotMatch(source, localAuthErrorPattern, moduleUrl.pathname);
+  }
+
+  for (const moduleUrl of mondayModuleUrls) {
+    const source = await fs.readFile(moduleUrl, "utf8");
+    assert.match(source, /formatMondayAuthConnectorErrorMessage/, moduleUrl.pathname);
     assert.doesNotMatch(source, localAuthErrorPattern, moduleUrl.pathname);
   }
 });
@@ -1561,18 +1569,47 @@ test("account auth widgets share local connector auth helpers", async () => {
 });
 
 test("account auth widgets share connector auth flow primitive", async () => {
-  const moduleUrls = [
-    new URL("../widgets/aiChat.js", import.meta.url),
+  const genericModuleUrls = [
+    new URL("../widgets/aiChat.js", import.meta.url)
+  ];
+  const mondayModuleUrls = [
     new URL("../widgets/mondayAssigned.js", import.meta.url),
     new URL("../widgets/mondayMeetingNote.js", import.meta.url)
   ];
   const rawAuthFlowPattern =
     /\b(buildAuthConnectorStartUrl|createAuthState|fetchConnectorToken|parseAuthFlowResult)\b/;
 
-  for (const moduleUrl of moduleUrls) {
+  for (const moduleUrl of genericModuleUrls) {
     const source = await fs.readFile(moduleUrl, "utf8");
     assert.match(source, /connectWithAuthConnector/, moduleUrl.pathname);
     assert.doesNotMatch(source, rawAuthFlowPattern, moduleUrl.pathname);
+  }
+
+  for (const moduleUrl of mondayModuleUrls) {
+    const source = await fs.readFile(moduleUrl, "utf8");
+    assert.match(source, /connectWithMondayAuthConnector/, moduleUrl.pathname);
+    assert.doesNotMatch(source, rawAuthFlowPattern, moduleUrl.pathname);
+  }
+});
+
+test("Monday widgets share monday auth wrapper and copy constants", async () => {
+  const moduleUrls = [
+    new URL("../widgets/mondayAssigned.js", import.meta.url),
+    new URL("../widgets/mondayMeetingNote.js", import.meta.url)
+  ];
+  const mondayAuthSource = await fs.readFile(new URL("../widgets/shared/mondayAuth.js", import.meta.url), "utf8");
+  const localMondayAuthOptionsPattern =
+    /provider:\s*"monday"[\s\S]*?providerLabel:\s*"Monday"/;
+
+  assert.match(mondayAuthSource, /connectWithAuthConnector/);
+  assert.match(mondayAuthSource, /MONDAY_CONNECT_REQUIRED_MESSAGE/);
+  assert.match(mondayAuthSource, /MONDAY_SYNC_CONNECT_REQUIRED_MESSAGE/);
+
+  for (const moduleUrl of moduleUrls) {
+    const source = await fs.readFile(moduleUrl, "utf8");
+    assert.match(source, /shared\/mondayAuth\.js/, moduleUrl.pathname);
+    assert.match(source, /MONDAY_CONNECT_REQUIRED_MESSAGE/, moduleUrl.pathname);
+    assert.doesNotMatch(source, localMondayAuthOptionsPattern, moduleUrl.pathname);
   }
 });
 

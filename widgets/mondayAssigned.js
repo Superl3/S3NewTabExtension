@@ -4,8 +4,6 @@ import { parseJsonOrNull } from "../core/utils/json.js";
 import { clamp, normalizeIntegerInRange } from "../core/utils/number.js";
 import { normalizeText } from "../core/utils/text.js";
 import {
-  connectWithAuthConnector,
-  formatAuthConnectorErrorMessage,
   LOCAL_AUTH_CONNECTOR_URL,
   normalizeLocalAuthConnectorUrl as normalizeConnectorUrl
 } from "./shared/authConnector.js";
@@ -40,6 +38,14 @@ import {
   normalizeMondayCacheTimestamp,
   parseColumnSelectorList
 } from "./shared/mondayConfig.js";
+import {
+  connectWithMondayAuthConnector,
+  formatMondayAuthConnectorErrorMessage,
+  MONDAY_CONNECT_ENABLE_MESSAGE,
+  MONDAY_CONNECT_REQUIRED_MESSAGE,
+  MONDAY_DISCONNECT_CONFIGURED_TOKEN_MESSAGE,
+  MONDAY_SYNC_CONNECT_REQUIRED_MESSAGE
+} from "./shared/mondayAuth.js";
 import {
   mondayFetchGraphql,
   MONDAY_WEB_URL,
@@ -1304,7 +1310,7 @@ export const mondayAssignedWidget = {
     async function connectAccount() {
       const cfg = resolveConfig();
       if (!hasConnectorConfig(cfg)) {
-        errorMessage = "Add a connector URL or Monday access token in settings before connecting.";
+        errorMessage = MONDAY_CONNECT_REQUIRED_MESSAGE;
         render();
         return;
       }
@@ -1314,13 +1320,9 @@ export const mondayAssignedWidget = {
       render();
 
       try {
-        const result = await connectWithAuthConnector({
+        const result = await connectWithMondayAuthConnector({
           connectorUrl: cfg.connectorUrl,
-          configuredAccessToken: cfg.accessToken,
-          provider: "monday",
-          providerLabel: "Monday",
-          unableTokenMessage:
-            "Unable to obtain Monday connector token. Check the connector URL or add a Monday access token in settings.",
+          accessToken: cfg.accessToken,
           getIdentityApi: getChromeIdentity
         });
 
@@ -1341,9 +1343,7 @@ export const mondayAssignedWidget = {
         hasFetched = false;
       } catch (error) {
         await clearConnectionState({ clearStored: true });
-        errorMessage = formatAuthConnectorErrorMessage(error, {
-          cancelledMessage: "Monday connection was cancelled."
-        });
+        errorMessage = formatMondayAuthConnectorErrorMessage(error);
       } finally {
         loading = false;
         render();
@@ -1358,7 +1358,7 @@ export const mondayAssignedWidget = {
     async function disconnectAccount() {
       const cfg = resolveConfig();
       if (normalizeText(cfg.accessToken)) {
-        errorMessage = "Remove Monday access token in Global settings to disconnect.";
+        errorMessage = MONDAY_DISCONNECT_CONFIGURED_TOKEN_MESSAGE;
         render();
         return;
       }
@@ -1484,8 +1484,7 @@ export const mondayAssignedWidget = {
         if (loading) {
           empty.textContent = hasAllScope ? "Loading board issues..." : "Loading assigned issues...";
         } else if (!hasConnectorConfig(cfg)) {
-          empty.textContent =
-            "Add a connector URL or Monday access token in settings to enable Monday connection.";
+          empty.textContent = MONDAY_CONNECT_ENABLE_MESSAGE;
         } else if (!hasActiveConnection(cfg)) {
           empty.textContent = hasAllScope
             ? "Connect Monday account to load board issues."
@@ -1664,7 +1663,7 @@ export const mondayAssignedWidget = {
       try {
         const cfg = resolveConfig();
         if (!hasConnectorConfig(cfg)) {
-          throw new Error("Add a connector URL or Monday access token in settings before syncing.");
+          throw new Error(MONDAY_SYNC_CONNECT_REQUIRED_MESSAGE);
         }
         if (!hasActiveConnection(cfg)) {
           throw new Error("Connect Monday account first.");
