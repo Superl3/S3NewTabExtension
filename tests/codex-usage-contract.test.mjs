@@ -173,6 +173,27 @@ test("normalizes codex snapshot and filters non-codex metrics", () => {
   assert.equal(normalized?.parserVersion, 2.5);
 });
 
+test("normalizes codex snapshot parser version with finite truthy fallback semantics", () => {
+  const baseSnapshot = {
+    capturedAt: Date.now(),
+    sourceUrl: "https://chatgpt.com/codex/settings/usage",
+    title: "Codex Usage",
+    metrics: [
+      {
+        model: "Codex",
+        period: "fiveHours",
+        label: "Codex usage limit",
+        value: "42%"
+      }
+    ],
+    lines: []
+  };
+
+  assert.equal(normalizeCodexSnapshotForContractTest({ ...baseSnapshot, parserVersion: 0 })?.parserVersion, 1);
+  assert.equal(normalizeCodexSnapshotForContractTest({ ...baseSnapshot, parserVersion: Infinity })?.parserVersion, 1);
+  assert.equal(normalizeCodexSnapshotForContractTest({ ...baseSnapshot, parserVersion: -2 })?.parserVersion, -2);
+});
+
 test("builds canonical slot map and keeps richer codex metrics", () => {
   const slotMap = buildCodexSlotMapForContractTest([
     {

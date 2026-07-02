@@ -31,6 +31,12 @@ export function toTruthyNumberOrFallback(value, fallback) {
   return typeof fallback === "function" ? fallback() : fallback;
 }
 
+export function toTruthyFiniteNumberOrFallback(value, fallback) {
+  const numeric = Number(value);
+  if (Number.isFinite(numeric) && numeric) return numeric;
+  return typeof fallback === "function" ? fallback() : fallback;
+}
+
 export function toNonNegativeNumberOrFallback(value, fallback = 0) {
   return clampTruthyNumberOrFallback(value, fallback, 0, Number.POSITIVE_INFINITY);
 }

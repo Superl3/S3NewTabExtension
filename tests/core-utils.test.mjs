@@ -20,6 +20,7 @@ import {
   normalizeIntegerInRange,
   roundFiniteOrFallback,
   toFiniteNumber,
+  toTruthyFiniteNumberOrFallback,
   toInteger,
   toNonNegativeNumberOrFallback,
   toTruthyNumberOrFallback,
@@ -102,6 +103,25 @@ test("toTruthyNumberOrFallback preserves truthy number fallback semantics", () =
   assert.equal(toTruthyNumberOrFallback("bad", fallback), 10);
   assert.equal(fallbackCalls, 2);
   assert.equal(toTruthyNumberOrFallback(-5, 10), -5);
+});
+
+test("toTruthyFiniteNumberOrFallback preserves finite truthy fallback semantics", () => {
+  let fallbackCalls = 0;
+  const fallback = () => {
+    fallbackCalls += 1;
+    return 10;
+  };
+
+  assert.equal(toTruthyFiniteNumberOrFallback("4.5", 10), 4.5);
+  assert.equal(toTruthyFiniteNumberOrFallback("4.5", fallback), 4.5);
+  assert.equal(fallbackCalls, 0);
+  assert.equal(toTruthyFiniteNumberOrFallback(0, fallback), 10);
+  assert.equal(fallbackCalls, 1);
+  assert.equal(toTruthyFiniteNumberOrFallback("bad", fallback), 10);
+  assert.equal(fallbackCalls, 2);
+  assert.equal(toTruthyFiniteNumberOrFallback(Infinity, fallback), 10);
+  assert.equal(fallbackCalls, 3);
+  assert.equal(toTruthyFiniteNumberOrFallback(-5, 10), -5);
 });
 
 test("toFiniteNumber returns numeric values and falls back for non-finite values", () => {
@@ -1053,8 +1073,12 @@ test("Codex usage widget uses core number helpers", async () => {
   const source = await fs.readFile(new URL("../widgets/codexUsage.js", import.meta.url), "utf8");
   assert.match(source, /core\/utils\/number\.js/);
   assert.match(source, /toFiniteNumber/);
+  assert.match(source, /toTruthyFiniteNumberOrFallback\(raw\.parserVersion, 1\)/);
+  assert.match(source, /toTruthyFiniteNumberOrFallback\(capturedAt, Date\.now\)/);
   assert.doesNotMatch(source, /const capturedAt = Number\(raw\.capturedAt\)/);
   assert.doesNotMatch(source, /Number\(raw\.parserVersion\) \|\| 1/);
+  assert.doesNotMatch(source, /toFiniteNumber\(raw\.parserVersion, 1\) \|\| 1/);
+  assert.doesNotMatch(source, /toFiniteNumber\(capturedAt, Date\.now\(\)\) \|\| Date\.now\(\)/);
   assert.doesNotMatch(source, /new Date\(Number\(capturedAt\) \|\| Date\.now\(\)\)/);
 });
 
