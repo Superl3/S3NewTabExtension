@@ -2,11 +2,10 @@ import { normalizeErrorMessage } from "../core/utils/error.js";
 import { clamp } from "../core/utils/number.js";
 import { hasOwn, isPlainObject } from "../core/utils/object.js";
 import { normalizeText } from "../core/utils/text.js";
-import { executeScript, hasScriptingApi } from "../core/platform/chrome-scripting.js";
+import { executeScript } from "../core/platform/chrome-scripting.js";
 import {
   createTab,
   getTabIfExists,
-  hasTabsApi,
   queryTabs,
   updateTab,
   waitForTabReady
@@ -18,7 +17,10 @@ import {
   isFlexAuthRequiredError,
   isFlexLoginUrl
 } from "./shared/flexAuth.js";
-import { extractFlexHomeWorktimeFromTab } from "./shared/flexHomeScrape.js";
+import {
+  assertFlexScrapeApisAvailable,
+  extractFlexHomeWorktimeFromTab
+} from "./shared/flexHomeScrape.js";
 import {
   comparablePath,
   isAllowedFlexHomeHost,
@@ -510,9 +512,7 @@ function normalizedConfig(config) {
 }
 
 function ensureFlexHomeScrapeApis() {
-  if (!hasTabsApi() || !hasScriptingApi()) {
-    throw new Error('Flex Work Record scrape requires "tabs" and "scripting" extension permissions.');
-  }
+  assertFlexScrapeApisAvailable('Flex Work Record scrape requires "tabs" and "scripting" extension permissions.');
 }
 
 function isAllowedFlexWorkRecordPath(pathname) {

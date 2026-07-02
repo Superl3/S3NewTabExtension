@@ -1,4 +1,5 @@
-import { executeScript } from "../../core/platform/chrome-scripting.js";
+import { executeScript, hasScriptingApi } from "../../core/platform/chrome-scripting.js";
+import { hasTabsApi } from "../../core/platform/chrome-tabs.js";
 import { isPlainObject } from "../../core/utils/object.js";
 import { normalizeText } from "../../core/utils/text.js";
 import {
@@ -12,6 +13,12 @@ function executeScriptInTab(tabId, func) {
     { target: { tabId }, func },
     { fallbackMessage: "Unable to run script in Flex Home tab." }
   );
+}
+
+export function assertFlexScrapeApisAvailable(message) {
+  if (!hasTabsApi() || !hasScriptingApi()) {
+    throw new Error(message);
+  }
 }
 
 export async function extractFlexHomeWorktimeFromTab(tabId) {
