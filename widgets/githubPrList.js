@@ -114,17 +114,13 @@ function configSignature(config) {
   ].join("|");
 }
 
-function buildPullsUrl(config) {
-  return buildGitHubRepoApiUrl(config.repository, ["pulls"], {
+async function fetchPullRequests(config) {
+  const pullsUrl = buildGitHubRepoApiUrl(config.repository, ["pulls"], {
     state: "open",
     sort: "updated",
     direction: "desc",
     per_page: normalizeMaxItems(config.maxItems, 20)
   });
-}
-
-async function fetchPullRequests(config) {
-  const pullsUrl = buildPullsUrl(config);
   if (!pullsUrl) {
     throw new Error("Repository is required (owner/repo).");
   }
