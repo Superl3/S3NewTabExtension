@@ -743,4 +743,8 @@ test("widgets share link URL helpers instead of local copies", async () => {
     assert.match(source, /shared\/linkUrls\.js/, moduleUrl.pathname);
     assert.doesNotMatch(source, localLinkPattern, moduleUrl.pathname);
   }
+
+  const calendarSource = await fs.readFile(new URL("../widgets/calendar.js", import.meta.url), "utf8");
+  assert.match(calendarSource, /normalizeHttpUrl\(normalized\)/);
+  assert.doesNotMatch(calendarSource, /new URL\(normalized\)/);
 });

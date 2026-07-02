@@ -48,15 +48,7 @@ function normalizeIcsUrl(value) {
   }
 
   const normalized = text.replace(/^webcal:/i, "https:");
-  try {
-    const parsed = new URL(normalized);
-    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
-      return "";
-    }
-    return parsed.toString();
-  } catch {
-    return "";
-  }
+  return normalizeHttpUrl(normalized);
 }
 
 function mapCalendarEvents(parsedEvents, fallbackLink) {
