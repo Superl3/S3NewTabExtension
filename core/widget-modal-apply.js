@@ -1,4 +1,5 @@
 import { callIfFunction as call } from "./utils/function.js";
+import { toTruthyNumberOrFallback } from "./utils/number.js";
 
 export function applyWidgetDraftToInstance(
   instance,
@@ -78,7 +79,7 @@ export function applyWidgetDraftToInstance(
   instance.customTextColor = call(normalizeWidgetColor, draft.customTextColor, "#1F2226") ?? "#1F2226";
   instance.customAccentColor = call(normalizeWidgetColor, draft.customAccentColor, "#1F4F9F") ?? "#1F4F9F";
   instance.customSurfaceColor = call(normalizeWidgetColor, draft.customSurfaceColor, "#FFFAF2") ?? "#FFFAF2";
-  instance.page = call(normalizeWidgetPage, (Number(draft.page) || 1) - 1, pageCount, previousPage) ?? previousPage;
+  instance.page = call(normalizeWidgetPage, toTruthyNumberOrFallback(draft.page, 1) - 1, pageCount, previousPage) ?? previousPage;
   instance.layout = call(cloneLayout, draft.layout) || draft.layout;
   instance.config = {
     ...instance.config,

@@ -90,6 +90,37 @@ test("applyWidgetDraftToInstance forces aiChat content behavior", () => {
   assert.equal(instance.contentFillParent, true);
 });
 
+test("applyWidgetDraftToInstance preserves draft page fallback semantics", () => {
+  const normalizedPages = [];
+  const pageDeps = {
+    ...deps,
+    normalizeWidgetPage: (page, pageCount, fallback) => {
+      normalizedPages.push({ page, pageCount, fallback });
+      return page;
+    }
+  };
+
+  for (const draftPage of [0, "bad", Infinity]) {
+    const instance = { type: "weather", config: {}, layout: {} };
+    applyWidgetDraftToInstance(
+      instance,
+      {
+        page: draftPage,
+        layout: {},
+        config: {}
+      },
+      { pageCount: 7, previousPage: 3 },
+      pageDeps
+    );
+  }
+
+  assert.deepEqual(normalizedPages, [
+    { page: 0, pageCount: 7, fallback: 3 },
+    { page: 0, pageCount: 7, fallback: 3 },
+    { page: Infinity, pageCount: 7, fallback: 3 }
+  ]);
+});
+
 test("normalizeContainerWidgetDraftConfig normalizes container-only fields", () => {
   const instance = {
     type: "container",
