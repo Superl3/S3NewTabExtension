@@ -1,7 +1,7 @@
 import { executeScript } from "../core/platform/chrome-scripting.js";
 import { waitForTabReady } from "../core/platform/chrome-tabs.js";
 import { normalizeErrorMessage } from "../core/utils/error.js";
-import { toFiniteNumber } from "../core/utils/number.js";
+import { toFiniteNumber, toTruthyFiniteNumberOrFallback } from "../core/utils/number.js";
 import { normalizeText } from "../core/utils/text.js";
 
 const CODEX_USAGE_URL = "https://chatgpt.com/codex/settings/usage";
@@ -213,7 +213,7 @@ function normalizeSnapshot(raw) {
     title,
     metrics: metrics.filter(isTargetUsageMetric),
     lines,
-    parserVersion: toFiniteNumber(raw.parserVersion, 1) || 1
+    parserVersion: toTruthyFiniteNumberOrFallback(raw.parserVersion, 1)
   };
 }
 
@@ -454,7 +454,7 @@ export const codexUsageWidget = {
     }
 
     function formatSyncStatus(capturedAt) {
-      const date = new Date(toFiniteNumber(capturedAt, Date.now()) || Date.now());
+      const date = new Date(toTruthyFiniteNumberOrFallback(capturedAt, Date.now));
       const hours = String(date.getHours()).padStart(2, "0");
       const minutes = String(date.getMinutes()).padStart(2, "0");
       return `Updated ${hours}:${minutes}`;
