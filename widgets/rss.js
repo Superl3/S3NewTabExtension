@@ -1,6 +1,7 @@
 import { normalizeIntegerInRange } from "../core/utils/number.js";
 import { normalizeText } from "../core/utils/text.js";
 import { formatLocalDateTimeLabel as formatDateLabel } from "./shared/dateLabels.js";
+import { normalizeHttpUrl } from "./shared/linkUrls.js";
 
 export const GEEK_NEWS_FEED_URL = "https://news.hada.io/rss/news";
 const GEEK_NEWS_FETCH_URL = "https://feeds.feedburner.com/geeknews-feed";
@@ -91,23 +92,6 @@ function normalizeErrorMessage(error) {
     return "Feed could not be read. Check that the URL points to an RSS or Atom feed.";
   }
   return text;
-}
-
-function normalizeSafeUrl(value, fallback = DEFAULT_FEED_URL) {
-  const text = normalizeText(value, fallback);
-  if (!text) {
-    return fallback;
-  }
-
-  try {
-    const parsed = new URL(text);
-    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
-      return fallback;
-    }
-    return parsed.toString();
-  } catch {
-    return fallback;
-  }
 }
 
 function normalizeComparableUrl(value) {
@@ -464,7 +448,7 @@ function createRssWidgetDefinition({
 
       function applyOpenFeedButton() {
         const cfg = normalizedConfig(getConfig(), defaultConfig);
-        const feedUrl = normalizeSafeUrl(cfg.feedUrl, defaultConfig.feedUrl);
+        const feedUrl = normalizeHttpUrl(cfg.feedUrl, defaultConfig.feedUrl);
         openFeedBtn.href = feedUrl;
         openFeedBtn.target = cfg.openInNewTab ? "_blank" : "_self";
       }
@@ -494,8 +478,8 @@ function createRssWidgetDefinition({
 
           const link = document.createElement("a");
           link.className = "rss-feed-link";
-          const feedUrl = normalizeSafeUrl(cfg.feedUrl, defaultConfig.feedUrl);
-          link.href = normalizeSafeUrl(item.link, feedUrl);
+          const feedUrl = normalizeHttpUrl(cfg.feedUrl, defaultConfig.feedUrl);
+          link.href = normalizeHttpUrl(item.link, feedUrl);
           link.target = cfg.openInNewTab ? "_blank" : "_self";
           link.rel = "noreferrer";
 

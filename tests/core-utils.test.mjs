@@ -422,13 +422,15 @@ test("feed and monday widgets share local date-time label formatting", async () 
   }
 });
 
-test("shortcut and bookmarks widgets share link URL helpers", async () => {
+test("widgets share link URL helpers instead of local copies", async () => {
   const moduleUrls = [
     new URL("../widgets/shortcut.js", import.meta.url),
-    new URL("../widgets/bookmarks.js", import.meta.url)
+    new URL("../widgets/bookmarks.js", import.meta.url),
+    new URL("../widgets/rss.js", import.meta.url),
+    new URL("../widgets/calendar.js", import.meta.url)
   ];
   const localLinkPattern =
-    /^function (normalizeSafeUrl|normalizeSafeLink|isUrlIcon|bookmarkFavicon)\(/m;
+    /^function (normalizeSafeUrl|normalizeSafeLink|normalizeEventLink|isUrlIcon|bookmarkFavicon)\(/m;
 
   for (const moduleUrl of moduleUrls) {
     const source = await fs.readFile(moduleUrl, "utf8");
