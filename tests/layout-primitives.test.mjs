@@ -53,6 +53,17 @@ test("normalizeGridLayout applies numeric fallback", () => {
   );
 });
 
+test("normalizeGridLayout preserves fallback normalization semantics", () => {
+  assert.deepEqual(
+    normalizeGridLayout({}, { col: 0, row: "bad", colSpan: 0, rowSpan: "bad" }),
+    { col: 0, row: 0, colSpan: 1, rowSpan: 1 }
+  );
+  assert.deepEqual(
+    normalizeGridLayout({}, { col: Infinity, row: -Infinity, colSpan: Infinity, rowSpan: -Infinity }),
+    { col: 0, row: 0, colSpan: Infinity, rowSpan: 1 }
+  );
+});
+
 test("normalizeGridLayout preserves half-track positions", () => {
   assert.equal(normalizeGridTrackPosition(1.24), 1);
   assert.equal(normalizeGridTrackPosition(1.26), 1.5);
