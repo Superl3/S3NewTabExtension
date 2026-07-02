@@ -1,4 +1,5 @@
 import { isStateObject, mergeStateObjects } from "./state/merge.js";
+import { arrayOrEmpty } from "./utils/array.js";
 import { normalizeText } from "./utils/text.js";
 
 export const STARTUP_STATE_QUERY_KEY = "startup-state";
@@ -40,7 +41,7 @@ export function resolveComposableStartupState(rawState, options = {}) {
 
   let composed = isStateObjectImpl(rawState.defaults) ? structuredClone(rawState.defaults) : {};
   const presetMap = isStateObjectImpl(rawState.presets) ? rawState.presets : {};
-  const presetOrder = Array.isArray(rawState.applyPresets) ? rawState.applyPresets : [];
+  const presetOrder = arrayOrEmpty(rawState.applyPresets);
 
   for (const presetName of presetOrder) {
     const name = normalizeText(presetName);

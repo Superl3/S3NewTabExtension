@@ -1,3 +1,4 @@
+import { arrayOrEmpty } from "./utils/array.js";
 import {
   buildDefaultProfileInfoText,
   buildProfileLoadScopeOptions,
@@ -6,7 +7,7 @@ import {
 } from "./profile-settings.js";
 
 export function resolvePresetsArray(state) {
-  return Array.isArray(state?.presets) ? state.presets : [];
+  return arrayOrEmpty(state?.presets);
 }
 
 export function renderProfileSettingsView({

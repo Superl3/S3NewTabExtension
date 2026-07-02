@@ -1,3 +1,4 @@
+import { arrayOrEmpty } from "./utils/array.js";
 import { clampTruthyNumberOrFallback, toNonNegativeNumberOrFallback, toTruthyNumberOrFallback } from "./utils/number.js";
 
 export function hydrateState(raw, deps = {}) {
@@ -228,7 +229,7 @@ export function hydrateState(raw, deps = {}) {
       ? clonePresetSnapshot(rawUi.defaultProfileSnapshot)
       : null;
   const defaultProfileUpdatedAt = toNonNegativeNumberOrFallback(rawUi.defaultProfileUpdatedAt);
-  const rawPresets = Array.isArray(raw?.presets) ? raw.presets : [];
+  const rawPresets = arrayOrEmpty(raw?.presets);
   const presets = rawPresets
     .map((preset) => {
       if (!preset || typeof preset !== "object") {

@@ -400,6 +400,34 @@ test("hydrate preset timestamp fallbacks use shared truthy number normalization"
   assert.doesNotMatch(source, /(?:createdAt|updatedAt): Number\(preset\.(?:createdAt|updatedAt)\) \|\| Date\.now\(\)/);
 });
 
+test("profile and startup preset modules use shared array fallback helper", async () => {
+  const moduleUrls = [
+    new URL("../core/hydrate-state.js", import.meta.url),
+    new URL("../core/profile-settings-render.js", import.meta.url),
+    new URL("../core/reset-state-preservation.js", import.meta.url),
+    new URL("../core/startupState.js", import.meta.url)
+  ];
+
+  for (const moduleUrl of moduleUrls) {
+    const source = await fs.readFile(moduleUrl, "utf8");
+    assert.match(source, /utils\/array\.js/, moduleUrl.pathname);
+    assert.match(source, /arrayOrEmpty\(/, moduleUrl.pathname);
+  }
+
+  const hydrateSource = await fs.readFile(new URL("../core/hydrate-state.js", import.meta.url), "utf8");
+  assert.doesNotMatch(hydrateSource, /Array\.isArray\(raw\?\.presets\) \? raw\.presets : \[\]/);
+
+  const profileSettingsSource = await fs.readFile(new URL("../core/profile-settings-render.js", import.meta.url), "utf8");
+  assert.doesNotMatch(profileSettingsSource, /Array\.isArray\(state\?\.presets\) \? state\.presets : \[\]/);
+
+  const resetSource = await fs.readFile(new URL("../core/reset-state-preservation.js", import.meta.url), "utf8");
+  assert.doesNotMatch(resetSource, /Array\.isArray\(state\?\.presets\) \? state\.presets : \[\]/);
+  assert.doesNotMatch(resetSource, /Array\.isArray\(preserved\.presets\) \? preserved\.presets : \[\]/);
+
+  const startupSource = await fs.readFile(new URL("../core/startupState.js", import.meta.url), "utf8");
+  assert.doesNotMatch(startupSource, /Array\.isArray\(rawState\.applyPresets\) \? rawState\.applyPresets : \[\]/);
+});
+
 test("hydrate state uses shared truthy fallbacks for z-index and page count", async () => {
   const source = await fs.readFile(new URL("../core/hydrate-state.js", import.meta.url), "utf8");
   assert.match(source, /clampTruthyNumberOrFallback\(item\.zIndex, normalized\.length \+ 1, 1, Number\.POSITIVE_INFINITY\)/);
