@@ -1,4 +1,4 @@
-import { clamp } from "../core/utils/number.js";
+import { clamp, clampTruthyNumberOrFallback } from "../core/utils/number.js";
 import {
   luminanceFromHex,
   normalizeBackdropOverlayOpacity,
@@ -96,8 +96,8 @@ export const labelWidget = {
       value.style.color = isTransparent && useAutoContrast
         ? `var(--widget-transparent-text, ${autoFallbackColor})`
         : manualColor;
-      value.style.fontSize = `${clamp(Number(cfg.fontSize) || 36, 12, 128)}px`;
-      value.style.fontWeight = String(clamp(Number(cfg.fontWeight) || 700, 200, 900));
+      value.style.fontSize = `${clampTruthyNumberOrFallback(cfg.fontSize, 36, 12, 128)}px`;
+      value.style.fontWeight = String(clampTruthyNumberOrFallback(cfg.fontWeight, 700, 200, 900));
       text.style.textAlign = align;
 
       if (isTransparent && useAutoContrast) {

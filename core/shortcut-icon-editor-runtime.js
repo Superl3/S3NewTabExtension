@@ -1,3 +1,5 @@
+import { clampTruthyNumberOrFallback } from "./utils/number.js";
+
 export function createShortcutIconEditorRuntime(deps) {
   const getTheme = () => deps.getTheme?.() || {};
 
@@ -109,9 +111,9 @@ export function createShortcutIconEditorRuntime(deps) {
 
   function shortcutEditorBuildDataUrl() {
     const shape = normalizeShortcutIconShape(deps.shortcutIconEditorState.shape);
-    const scale = deps.clamp(Number(deps.shortcutIconEditorState.scale) || 100, 60, 160);
+    const scale = clampTruthyNumberOrFallback(deps.shortcutIconEditorState.scale, 100, 60, 160);
     const textValue = deps.normalizeText(deps.shortcutIconEditorState.text).slice(0, 4);
-    const textSize = deps.clamp(Number(deps.shortcutIconEditorState.textSize) || 58, 24, 92);
+    const textSize = clampTruthyNumberOrFallback(deps.shortcutIconEditorState.textSize, 58, 24, 92);
     const colors = shortcutEditorThemeColors();
 
     const containerSize = deps.clamp(Math.round(86 * (scale / 100)), 44, 112);
@@ -153,9 +155,9 @@ export function createShortcutIconEditorRuntime(deps) {
 
   function shortcutEditorRefreshPreview() {
     deps.shortcutIconEditorState.shape = normalizeShortcutIconShape(deps.elements?.shortcutIconEditorShape?.value);
-    deps.shortcutIconEditorState.scale = deps.clamp(Number(deps.elements?.shortcutIconEditorScale?.value) || 100, 60, 160);
+    deps.shortcutIconEditorState.scale = clampTruthyNumberOrFallback(deps.elements?.shortcutIconEditorScale?.value, 100, 60, 160);
     deps.shortcutIconEditorState.text = deps.normalizeText(deps.elements?.shortcutIconEditorText?.value).slice(0, 4);
-    deps.shortcutIconEditorState.textSize = deps.clamp(Number(deps.elements?.shortcutIconEditorFontSize?.value) || 58, 24, 92);
+    deps.shortcutIconEditorState.textSize = clampTruthyNumberOrFallback(deps.elements?.shortcutIconEditorFontSize?.value, 58, 24, 92);
 
     if (deps.shortcutIconEditorState.source === "text" && deps.shortcutIconEditorState.text.length === 0) {
       deps.shortcutIconEditorState.source = "preset";
