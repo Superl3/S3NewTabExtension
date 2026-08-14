@@ -91,6 +91,7 @@ See `.planning/codebase/PERFORMANCE_USABILITY_WRAPUP.md` for the full performanc
 - Cause: identity-based diffing against freshly allocated state.
 - Impact: undo/redo, preset/profile load, and cross-tab sync all rebuild the whole board. Uncached network widgets (`gmail`, `rss`/`geekNews`, `calendar`, `aiChat` have no caching at all) refetch immediately, so five undo presses on a board with three of them issues 15 fresh requests. Scroll position and transient widget UI state are lost each time.
 - Improvement path: diff by stable `instance.id` plus a content signature. `refreshExistingCard()` already implements the correct reuse path but is unreachable after a restore.
+- Ordering constraint: `createWidgetCard` captures `instance` into 8 long-lived closures and drag sessions mutate it directly (`core/widget-card-drag-session.js:300`). Those closures must be converted to live `deps.instanceById` lookups **before** the diff is relaxed, or a post-undo drag writes into an orphaned object and the move is lost on save. See `.planning/codebase/REMEDIATION_PLAN.md` Correction 1.
 
 **No request cancellation anywhere:**
 - Problem: `AbortController` and `signal:` appear zero times in the repository. Widgets use a `requestSerial` counter to ignore stale responses, which protects state but does not stop the request.
@@ -115,12 +116,12 @@ See `.planning/codebase/PERFORMANCE_USABILITY_WRAPUP.md` for the full performanc
 - Cause: inconsistent caching policy across widgets rather than a deliberate decision.
 - Improvement path: adopt the existing cache-in-config or `localStorage` cache pattern; this also blunts the impact of the snapshot-restore rebuild above.
 
-**Frequent full-state serialization during save pipeline:**
-- Problem: Save dedupe uses `JSON.stringify(snapshot)` fingerprints of the full state. The debounce is 150ms (`core/persistence-runtime.js`) and `queueSave()` has many call sites.
-- Files: `app.js`, `core/persistence-runtime.js`
-- Cause: Fingerprinting and clone-heavy snapshot creation scale with whole-state size.
-- Improvement path: Use incremental dirty flags/version counters and scoped persistence writes instead of full snapshot fingerprinting each cycle.
-- Aggravating factor: GitHub widgets persist their fetched PR lists into widget config (`cachePullItems`, `cacheReviewItems`), so every successful refresh enlarges the snapshot that gets fingerprinted and written.
+**Full-state clone during save pipeline** (revised 2026-08-14, lower severity than previously recorded):
+- Problem: `buildSessionSnapshot()` runs `structuredClone` over `ui` + `presets` + `instances` on every save cycle. The debounce is 150ms (`core/persistence-runtime.js`) and `queueSave()` has many call sites.
+- Correction: the earlier claim that every save also pays a full `JSON.stringify` fingerprint was wrong. `nextPersistFingerprint` returns a cheap `u:${userMutationAt}` clock string for user mutations; full stringify occurs only on system/cache writes and in `syncFromExternalSnapshot`.
+- Files: `app.js` (`buildSessionSnapshot`), `core/persistence-runtime.js`
+- Improvement path: clone lazily, only when a write proceeds past the fingerprint check.
+- Aggravating factor: GitHub widgets persist their fetched PR lists into widget config (`cachePullItems`, `cacheReviewItems`), so every successful refresh enlarges the cloned snapshot.
 
 **GitHub Review Inbox refresh is serial per pull request:**
 - Problem: The detail loop awaits one PR's 4 parallel requests before starting the next PR, so wall-clock refresh time is linear in open PR count.
@@ -231,4 +232,4 @@ See `.planning/codebase/PERFORMANCE_USABILITY_WRAPUP.md` for the full performanc
 
 *Concerns audit refreshed: 2026-08-14 (re-measured line counts, resolved-item verification, GitHub widget audit, whole-codebase performance and usability sweep)*
 
-*Companion reports: `.planning/codebase/PERFORMANCE_USABILITY_WRAPUP.md`, `.planning/codebase/GITHUB_PR_USABILITY_AUDIT.md`*
+*Companion reports: `.planning/codebase/REMEDIATION_PLAN.md` (fix sequencing for all 22 findings), `.planning/codebase/PERFORMANCE_USABILITY_WRAPUP.md`, `.planning/codebase/GITHUB_PR_USABILITY_AUDIT.md`*

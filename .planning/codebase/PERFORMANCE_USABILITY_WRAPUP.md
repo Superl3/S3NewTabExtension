@@ -4,6 +4,7 @@
 **Scope:** Whole codebase — 22 widgets, `core/` (130 modules), `app.js`, `storage.js`, persistence pipeline, lazy-load registry, drag/drop hot paths, stylesheets.
 **Method:** Full source sweep, behavior execution of real modules under `node`, request/latency cost modeling, and reproduction of failure-mode logic in isolation.
 **Supersedes:** the GitHub-only findings in `GITHUB_PR_USABILITY_AUDIT.md`, which remain valid and are referenced rather than repeated.
+**Remediation:** see `.planning/codebase/REMEDIATION_PLAN.md`. That plan revises two findings below after opening every fix site — read the corrections there before acting on P1-1 or P2-1.
 
 ---
 
@@ -79,6 +80,8 @@ Cost per cycle depends on caching. Widgets that rehydrate from cache (weather, b
 So a board with Gmail + RSS + Calendar and five presses of Ctrl+Z issues 15 fresh network requests, plus 5 full DOM teardowns of every other widget. Scroll position, in-progress text selection, and transient widget UI state are all lost each time.
 
 **Fix:** Diff by stable `instance.id` plus a content signature instead of object identity. `refreshExistingCard()` already exists and handles the reuse path correctly — it just is not reachable after a restore.
+
+> **Correction (see REMEDIATION_PLAN.md, Correction 1):** this fix is **unsafe in isolation**. `createWidgetCard` captures the `instance` object into 8 long-lived closures, and drag sessions mutate it directly (`instance.layout.x = ...` at `core/widget-card-drag-session.js:300`). The current reference check accidentally prevents stale closures by destroying every card. Relaxing the diff without first converting those closures to live `deps.instanceById` lookups would let a post-undo drag write coordinates into an orphaned object, losing the move on save. The fix must land as two ordered commits: live-lookup first, then the diff relaxation.
 
 ### P1-2. `Failed to fetch` reaches users in 6 widgets
 
@@ -170,13 +173,15 @@ Related inconsistency: `app.js:2805` and `app.js:2827` emit Korean toasts (`"빈
 
 ## P2 — Friction and avoidable cost
 
-### P2-1. Full-state serialization on every save cycle
+### P2-1. Full-state clone on every save cycle — *revised down to P3*
 
-`persistLatestSnapshot` runs `buildPersistSnapshot()` (structuredClone), `snapshotFingerprint()` (`JSON.stringify` of the whole state), then `saveState()` (which serializes again inside `chrome.storage`). Debounce is 150ms (`core/persistence-runtime.js:184`) with 30+ `queueSave()` call sites.
+> **Correction (see REMEDIATION_PLAN.md, Correction 2):** the original claim that every save pays a full `JSON.stringify` fingerprint is **wrong**. `nextPersistFingerprint` short-circuits to a cheap clock string (`u:${userMutationAt}`) for user mutations, so full stringify happens only on system/cache writes and in `syncFromExternalSnapshot`.
 
-Aggravated by widgets persisting fetched payloads into config: `cacheReviewItems` at `maxItems=50` is roughly 20KB, `cachePullItems` roughly 13KB. Every successful GitHub refresh grows the blob that gets cloned, stringified, and written.
+What *does* run unconditionally is `buildPersistSnapshot()` → `buildSessionSnapshot()` → `structuredClone` of `ui` + `presets` + `instances` (`app.js:1571`). Debounce is 150ms with 30+ `queueSave()` call sites.
 
-**Fix:** Dirty-flag or version-counter invalidation instead of whole-state fingerprinting; move fetched snapshots out of the persisted dashboard state.
+Still aggravated by widgets persisting fetched payloads into config: `cacheReviewItems` at `maxItems=50` is roughly 20KB, `cachePullItems` roughly 13KB.
+
+**Fix (narrowed):** clone lazily, only when a write actually proceeds past the fingerprint check; keep fetched snapshots out of persisted dashboard state. Low priority.
 
 ### P2-2. Gmail, RSS, Calendar, and AI Chat have no caching at all
 
