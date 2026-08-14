@@ -37,9 +37,26 @@
 
 ## Known Bugs
 
-No confirmed open bugs as of the 2026-08-14 re-measurement.
+**A transient widget module-load failure is permanently unrecoverable:**
+- Symptoms: A widget shows `Widget failed to load.` and the refresh button does nothing. Adding a new widget of the same type also fails. Only a full page reload recovers.
+- Files: `widgets/index.js` (`createLazyController`, `createLazyWidgetDefinition`)
+- Trigger: Any rejection from the dynamic `import()` for a widget type (slow disk, interrupted first paint, momentary extension-context failure).
+- Cause: three compounding latches. `startLoad()` sets `loadStarted = true` before awaiting and never resets it on failure; `refresh()`/`manualRefresh()` route to `startLoad()`, which returns immediately while `loadStarted` is set; and `createLazyWidgetDefinition.load()` memoizes `loadPromise` unconditionally, so a rejected promise is cached and replayed forever. Verified in isolation: three `load()` calls invoked the loader exactly once.
+- Workaround: reload the new tab page.
+- Fix approach: reset `loadStarted` and clear `loadPromise` on rejection; render a `Retry` control instead of dead text.
 
-**Resolved since the 2026-05-18 audit** (verified against the working tree):
+**Persistence failures are silent:**
+- Symptoms: Layout edits appear to succeed but are lost on reload when `chrome.storage.local` rejects (for example on quota exhaustion).
+- Files: `storage.js` (`saveState`), `core/persistence-runtime.js`, `app.js` (`onPersistError`)
+- Trigger: `storage.set` rejection.
+- Cause: `onPersistError` only calls `console.warn`. No quota inspection exists anywhere (`QUOTA`/`quota`/`bytesInUse` are absent from `app.js`, `storage.js`, and `core/`), and there is no user-facing save-failure indicator.
+- Workaround: none available to the user; the failure is not observable in the UI.
+- Fix approach: surface failure through the existing `showAddWidgetToast` mechanism and check `bytesInUse` against quota before large writes.
+
+See `.planning/codebase/PERFORMANCE_USABILITY_WRAPUP.md` for the full performance and usability finding set (2 P0, 7 P1, 8 P2, 5 P3).
+
+**Resolved before the 2026-08-14 re-measurement** (verified against the working tree):
+
 - `ALLOW_ANY_HTTPS_REDIRECT` no longer exists anywhere in `connector/`. The optional open-redirect broadening path is gone.
 - `connector/.env.example` now states that `chrome-extension://` redirects require both `ALLOW_CHROME_EXTENSION_REDIRECT=1` and a populated `ALLOWED_EXTENSION_IDS`, which matches `connector/redirect-policy.mjs`. The docs/runtime mismatch is fixed.
 - Monday OAuth/session logic is no longer duplicated. Both Monday widgets import `widgets/shared/mondayAuth.js`, `widgets/shared/mondayClient.js`, and `widgets/shared/mondayConfig.js`.
@@ -67,6 +84,36 @@ No confirmed open bugs as of the 2026-08-14 re-measurement.
 - Recommendations: Keep the allowlist populated per environment and keep `ENABLE_TOKEN_RELAY` off outside local development.
 
 ## Performance Bottlenecks
+
+**Snapshot restore destroys and recreates every widget:**
+- Problem: `restoreFromSnapshot` calls `hydrate()`, which allocates new instance objects, while `renderBoard()` decides card reuse with `rt.instance !== instance`. Reference inequality is therefore always true after a restore, so every widget is torn down and rebuilt even when unchanged.
+- Files: `core/widget/app-runtime.js` (`renderBoard`), `core/hydrate-state.js`, `app.js` (`restoreFromSnapshot`), `core/history-undo-runtime.js`, `core/persistence-runtime.js`
+- Cause: identity-based diffing against freshly allocated state.
+- Impact: undo/redo, preset/profile load, and cross-tab sync all rebuild the whole board. Uncached network widgets (`gmail`, `rss`/`geekNews`, `calendar`, `aiChat` have no caching at all) refetch immediately, so five undo presses on a board with three of them issues 15 fresh requests. Scroll position and transient widget UI state are lost each time.
+- Improvement path: diff by stable `instance.id` plus a content signature. `refreshExistingCard()` already implements the correct reuse path but is unreachable after a restore.
+
+**No request cancellation anywhere:**
+- Problem: `AbortController` and `signal:` appear zero times in the repository. Widgets use a `requestSerial` counter to ignore stale responses, which protects state but does not stop the request.
+- Files: all fetching widgets
+- Cause: no cancellation seam in the widget fetch pattern.
+- Improvement path: thread an `AbortSignal` through widget fetches and abort on config change and `destroy()`.
+
+**Layout reads in pointer paths are not rAF-batched:**
+- Problem: `getBoundingClientRect` runs per `pointermove` during dock drags (`dockSlotRectRelativeToHost`, `dockSlotIndexAtPoint`, `core/drop-guide-runtime.js`), and neither `core/widget-card-drag-session.js` nor `core/drag-positioning.js` uses `requestAnimationFrame`.
+- Files: `app.js`, `core/drop-guide-runtime.js`, `core/widget-card-drag-session.js`, `core/drag-positioning.js`
+- Cause: synchronous layout measurement inside the pointer event handler.
+- Improvement path: batch measurement into an rAF tick and cache slot rects for the duration of a drag.
+
+**Refresh interval defaults are inverted relative to cost:**
+- Problem: The most expensive widgets have the shortest intervals. `githubPrList`, `flexWorktime`, and `flexWorktimeTimeline` all default to `refreshMinutes: 1`; both Flex widgets also default to `openFlexTabIfMissing: true`, so each cycle may open, script, and close a background tab up to 60 times per hour per widget. `githubPrList` at 1 minute equals the 60/hour anonymous GitHub limit exactly, with no headroom for a second GitHub widget sharing the IP quota.
+- Files: `widgets/metadata.js`
+- Improvement path: set defaults from data volatility; 5-15 minutes suits Flex worktime and GitHub PRs.
+
+**Gmail, RSS, Calendar, and AI Chat have no caching:**
+- Problem: Zero `cacheAt`/`localStorage` usage in `widgets/gmail.js`, `widgets/rss.js`, `widgets/calendar.js`, `widgets/aiChat.js`, while comparable widgets (weather, GitHub, Monday, Flex) all cache. Every widget recreation triggers a fresh round trip and shows an empty state first.
+- Files: `widgets/gmail.js`, `widgets/rss.js`, `widgets/calendar.js`, `widgets/aiChat.js`
+- Cause: inconsistent caching policy across widgets rather than a deliberate decision.
+- Improvement path: adopt the existing cache-in-config or `localStorage` cache pattern; this also blunts the impact of the snapshot-restore rebuild above.
 
 **Frequent full-state serialization during save pipeline:**
 - Problem: Save dedupe uses `JSON.stringify(snapshot)` fingerprints of the full state. The debounce is 150ms (`core/persistence-runtime.js`) and `queueSave()` has many call sites.
@@ -168,6 +215,12 @@ No confirmed open bugs as of the 2026-08-14 re-measurement.
 - Risk: The most interaction-heavy widget in the repo (1,341 lines, custom pointer gesture) can regress silently.
 - Priority: High
 
+**Widget accessibility is largely absent:**
+- What's not covered: 13 of 22 widgets have zero `aria-*`/`role` attributes and zero `keydown`/`tabIndex` handling, including interactive ones (`container` folder expand/collapse, `shortcut` tile activation, `githubPrList`, `calendar`, `gmail`, `rss`, `aiChat`, `notes`, `label`, `clock`, `codexUsage`, both Monday widgets). The shell is better (`newtab.html` has 45 aria/role attributes, `styles.css` 27 focus rules), so the gap is specific to widget bodies. `prefers-reduced-motion` appears only 3 times across all stylesheets despite an animation-heavy drag/swipe system.
+- Files: `widgets/*.js`, `styles.css`, `widget-drag-motion.css`
+- Risk: keyboard and assistive-technology users cannot operate most widgets.
+- Priority: High
+
 **No visual regression safety net for widget layout invariants:**
 - What's not automated: `styles.css` is 5,556 lines and the AGENTS.md header/footer layout invariants (identical header height across Normal/Edit mode, fixed row height as item count changes, bottom-pinned footer) are enforced only by CSS rules.
 - Files: `styles.css`, `single-item-surfaces.css`, `widget-drag-motion.css`
@@ -176,4 +229,6 @@ No confirmed open bugs as of the 2026-08-14 re-measurement.
 
 ---
 
-*Concerns audit refreshed: 2026-08-14 (re-measured line counts, resolved-item verification, GitHub widget audit)*
+*Concerns audit refreshed: 2026-08-14 (re-measured line counts, resolved-item verification, GitHub widget audit, whole-codebase performance and usability sweep)*
+
+*Companion reports: `.planning/codebase/PERFORMANCE_USABILITY_WRAPUP.md`, `.planning/codebase/GITHUB_PR_USABILITY_AUDIT.md`*
