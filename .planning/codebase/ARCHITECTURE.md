@@ -1,15 +1,19 @@
 # Architecture
 
-**Analysis Date:** 2026-03-30
+**Analysis Date:** 2026-08-14 (re-measured against working tree)
 
 ## Pattern Overview
 
-**Overall:** Monolithic client-side modular architecture (MV3 new-tab extension) with registry-driven plugin widgets and a separate optional local auth connector service.
+**Overall:** Build-free client-side modular architecture (MV3 new-tab extension) with registry-driven plugin widgets, an extracted pure-logic core, and a separate optional local auth connector service.
 
 **Key Characteristics:**
-- Single UI runtime in `app.js` owns global state, rendering, persistence, routing of user interactions, and modal/settings orchestration.
-- Feature modules (widgets) implement a shared contract (`type`, `defaultConfig`, `settingsSchema`, `create`) and are composed through `widgets/index.js`.
-- Extension-facing APIs (`chrome.storage`, `chrome.bookmarks`, `chrome.identity`, `chrome.tabs`, `chrome.scripting`) are called directly from runtime modules, with no framework or backend dependency for core operation.
+- `app.js` (5,120 lines) owns global state and acts as the dependency-injection hub: it holds runtime closures and passes them into `core/` modules through large option objects such as `wireAppEvents({ ...60+ callbacks })`.
+- Pure logic lives in `core/` (130 modules, 15,788 lines, largest file 513 lines). Modules receive DOM and `chrome.*` access by injection, which is what makes them testable under plain `node:test`.
+- Feature modules (widgets) implement a shared contract (`type`, `defaultConfig`, `settingsSchema`, `create`) and are composed through `widgets/index.js` using **dynamic import loaders** plus viewport-proximity lazy mounting (240px margin).
+- Extension-facing APIs are increasingly routed through seams: `core/platform/*` (`browser-api`, `chrome-api`, `chrome-callback`, `chrome-scripting`, `chrome-tabs`) and `widgets/shared/chromeApi.js`. `widgets/codexUsage.js` is the remaining widget with direct `chrome.*` calls (13 sites, all guarded).
+- No build toolchain and zero npm dependencies. `newtab.html` loads `app.js` as a native ES module.
+
+**Notable structural gap:** `manifest.json` declares no `background` service worker. All scheduling and cross-tab orchestration lives in the New Tab document, so it stops when the last new tab closes. `core/background/` refers to the *visual wallpaper* subsystem, not MV3 background.
 
 ## Layers
 
@@ -29,10 +33,17 @@
 
 **Application Runtime Layer:**
 - Purpose: Central state machine, widget lifecycle orchestration, layout engine, settings rendering, modal flow, drag/drop, paging, undo/redo, and persistence.
-- Location: `app.js`
+- Location: `app.js` (state ownership + wiring) delegating to `core/`
 - Contains: `hydrate(...)`, `renderBoard()`, `renderSettings()`, `wireEvents()`, `queueSave(...)`, startup-state resolution and sanitization.
-- Depends on: `storage.js`, `widgets/index.js`, DOM from `newtab.html`, Chrome extension APIs.
+- Depends on: `storage.js`, `widgets/index.js`, `core/*`, DOM from `newtab.html`, Chrome extension APIs.
 - Used by: Entire new-tab user experience.
+
+**Extracted Core Logic Layer:**
+- Purpose: Hold decision logic as pure, injectable modules so behavior contracts can be tested without a browser.
+- Location: `core/` (130 modules) with subpackages `alarm/`, `background/` (visual wallpaper), `modal/`, `platform/`, `settings/`, `state/`, `utils/`, `widget/`.
+- Contains: Drag/drop intent resolution (`drag-drop-evaluation.js`, `drag-drop-orchestration.js`), launcher paging (`launcher-pages.js`), dock geometry/state, container placement, grid layout, history snapshots, modal runtimes, event wiring (`wire-events-*.js`), export sanitization.
+- Depends on: Injected callbacks and data only; no direct DOM or `chrome.*` assumptions in most modules.
+- Used by: `app.js` wiring and widget runtimes; mirrored 1:1 by `tests/*.test.mjs`.
 
 **Persistence Layer:**
 - Purpose: Read/write durable state and merge defaults safely.
@@ -106,8 +117,8 @@
 
 **Widget Registry:**
 - Purpose: Central type-to-definition mapping used for rendering and add-widget UI.
-- Examples: `widgets/index.js` (`widgetRegistry`, `widgetList`).
-- Pattern: Static imports + object map keyed by `widget.type`.
+- Examples: `widgets/index.js` (`widgetRegistry`, `widgetList`, `widgetLoaders`), `widgets/metadata.js`.
+- Pattern: Declarative metadata in `widgets/metadata.js` merged with per-type **dynamic import loaders**, so widget code is fetched on demand rather than statically bundled into first paint. Off-screen widgets defer creation until near the viewport, and render a `widget-lazy-status` placeholder until then.
 
 **Runtime Controller Map:**
 - Purpose: Track rendered card DOM + widget controller per instance ID.
@@ -116,8 +127,18 @@
 
 **Snapshot/Persistence Abstraction:**
 - Purpose: Separate user state from transient runtime fields and avoid stale writes.
-- Examples: `app.js` (`buildSessionSnapshot()`, `buildPersistSnapshot()`, fingerprint + mutation clock) and `storage.js`.
-- Pattern: Snapshot normalization + debounced write + external-change reconciliation.
+- Examples: `app.js` (`buildSessionSnapshot()`, `buildPersistSnapshot()`, fingerprint + mutation clock), `core/persistence-runtime.js` (150ms debounce), `core/runtimeSnapshotPolicy.js`, `storage.js`.
+- Pattern: Snapshot normalization + debounced write + external-change reconciliation. `JSON.stringify` fingerprints plus a user-mutation clock reject stale writes, and `chrome.storage.onChanged` merges changes made by other open new tabs.
+
+**Export Sanitization Abstraction:**
+- Purpose: Keep credentials and volatile runtime values out of manually exported state/profiles.
+- Examples: `core/state-export-sanitize.js` driven by `SENSITIVE_EXPORT_KEYWORD_PARTS`, `VOLATILE_BACKGROUND_KEYWORD_PARTS`, and `VOLATILE_PROFILE_KEYWORD_PARTS` in `app.js`.
+- Pattern: Keyword-substring key matching plus URL query-parameter redaction, replacing matches with `[REDACTED]`.
+
+**Platform Seam Abstraction:**
+- Purpose: Allow the dashboard to run without extension APIs (local/demo execution, tests).
+- Examples: `core/platform/browser-api.js`, `core/platform/chrome-*.js`, `widgets/shared/chromeApi.js`, and the `chrome.storage.local` -> `localStorage` -> cloned-defaults fallback chain in `storage.js`.
+- Pattern: Capability probing before use, with graceful degradation to actionable user copy instead of thrown errors.
 
 **Container/Dock/Page Placement Abstractions:**
 - Purpose: Encode widget placement across board grid, dock strip, container folder, and launcher pages.
@@ -161,8 +182,10 @@
 
 **Validation:** Normalize-and-clamp strategy across app and widgets (for example `hydrate(...)` in `app.js`, URL sanitization in `widgets/bookmarks.js`, connector URL normalization in `widgets/aiChat.js`).
 
-**Authentication:** OAuth/token session handling via `chrome.identity` + `chrome.storage.local` in widget modules; optional local mediation through `connector/server.mjs`.
+**Authentication:** OAuth/token session handling via `chrome.identity` + `chrome.storage.local` in widget modules; optional local mediation through `connector/server.mjs`. Monday widgets share `widgets/shared/mondayAuth.js`; AI Chat still has its own connector stack; GitHub widgets use a plain `config.accessToken` field with no session lifecycle.
+
+**Scheduling:** No `chrome.alarms` and no service worker. Periodic widget refresh uses per-widget `setTimeout` chains, and TODO alarms use a 30s tick in `core/alarm/alarm-runtime.js`. All scheduling is bound to New Tab document lifetime.
 
 ---
 
-*Architecture analysis: 2026-03-30*
+*Architecture analysis: 2026-08-14 (re-measured: added core logic layer, dynamic-import registry, platform/export seams, scheduling gap)*

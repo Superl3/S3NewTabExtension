@@ -1,6 +1,6 @@
 # Testing Patterns
 
-**Analysis Date:** 2026-05-18
+**Analysis Date:** 2026-08-14 (re-measured against working tree)
 
 ## Test Framework
 
@@ -18,13 +18,21 @@ npm run test:production
 
 **Location:** `tests/*.test.mjs`
 
-**Current scale:** 127 test files and 561 passing test cases in the latest local run.
+**Current scale:** 138 test files and 794 passing test cases in the latest local run (~1.4s).
 
 **Major suites:**
 - Modal close and Enter-submit contracts: `wire-events-overlays`, `wire-events-keydown`, `widget-modal-runtime`, `todo-alarm-modal-contract`.
 - Drag/drop, dock, container, page navigation: `widget-card-drag-session`, `dock-widget-drag-session`, `drag-drop-*`, `container-*`, `launcher-*`.
 - Startup and buyer gate: `startup-state`, `buyer-gate-source-contract`, `browser-api-fallback`.
-- Integration logic contracts: `codex-usage-contract`, `github-review-inbox-logic`, `monday-widgets-regression`, `flex-worktime-platform`, `calendar-ics-contract`, `weather-contract`.
+- Integration logic contracts: `codex-usage-contract`, `github-review-inbox-logic` (40 cases), `github-shared` (5 cases), `monday-widgets-regression`, `flex-worktime-platform`, `calendar-ics-contract`, `weather-contract`.
+
+## Known Coverage Gaps
+
+- `app.js` has no direct test; only `tests/widget-app-runtime.test.mjs` imports it. Its 5,120 lines of orchestration are covered only by the CDP smoke and manual checklist.
+- `widgets/githubPrList.js` has no dedicated test file.
+- `widgets/githubReviewInbox.js` tests cover pure logic (candidate inclusion, aging, tab split, read keys) but not the swipe-to-ignore pointer gesture, read-state transition, cache rehydration, or rendered error copy.
+- Rendered degraded/error copy is guarded only by source-string assertions in `tests/buyer-gate-source-contract.test.mjs`; upstream messages passed through at runtime are not asserted.
+- `styles.css` (5,556 lines) has no visual regression coverage, so the AGENTS.md header/footer layout invariants are unverified by automation.
 
 ## Production Readiness Gate
 
@@ -63,4 +71,4 @@ Minimum smoke coverage:
 
 ---
 
-*Testing analysis refreshed: 2026-05-18*
+*Testing analysis refreshed: 2026-08-14 (re-measured file/case counts, added coverage gap section)*

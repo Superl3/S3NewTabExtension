@@ -1,47 +1,66 @@
 # Codebase Structure
 
-**Analysis Date:** 2026-03-30
+**Analysis Date:** 2026-08-14 (re-measured against working tree)
+
+## Scale Snapshot
+
+| Area | Measure |
+|---|---|
+| Total JS/MJS/CSS/HTML | ~73,310 lines |
+| `app.js` | 5,120 lines, 92 imports, 23 module globals |
+| `core/` | 130 files, 15,788 lines, largest 513 lines |
+| `widgets/` | 22 widget modules + 25 `widgets/shared/` helpers |
+| `styles.css` | 5,556 lines (+2 auxiliary stylesheets) |
+| `tests/` | 138 files, 794 passing cases |
+| npm dependencies | 0 (no build toolchain) |
 
 ## Directory Layout
 
 ```text
 S3NewTabExtension/
-├── manifest.json                 # MV3 extension manifest and permissions
+├── manifest.json                 # MV3 manifest; no `background` key (no service worker)
 ├── newtab.html                   # New-tab DOM shell and module bootstrap
-├── app.js                        # Main application runtime (state, rendering, events)
-├── storage.js                    # chrome.storage persistence adapter
-├── bookmarks.js                  # Shared bookmark tree/path resolver utilities
+├── app.js                        # Runtime orchestration hub (state, wiring, injection)
+├── storage.js                    # chrome.storage.local -> localStorage -> defaults fallback
+├── bookmarks.js                  # Bookmark tree resolver with TTL cache + invalidation
 ├── styles.css                    # Main styling for board/widgets/settings/modals
 ├── single-item-surfaces.css      # Surface style overrides
 ├── widget-drag-motion.css        # Drag/overlay animation styles
 ├── config/
-│   └── startup-state.json        # Default startup snapshot source
+│   └── startup-state.json        # Composable defaults/presets/overrides (no inline instances)
+├── core/                         # 130 pure/injectable modules; see subdirectories below
+│   ├── alarm/                    # Tick scheduler + notification dispatcher
+│   ├── background/               # VISUAL wallpaper subsystem (NOT MV3 background)
+│   ├── modal/                    # Dock settings + widget title rename runtimes
+│   ├── platform/                 # chrome.* API seams (tabs, scripting, callbacks)
+│   ├── settings/                 # Settings panel runtime
+│   ├── state/                    # State merge policy
+│   ├── utils/                    # array/error/function/geometry/grid/json/number/object/padding/text
+│   └── widget/                   # Widget app-runtime composition
 ├── widgets/
-│   ├── index.js                  # Widget registry/list composition
-│   ├── clock.js                  # Clock widget module
-│   ├── search.js                 # Search widget module
-│   ├── bookmarks.js              # Bookmarks widget module
-│   ├── notes.js                  # Notes widget module
-│   ├── todo.js                   # TODO widget module
-│   ├── shortcut.js               # Shortcut widget module
-│   ├── label.js                  # Label widget module
-│   ├── gmail.js                  # Gmail widget module
-│   ├── calendar.js               # Calendar widget module
-│   ├── rss.js                    # RSS widget module
-│   ├── weather.js                # Weather widget module
-│   ├── aiChat.js                 # AI chat widget module
+│   ├── index.js                  # Registry with dynamic import loaders + viewport-lazy mount
+│   ├── metadata.js               # Declarative defaultConfig/settingsSchema per widget type
+│   ├── clock.js  search.js  notes.js  todo.js  label.js  shortcut.js
+│   ├── bookmarks.js  gmail.js  calendar.js  rss.js  weather.js  aiChat.js
 │   ├── githubPrList.js           # GitHub PR list widget module
-│   ├── mondayAssigned.js         # Monday assigned issues widget
-│   ├── mondayMeetingNote.js      # Monday meeting note widget
-│   ├── flexWorktime.js           # Flex worktime widget
-│   └── container.js              # Widget folder/container widget
+│   ├── githubReviewInbox.js      # GitHub review inbox widget (swipe-to-ignore, tabs, read state)
+│   ├── mondayAssigned.js  mondayMeetingNote.js
+│   ├── flexWorktime.js  flexWorktimeTimeline.js  codexUsage.js
+│   ├── container.js              # Widget folder/container widget
+│   └── shared/                   # 25 helpers: auth, feeds, flex, github, monday, caches, dates
+├── content-scripts/
+│   └── codexUsageScraper.js      # Text-anchored parser for the ChatGPT usage page
 ├── connector/
 │   ├── server.mjs                # Optional local OAuth/token relay server
+│   ├── redirect-policy.mjs       # Strict redirect allowlist logic
 │   └── .env.example              # Example env var names for connector
+├── tests/                        # 138 `*.test.mjs` files run by node:test
+├── scripts/
+│   ├── validate-production-readiness.mjs  # Release hygiene gate
+│   └── smoke-extension-cdp.mjs            # Unpacked-extension CDP smoke
 ├── docs/                         # Product/interaction specs and checklists
 ├── icons/                        # Extension icon assets
 ├── fonts/                        # Bundled font assets
-├── scripts/                      # Utility snippets/docs for manual workflows
 └── .planning/codebase/           # Generated architecture/quality/stack mapping docs
 ```
 
@@ -86,13 +105,17 @@ S3NewTabExtension/
 - `connector/.env.example`: Connector variable names and expected settings (example only).
 
 **Core Logic:**
-- `app.js`: Global state, render pipeline, board/dock/container/page interactions, settings UI, save/undo/history.
-- `storage.js`: State load/save adapter for `chrome.storage.local`.
-- `widgets/index.js`: Registry and ordered widget list.
-- `bookmarks.js`: Bookmark-root resolution utility.
+- `app.js`: Global state, render pipeline, board/dock/container/page interactions, settings UI, save/undo/history. Increasingly an injection hub over `core/` rather than a logic holder.
+- `core/`: 130 pure/injectable modules holding the extracted logic; most have a 1:1 `tests/<name>.test.mjs` counterpart.
+- `storage.js`: State load/save adapter with `chrome.storage.local` -> `localStorage` -> cloned-defaults fallback.
+- `widgets/index.js`: Registry, dynamic import loaders, and viewport-proximity lazy mounting.
+- `bookmarks.js`: Bookmark-root resolution with a 1,200ms TTL cache and event-driven invalidation.
 
 **Testing:**
-- Not detected: no dedicated test directory (`test/`, `tests/`, `__tests__/`) and no `*.test.*` / `*.spec.*` files found in project tree.
+- Location: `tests/*.test.mjs`, run by the Node built-in `node:test` runner via `npm test`.
+- Current scale: 138 test files, 794 passing cases, ~1.4s total runtime.
+- Gates: `npm test` (unit/contract), `npm run test:production` (release hygiene, guards that all 138 test files stay present), `npm run smoke:extension` (unpacked-extension CDP smoke).
+- Known gaps: `app.js` itself is only touched indirectly by one test file, `widgets/githubPrList.js` has no test file, and there is no visual regression coverage for `styles.css`.
 
 ## Naming Conventions
 
@@ -126,21 +149,13 @@ S3NewTabExtension/
 - Generated: Yes.
 - Committed: Yes.
 
-**`.tmp/`:**
-- Purpose: Session and external-context scratch artifacts.
-- Generated: Yes.
-- Committed: Yes (present in repository tree).
-
-**`.ruff_cache/`:**
-- Purpose: Tool cache artifacts.
-- Generated: Yes.
-- Committed: Yes (present in repository tree).
-
 **`icons/` and `fonts/`:**
 - Purpose: Static assets loaded by extension UI.
 - Generated: No.
 - Committed: Yes.
 
+> Removed 2026-08-14: previous revisions listed `.tmp/` and `.ruff_cache/` as committed directories. Neither exists in the working tree.
+
 ---
 
-*Structure analysis: 2026-03-30*
+*Structure analysis: 2026-08-14 (re-measured: added core/tests/content-scripts layout, scale snapshot, corrected stale "no tests detected" and phantom cache directories)*
