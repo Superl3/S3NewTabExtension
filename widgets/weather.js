@@ -1,4 +1,4 @@
-import { normalizeErrorMessage } from "../core/utils/error.js";
+import { describeRequestError, normalizeErrorMessage } from "../core/utils/error.js";
 import { parseJsonOrNull } from "../core/utils/json.js";
 import {
   clamp,
@@ -8,6 +8,8 @@ import {
 } from "../core/utils/number.js";
 import { normalizeText } from "../core/utils/text.js";
 import { pruneCacheIndex, touchCacheIndex } from "./shared/localStorageCacheIndex.js";
+
+const WEATHER_ERROR_CONTEXT = { subject: "Weather", hint: "Check the location settings." };
 
 const GEOCODING_API_URL = "https://geocoding-api.open-meteo.com/v1/search";
 const FORECAST_API_URL = "https://api.open-meteo.com/v1/forecast";
@@ -591,7 +593,7 @@ export const weatherWidget = {
         } else {
           weather = null;
           weatherFetchedAt = 0;
-          errorMessage = normalizeErrorMessage(error);
+          errorMessage = describeRequestError(error, WEATHER_ERROR_CONTEXT);
         }
       } finally {
         if (requestId !== requestSerial) {

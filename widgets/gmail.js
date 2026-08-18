@@ -1,4 +1,4 @@
-import { normalizeErrorMessage } from "../core/utils/error.js";
+import { describeRequestError, normalizeErrorMessage } from "../core/utils/error.js";
 import { normalizeIntegerInRange } from "../core/utils/number.js";
 import { normalizeText } from "../core/utils/text.js";
 import { formatLocalDateTimeLabel as formatDateLabel } from "./shared/dateLabels.js";
@@ -8,6 +8,8 @@ import {
   readFeedNodeText as nodeText
 } from "./shared/feedXml.js";
 import { normalizeGoogleAccountIndex as normalizeAccountIndex } from "./shared/googleAccounts.js";
+
+const GMAIL_ERROR_CONTEXT = { subject: "Gmail", hint: "Check the account index in widget settings." };
 
 const GMAIL_WEB_BASE_URL = "https://mail.google.com/mail";
 
@@ -436,7 +438,7 @@ export const gmailWidget = {
 
         messageItems = [];
         unreadTotal = 0;
-        errorMessage = normalizeErrorMessage(error);
+        errorMessage = describeRequestError(error, GMAIL_ERROR_CONTEXT);
       } finally {
         if (requestId !== requestSerial) {
           return;

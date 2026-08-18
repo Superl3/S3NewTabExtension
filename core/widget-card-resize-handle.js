@@ -1,6 +1,7 @@
 export function attachWidgetResizeHandle({
   resizeHandle,
   instance,
+  getInstance,
   isEditMode,
   setSelected,
   isGridLayoutMode,
@@ -26,7 +27,11 @@ export function attachWidgetResizeHandle({
     return;
   }
 
+  // Resolve the instance currently held in state; hydrate() replaces objects.
+  const resolveInstance = () => getInstance?.() || instance;
+
   resizeHandle.addEventListener("pointerdown", (event) => {
+    const instance = resolveInstance();
     if (!isEditMode?.()) {
       return;
     }

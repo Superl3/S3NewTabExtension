@@ -1,6 +1,13 @@
+import { widgetCardSignature } from "./widget-card-signature.js";
+
 export function createWidgetCardRuntime(deps) {
   function createWidgetCard(instance) {
     const def = deps.widgetRegistry[instance.type];
+    const widgetId = instance.id;
+    // hydrate() allocates fresh instance objects, so long-lived card closures must
+    // resolve the object currently held in state instead of capturing this one.
+    // Otherwise post-restore drag/resize/padding mutations land on an orphan.
+    const liveInstance = () => deps.instanceById?.(widgetId) || instance;
     const fragment = deps.elements.template.content.cloneNode(true);
     const card = fragment.querySelector(".widget-card");
     const shell = fragment.querySelector(".widget-shell");
@@ -63,7 +70,7 @@ export function createWidgetCardRuntime(deps) {
       container: contentSlot || body,
       ...deps.buildWidgetControllerContext({
         widgetId: instance.id,
-        getWidget: () => instance,
+        getWidget: liveInstance,
         getUi: () => deps.getState().ui,
         getAllWidgets: () => deps.getState().instances,
         getWidgetDefinition: (type) => deps.widgetRegistry[type] || null,
@@ -138,7 +145,7 @@ export function createWidgetCardRuntime(deps) {
     };
 
     deps.attachWidgetTypeActions({
-      instance,
+      instance: liveInstance(),
       controller,
       selectBtn,
       headActions,
@@ -149,13 +156,14 @@ export function createWidgetCardRuntime(deps) {
     deps.attachWidgetCardClickBehavior({
       card,
       instance,
+      getInstance: liveInstance,
       isEditMode: () => deps.getState().mode === "edit",
       getLastDragEndAt: deps.getLastDragEndAt,
       setSelected: deps.setSelected,
       openWidgetModal: deps.openWidgetModal,
       toggleContainerExpanded: () => {
-        deps.patchWidgetConfig(instance.id, {
-          expanded: instance.config?.expanded !== true
+        deps.patchWidgetConfig(widgetId, {
+          expanded: liveInstance().config?.expanded !== true
         }, { record: false });
       }
     });
@@ -163,7 +171,7 @@ export function createWidgetCardRuntime(deps) {
     const startDrag = (options = {}) => {
       return deps.startWidgetCardDragSession({
         ...options,
-        instance,
+        instance: liveInstance(),
         card,
         isEditMode: () => deps.getState().mode === "edit",
         setSelected: deps.setSelected,
@@ -257,7 +265,7 @@ export function createWidgetCardRuntime(deps) {
       deps.startWidgetPaddingDragSession({
         event,
         corner,
-        instance,
+        instance: liveInstance(),
         isEditMode: () => deps.getState().mode === "edit",
         setSelected: deps.setSelected,
         widgetPaddingFallback: deps.widgetPaddingFallback,
@@ -284,6 +292,7 @@ export function createWidgetCardRuntime(deps) {
       paddingHandleTopRight,
       paddingHandleBottomLeft,
       instance,
+      getInstance: liveInstance,
       isEditMode: () => deps.getState().mode === "edit",
       hasPointerEvent: () => typeof deps.windowObj.PointerEvent !== "undefined",
       startDrag,
@@ -295,6 +304,7 @@ export function createWidgetCardRuntime(deps) {
     deps.attachWidgetResizeHandle({
       resizeHandle,
       instance,
+      getInstance: liveInstance,
       isEditMode: () => deps.getState().mode === "edit",
       setSelected: deps.setSelected,
       isGridLayoutMode: deps.isGridLayoutMode,
@@ -322,7 +332,8 @@ export function createWidgetCardRuntime(deps) {
       card,
       controller,
       instance,
-      type: instance.type
+      type: instance.type,
+      signature: widgetCardSignature(instance)
     });
   }
 

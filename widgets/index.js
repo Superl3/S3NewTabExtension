@@ -35,6 +35,33 @@ function renderLazyWidgetStatus(container, message) {
   container.replaceChildren(status);
 }
 
+function renderLazyWidgetFailure(container, onRetry) {
+  const documentObj = container?.ownerDocument;
+  if (!container?.replaceChildren || !documentObj?.createElement) {
+    return;
+  }
+
+  const holder = documentObj.createElement("div");
+  holder.className = "widget-lazy-status widget-lazy-status-error";
+
+  const message = documentObj.createElement("p");
+  message.className = "widget-lazy-status-message muted";
+  message.textContent = "This widget could not be loaded.";
+
+  const retry = documentObj.createElement("button");
+  retry.type = "button";
+  retry.className = "widget-lazy-retry";
+  retry.textContent = "Retry";
+  retry.addEventListener("click", (event) => {
+    event?.preventDefault?.();
+    event?.stopPropagation?.();
+    onRetry?.();
+  });
+
+  holder.append(message, retry);
+  container.replaceChildren(holder);
+}
+
 function resolveLazyWidgetTarget(container) {
   return container?.closest?.(".widget-card") || container || null;
 }
@@ -135,8 +162,10 @@ function createLazyController(definition, context = {}) {
       })
       .catch((error) => {
         console.warn(`Failed to load widget module: ${definition.type}`, error);
+        // Release the latch so refresh/retry can attempt the load again.
+        loadStarted = false;
         if (!destroyed) {
-          renderLazyWidgetStatus(container, "Widget failed to load.");
+          renderLazyWidgetFailure(container, () => startLoad());
         }
       });
   };
@@ -204,8 +233,8 @@ function createLazyController(definition, context = {}) {
   };
 }
 
-function createLazyWidgetDefinition(meta) {
-  const loader = widgetLoaders[meta.type];
+function createLazyWidgetDefinition(meta, loaderOverride = null) {
+  const loader = loaderOverride || widgetLoaders[meta.type];
   let loadedDefinition = null;
   let loadPromise = null;
 
@@ -219,13 +248,19 @@ function createLazyWidgetDefinition(meta) {
         return Promise.reject(new Error(`No widget loader registered for ${meta.type}`));
       }
       if (!loadPromise) {
-        loadPromise = loader().then((definition) => {
-          if (!definition || typeof definition.create !== "function") {
-            throw new Error(`Widget module for ${meta.type} did not export a create function`);
-          }
-          loadedDefinition = definition;
-          return loadedDefinition;
-        });
+        loadPromise = loader()
+          .then((definition) => {
+            if (!definition || typeof definition.create !== "function") {
+              throw new Error(`Widget module for ${meta.type} did not export a create function`);
+            }
+            loadedDefinition = definition;
+            return loadedDefinition;
+          })
+          .catch((error) => {
+            // Never memoize a rejection: a transient import failure must stay retryable.
+            loadPromise = null;
+            throw error;
+          });
       }
       return loadPromise;
     },
@@ -242,3 +277,11 @@ export const widgetRegistry = Object.fromEntries(
 export const widgetList = Object.values(widgetRegistry);
 
 export const defaultWidgetType = widgetList[0]?.type || "clock";
+
+export function createLazyWidgetDefinitionForTest(meta, loaderOverride) {
+  return createLazyWidgetDefinition(meta, loaderOverride);
+}
+
+export function createLazyWidgetControllerForTest(definition, context) {
+  return createLazyController(definition, context);
+}

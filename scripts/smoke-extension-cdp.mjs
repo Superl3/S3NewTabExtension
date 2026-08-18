@@ -300,7 +300,7 @@ function collectStatsExpression() {
       widgetCount: widgets.length,
       clockCount: widgets.filter((widget) => widget.type === "clock").length,
       loadingCount: widgets.filter((widget) => /Loading widget/i.test(widget.text)).length,
-      hasWidgetFailed: /Widget failed to load/i.test(text),
+      hasWidgetFailed: /Widget failed to load|This widget could not be loaded/i.test(text),
       hasRawErrorText: /Unknown error|Failed to fetch|chrome is not defined/i.test(text),
       modalOpen: document.body.classList.contains("modal-open"),
       widgets

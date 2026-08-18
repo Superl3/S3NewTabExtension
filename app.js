@@ -1,4 +1,4 @@
-import { STORAGE_KEY, loadState, saveState } from "./storage.js";
+import { STORAGE_KEY, loadState, readStorageUsage, saveState } from "./storage.js";
 import { defaultWidgetType, widgetRegistry, widgetList } from "./widgets/index.js";
 import {
   FALLBACK_DEFAULT_GRID,
@@ -1312,6 +1312,12 @@ const persistenceRuntime = createPersistenceRuntime({
   buildPersistSnapshot,
   onPersistError: (error) => {
     console.warn("Failed to persist dashboard state", error);
+    showAppToast(
+      error?.isQuotaError === true
+        ? "Storage is full, so your dashboard could not be saved. Remove a widget or clear cached data."
+        : "Your dashboard could not be saved. Recent changes may be lost on reload.",
+      { duration: 6000 }
+    );
   }
 });
 
@@ -2615,7 +2621,7 @@ function syncAddWidgetSizeInputs() {
   }
 }
 
-function showAddWidgetToast(message, { duration = 2800 } = {}) {
+function showAppToast(message, { duration = 2800 } = {}) {
   const toast = elements.addWidgetToast;
   const text = normalizeText(message);
   if (!toast || !text) {
@@ -2637,6 +2643,10 @@ function showAddWidgetToast(message, { duration = 2800 } = {}) {
     toast.setAttribute("aria-hidden", "true");
     addWidgetToastTimer = null;
   }, timeout);
+}
+
+function showAddWidgetToast(message, options = {}) {
+  return showAppToast(message, options);
 }
 
 function openAddWidgetModal() {
@@ -5085,6 +5095,17 @@ function wireEvents() {
   });
 }
 
+async function warnWhenStorageNearQuota() {
+  const usage = await readStorageUsage();
+  if (!usage?.nearQuota) {
+    return;
+  }
+  showAppToast(
+    "Dashboard storage is almost full. Remove unused widgets or clear cached widget data to keep saving.",
+    { duration: 6000 }
+  );
+}
+
 // Startup/orchestrator smoke target for subtask 17: init() -> wireEvents() -> renderBoard().
 async function init() {
   populateTypeSelect();
@@ -5115,6 +5136,7 @@ async function init() {
   applyBackground();
   wireEvents();
   renderBoard();
+  void warnWhenStorageNearQuota();
 }
 
 void init();

@@ -1,5 +1,5 @@
 import { arrayOrEmpty } from "../core/utils/array.js";
-import { normalizeErrorMessage } from "../core/utils/error.js";
+import { describeRequestError, normalizeErrorMessage } from "../core/utils/error.js";
 import { normalizeText } from "../core/utils/text.js";
 import {
   areGitHubCachedItemsEqual as areCachedItemsEqual,
@@ -24,7 +24,7 @@ import {
   parseGitHubTimestamp
 } from "./shared/githubApi.js";
 
-const GITHUB_PR_ERROR_FALLBACK = "GitHub pull requests are not available. Check the repository setting and try again.";
+const GITHUB_PR_ERROR_CONTEXT = { subject: "GitHub pull requests", hint: "Check the repository setting." };
 
 function normalizeCachedPullItem(entry) {
   const base = normalizeCachedItemBase(entry);
@@ -459,7 +459,7 @@ export const githubPrListWidget = {
         if (requestId !== requestSerial) {
           return;
         }
-        errorMessage = normalizeErrorMessage(error, GITHUB_PR_ERROR_FALLBACK);
+        errorMessage = describeRequestError(error, GITHUB_PR_ERROR_CONTEXT);
       } finally {
         if (requestId !== requestSerial) {
           return;

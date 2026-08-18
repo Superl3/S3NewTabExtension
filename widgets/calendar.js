@@ -1,10 +1,12 @@
-import { normalizeErrorMessage } from "../core/utils/error.js";
+import { describeRequestError, normalizeErrorMessage } from "../core/utils/error.js";
 import { normalizeIntegerInRange } from "../core/utils/number.js";
 import { normalizeText } from "../core/utils/text.js";
 import { normalizeGoogleAccountIndex as normalizeAccountIndex } from "./shared/googleAccounts.js";
 import { parseIcsEvents } from "./shared/icsParser.js";
 import { normalizeHttpUrl } from "./shared/linkUrls.js";
 import { addLocalDays as addDays, toLocalDateKey } from "./shared/localDates.js";
+
+const CALENDAR_ERROR_CONTEXT = { subject: "Calendar", hint: "Check the calendar URL in widget settings." };
 
 const GOOGLE_CALENDAR_HOST = "https://calendar.google.com";
 const GOOGLE_CALENDAR_WEB_URL = `${GOOGLE_CALENDAR_HOST}/calendar/u/0/r`;
@@ -690,7 +692,7 @@ export const calendarWidget = {
 
         eventItems = [];
         eventDayCountMap = new Map();
-        errorMessage = normalizeErrorMessage(error);
+        errorMessage = describeRequestError(error, CALENDAR_ERROR_CONTEXT);
       } finally {
         if (requestId !== requestSerial) {
           return;

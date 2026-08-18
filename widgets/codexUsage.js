@@ -1,9 +1,12 @@
 import { executeScript } from "../core/platform/chrome-scripting.js";
 import { waitForTabReady } from "../core/platform/chrome-tabs.js";
 import { arrayOrEmpty } from "../core/utils/array.js";
-import { normalizeErrorMessage } from "../core/utils/error.js";
+import { describeRequestError, normalizeErrorMessage } from "../core/utils/error.js";
 import { clamp, toFiniteNumber, toTruthyFiniteNumberOrFallback } from "../core/utils/number.js";
 import { normalizeText } from "../core/utils/text.js";
+
+const CODEX_SYNC_ERROR_CONTEXT = { subject: "Codex usage", hint: "Open the usage page and sign in, then sync again." };
+const CODEX_OPEN_ERROR_CONTEXT = { subject: "The Codex usage page", hint: "Open it manually in a new tab." };
 
 const CODEX_USAGE_URL = "https://chatgpt.com/codex/settings/usage";
 const CHATGPT_TAB_MATCH = "https://chatgpt.com/*";
@@ -590,7 +593,7 @@ export const codexUsageWidget = {
         }
       } catch (error) {
         if (!errorMessage) {
-          errorMessage = normalizeErrorMessage(error, "Could not sync usage data.");
+          errorMessage = describeRequestError(error, CODEX_SYNC_ERROR_CONTEXT);
         }
       } finally {
         loading = false;
@@ -640,7 +643,7 @@ export const codexUsageWidget = {
       event.preventDefault();
       event.stopPropagation();
       void openUsagePage().catch((error) => {
-        errorMessage = normalizeErrorMessage(error, "Could not open usage page.");
+        errorMessage = describeRequestError(error, CODEX_OPEN_ERROR_CONTEXT);
         render();
       });
     });
