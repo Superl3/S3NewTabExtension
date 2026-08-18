@@ -3842,6 +3842,47 @@ body.mode-edit .widget-float-remove:hover {
   align-content: start;
 }
 
+.widget-recovery-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: center;
+  margin-top: 6px;
+}
+
+.widget-recovery-action {
+  border: 1px solid color-mix(in srgb, var(--line), transparent 20%);
+  border-radius: 8px;
+  padding: 3px 10px;
+  color: var(--text);
+  background: color-mix(in srgb, var(--widget-effective-surface, var(--surface)), transparent 8%);
+  font-size: 0.84em;
+  cursor: pointer;
+}
+
+.widget-recovery-action:hover,
+.widget-recovery-action:focus-visible {
+  border-color: color-mix(in srgb, var(--accent), var(--line) 40%);
+  color: color-mix(in srgb, var(--accent), var(--text) 24%);
+}
+
+.widget-stale-notice {
+  margin: 0;
+  color: color-mix(in srgb, var(--warn), var(--text) 30%);
+  font-size: 0.8em;
+  text-align: center;
+}
+
+.github-pr-recovery,
+.github-review-inbox-recovery,
+.github-pr-stale,
+.github-review-inbox-stale {
+  min-height: 0;
+  height: auto;
+  border: 0;
+  background: none;
+}
+
 .github-pr-empty {
   margin: 0;
   border: 1px dashed color-mix(in srgb, var(--line), transparent 42%);

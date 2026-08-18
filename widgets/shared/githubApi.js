@@ -158,12 +158,24 @@ export function formatGitHubRelativeTimestamp(parsedTimestamp) {
   return new Date(parsed).toLocaleDateString();
 }
 
-export function formatGitHubSyncedLabel(timestampMs) {
+export function formatGitHubSyncedLabel(timestampMs, nowMs = Date.now()) {
   const ts = Number(timestampMs);
   if (!Number.isFinite(ts) || ts <= 0) {
     return "";
   }
-  return new Date(ts).toLocaleTimeString();
+
+  const synced = new Date(ts);
+  const now = new Date(nowMs);
+  const sameDay =
+    synced.getFullYear() === now.getFullYear() &&
+    synced.getMonth() === now.getMonth() &&
+    synced.getDate() === now.getDate();
+
+  // A time-only label made a day-old cache indistinguishable from a fresh one.
+  if (sameDay) {
+    return synced.toLocaleTimeString();
+  }
+  return `${synced.toLocaleDateString()} ${synced.toLocaleTimeString()}`;
 }
 
 function readHeader(headers, name) {

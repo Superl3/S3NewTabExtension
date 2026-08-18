@@ -2,6 +2,7 @@ import { arrayOrEmpty } from "../core/utils/array.js";
 import { describeRequestError, normalizeErrorMessage } from "../core/utils/error.js";
 import { normalizeIntegerInRange } from "../core/utils/number.js";
 import { normalizeText } from "../core/utils/text.js";
+import { buildStaleDataNotice, buildWidgetRecoveryActions } from "./shared/widgetRecoveryActions.js";
 import {
   buildReviewCandidate,
   normalizeGithubLogin
@@ -1116,7 +1117,31 @@ export const githubReviewInboxWidget = {
             : "No pull requests currently need your review.";
         }
         list.append(empty);
+
+        if (!loading && (errorMessage || !cfg.repository || !cfg.githubLogin)) {
+          const actions = buildWidgetRecoveryActions(document, {
+            onRetry: errorMessage ? () => void loadReviewInbox() : null,
+            onOpenSettings: () => openSettings?.()
+          });
+          if (actions) {
+            const actionRow = document.createElement("li");
+            actionRow.className = "github-pr-empty github-review-inbox-recovery";
+            actionRow.append(actions);
+            list.append(actionRow);
+          }
+        }
         return;
+      }
+
+      // Cached rows look identical to live data, so say so when the last sync failed.
+      if (errorMessage) {
+        const notice = buildStaleDataNotice(document, formatSyncedLabel(lastSyncedAt));
+        if (notice) {
+          const noticeRow = document.createElement("li");
+          noticeRow.className = "github-pr-empty github-review-inbox-stale";
+          noticeRow.append(notice);
+          list.append(noticeRow);
+        }
       }
 
       for (const item of visibleItems) {

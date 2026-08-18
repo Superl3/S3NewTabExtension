@@ -1,6 +1,7 @@
 import { arrayOrEmpty } from "../core/utils/array.js";
 import { describeRequestError, normalizeErrorMessage } from "../core/utils/error.js";
 import { normalizeText } from "../core/utils/text.js";
+import { buildStaleDataNotice, buildWidgetRecoveryActions } from "./shared/widgetRecoveryActions.js";
 import {
   areGitHubCachedItemsEqual as areCachedItemsEqual,
   buildGitHubApiHeaders,
@@ -350,12 +351,36 @@ export const githubPrListWidget = {
         } else if (!cfg.repository) {
           empty.textContent = "Add a repository in widget settings to load pull requests.";
         } else if (errorMessage) {
-          empty.textContent = "Pull requests are not available. Check the repository setting and try again.";
+          empty.textContent = errorMessage;
         } else {
           empty.textContent = "No open pull requests.";
         }
         list.append(empty);
+
+        if (!loading && (errorMessage || !cfg.repository)) {
+          const actions = buildWidgetRecoveryActions(document, {
+            onRetry: errorMessage ? () => void loadPullRequests() : null,
+            onOpenSettings: () => openSettings?.()
+          });
+          if (actions) {
+            const actionRow = document.createElement("li");
+            actionRow.className = "github-pr-empty github-pr-recovery";
+            actionRow.append(actions);
+            list.append(actionRow);
+          }
+        }
         return;
+      }
+
+      // Cached rows look identical to live data, so say so when the last sync failed.
+      if (errorMessage) {
+        const notice = buildStaleDataNotice(document, formatSyncedLabel(lastSyncedAt));
+        if (notice) {
+          const noticeRow = document.createElement("li");
+          noticeRow.className = "github-pr-empty github-pr-stale";
+          noticeRow.append(notice);
+          list.append(noticeRow);
+        }
       }
 
       for (const pull of pullItems) {
