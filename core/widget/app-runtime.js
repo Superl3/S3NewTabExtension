@@ -1,4 +1,5 @@
 import { arrayOrEmpty } from "../utils/array.js";
+import { widgetCardSignature } from "../widget-card-signature.js";
 import {
   createWidgetCardRuntime as createWidgetCardRuntimeCore
 } from "../widget-card-runtime.js";
@@ -249,6 +250,7 @@ export function createAppWidgetRuntime(rawDeps) {
 
     rt.instance = instance;
     rt.type = instance.type;
+    rt.signature = widgetCardSignature(instance);
     deps.applyLayout(rt.card, instance.layout, instance.page);
     deps.applyCardVisual(rt.card, instance);
     deps.applyCardStack(rt.card, instance);
@@ -275,7 +277,10 @@ export function createAppWidgetRuntime(rawDeps) {
 
     for (const [instanceId, rt] of Array.from(deps.runtimeMap.entries())) {
       const instance = state.instances?.find((item) => item.id === instanceId);
-      if (!desiredIds.has(instanceId) || !instance || rt.type !== instance.type || rt.instance !== instance) {
+      // Compare content, not object identity: hydrate() reallocates instances on
+      // every snapshot restore, so an identity check would rebuild every card on
+      // undo, preset load, and cross-tab sync.
+      if (!desiredIds.has(instanceId) || !instance || rt.signature !== widgetCardSignature(instance)) {
         removeRuntimeEntry(instanceId);
       }
     }

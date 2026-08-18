@@ -1,4 +1,6 @@
 import test from "node:test";
+
+import { widgetCardSignature } from "../core/widget-card-signature.js";
 import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 
@@ -20,6 +22,7 @@ function createHarness(overrides = {}) {
     clearWidgetDragGuideState: 0,
     clearContainerDropTargets: 0,
     boardReplaceChildren: 0,
+    boardAppend: [],
     syncLauncherPagingState: [],
     normalizeDockedWidgetOrders: [],
     syncZCounterFromState: 0,
@@ -68,6 +71,9 @@ function createHarness(overrides = {}) {
       board: {
         replaceChildren() {
           calls.boardReplaceChildren += 1;
+        },
+        append(...nodes) {
+          calls.boardAppend.push(...nodes);
         }
       }
     },
@@ -265,6 +271,18 @@ function createHarness(overrides = {}) {
       return {
         createWidgetCard(instance) {
           calls.createWidgetCard.push(instance.id);
+          // Mirror the real runtime: register the card so reuse is observable.
+          runtimeMap.set(instance.id, {
+            card: { id: `card-${instance.id}` },
+            controller: {
+              destroy() {
+                calls.destroyCalls += 1;
+              }
+            },
+            instance,
+            type: instance.type,
+            signature: widgetCardSignature(instance)
+          });
           return { instanceId: instance.id };
         }
       };
@@ -329,7 +347,8 @@ test("renderBoard keeps app-facing board composition localized", () => {
   assert.equal(harness.calls.clearWidgetDragGuideState, 1);
   assert.equal(harness.calls.clearContainerDropTargets, 1);
   assert.equal(harness.calls.destroyCalls, 1);
-  assert.equal(harness.runtimeMap.size, 0);
+  // The stale "old-1" entry is dropped and the renderable board widget is registered.
+  assert.deepEqual([...harness.runtimeMap.keys()], ["w-board"]);
   assert.equal(harness.calls.boardReplaceChildren, 0);
   assert.deepEqual(harness.calls.syncLauncherPagingState, [{ expandToFitInstances: true }]);
   assert.equal(harness.calls.normalizeDockedWidgetOrders.length, 1);
@@ -595,4 +614,66 @@ test("releaseWidgetFromDockByDrop preserves placeholder commit wiring through ap
   ]);
   assert.equal(harness.calls.boardReplaceChildren, 0);
   assert.deepEqual(harness.calls.createWidgetCard, []);
+});
+
+test("renderBoard reuses cards when a snapshot restore reallocates instances", () => {
+  const harness = createHarness();
+  const instance = {
+    id: "w-board",
+    type: "note",
+    enabled: true,
+    dockOrder: null,
+    containerId: "",
+    page: 0,
+    layout: { x: 1, y: 1, w: 10, h: 10 }
+  };
+  harness.state.instances = [instance];
+
+  harness.runtime.renderBoard();
+  assert.deepEqual(harness.calls.createWidgetCard, ["w-board"]);
+  assert.equal(harness.calls.destroyCalls, 0);
+
+  // Simulates hydrate(): new object identity, layout moved, same card-shaping fields.
+  harness.state.instances = [{ ...instance, layout: { x: 99, y: 99, w: 10, h: 10 } }];
+  harness.runtime.renderBoard();
+
+  assert.equal(
+    harness.calls.destroyCalls,
+    0,
+    "a layout-only restore must not destroy the widget controller"
+  );
+  assert.deepEqual(
+    harness.calls.createWidgetCard,
+    ["w-board"],
+    "the existing card must be reused instead of recreated"
+  );
+  assert.equal(harness.runtimeMap.size, 1);
+});
+
+test("renderBoard still rebuilds the card when card-shaping fields change", () => {
+  const harness = createHarness();
+  const instance = {
+    id: "w-board",
+    type: "note",
+    viewMode: "window",
+    enabled: true,
+    dockOrder: null,
+    containerId: "",
+    page: 0,
+    layout: { x: 1, y: 1, w: 10, h: 10 }
+  };
+  harness.state.instances = [instance];
+
+  harness.runtime.renderBoard();
+  assert.equal(harness.calls.destroyCalls, 0);
+
+  harness.state.instances = [{ ...instance, viewMode: "headless" }];
+  harness.runtime.renderBoard();
+
+  assert.equal(
+    harness.calls.destroyCalls,
+    1,
+    "a view mode change must rebuild the card"
+  );
+  assert.deepEqual(harness.calls.createWidgetCard, ["w-board", "w-board"]);
 });

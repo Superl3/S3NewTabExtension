@@ -1,3 +1,5 @@
+import { widgetCardSignature } from "./widget-card-signature.js";
+
 export function createWidgetCardRuntime(deps) {
   function createWidgetCard(instance) {
     const def = deps.widgetRegistry[instance.type];
@@ -330,7 +332,8 @@ export function createWidgetCardRuntime(deps) {
       card,
       controller,
       instance,
-      type: instance.type
+      type: instance.type,
+      signature: widgetCardSignature(instance)
     });
   }
 
