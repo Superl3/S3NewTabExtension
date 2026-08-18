@@ -14,6 +14,7 @@ export function isWithinDragClickSuppressionWindow(lastDragEndAt, {
 export function attachWidgetCardClickBehavior({
   card,
   instance,
+  getInstance,
   isEditMode,
   getLastDragEndAt,
   setSelected,
@@ -23,6 +24,8 @@ export function attachWidgetCardClickBehavior({
   if (!card || !instance) {
     return;
   }
+
+  const resolveInstance = () => getInstance?.() || instance;
 
   const isSuppressed = () => {
     const dragEndAt = typeof getLastDragEndAt === "function" ? getLastDragEndAt() : 0;
@@ -42,7 +45,7 @@ export function attachWidgetCardClickBehavior({
   );
 
   card.addEventListener("click", (event) => {
-    if (instance.type === "container") {
+    if (resolveInstance().type === "container") {
       if (isSuppressed()) {
         return;
       }
@@ -51,12 +54,12 @@ export function attachWidgetCardClickBehavior({
       }
 
       if (isEditMode?.()) {
-        setSelected?.(instance.id);
+        setSelected?.(resolveInstance().id);
       }
 
       event.preventDefault();
       event.stopPropagation();
-      toggleContainerExpanded?.(instance.id);
+      toggleContainerExpanded?.(resolveInstance().id);
       return;
     }
 
@@ -64,21 +67,21 @@ export function attachWidgetCardClickBehavior({
       return;
     }
 
-    setSelected?.(instance.id);
-    if (instance.type === "shortcut" && event?.target?.closest?.(".shortcut-tile")) {
+    setSelected?.(resolveInstance().id);
+    if (resolveInstance().type === "shortcut" && event?.target?.closest?.(".shortcut-tile")) {
       event.preventDefault();
       event.stopPropagation();
-      openWidgetModal?.(instance.id);
+      openWidgetModal?.(resolveInstance().id);
       return;
     }
 
-    if (instance.type === "aiChat" && event?.target?.closest?.(".ai-chat-widget")) {
+    if (resolveInstance().type === "aiChat" && event?.target?.closest?.(".ai-chat-widget")) {
       if (event?.target?.closest?.("form, input, textarea, button, a, [contenteditable='true']")) {
         return;
       }
       event.preventDefault();
       event.stopPropagation();
-      openWidgetModal?.(instance.id);
+      openWidgetModal?.(resolveInstance().id);
     }
   });
 }

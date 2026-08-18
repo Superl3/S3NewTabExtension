@@ -6,6 +6,7 @@ export function attachWidgetCardInteractionEvents({
   paddingHandleTopRight,
   paddingHandleBottomLeft,
   instance,
+  getInstance,
   isEditMode,
   hasPointerEvent,
   startDrag,
@@ -17,11 +18,13 @@ export function attachWidgetCardInteractionEvents({
     return;
   }
 
+  const resolveInstance = () => getInstance?.() || instance;
+
   head?.addEventListener("pointerdown", (event) => {
-    if (instance.type === "container") {
+    if (resolveInstance().type === "container") {
       return;
     }
-    if (instance.viewMode === "headless") {
+    if (resolveInstance().viewMode === "headless") {
       return;
     }
     if (!isEditMode?.()) {
@@ -34,10 +37,10 @@ export function attachWidgetCardInteractionEvents({
     if (hasPointerEvent?.()) {
       return;
     }
-    if (instance.type === "container") {
+    if (resolveInstance().type === "container") {
       return;
     }
-    if (instance.viewMode === "headless") {
+    if (resolveInstance().viewMode === "headless") {
       return;
     }
     if (!isEditMode?.()) {
@@ -49,7 +52,7 @@ export function attachWidgetCardInteractionEvents({
   title?.addEventListener("dblclick", (event) => {
     event.preventDefault();
     event.stopPropagation();
-    openWidgetTitleRenameModal?.(instance.id);
+    openWidgetTitleRenameModal?.(resolveInstance().id);
   });
 
   card?.addEventListener(
