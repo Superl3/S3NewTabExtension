@@ -1,5 +1,5 @@
 import { arrayOrEmpty } from "../core/utils/array.js";
-import { normalizeErrorMessage } from "../core/utils/error.js";
+import { describeRequestError, normalizeErrorMessage } from "../core/utils/error.js";
 import { normalizeIntegerInRange } from "../core/utils/number.js";
 import { normalizeText } from "../core/utils/text.js";
 import {
@@ -42,7 +42,7 @@ import {
   parseGitHubJsonResponse
 } from "./shared/githubApi.js";
 
-const REVIEW_INBOX_ERROR_FALLBACK = "GitHub review inbox is not available. Check repository and login settings.";
+const REVIEW_INBOX_ERROR_CONTEXT = { subject: "GitHub review inbox", hint: "Check the repository and login settings." };
 const REVIEW_INBOX_TAB_NEEDS_REVIEW = "needsReview";
 const REVIEW_INBOX_TAB_OPENED = "opened";
 const REVIEW_INBOX_SWIPE_START_THRESHOLD_PX = 18;
@@ -1259,7 +1259,7 @@ export const githubReviewInboxWidget = {
         if (requestId !== requestSerial) {
           return;
         }
-        errorMessage = normalizeErrorMessage(error, REVIEW_INBOX_ERROR_FALLBACK);
+        errorMessage = describeRequestError(error, REVIEW_INBOX_ERROR_CONTEXT);
       } finally {
         if (requestId !== requestSerial) {
           return;

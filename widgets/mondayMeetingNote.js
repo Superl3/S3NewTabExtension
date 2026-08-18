@@ -1,5 +1,5 @@
 import { arrayOrEmpty } from "../core/utils/array.js";
-import { normalizeErrorMessage } from "../core/utils/error.js";
+import { describeRequestError, normalizeErrorMessage } from "../core/utils/error.js";
 import { parseJsonOrNull } from "../core/utils/json.js";
 import { clamp } from "../core/utils/number.js";
 import { normalizeText } from "../core/utils/text.js";
@@ -14,6 +14,8 @@ import {
   updateAutoRefreshSlotsDoneForToday
 } from "./shared/autoRefreshSlots.js";
 import { formatLocalDateTimeLabel as formatDateLabel } from "./shared/dateLabels.js";
+
+const MONDAY_MEETING_ERROR_CONTEXT = { subject: "Monday meeting notes", hint: "Check the board ID in widget settings." };
 import {
   createAuthSessionStorage,
   createStoredAuthSessionForConnectorResult,
@@ -1294,7 +1296,7 @@ export const mondayMeetingNoteWidget = {
           await clearConnectionState({ clearStored: true });
           errorMessage = "Session expired. Connect Monday again.";
         } else {
-          errorMessage = normalizeErrorMessage(error);
+          errorMessage = describeRequestError(error, MONDAY_MEETING_ERROR_CONTEXT);
         }
         if (!boardEntries.some((entry) => Boolean(entry?.latest))) {
           hasFetched = false;
