@@ -2,6 +2,7 @@ import { arrayOrEmpty } from "../core/utils/array.js";
 import { describeRequestError, normalizeErrorMessage } from "../core/utils/error.js";
 import { normalizeIntegerInRange } from "../core/utils/number.js";
 import { normalizeText } from "../core/utils/text.js";
+import { buildStaleDataNotice, buildWidgetRecoveryActions } from "./shared/widgetRecoveryActions.js";
 import {
   buildReviewCandidate,
   normalizeGithubLogin
@@ -23,6 +24,7 @@ import {
   buildGitHubApiHeaders as buildApiHeaders,
   buildGitHubRepoApiUrl,
   buildGitHubRepoPullsPageUrl as buildRepoPullsPageUrl,
+  formatGitHubRateLimitMessage,
   formatGitHubRelativeTimestamp as formatRelativeTimestamp,
   formatGitHubSyncedLabel as formatSyncedLabel,
   GITHUB_API_BASE,
@@ -39,6 +41,7 @@ import {
   normalizeGitHubReviewerNames as normalizeReviewerNames,
   parseGitHubTimestamp as parseTimestamp,
   parseGitHubError,
+  readGitHubRateLimit,
   parseGitHubJsonResponse
 } from "./shared/githubApi.js";
 
@@ -52,6 +55,11 @@ const REVIEW_INBOX_SWIPE_RESET_ANIM_MS = 170;
 const REVIEW_INBOX_SWIPE_VERTICAL_TOLERANCE_RATIO = 0.75;
 const REVIEW_INBOX_READ_ITEMS_STORAGE_KEY = "s3:github-review-inbox-read-items:v1";
 const REVIEW_INBOX_DETAIL_PAGE_QUERY = { per_page: 100 };
+// Detail endpoints (reviews/comments/commits) are only used to derive attention and
+// participation timestamps, so they do not need the pull-request list's page depth.
+const REVIEW_INBOX_DETAIL_PAGE_LIMIT = 3;
+const REVIEW_INBOX_DETAIL_CONCURRENCY = 5;
+const REVIEW_INBOX_LIST_PAGE_LIMIT = 20;
 
 const REVIEW_INBOX_TABS = [
   { id: REVIEW_INBOX_TAB_NEEDS_REVIEW, label: "requested" },
@@ -310,7 +318,19 @@ async function fetchPagedJson(baseUrl, headers, maxPages = 20) {
     const bodyText = await response.text();
 
     if (!response.ok) {
+      const rateLimit = readGitHubRateLimit(response.headers);
+      if (rateLimit.exhausted || response.status === 429) {
+        const rateLimitError = new Error(formatGitHubRateLimitMessage(rateLimit.resetAtMs));
+        rateLimitError.isRateLimited = true;
+        rateLimitError.resetAtMs = rateLimit.resetAtMs;
+        throw rateLimitError;
+      }
       throw new Error(parseGitHubError(bodyText, response.status));
+    }
+
+    // Stop paging while a budget still remains for the next refresh cycle.
+    if (readGitHubRateLimit(response.headers).exhausted) {
+      break;
     }
 
     const payload = parseGitHubJsonResponse(bodyText, null);
@@ -368,7 +388,7 @@ function normalizedConfig(config) {
     githubLogin: normalizeGithubLogin(config?.githubLogin),
     accessToken: normalizeText(config?.accessToken),
     maxItems: normalizeMaxItems(config?.maxItems, 20),
-    refreshMinutes: normalizeRefreshMinutes(config?.refreshMinutes, 5),
+    refreshMinutes: normalizeRefreshMinutes(config?.refreshMinutes, 15),
     agingWarnDays: agingThresholds.warnDays,
     agingDangerDays: agingThresholds.dangerDays,
     openInNewTab: config?.openInNewTab !== false
@@ -432,6 +452,63 @@ async function fetchAuthenticatedViewerLogin(headers) {
   return normalizeGithubLogin(viewer?.login);
 }
 
+/**
+ * Choose which pull requests are worth spending detail requests on.
+ *
+ * Every expanded pull request costs 4 API calls, so expanding the whole open list
+ * made request volume scale with repository size rather than with what the widget
+ * can actually display. `maxItems` bounds each tab independently, and the oldest
+ * pull requests are preferred because aging review requests are what the widget
+ * is for.
+ */
+export function selectReviewInboxDetailCandidates(pulls, { githubLogin, maxItems } = {}) {
+  const limit = normalizeMaxItems(maxItems, 20);
+  const openPulls = arrayOrEmpty(pulls).filter(
+    (pull) => normalizeText(pull?.state, "open") === "open" && normalizeCacheNumber(pull?.number)
+  );
+
+  const { needsReview, opened } = splitReviewItemsByTab(
+    openPulls.map((pull) => ({ ...pull, author: pull?.user?.login })),
+    githubLogin
+  );
+
+  const byNumber = new Map(openPulls.map((pull) => [normalizeCacheNumber(pull.number), pull]));
+  const take = (items) =>
+    sortReviewItemsByCreatedAt(
+      items.map((item) => ({ ...item, createdAt: parseTimestamp(item?.created_at) }))
+    )
+      .slice(0, limit)
+      .map((item) => byNumber.get(normalizeCacheNumber(item.number)))
+      .filter(Boolean);
+
+  const selected = [...take(needsReview), ...take(opened)];
+  const seen = new Set();
+  return selected.filter((pull) => {
+    const key = normalizeCacheNumber(pull.number);
+    if (seen.has(key)) {
+      return false;
+    }
+    seen.add(key);
+    return true;
+  });
+}
+
+async function mapWithConcurrency(items, limit, mapper) {
+  const results = new Array(items.length);
+  let cursor = 0;
+
+  const workers = Array.from({ length: Math.max(1, Math.min(limit, items.length)) }, async () => {
+    while (cursor < items.length) {
+      const index = cursor;
+      cursor += 1;
+      results[index] = await mapper(items[index], index);
+    }
+  });
+
+  await Promise.all(workers);
+  return results;
+}
+
 async function fetchReviewInboxItems(config) {
   const pullsUrl = buildOpenPullsApiUrl(config.repository);
   if (!pullsUrl) {
@@ -450,25 +527,39 @@ async function fetchReviewInboxItems(config) {
     }
   }
 
-  const pulls = await fetchPagedJson(pullsUrl, headers, 20);
-  const openPulls = pulls.filter((pull) => normalizeText(pull?.state, "open") === "open");
+  const pulls = await fetchPagedJson(pullsUrl, headers, REVIEW_INBOX_LIST_PAGE_LIMIT);
+  // Bound detail expansion to what the widget can display. Expanding every open
+  // pull request made a 50-PR repository cost ~201 requests per refresh.
+  const detailCandidates = selectReviewInboxDetailCandidates(pulls, {
+    githubLogin: config.githubLogin,
+    maxItems: config.maxItems
+  });
+
+  const expanded = await mapWithConcurrency(
+    detailCandidates,
+    REVIEW_INBOX_DETAIL_CONCURRENCY,
+    async (pull) => {
+      const pullNumber = normalizeCacheNumber(pull?.number);
+      const reviewDetailUrls = [
+        ["pulls", pullNumber, "reviews"],
+        ["issues", pullNumber, "comments"],
+        ["pulls", pullNumber, "comments"],
+        ["pulls", pullNumber, "commits"]
+      ].map((pathParts) => buildGitHubRepoApiUrl(config.repository, pathParts, REVIEW_INBOX_DETAIL_PAGE_QUERY));
+      const [reviews, issueComments, reviewComments, commits] = await Promise.all(
+        reviewDetailUrls.map((url) => fetchPagedJson(url, headers, REVIEW_INBOX_DETAIL_PAGE_LIMIT))
+      );
+      return { pull, reviews, issueComments, reviewComments, commits };
+    }
+  );
 
   const reviewItems = [];
-  for (const pull of openPulls) {
-    const pullNumber = normalizeCacheNumber(pull?.number);
-    if (!pullNumber) {
+  for (const entry of expanded) {
+    if (!entry) {
       continue;
     }
-
-    const reviewDetailUrls = [
-      ["pulls", pullNumber, "reviews"],
-      ["issues", pullNumber, "comments"],
-      ["pulls", pullNumber, "comments"],
-      ["pulls", pullNumber, "commits"]
-    ].map((pathParts) => buildGitHubRepoApiUrl(config.repository, pathParts, REVIEW_INBOX_DETAIL_PAGE_QUERY));
-    const [reviews, issueComments, reviewComments, commits] = await Promise.all(
-      reviewDetailUrls.map((url) => fetchPagedJson(url, headers, 20))
-    );
+    const { pull, reviews, issueComments, reviewComments, commits } = entry;
+    const pullNumber = normalizeCacheNumber(pull?.number);
 
     const candidate = buildReviewCandidate({
       pullRequest: pull,
@@ -524,7 +615,7 @@ export const githubReviewInboxWidget = {
     githubLogin: "",
     accessToken: "",
     maxItems: 20,
-    refreshMinutes: 5,
+    refreshMinutes: 15,
     agingWarnDays: 3,
     agingDangerDays: 5,
     openInNewTab: true,
@@ -750,7 +841,7 @@ export const githubReviewInboxWidget = {
       const cfg = normalizedConfig(getConfig());
       timer = setTimeout(() => {
         void loadReviewInbox();
-      }, normalizeRefreshMinutes(cfg.refreshMinutes, 5) * 60000);
+      }, normalizeRefreshMinutes(cfg.refreshMinutes, 15) * 60000);
     }
 
     function openRepositoryPage() {
@@ -1026,7 +1117,31 @@ export const githubReviewInboxWidget = {
             : "No pull requests currently need your review.";
         }
         list.append(empty);
+
+        if (!loading && (errorMessage || !cfg.repository || !cfg.githubLogin)) {
+          const actions = buildWidgetRecoveryActions(document, {
+            onRetry: errorMessage ? () => void loadReviewInbox() : null,
+            onOpenSettings: () => openSettings?.()
+          });
+          if (actions) {
+            const actionRow = document.createElement("li");
+            actionRow.className = "github-pr-empty github-review-inbox-recovery";
+            actionRow.append(actions);
+            list.append(actionRow);
+          }
+        }
         return;
+      }
+
+      // Cached rows look identical to live data, so say so when the last sync failed.
+      if (errorMessage) {
+        const notice = buildStaleDataNotice(document, formatSyncedLabel(lastSyncedAt));
+        if (notice) {
+          const noticeRow = document.createElement("li");
+          noticeRow.className = "github-pr-empty github-review-inbox-stale";
+          noticeRow.append(notice);
+          list.append(noticeRow);
+        }
       }
 
       for (const item of visibleItems) {
@@ -1310,6 +1425,8 @@ export const githubReviewInboxWidget = {
 };
 
 export {
+  REVIEW_INBOX_DETAIL_CONCURRENCY,
+  REVIEW_INBOX_DETAIL_PAGE_LIMIT,
   buildOpenPullsApiUrl,
   buildRepoPullsPageUrl,
   buildCacheReviewItems,

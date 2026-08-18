@@ -1,6 +1,7 @@
 import { arrayOrEmpty } from "../core/utils/array.js";
 import { describeRequestError, normalizeErrorMessage } from "../core/utils/error.js";
 import { normalizeText } from "../core/utils/text.js";
+import { buildStaleDataNotice, buildWidgetRecoveryActions } from "./shared/widgetRecoveryActions.js";
 import {
   areGitHubCachedItemsEqual as areCachedItemsEqual,
   buildGitHubApiHeaders,
@@ -89,7 +90,7 @@ function normalizedConfig(config) {
     repository: normalizeRepository(config?.repository),
     accessToken: normalizeText(config?.accessToken),
     maxItems: normalizeMaxItems(config?.maxItems, 20),
-    refreshMinutes: normalizeRefreshMinutes(config?.refreshMinutes, 1),
+    refreshMinutes: normalizeRefreshMinutes(config?.refreshMinutes, 10),
     openInNewTab: config?.openInNewTab !== false,
     showBranchInfo: config?.showBranchInfo !== false,
     showReviewerInfo: config?.showReviewerInfo !== false
@@ -168,7 +169,7 @@ export const githubPrListWidget = {
     repository: "",
     accessToken: "",
     maxItems: 20,
-    refreshMinutes: 1,
+    refreshMinutes: 10,
     openInNewTab: true,
     showBranchInfo: true,
     showReviewerInfo: true,
@@ -299,7 +300,7 @@ export const githubPrListWidget = {
     function scheduleRefresh() {
       clearRefreshTimer();
       const cfg = normalizedConfig(getConfig());
-      const delayMs = normalizeRefreshMinutes(cfg.refreshMinutes, 1) * 60000;
+      const delayMs = normalizeRefreshMinutes(cfg.refreshMinutes, 10) * 60000;
       timer = setTimeout(() => {
         void loadPullRequests();
       }, delayMs);
@@ -350,12 +351,36 @@ export const githubPrListWidget = {
         } else if (!cfg.repository) {
           empty.textContent = "Add a repository in widget settings to load pull requests.";
         } else if (errorMessage) {
-          empty.textContent = "Pull requests are not available. Check the repository setting and try again.";
+          empty.textContent = errorMessage;
         } else {
           empty.textContent = "No open pull requests.";
         }
         list.append(empty);
+
+        if (!loading && (errorMessage || !cfg.repository)) {
+          const actions = buildWidgetRecoveryActions(document, {
+            onRetry: errorMessage ? () => void loadPullRequests() : null,
+            onOpenSettings: () => openSettings?.()
+          });
+          if (actions) {
+            const actionRow = document.createElement("li");
+            actionRow.className = "github-pr-empty github-pr-recovery";
+            actionRow.append(actions);
+            list.append(actionRow);
+          }
+        }
         return;
+      }
+
+      // Cached rows look identical to live data, so say so when the last sync failed.
+      if (errorMessage) {
+        const notice = buildStaleDataNotice(document, formatSyncedLabel(lastSyncedAt));
+        if (notice) {
+          const noticeRow = document.createElement("li");
+          noticeRow.className = "github-pr-empty github-pr-stale";
+          noticeRow.append(notice);
+          list.append(noticeRow);
+        }
       }
 
       for (const pull of pullItems) {
