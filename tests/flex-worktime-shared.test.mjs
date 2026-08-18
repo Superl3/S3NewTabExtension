@@ -239,7 +239,8 @@ test("Flex auth flow tab activator handles pending auth tabs", async () => {
 
 test("Flex base config normalizer preserves shared widget defaults", () => {
   assert.equal(FLEX_WORKTIME_DEFAULT_HOME_URL, "https://flex.team/home");
-  assert.equal(FLEX_WORKTIME_DEFAULT_REFRESH_MINUTES, 1);
+  // Flex worktime data changes hourly and each refresh may open a background tab.
+  assert.equal(FLEX_WORKTIME_DEFAULT_REFRESH_MINUTES, 15);
   assert.equal(FLEX_HOME_TAB_LOAD_TIMEOUT_MS, 20000);
   assert.equal(FLEX_WORKTIME_CACHE_MAX_ENTRIES, 24);
 

@@ -66,7 +66,10 @@ const DURATION_GENERIC_FIELDS = ["duration", "workDuration", "totalDuration", "d
 
 export const FLEX_WORKTIME_CACHE_MAX_ENTRIES = 24;
 export const FLEX_HOME_TAB_LOAD_TIMEOUT_MS = 20000;
-export const FLEX_WORKTIME_DEFAULT_REFRESH_MINUTES = 1;
+// Flex worktime changes on the scale of hours, and each refresh may open, script,
+// and close a background tab. A 1-minute default meant up to 60 tab lifecycles
+// per hour per widget.
+export const FLEX_WORKTIME_DEFAULT_REFRESH_MINUTES = 15;
 export const FLEX_WORKTIME_DEFAULT_HOME_URL = "https://flex.team/home";
 
 export function normalizeFlexRefreshMinutes(value, fallback = 10) {

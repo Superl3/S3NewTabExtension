@@ -1025,7 +1025,7 @@ export const widgetMetadata = [
       "repository": "",
       "accessToken": "",
       "maxItems": 20,
-      "refreshMinutes": 1,
+      "refreshMinutes": 10,
       "openInNewTab": true,
       "showBranchInfo": true,
       "showReviewerInfo": true,
@@ -1098,7 +1098,7 @@ export const widgetMetadata = [
     "defaultConfig": {
       "flexHomeUrl": "https://flex.team/home",
       "openFlexTabIfMissing": true,
-      "refreshMinutes": 1,
+      "refreshMinutes": 15,
       "detailUrlTemplate": "",
       "openInNewTab": true
     },
@@ -1155,7 +1155,7 @@ export const widgetMetadata = [
       "openFlexTabIfMissing": true,
       "dateMode": "today",
       "customDate": "",
-      "refreshMinutes": 1,
+      "refreshMinutes": 15,
       "detailUrlTemplate": "",
       "openInNewTab": true
     },
@@ -1243,7 +1243,7 @@ export const widgetMetadata = [
       "githubLogin": "",
       "accessToken": "",
       "maxItems": 20,
-      "refreshMinutes": 5,
+      "refreshMinutes": 15,
       "agingWarnDays": 3,
       "agingDangerDays": 5,
       "openInNewTab": true,

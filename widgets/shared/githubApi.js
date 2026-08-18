@@ -166,6 +166,44 @@ export function formatGitHubSyncedLabel(timestampMs) {
   return new Date(ts).toLocaleTimeString();
 }
 
+function readHeader(headers, name) {
+  const value = headers?.get?.(name) ?? headers?.get?.(name.toLowerCase());
+  if (value == null) {
+    return null;
+  }
+  // Treat blank/non-numeric headers as absent rather than as a zero budget.
+  const text = normalizeText(value);
+  return /^\d+$/.test(text) ? text : null;
+}
+
+/**
+ * Read GitHub's rate-limit budget from a response so callers can back off before
+ * being throttled instead of discovering it through a 403 body.
+ */
+export function readGitHubRateLimit(headers) {
+  const rawRemaining = readHeader(headers, "x-ratelimit-remaining");
+  const rawReset = readHeader(headers, "x-ratelimit-reset");
+
+  const remaining = rawRemaining == null ? null : toInteger(rawRemaining, 0);
+  const resetSeconds = rawReset == null ? null : toInteger(rawReset, 0);
+  const resetAtMs = resetSeconds ? resetSeconds * 1000 : 0;
+
+  return {
+    remaining,
+    resetAtMs,
+    exhausted: remaining != null && remaining <= 0
+  };
+}
+
+export function formatGitHubRateLimitMessage(resetAtMs) {
+  const resetAt = Number(resetAtMs);
+  if (!Number.isFinite(resetAt) || resetAt <= Date.now()) {
+    return "GitHub rate limit reached. It will retry automatically.";
+  }
+  const label = new Date(resetAt).toLocaleTimeString();
+  return `GitHub rate limit reached. Retrying after ${label}.`;
+}
+
 export function parseGitHubError(text, status) {
   const fallback = normalizeText(text, `GitHub request failed: HTTP ${status}`);
   const parsed = parseJsonOrFallback(text, null);

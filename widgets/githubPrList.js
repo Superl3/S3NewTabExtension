@@ -89,7 +89,7 @@ function normalizedConfig(config) {
     repository: normalizeRepository(config?.repository),
     accessToken: normalizeText(config?.accessToken),
     maxItems: normalizeMaxItems(config?.maxItems, 20),
-    refreshMinutes: normalizeRefreshMinutes(config?.refreshMinutes, 1),
+    refreshMinutes: normalizeRefreshMinutes(config?.refreshMinutes, 10),
     openInNewTab: config?.openInNewTab !== false,
     showBranchInfo: config?.showBranchInfo !== false,
     showReviewerInfo: config?.showReviewerInfo !== false
@@ -168,7 +168,7 @@ export const githubPrListWidget = {
     repository: "",
     accessToken: "",
     maxItems: 20,
-    refreshMinutes: 1,
+    refreshMinutes: 10,
     openInNewTab: true,
     showBranchInfo: true,
     showReviewerInfo: true,
@@ -299,7 +299,7 @@ export const githubPrListWidget = {
     function scheduleRefresh() {
       clearRefreshTimer();
       const cfg = normalizedConfig(getConfig());
-      const delayMs = normalizeRefreshMinutes(cfg.refreshMinutes, 1) * 60000;
+      const delayMs = normalizeRefreshMinutes(cfg.refreshMinutes, 10) * 60000;
       timer = setTimeout(() => {
         void loadPullRequests();
       }, delayMs);
