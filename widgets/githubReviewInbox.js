@@ -586,9 +586,9 @@ async function fetchReviewInboxItems(config) {
       author: normalizeText(pull?.user?.login, "unknown"),
       createdAt: parseTimestamp(pull?.created_at),
       draft: pull?.draft === true,
-      reviewRequested:
-        requestedReviewers.some((reviewer) => normalizeGithubLogin(reviewer?.login) === config.githubLogin) ||
-        teamCount > 0,
+      // Single source of truth shared with the inclusion logic, so the badge and
+      // the keep/drop decision can never disagree.
+      reviewRequested: candidate.reviewRequestPending,
       reviewerNames,
       teamCount,
       reason: candidate.reason,
