@@ -37,11 +37,49 @@ const REVIEW_REASON_META = {
   REVIEWED_NO_NEW_UPDATES: {
     label: "Already reviewed",
     included: false
+  },
+  REVIEW_REQUESTED_PENDING: {
+    label: "Review requested",
+    included: true
   }
 };
 
 export function normalizeGithubLogin(value) {
   return String(value || "").trim().replace(/^@+/, "").toLowerCase();
+}
+
+/**
+ * Is a review still outstanding according to GitHub itself?
+ *
+ * GitHub drops a reviewer from `requested_reviewers` the moment that reviewer
+ * submits a review, and re-adds them when the author re-requests. So a user still
+ * present in the list has a genuinely pending review, regardless of what their
+ * comment or approval history looks like.
+ *
+ * This is authoritative and must override the timestamp heuristics, which cannot
+ * see re-requests at all and previously dropped these items as "no new updates".
+ */
+export function hasPendingReviewRequest(pullRequest, githubLogin) {
+  const targetLogin = normalizeGithubLogin(githubLogin);
+  if (!targetLogin) {
+    return false;
+  }
+
+  // Never treat the author's own pull request as a pending review for themselves.
+  if (isSameGithubUser(pullRequest?.user?.login, targetLogin)) {
+    return false;
+  }
+
+  const directlyRequested = arrayOrEmpty(pullRequest?.requested_reviewers).some(
+    (reviewer) => normalizeGithubLogin(reviewer?.login) === targetLogin
+  );
+  if (directlyRequested) {
+    return true;
+  }
+
+  // A team request cannot be attributed to an individual, so an outstanding team
+  // request is treated as still needing this user's attention.
+  return arrayOrEmpty(pullRequest?.requested_teams).length > 0;
 }
 
 export function hasGithubMention(text, githubLogin) {
@@ -339,6 +377,17 @@ export function buildReviewCandidate({
 
   let classification = baseClassification;
 
+  // GitHub's own review-request state is authoritative: if the request is still
+  // open, the review is outstanding even when timestamps suggest otherwise.
+  const reviewRequestPending = hasPendingReviewRequest(pullRequest, githubLogin);
+  if (reviewRequestPending && !baseClassification.included) {
+    classification = {
+      reason: "REVIEW_REQUESTED_PENDING",
+      label: REVIEW_REASON_META.REVIEW_REQUESTED_PENDING.label,
+      included: true
+    };
+  }
+
   if (isOwnPullRequest) {
     if (latestAttentionAt <= 0) {
       classification = {
@@ -362,6 +411,7 @@ export function buildReviewCandidate({
     latestApprovalAt: participation.latestApprovalAt,
     hasApprovedUpdateSignal,
     hasParticipation: participation.hasParticipation,
+    reviewRequestPending,
     reason: classification.reason,
     reasonLabel: classification.label,
     included: classification.included
