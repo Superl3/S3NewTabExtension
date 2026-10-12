@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { areBookmarksAvailable, resolveBookmarkRoot } from "../bookmarks.js";
-import { loadState, saveState, STORAGE_KEY } from "../storage.js";
+import { loadState, readStoredState, saveState, STORAGE_KEY } from "../storage.js";
 import { bookmarksWidget } from "../widgets/bookmarks.js";
 import { shortcutWidget } from "../widgets/shortcut.js";
 
@@ -90,6 +90,7 @@ test("storage falls back safely when chrome storage is unavailable", async () =>
       const loaded = await loadState(defaultState);
       assert.equal(loaded.mode, "edit");
       assert.equal(loaded.ui.home.pageCount, 2);
+      assert.deepEqual(await readStoredState(), { mode: "edit", ui: { home: { pageCount: 2 } } });
     });
   });
 });

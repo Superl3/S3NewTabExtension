@@ -15,7 +15,8 @@ export function createStateExportSanitizer({
     if (!normalizedKey) {
       return false;
     }
-    return sensitiveKeywordParts.some((part) => normalizedKey.includes(part));
+    // A calendar feed URL grants access even when its credentials live in the path.
+    return normalizedKey === "icsurl" || sensitiveKeywordParts.some((part) => normalizedKey.includes(part));
   }
 
   function isVolatileBackgroundExportKey(key) {
@@ -34,10 +35,31 @@ export function createStateExportSanitizer({
     return volatileProfileKeywordParts.some((part) => normalizedKey.includes(part));
   }
 
+  function redactCredentialUrl(value) {
+    try {
+      const url = new URL(value);
+      let pathname = url.pathname;
+      try {
+        pathname = decodeURIComponent(pathname);
+      } catch {
+        // Malformed escapes must not bypass the raw private-path check.
+      }
+      const isPrivateCalendarFeed = url.hostname === "calendar.google.com" &&
+        pathname.startsWith("/calendar/ical/") && /\/private[-/]/i.test(pathname);
+      if (url.username || url.password || isPrivateCalendarFeed) {
+        return redactedValue;
+      }
+    } catch {
+      // Leave non-URL text intact.
+    }
+    return value;
+  }
+
   function sanitizeCredentialQueryParamsInString(value) {
     if (typeof value !== "string") {
       return value;
     }
+    value = value.replace(/\b(?:https?|webcal):\/\/[^\s<>"']+/gi, redactCredentialUrl);
 
     const queryIndex = value.indexOf("?");
     if (queryIndex < 0) {

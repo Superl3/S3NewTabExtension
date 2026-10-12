@@ -3,7 +3,7 @@ import test from "node:test";
 
 import { QUOTA_WARN_RATIO, STORAGE_KEY, readStorageUsage, saveState } from "../storage.js";
 
-function withGlobals(overrides, run) {
+async function withGlobals(overrides, run) {
   const saved = new Map();
   for (const [key, value] of Object.entries(overrides)) {
     saved.set(key, globalThis[key]);
@@ -14,7 +14,7 @@ function withGlobals(overrides, run) {
     }
   }
   try {
-    return run();
+    return await run();
   } finally {
     for (const [key, value] of saved.entries()) {
       if (value === undefined) {
@@ -126,9 +126,9 @@ test("saveState surfaces localStorage quota failures in fallback mode", async ()
   );
 });
 
-test("saveState stays silent when no storage backend exists", async () => {
+test("saveState reports failure when no storage backend exists", async () => {
   await withGlobals({ chrome: undefined, localStorage: undefined }, async () => {
-    await saveState({ ok: true });
+    await assert.rejects(() => saveState({ ok: true }), { name: "PersistError" });
   });
 });
 

@@ -198,3 +198,94 @@ test("wireStorageSync listens only local storage changes", () => {
   harness.calls.onChangedHandlers[0]({ dashboard: { newValue: { meta: { lastUserMutationAt: 40 } } } }, "sync");
   assert.equal(harness.calls.restore.length, 1);
 });
+
+test("a delayed newer write cannot be overwritten by an older tab", async () => {
+  let stored = { meta: { lastUserMutationAt: 0 }, instances: [] };
+  let releaseWrite;
+  let signalWrite;
+  const writeStarted = new Promise((resolve) => { signalWrite = resolve; });
+  const gate = new Promise((resolve) => { releaseWrite = resolve; });
+  const writes = [];
+  const sharedDeps = {
+    chromeStorageLocalGet: async () => ({ dashboard: structuredClone(stored) }),
+    saveState: async (snapshot) => {
+      writes.push(snapshot.meta.lastUserMutationAt);
+      signalWrite();
+      await gate;
+      stored = structuredClone(snapshot);
+    }
+  };
+  const newer = createHarness(sharedDeps);
+  const older = createHarness(sharedDeps);
+  newer.state.meta.lastUserMutationAt = 200;
+  older.state.meta.lastUserMutationAt = 100;
+  const newWrite = newer.runtime.saveSnapshotIfNotStale(newer.state, "new", 200);
+  await writeStarted;
+  const oldWrite = older.runtime.saveSnapshotIfNotStale(older.state, "old", 100);
+  releaseWrite();
+  assert.deepEqual(await Promise.all([newWrite, oldWrite]), [true, false]);
+  assert.deepEqual(writes, [200]);
+  assert.equal(stored.meta.lastUserMutationAt, 200);
+  assert.equal(older.calls.restore.length, 1);
+});
+
+test("simultaneous revisions keep the first saved dashboard and report the conflict", async () => {
+  let conflicts = 0;
+  const harness = createHarness({ onPersistConflict: () => { conflicts += 1; } });
+  harness.state.meta.lastUserMutationAt = 100;
+  harness.state.instances = [{ id: "local" }];
+  harness.storage.dashboard = { meta: { lastUserMutationAt: 100 }, instances: [{ id: "other-tab" }] };
+  const saved = await harness.runtime.saveSnapshotIfNotStale(harness.state, "local", 100);
+  assert.equal(saved, false);
+  assert.equal(harness.calls.saveState.length, 0);
+  assert.equal(conflicts, 1);
+  assert.equal(harness.calls.restore[0].snapshot.instances[0].id, "other-tab");
+});
+
+test("an identical saved revision is not reported as a conflict", async () => {
+  const harness = createHarness({ onPersistConflict: () => assert.fail("identical snapshot is not a conflict") });
+  harness.state.meta.lastUserMutationAt = 100;
+  harness.storage.dashboard = structuredClone(harness.state);
+  assert.equal(await harness.runtime.saveSnapshotIfNotStale(harness.state, "same", 100), true);
+});
+
+test("non-user cache updates can save at the existing revision", async () => {
+  const harness = createHarness();
+  harness.state.meta.lastUserMutationAt = 100;
+  harness.state.cache = "fresh";
+  harness.storage.dashboard = { meta: { lastUserMutationAt: 100 }, instances: [], cache: "old" };
+  assert.equal(await harness.runtime.saveSnapshotIfNotStale(harness.state, "cache", 100, { allowNonUserMutation: true }), true);
+  assert.equal(harness.storage.dashboard.cache, "fresh");
+});
+
+test("failed storage reads block writes and leave the mutation retryable", async () => {
+  let failed = true;
+  const errors = [];
+  const harness = createHarness({
+    chromeStorageLocalGet: async () => {
+      if (failed) throw new Error("read failed");
+      return {};
+    },
+    onPersistError: (error) => errors.push(error)
+  });
+  harness.state.meta.lastUserMutationAt = 100;
+  harness.runtime.persistLatestSnapshot();
+  await harness.persist.saveChain;
+  assert.equal(harness.calls.saveState.length, 0);
+  assert.equal(harness.persist.lastSavedUserMutationAt, 0);
+  assert.equal(errors.length, 1);
+  failed = false;
+  harness.runtime.persistLatestSnapshot();
+  await harness.persist.saveChain;
+  assert.equal(harness.calls.saveState.length, 1);
+  assert.equal(harness.persist.lastSavedUserMutationAt, 100);
+});
+
+test("a stale queued save does not replace a newer unsaved local edit", async () => {
+  const harness = createHarness();
+  harness.state.meta.lastUserMutationAt = 300;
+  harness.storage.dashboard = { meta: { lastUserMutationAt: 200 }, instances: [] };
+  assert.equal(await harness.runtime.saveSnapshotIfNotStale({ meta: { lastUserMutationAt: 100 } }, "old", 100), false);
+  assert.equal(harness.calls.restore.length, 0);
+  assert.equal(harness.state.meta.lastUserMutationAt, 300);
+});

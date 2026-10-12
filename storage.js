@@ -10,20 +10,19 @@ function localStorageFallback() {
   return globalThis.localStorage || null;
 }
 
+export async function readStoredState() {
+  const storage = chromeStorageLocal();
+  if (storage?.get) {
+    const stored = await storage.get(STORAGE_KEY);
+    return stored?.[STORAGE_KEY] ?? null;
+  }
+  const raw = localStorageFallback()?.getItem?.(STORAGE_KEY);
+  return raw ? JSON.parse(raw) : null;
+}
+
 export async function loadState(defaultState) {
   try {
-    const storage = chromeStorageLocal();
-    if (!storage?.get) {
-      const raw = localStorageFallback()?.getItem?.(STORAGE_KEY);
-      const current = raw ? JSON.parse(raw) : null;
-      if (current && isStateObject(current)) {
-        return mergeStateObjects(defaultState, current);
-      }
-      return structuredClone(defaultState);
-    }
-
-    const stored = await storage.get(STORAGE_KEY);
-    const current = stored?.[STORAGE_KEY];
+    const current = await readStoredState();
     if (!current || !isStateObject(current)) {
       return structuredClone(defaultState);
     }
@@ -94,7 +93,7 @@ export async function saveState(state) {
 
   const fallback = localStorageFallback();
   if (typeof fallback?.setItem !== "function") {
-    return;
+    throw toPersistError(new Error("No dashboard storage backend is available."));
   }
 
   try {
