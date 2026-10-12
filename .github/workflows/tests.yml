@@ -45,8 +45,9 @@ jobs:
         id: chrome
         with:
           chrome-version: stable
+          install-dependencies: true
 
       - name: Run real extension smoke
         env:
           CHROME_PATH: ${{ steps.chrome.outputs.chrome-path }}
-        run: npm run smoke:extension -- --headless
+        run: npm run smoke:extension -- --headless --no-sandbox

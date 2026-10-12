@@ -24,6 +24,7 @@ Run this before claiming production-ready status:
 
 - Run `npm run smoke:extension` locally with Chrome or Edge installed. Pass `-- --browser <path>` if auto-detection is not enough.
 - Pass `-- --headless --browser <path>` to run without opening a visible window. Node.js 22 or newer is required for the smoke client's built-in WebSocket support. Use Chrome for Testing if a regular Chrome installation does not allow command-line extension loading.
+- The isolated Linux CI runner installs Chrome dependencies and passes `--no-sandbox` for its disposable test browser. Browser startup failures include exit status and stderr in the test output.
 - Load the extension unpacked in Chrome and Edge from a clean profile.
 - Open a new tab and verify the configured startup dashboard renders without visible `Widget failed to load`, raw exception text, or console error/warn output tied to user-visible failures.
 - Toggle Edit Mode, open Add Widget, add the default Clock widget, confirm widget settings with OK, reload, and verify the new widget persists.

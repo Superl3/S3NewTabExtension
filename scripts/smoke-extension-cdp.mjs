@@ -369,6 +369,7 @@ async function main() {
     "--disable-sync",
     "--disable-background-networking",
     ...(args.has("headless") ? ["--headless=new"] : []),
+    ...(args.has("no-sandbox") ? ["--no-sandbox"] : []),
     "--enable-logging=stderr",
     "--window-size=1280,720",
     newTabUrl
@@ -407,7 +408,10 @@ async function main() {
   };
 
   try {
-    await waitFor("browser debugging endpoint", () => requestJson(`http://127.0.0.1:${port}/json/version`), 20000);
+    await waitFor("browser debugging endpoint", () => requestJson(`http://127.0.0.1:${port}/json/version`), 20000)
+      .catch((error) => {
+        throw new Error(`${error.message}\nBrowser exit code: ${browser.exitCode}\nChrome stderr:\n${browserStderr.slice(-3000)}`);
+      });
     await requestJson(`http://127.0.0.1:${port}/json/new?${encodeURIComponent(newTabUrl)}`, { method: "PUT" }).catch(() => null);
     let target = await waitFor("extension new tab target", async () => {
       const targets = await requestJson(`http://127.0.0.1:${port}/json/list`);
