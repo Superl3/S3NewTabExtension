@@ -36,6 +36,7 @@ expect(
 const workflow = readText(".github/workflows/tests.yml");
 expect(workflow.includes("npm test"), "CI must run npm test.");
 expect(workflow.includes("npm run test:production"), "CI must run npm run test:production.");
+expect(workflow.includes("npm run smoke:extension -- --headless"), "CI must run the real extension smoke gate.");
 
 const manifest = readJson("manifest.json");
 expect(manifest.manifest_version === 3, "manifest.json must remain Manifest V3.");

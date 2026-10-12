@@ -1,6 +1,13 @@
 import { hasOwn } from "./utils/object.js";
+import { withPersistenceLock } from "./platform/persistence-lock.js";
 
 export function createPersistenceRuntime(deps) {
+  function runStorageTransaction(action) {
+    if (typeof deps.withPersistenceLock === "function") {
+      return deps.withPersistenceLock(action);
+    }
+    return withPersistenceLock(deps.storageKey, action);
+  }
   const isStateObject = (value) => value !== null && typeof value === "object" && !Array.isArray(value);
   const structuredCloneValue =
     typeof deps.structuredClone === "function"
@@ -65,16 +72,19 @@ export function createPersistenceRuntime(deps) {
     return normalized;
   }
 
-  async function readStoredSnapshot() {
+  async function readStoredSnapshot({ throwOnError = false } = {}) {
     try {
       const stored = await deps.chromeStorageLocalGet(deps.storageKey);
       return normalizeStoredSnapshot(stored?.[deps.storageKey]);
-    } catch {
+    } catch (error) {
+      if (throwOnError) {
+        throw error;
+      }
       return null;
     }
   }
 
-  function syncFromExternalSnapshot(snapshotInput) {
+  function syncFromExternalSnapshot(snapshotInput, { forceEqualRevision = false } = {}) {
     const snapshot = normalizeStoredSnapshot(snapshotInput);
     const state = deps.getState();
     if (!snapshot || !state) {
@@ -87,7 +97,9 @@ export function createPersistenceRuntime(deps) {
 
     deps.setLastSavedUserMutationAt(Math.max(deps.getLastSavedUserMutationAt(), incomingMutationAt));
 
-    if (incomingFingerprint === deps.getLastSavedFingerprint() || incomingMutationAt <= localMutationAt) {
+    const isOlderRevision = incomingMutationAt < localMutationAt;
+    const isUnforcedEqualRevision = incomingMutationAt === localMutationAt && !forceEqualRevision;
+    if (incomingFingerprint === deps.getLastSavedFingerprint() || isOlderRevision || isUnforcedEqualRevision) {
       return false;
     }
 
@@ -98,20 +110,25 @@ export function createPersistenceRuntime(deps) {
     return true;
   }
 
-  async function saveSnapshotIfNotStale(snapshot, fingerprint, userMutationAt) {
-    const storedSnapshot = await readStoredSnapshot();
-    const storedMutationAt = readUserMutationClock(storedSnapshot);
+  async function saveSnapshotIfNotStale(snapshot, fingerprint, userMutationAt, { allowNonUserMutation = false } = {}) {
+    return runStorageTransaction(async () => {
+      const storedSnapshot = await readStoredSnapshot({ throwOnError: true });
+      const storedMutationAt = readUserMutationClock(storedSnapshot);
+      const equalRevisionConflict = !allowNonUserMutation && userMutationAt > 0 &&
+        storedMutationAt === userMutationAt && snapshotFingerprint(storedSnapshot) !== snapshotFingerprint(snapshot);
 
-    if (storedMutationAt > userMutationAt) {
-      deps.setLastSavedUserMutationAt(Math.max(deps.getLastSavedUserMutationAt(), storedMutationAt));
-      syncFromExternalSnapshot(storedSnapshot);
-      return false;
-    }
+      if (storedMutationAt > userMutationAt || equalRevisionConflict) {
+        deps.setLastSavedUserMutationAt(Math.max(deps.getLastSavedUserMutationAt(), storedMutationAt));
+        syncFromExternalSnapshot(storedSnapshot, { forceEqualRevision: equalRevisionConflict });
+        deps.onPersistConflict?.();
+        return false;
+      }
 
-    await deps.saveState(snapshot);
-    deps.setLastSavedFingerprint(fingerprint);
-    deps.setLastSavedUserMutationAt(Math.max(deps.getLastSavedUserMutationAt(), userMutationAt));
-    return true;
+      await deps.saveState(snapshot);
+      deps.setLastSavedFingerprint(fingerprint);
+      deps.setLastSavedUserMutationAt(Math.max(deps.getLastSavedUserMutationAt(), userMutationAt));
+      return true;
+    });
   }
 
   function persistLatestSnapshot({ allowNonUserMutation = false } = {}) {
@@ -138,7 +155,7 @@ export function createPersistenceRuntime(deps) {
 
     const executeSave = async () => {
       try {
-        await saveSnapshotIfNotStale(snapshot, fingerprint, userMutationAt);
+        await saveSnapshotIfNotStale(snapshot, fingerprint, userMutationAt, { allowNonUserMutation });
       } catch (error) {
         deps.onPersistError(error);
       } finally {

@@ -62,7 +62,8 @@ export function normalizeImportedProfileSnapshot(snapshot, {
       if (/^(chrome-extension|blob|filesystem):/i.test(value)) {
         return "";
       }
-      return sanitizeString(value);
+      const sanitized = sanitizeString(value);
+      return sanitized === redactedValue ? undefined : sanitized;
     }
 
     if (Array.isArray(value)) {

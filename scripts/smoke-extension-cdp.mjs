@@ -5,25 +5,9 @@ import os from "node:os";
 import path from "node:path";
 import { spawn, execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
+import { buildSmokeExtensionPackage } from "./extension-package.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const smokePackageFiles = [
-  "app.js",
-  "bookmarks.js",
-  "manifest.json",
-  "newtab.html",
-  "single-item-surfaces.css",
-  "storage.js",
-  "styles.css",
-  "widget-drag-motion.css"
-];
-const smokePackageDirectories = [
-  "config",
-  "content-scripts",
-  "core",
-  "icons",
-  "widgets"
-];
 
 function parseArgs(argv) {
   const args = new Map();
@@ -120,23 +104,6 @@ function requestJson(url, options = {}) {
   });
 }
 
-function copyPathForSmokePackage(source, destination) {
-  if (!fs.existsSync(source)) {
-    throw new Error(`Missing extension package input: ${path.relative(root, source)}`);
-  }
-  fs.cpSync(source, destination, { recursive: true });
-}
-
-function buildSmokeExtensionPackage(packageDir) {
-  fs.mkdirSync(packageDir, { recursive: true });
-  for (const file of smokePackageFiles) {
-    copyPathForSmokePackage(path.join(root, file), path.join(packageDir, file));
-  }
-  for (const directory of smokePackageDirectories) {
-    copyPathForSmokePackage(path.join(root, directory), path.join(packageDir, directory));
-  }
-}
-
 function normalizePathForCompare(value) {
   if (!value) {
     return "";
@@ -197,9 +164,14 @@ async function waitFor(description, callback, timeoutMs = 15000) {
 }
 
 async function removeTreeWithRetry(targetPath, attempts = 8) {
+  const resolved = path.resolve(targetPath);
+  if (path.dirname(resolved) !== path.join(root, ".tmp") ||
+      !/^extension-smoke-(profile|package)-\d+$/.test(path.basename(resolved))) {
+    throw new Error("Refusing to remove a path outside the smoke workspace.");
+  }
   for (let attempt = 1; attempt <= attempts; attempt += 1) {
     try {
-      fs.rmSync(targetPath, { recursive: true, force: true });
+      fs.rmSync(resolved, { recursive: true, force: true });
       return;
     } catch (error) {
       if (attempt === attempts) {
@@ -319,6 +291,61 @@ function hasLoadedRssWidget(stats) {
   );
 }
 
+async function verifyConcurrentPersistence(cdp, port, extensionUrl) {
+  const storageKey = `s3newtab-smoke-concurrency-${Date.now()}`;
+  const secondTarget = await requestJson(`http://127.0.0.1:${port}/json/new?${encodeURIComponent(extensionUrl)}`, { method: "PUT" });
+  const secondSocket = await connectWebSocket(secondTarget.webSocketDebuggerUrl);
+  const second = createCdpClient(secondSocket);
+  const setup = (revision, delayWrite) => `(async () => {
+    const { createPersistenceRuntime } = await import("./core/persistence-runtime.js");
+    const key = ${JSON.stringify(storageKey)};
+    const state = { meta: { lastUserMutationAt: ${revision} }, instances: [{ id: "revision-${revision}" }] };
+    const probe = globalThis.persistenceSmokeProbe = { started: false, done: false, conflicts: 0 };
+    const gate = ${delayWrite} ? new Promise(resolve => { probe.release = resolve; }) : Promise.resolve();
+    const runtime = createPersistenceRuntime({
+      storageKey: key, getState: () => state, structuredClone,
+      applyRuntimeOnlyPolicyToSnapshot() {},
+      chromeStorageLocalGet: key => chrome.storage.local.get(key),
+      saveState: async snapshot => {
+        probe.started = true;
+        await gate;
+        await chrome.storage.local.set({ [key]: snapshot });
+      },
+      getLastSavedUserMutationAt: () => 0,
+      getLastSavedFingerprint: () => "",
+      setLastSavedUserMutationAt() {}, setLastSavedFingerprint() {}, setSaveInFlightFingerprint() {},
+      clearUndoRedo() {}, restoreFromSnapshot: snapshot => Object.assign(state, snapshot),
+      onPersistConflict: () => { probe.conflicts += 1; }
+    });
+    void runtime.saveSnapshotIfNotStale(state, "revision-${revision}", ${revision})
+      .then(saved => { probe.saved = saved; probe.done = true; })
+      .catch(error => { probe.error = error.message; probe.done = true; });
+    return true;
+  })()`;
+  try {
+    await second.call("Runtime.enable");
+    await waitFor("second extension tab", () => second.evaluate("document.readyState === 'complete'"));
+    await cdp.evaluate(`chrome.storage.local.set({ [${JSON.stringify(storageKey)}]: { meta: { lastUserMutationAt: 0 }, instances: [] } })`);
+    await cdp.evaluate(setup(200, true));
+    await waitFor("newer write holding the native lock", () => cdp.evaluate("globalThis.persistenceSmokeProbe?.started"));
+    await second.evaluate(setup(100, false));
+    await cdp.evaluate("globalThis.persistenceSmokeProbe.release(); true");
+    await waitFor("newer write completion", () => cdp.evaluate("globalThis.persistenceSmokeProbe?.done"));
+    await waitFor("older write rejection", () => second.evaluate("globalThis.persistenceSmokeProbe?.done"));
+    const newer = await cdp.evaluate("({ saved: persistenceSmokeProbe.saved, error: persistenceSmokeProbe.error })");
+    const older = await second.evaluate("({ saved: persistenceSmokeProbe.saved, conflicts: persistenceSmokeProbe.conflicts, error: persistenceSmokeProbe.error })");
+    const finalRevision = await cdp.evaluate(`(async () => (await chrome.storage.local.get(${JSON.stringify(storageKey)}))[${JSON.stringify(storageKey)}].meta.lastUserMutationAt)()`);
+    if (newer.saved !== true || older.saved !== false || older.conflicts !== 1 || finalRevision !== 200) {
+      throw new Error(`Cross-tab persistence failed: ${JSON.stringify({ newer, older, finalRevision })}`);
+    }
+    return { finalRevision, newerSaved: newer.saved, olderSaved: older.saved, conflictReported: older.conflicts === 1 };
+  } finally {
+    await cdp.evaluate(`(async () => { globalThis.persistenceSmokeProbe?.release?.(); await chrome.storage.local.remove(${JSON.stringify(storageKey)}); delete globalThis.persistenceSmokeProbe; })()`).catch(() => null);
+    secondSocket.close();
+    await cdp.call("Target.closeTarget", { targetId: secondTarget.id }).catch(() => null);
+  }
+}
+
 async function main() {
   const args = parseArgs(process.argv.slice(2));
   const browserPath = findBrowser(args.get("browser"));
@@ -328,7 +355,7 @@ async function main() {
   const newTabUrl = resolveNewTabUrl(browserPath);
   const profileDir = path.join(root, ".tmp", `extension-smoke-profile-${Date.now()}`);
   const packageDir = path.join(root, ".tmp", `extension-smoke-package-${Date.now()}`);
-  buildSmokeExtensionPackage(packageDir);
+  buildSmokeExtensionPackage(root, packageDir);
   const extensionPath = packageDir.replace(/\\/g, "/");
   fs.mkdirSync(profileDir, { recursive: true });
 
@@ -341,10 +368,12 @@ async function main() {
     "--no-default-browser-check",
     "--disable-sync",
     "--disable-background-networking",
+    ...(args.has("headless") ? ["--headless=new"] : []),
+    ...(args.has("no-sandbox") ? ["--no-sandbox"] : []),
     "--enable-logging=stderr",
     "--window-size=1280,720",
     newTabUrl
-  ], { stdio: ["ignore", "ignore", "pipe"] });
+  ], { stdio: ["ignore", "ignore", "pipe"], windowsHide: true });
   browser.stderr?.on("data", (chunk) => {
     browserStderr += chunk.toString("utf8");
     if (browserStderr.length > 8000) {
@@ -379,7 +408,10 @@ async function main() {
   };
 
   try {
-    await waitFor("browser debugging endpoint", () => requestJson(`http://127.0.0.1:${port}/json/version`), 20000);
+    await waitFor("browser debugging endpoint", () => requestJson(`http://127.0.0.1:${port}/json/version`), 20000)
+      .catch((error) => {
+        throw new Error(`${error.message}\nBrowser exit code: ${browser.exitCode}\nChrome stderr:\n${browserStderr.slice(-3000)}`);
+      });
     await requestJson(`http://127.0.0.1:${port}/json/new?${encodeURIComponent(newTabUrl)}`, { method: "PUT" }).catch(() => null);
     let target = await waitFor("extension new tab target", async () => {
       const targets = await requestJson(`http://127.0.0.1:${port}/json/list`);
@@ -506,11 +538,22 @@ async function main() {
     if (afterReload.clockCount < afterAdd.clockCount) failures.push("reload lost the added clock widget");
     if (afterReload.hasWidgetFailed || afterReload.hasRawErrorText) failures.push("post-reload page exposed failure text");
 
+    const fontsLoaded = await cdp.evaluate(`(async () => {
+      const weights = [400, 500, 600, 700];
+      const loaded = await Promise.all(weights.map(weight => document.fonts.load(weight + ' 16px "Pretendard Std"')));
+      return loaded.every(faces => faces.length > 0 && faces.every(face => face.status === "loaded"));
+    })()`);
+    if (!fontsLoaded) failures.push("packaged fonts did not load");
+
     if (failures.length) {
       throw new Error(`Extension smoke failed:\n- ${failures.join("\n- ")}\nStats:\n${JSON.stringify({ initial, afterAdd, afterReload }, null, 2)}`);
     }
 
-    console.log(JSON.stringify({ browserPath, initial, afterAdd, afterReload }, null, 2));
+    const concurrentPersistence = await verifyConcurrentPersistence(cdp, port, afterReload.url);
+    if (cdp.events.some(event => event.method === "Runtime.exceptionThrown")) {
+      throw new Error("Extension smoke observed an uncaught runtime exception.");
+    }
+    console.log(JSON.stringify({ browserPath, initial, afterAdd, afterReload, fontsLoaded, concurrentPersistence }, null, 2));
     socket.close();
   } finally {
     await cleanup();

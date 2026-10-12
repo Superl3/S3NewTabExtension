@@ -1,5 +1,15 @@
 # Improvement Goals: 30 USD Buyer Gate Before Senior Engineering Gate
 
+## 2026-10-12 Storage and Profile Protection Iteration
+
+- Worked from current `main` on the shared `fix` branch. The original checkout's modified startup snapshot and untracked documents were preserved and excluded.
+- Current `main` already provides storage-error toasts and retryable lazy widget imports. These were retained instead of implementing duplicate mechanisms.
+- Profile exports now exclude configured calendar feed access URLs from widgets and presets, redact private calendar links in text, and remove redacted links on import.
+- Dashboard writes now hold a native exclusive lock across revision checks and writes. Conflicting snapshots preserve the saved dashboard and notify the user. Failed storage reads prevent writes.
+- The smoke package includes bundled fonts and has an asset completeness test. A headless Chrome for Testing smoke job was added to CI.
+- Local Chrome for Testing 147 and installed Edge evidence: 12 initial widgets, 13 after adding Clock, 13 after reload; all four font weights loaded; an overlapping write from another extension tab retained revision 200, rejected revision 100, and reported the conflict. No uncaught runtime exception was observed. The full unit suite and production-readiness check passed.
+- Account-backed integrations, manual visual QA, and broad architecture changes are outside this iteration's verification evidence.
+
 This document defines the improvement loop for S3 New Tab Extension. It is intentionally sequential:
 
 1. Step 1, the strict 30 USD buyer gate, must pass first.

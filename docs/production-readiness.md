@@ -14,14 +14,17 @@ Public production release requires the manual smoke checks below from a clean br
 
 - `npm test` runs the full `node:test` suite in `tests/*.test.mjs`.
 - `npm run test:production` checks release hygiene: Manifest V3 shape, explicit host permissions, CI coverage, LF working-tree policy, production-readiness docs, and stale planning-doc phrases.
-- `npm run smoke:extension` loads the repo as an unpacked Chromium extension through Chrome DevTools Protocol and verifies New Tab first launch, Add Widget, settings OK, and reload persistence.
-- CI runs both gates on `main`, `fix`, `feat/**`, `chore/**`, and pull requests.
+- `npm run smoke:extension` loads a packaged copy as an unpacked Chromium extension through Chrome DevTools Protocol and verifies New Tab first launch, Add Widget, settings OK, reload persistence, all four packaged font weights, and an overlapping storage write from two extension tabs.
+- CI runs unit and production checks on `main`, `fix`, `feat/**`, `chore/**`, and pull requests, followed by a separate headless Chrome for Testing smoke job with Node.js 22.
+- `tests/extension-package.test.mjs` builds the same package used by smoke, checks local CSS assets, and verifies that development directories and the connector environment are excluded.
 
 ## Real Extension Smoke
 
 Run this before claiming production-ready status:
 
 - Run `npm run smoke:extension` locally with Chrome or Edge installed. Pass `-- --browser <path>` if auto-detection is not enough.
+- Pass `-- --headless --browser <path>` to run without opening a visible window. Node.js 22 or newer is required for the smoke client's built-in WebSocket support. Use Chrome for Testing if a regular Chrome installation does not allow command-line extension loading.
+- The isolated Linux CI runner installs Chrome dependencies and passes `--no-sandbox` for its disposable test browser. Browser startup failures include exit status and stderr in the test output.
 - Load the extension unpacked in Chrome and Edge from a clean profile.
 - Open a new tab and verify the configured startup dashboard renders without visible `Widget failed to load`, raw exception text, or console error/warn output tied to user-visible failures.
 - Toggle Edit Mode, open Add Widget, add the default Clock widget, confirm widget settings with OK, reload, and verify the new widget persists.
@@ -45,3 +48,10 @@ Run live checks only with test accounts or intentionally scoped tokens:
 - Credentials and local paths are absent from exported state, logs, docs, and package artifacts.
 - Package from a clean tree and exclude VCS metadata, `.planning`, `.tmp`, `.worktrees`, and local connector `.env` files.
 - Update `.planning/IMPROVEMENT_GOALS.md` with smoke evidence when a release candidate is promoted.
+
+## Profile Sharing and Storage Conflicts
+
+- Profile exports redact configured calendar ICS URLs in both widgets and presets. Private Google Calendar feed links and URL userinfo are also redacted when embedded in text. Imported profiles require calendar setup again; live settings are not changed by exporting.
+- Writes to the dashboard storage key use an exclusive Web Lock across extension tabs, covering both the stored revision check and the write. If a newer revision is already saved, it is retained. If different user snapshots share a positive revision, the first saved snapshot is retained and the other tab receives a conflict message. Separate widget edits are not merged field by field.
+- Background/cache writes may update the current revision but cannot overwrite a newer revision. Storage read errors block writes; failed mutations remain retryable.
+- In a real extension context, unavailable Web Locks cause a save error instead of an unprotected write. The in-memory queue is only a fallback for local previews and unit tests.

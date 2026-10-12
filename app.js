@@ -1,4 +1,4 @@
-import { STORAGE_KEY, loadState, readStorageUsage, saveState } from "./storage.js";
+import { STORAGE_KEY, loadState, readStorageUsage, readStoredState, saveState } from "./storage.js";
 import { defaultWidgetType, widgetRegistry, widgetList } from "./widgets/index.js";
 import {
   FALLBACK_DEFAULT_GRID,
@@ -1296,7 +1296,7 @@ const persistenceRuntime = createPersistenceRuntime({
   randomToken: () => Math.random().toString(16).slice(2, 8),
   structuredClone,
   applyRuntimeOnlyPolicyToSnapshot,
-  chromeStorageLocalGet: (key) => chrome.storage.local.get(key),
+  chromeStorageLocalGet: async (key) => ({ [key]: await readStoredState() }),
   chromeStorageOnChangedAddListener: (handler) => {
     if (!chrome?.storage?.onChanged?.addListener) {
       return;
@@ -1310,6 +1310,9 @@ const persistenceRuntime = createPersistenceRuntime({
   },
   restoreFromSnapshot,
   buildPersistSnapshot,
+  onPersistConflict: () => {
+    showAppToast("Another tab saved a conflicting dashboard change. The latest saved dashboard was kept.", { duration: 6000 });
+  },
   onPersistError: (error) => {
     console.warn("Failed to persist dashboard state", error);
     showAppToast(
