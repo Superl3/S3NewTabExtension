@@ -13,6 +13,8 @@ import { createMustStore } from "./must-store.mjs";
 import { handleMustRoute, isMustPath } from "./must-routes.mjs";
 import { createCodexRunner, resolveTiers } from "./codex-runner.mjs";
 import { handleCodexRoute, isCodexPath } from "./codex-routes.mjs";
+import { createOpClient, DEFAULT_OP_BASE_URL, parseProjectList, readOpToken } from "./op-client.mjs";
+import { handleOpRoute, isOpPath } from "./op-routes.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ENV_PATH = path.join(__dirname, ".env");
@@ -32,6 +34,11 @@ const mustStore = MUST_FILE
   ? createMustStore({ filePath: MUST_FILE, gateDisabled: normalizeText(env.MUST_GATE_DISABLED) === "1" })
   : null;
 const bridgeGuardOptions = { allowedExtensionIds: ALLOWED_EXTENSION_IDS, port: PORT };
+const opToken = readOpToken(env);
+const opClient = opToken
+  ? createOpClient({ baseUrl: normalizeText(env.OPENPROJECT_URL) || DEFAULT_OP_BASE_URL, token: opToken })
+  : null;
+const opMeetingProjects = parseProjectList(env.OPENPROJECT_MEETING_PROJECTS);
 const codexRunner =
   normalizeText(env.CODEX_CHAT_DISABLED) === "1"
     ? null
@@ -116,6 +123,15 @@ const server = http.createServer((req, res) => {
 
   if (isMustPath(pathname)) {
     void handleMustRoute({ req, res, pathname, method, store: mustStore, guardOptions: bridgeGuardOptions }).catch(() => {
+      if (!res.headersSent) {
+        sendText(res, "Internal server error", 500);
+      }
+    });
+    return;
+  }
+
+  if (isOpPath(pathname)) {
+    void handleOpRoute({ req, res, pathname, method, client: opClient, meetingProjects: opMeetingProjects, guardOptions: bridgeGuardOptions }).catch(() => {
       if (!res.headersSent) {
         sendText(res, "Internal server error", 500);
       }

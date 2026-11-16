@@ -988,6 +988,8 @@ function groupIssuesByGroup(items, boardGroups) {
 export const mondayAssignedWidget = {
   type: "mondayAssigned",
   title: "Monday Assigned Issues",
+  // Replaced by opAssigned (OpenProject). Kept so boards that already have it still render.
+  hiddenFromAddWidget: true,
   defaultConfig: {
     connectorUrl: LOCAL_AUTH_CONNECTOR_URL,
     accessToken: "",

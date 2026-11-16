@@ -810,6 +810,8 @@ async function fetchLatestMeetingNote(boardId, selectorText, accessToken) {
 export const mondayMeetingNoteWidget = {
   type: "mondayMeetingNote",
   title: "Monday Meeting Note",
+  // Replaced by opMeetings (OpenProject). Kept so boards that already have it still render.
+  hiddenFromAddWidget: true,
   defaultConfig: {
     connectorUrl: LOCAL_AUTH_CONNECTOR_URL,
     accessToken: "",

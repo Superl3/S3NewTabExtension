@@ -18,7 +18,9 @@ const WIDGET_TYPE_CATEGORY_DEFINITIONS = [
       "flexWorktime",
       "flexWorktimeTimeline",
       "codexUsage",
-      "mustList"
+      "mustList",
+      "opAssigned",
+      "opMeetings"
     ]
   },
   {

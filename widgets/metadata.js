@@ -903,6 +903,7 @@ export const widgetMetadata = [
   {
     "type": "mondayAssigned",
     "title": "Monday Assigned Issues",
+    "hiddenFromAddWidget": true,
     "defaultConfig": {
       "connectorUrl": "http://localhost:8787/api/auth/start",
       "accessToken": "",
@@ -989,6 +990,7 @@ export const widgetMetadata = [
   {
     "type": "mondayMeetingNote",
     "title": "Monday Meeting Note",
+    "hiddenFromAddWidget": true,
     "defaultConfig": {
       "connectorUrl": "http://localhost:8787/api/auth/start",
       "accessToken": "",
@@ -1530,5 +1532,74 @@ export const widgetMetadata = [
       "w": 3,
       "h": 3
     }
+  },
+  {
+    "type": "opAssigned",
+    "title": "OpenProject 내 작업",
+    "defaultConfig": {
+      "hideResolved": true,
+      "hideSamples": true,
+      "maxItems": 20,
+      "openInNewTab": true
+    },
+    "defaultLayout": {
+      "x": 1080,
+      "y": 520,
+      "w": 520,
+      "h": 360
+    },
+    "defaultGridSize": {
+      "w": 2,
+      "h": 2
+    },
+    "settingsSchema": [
+      {
+        "key": "hideResolved",
+        "label": "Resolved 숨기기",
+        "type": "checkbox"
+      },
+      {
+        "key": "hideSamples",
+        "label": "샘플 이슈 숨기기",
+        "type": "checkbox"
+      },
+      {
+        "key": "maxItems",
+        "label": "최대 개수",
+        "type": "number",
+        "min": 1,
+        "max": 50,
+        "step": 1
+      },
+      {
+        "key": "openInNewTab",
+        "label": "새 탭에서 열기",
+        "type": "checkbox"
+      }
+    ]
+  },
+  {
+    "type": "opMeetings",
+    "title": "OpenProject 회의",
+    "defaultConfig": {
+      "openInNewTab": true
+    },
+    "defaultLayout": {
+      "x": 1080,
+      "y": 120,
+      "w": 420,
+      "h": 300
+    },
+    "defaultGridSize": {
+      "w": 2,
+      "h": 2
+    },
+    "settingsSchema": [
+      {
+        "key": "openInNewTab",
+        "label": "새 탭에서 열기",
+        "type": "checkbox"
+      }
+    ]
   }
 ];

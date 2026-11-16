@@ -164,6 +164,13 @@ AI Chat 위젯 설정의 `Mode`를 `Codex (local)`로 바꾸면 API 키나 Conne
 - terra·sol은 최신 CLI가 필요하다. 0.155.0은 `model_not_found`, 0.169.0은 세 티어 모두 동작했다. 전역 CLI를 올리지 않으려면 따로 설치한 사본을 `CODEX_BIN`으로 지정한다.
 - `/api/codex/chat`도 `/api/must/*`와 같은 확장 Origin 검사를 거친다. 대화는 loopback 주소로만 보낸다.
 
+## OpenProject 위젯 (Monday 위젯 대체)
+
+- `OpenProject 내 작업`: 내가 담당자인 열린 작업. Resolved와 "샘플 이슈 리스트" 하위는 기본으로 숨기고 기한순(없으면 뒤)으로 보여 준다. 지난 기한은 빨간색.
+- `OpenProject 회의`: 앞 2주·뒤 1주 회의를 다가오는/지난으로 나눠 보여 준다. 프로젝트는 `OPENPROJECT_MEETING_PROJECTS`(쉼표 구분 id, 비우면 볼 수 있는 전부).
+- 둘 다 읽기 전용이고 커넥터(`/api/op/assigned`, `/api/op/meetings`, POST, 확장 Origin만)를 거친다. 토큰은 `OPENPROJECT_TOKEN` 또는 `~/.config/openproject/token`에서 커넥터만 읽고 확장에는 저장하지 않는다. 서버 주소는 `OPENPROJECT_URL`(기본 https://work.clerobotics.com).
+- Monday 위젯 두 개는 위젯 추가 메뉴에서 숨겼다. 이미 보드에 있는 것은 그대로 동작한다.
+
 ## Local Auth Connector (Recommended)
 
 1. Copy `connector/.env.example` to `connector/.env` and set at least one token or OAuth client.

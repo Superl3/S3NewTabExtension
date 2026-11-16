@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 
 export const extensionPackageFiles = [
-  "app.js", "bookmarks.js", "manifest.json", "must-gate.css", "newtab.html",
+  "app.js", "bookmarks.js", "manifest.json", "must-gate.css", "newtab.html", "op-widgets.css",
   "single-item-surfaces.css", "storage.js", "styles.css", "widget-drag-motion.css"
 ];
 export const extensionPackageDirectories = ["config", "content-scripts", "core", "fonts", "icons", "widgets"];

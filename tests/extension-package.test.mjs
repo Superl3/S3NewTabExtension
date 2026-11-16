@@ -11,7 +11,7 @@ test("the smoke package includes local CSS assets and excludes development and c
   const packageDir = fs.mkdtempSync(path.join(os.tmpdir(), "s3-extension-package-"));
   try {
     buildSmokeExtensionPackage(root, packageDir);
-    for (const filename of ["styles.css", "single-item-surfaces.css", "widget-drag-motion.css", "must-gate.css"]) {
+    for (const filename of ["styles.css", "single-item-surfaces.css", "widget-drag-motion.css", "must-gate.css", "op-widgets.css"]) {
       const css = fs.readFileSync(path.join(packageDir, filename), "utf8");
       for (const match of css.matchAll(/url\(["']?([^\s)"']+)["']?\)/g)) {
         if (/^(data:|https?:|#)/.test(match[1])) continue;

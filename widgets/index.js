@@ -23,7 +23,9 @@ const widgetLoaders = {
   weather: () => import("./weather.js").then((module) => module.weatherWidget),
   container: () => import("./container.js").then((module) => module.containerWidget),
   codexUsage: () => import("./codexUsage.js").then((module) => module.codexUsageWidget),
-  mustList: () => import("./mustList.js").then((module) => module.mustListWidget)
+  mustList: () => import("./mustList.js").then((module) => module.mustListWidget),
+  opAssigned: () => import("./opAssigned.js").then((module) => module.opAssignedWidget),
+  opMeetings: () => import("./opMeetings.js").then((module) => module.opMeetingsWidget)
 };
 
 function renderLazyWidgetStatus(container, message) {

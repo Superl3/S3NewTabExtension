@@ -1,0 +1,23 @@
+/* OpenProject widgets: header on top, scrollable list, independent footer (AGENTS.md body layout). */
+.op-widget { height: 100%; }
+.op-shell { display: flex; flex-direction: column; height: 100%; min-height: 0; gap: 8px; }
+.op-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.op-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
+.op-footer { flex: 0 0 auto; font-size: 0.76rem; }
+.op-footer-link { color: inherit; }
+.op-section { margin: 10px 0 6px; color: var(--muted); font-size: 0.78rem; }
+.op-section:first-child { margin-top: 0; }
+.op-list { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.op-row-link { display: block; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); color: var(--text); text-decoration: none; }
+.op-row-link:hover { border-color: var(--accent); }
+.op-row.is-past .op-row-link { opacity: 0.7; }
+.op-row-top { display: flex; gap: 8px; align-items: baseline; min-width: 0; }
+.op-id, .op-when { flex: 0 0 auto; color: var(--accent); font-size: 0.8rem; font-variant-numeric: tabular-nums; }
+.op-subject { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.op-row-meta { display: flex; gap: 10px; margin-top: 3px; font-size: 0.76rem; }
+.op-status { color: var(--text); }
+.op-due.is-overdue { color: var(--warn); font-weight: 600; }
+.op-due.is-soon { color: var(--accent); }
+.op-due.is-muted, .op-project { color: var(--muted); }
+.op-project { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.op-empty { margin: 0; }
