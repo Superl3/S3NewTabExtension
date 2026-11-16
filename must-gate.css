@@ -204,3 +204,10 @@
   color: var(--muted);
   font-size: 0.82rem;
 }
+
+.must-gate-explain {
+  margin: 0;
+  color: var(--text);
+  font-size: 0.88rem;
+  line-height: 1.5;
+}
