@@ -16,12 +16,14 @@ function jsonResponse(status, body) {
   return { ok: status >= 200 && status < 300, status, json: async () => body };
 }
 
-test("load returns the state and uses the loopback origin", async () => {
+test("load returns the state, uses the loopback origin and POSTs (extension GETs carry no Origin header)", async () => {
   const { impl, calls } = fakeFetch(() => jsonResponse(200, { gateOpen: false, must: [] }));
   const result = await createMustBridge({ fetchImpl: impl }).load();
   assert.deepEqual(result, { ok: true, state: { gateOpen: false, must: [] } });
-  assert.equal(calls[0].url, "http://127.0.0.1:8787/api/must");
-  assert.equal(calls[0].init.method, "GET");
+  assert.equal(calls[0].url, "http://127.0.0.1:8787/api/must/state");
+  assert.equal(calls[0].init.method, "POST");
+  assert.equal(calls[0].init.headers["Content-Type"], "application/json");
+  assert.equal(calls[0].init.body, "{}");
 });
 
 test("actions post JSON to the item path with the id encoded", async () => {

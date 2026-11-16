@@ -150,7 +150,7 @@ Gmail/Calendar 위젯은 OAuth 없이 조회 전용으로 동작합니다.
 - must가 열려 있으면 새 탭이 **게이트 화면**으로 열리고, 항목마다 끝냄·미루기·버리기·쪼개기 중 하나를 해야 닫힌다. 미루기는 2회, 새 날짜는 7일 이내. 결정 항목은 결정 한 줄, must를 버릴 때는 이유 한 줄이 필요하다.
 - 게이트는 모달이 아니라 페이지 수준 화면이고 **fail-open**이다. 커넥터가 꺼져 있거나, 설정이 없거나, 노트가 없거나, 그리는 중 예외가 나면 새 탭은 그냥 열린다. 비상 스위치는 `MUST_GATE_DISABLED=1`.
 - `Must` 위젯(Work 분류)은 같은 목록을 보여 주고 한 줄 추가·must로 올리기를 지원한다.
-- `/api/must/*`는 `ALLOWED_EXTENSION_IDS`에 있는 `chrome-extension://<id>` Origin(과 loopback Host)만 받는다. 웹 페이지는 호출할 수 없다.
+- `/api/must/*`는(상태 읽기도 `POST /api/must/state`) `ALLOWED_EXTENSION_IDS`에 있는 `chrome-extension://<id>` Origin(과 loopback Host)만 받는다. 웹 페이지는 호출할 수 없다.
 
 설정: `connector/.env`에 `MUST_FILE`과 `ALLOWED_EXTENSION_IDS`(확장 ID는 `edge://extensions`/`chrome://extensions`에서 확인)를 넣고 `node connector/server.mjs`를 실행한다. Claude Code용 CLI·SessionStart 훅 본문은 `connector/must-cli.mjs`(`state`, `capture`, `done`, `defer`, `drop`, `split`, `session-start`).
 

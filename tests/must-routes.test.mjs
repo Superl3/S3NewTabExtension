@@ -5,6 +5,7 @@ import http from "node:http";
 import os from "node:os";
 import path from "node:path";
 
+import { logDeniedBridgeRequest } from "../connector/bridge-http.mjs";
 import { createMustStore } from "../connector/must-store.mjs";
 import { handleMustRoute, isMustPath } from "../connector/must-routes.mjs";
 
@@ -123,6 +124,32 @@ test("GET returns the computed gate state and CORS is limited to the extension o
     const pre = await call(port, "OPTIONS", "/api/must/capture");
     assert.equal(pre.status, 204);
   }, { store: createMustStore({ filePath: file, now: () => NOW }) });
+});
+
+test("regression: a GET without Origin (what extension pages actually send) is rejected, POST /state works", async () => {
+  const { file } = makeNote();
+  await withServer(async (port) => {
+    const getNoOrigin = await call(port, "GET", "/api/must", { origin: "" });
+    assert.equal(getNoOrigin.status, 403);
+    assert.equal(getNoOrigin.json.error.code, "BAD_ORIGIN");
+    const state = await call(port, "POST", "/api/must/state", { body: {} });
+    assert.equal(state.status, 200);
+    assert.equal(state.json.today, "2026-11-16");
+    assert.deepEqual(state.json.must.map((x) => x.id), ["m-d", "m-a"]);
+    assert.equal((await call(port, "POST", "/api/must/state", { origin: "https://evil.example", body: {} })).status, 403);
+    assert.equal((await call(port, "POST", "/api/must/state", { origin: "", body: {} })).status, 403);
+  }, { store: createMustStore({ filePath: file, now: () => NOW }) });
+});
+
+test("denied requests are logged with origin and host only", () => {
+  const lines = [];
+  logDeniedBridgeRequest(
+    { method: "POST", url: "/api/must/capture", headers: { origin: "https://evil.example", host: "127.0.0.1:8787", authorization: "Bearer SECRET" } },
+    { code: "BAD_ORIGIN" },
+    (line) => lines.push(line)
+  );
+  assert.deepEqual(lines, ["[bridge] denied BAD_ORIGIN POST /api/must/capture origin=https://evil.example host=127.0.0.1:8787"]);
+  assert.ok(!lines[0].includes("SECRET"));
 });
 
 test("actions rewrite the note (CRLF kept), log the change and return the new state", async () => {

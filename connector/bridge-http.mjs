@@ -22,6 +22,13 @@ export function evaluateBridgeRequest(req, { allowedExtensionIds, port }) {
   return { ok: true, origin };
 }
 
+// Troubleshooting aid for 403/503: only the Origin and Host headers are logged, never bodies or tokens.
+export function logDeniedBridgeRequest(req, decision, log = console.warn) {
+  const origin = normalizeText(req.headers?.origin) || "-";
+  const host = normalizeText(req.headers?.host) || "-";
+  log(`[bridge] denied ${decision.code} ${req.method} ${req.url} origin=${origin} host=${host}`);
+}
+
 function corsHeaders(origin) {
   return {
     "Access-Control-Allow-Origin": origin,
