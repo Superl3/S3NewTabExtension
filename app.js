@@ -385,6 +385,12 @@ import {
 import {
   createLauncherPageRuntime
 } from "./core/launcher-page-runtime.js";
+import {
+  createMustBridge
+} from "./core/must-gate/must-bridge.js";
+import {
+  createMustGateRuntime
+} from "./core/must-gate/must-gate-runtime.js";
 
 const SNAP = 20;
 const LONG_PRESS_DRAG_DELAY_MS = 340;
@@ -5140,6 +5146,21 @@ async function init() {
   wireEvents();
   renderBoard();
   void warnWhenStorageNearQuota();
+  startMustGate();
+}
+
+// The gate fails open: with the local connector down, unconfigured or throwing, the tab simply opens.
+function startMustGate() {
+  try {
+    const runtime = createMustGateRuntime({
+      documentObj: document,
+      bridge: createMustBridge(),
+      appElement: document.getElementById("app")
+    });
+    void runtime.start().catch(() => {});
+  } catch {
+    // never block the new tab on the gate
+  }
 }
 
 void init();

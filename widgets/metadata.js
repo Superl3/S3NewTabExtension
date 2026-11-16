@@ -1481,5 +1481,29 @@ export const widgetMetadata = [
       "w": 2,
       "h": 2
     }
+  },
+  {
+    "type": "mustList",
+    "title": "Must",
+    "defaultConfig": {
+      "showRecent": false
+    },
+    "defaultLayout": {
+      "x": 40,
+      "y": 40,
+      "w": 420,
+      "h": 360
+    },
+    "settingsSchema": [
+      {
+        "key": "showRecent",
+        "label": "Show recently closed",
+        "type": "checkbox"
+      }
+    ],
+    "defaultGridSize": {
+      "w": 3,
+      "h": 3
+    }
   }
 ];

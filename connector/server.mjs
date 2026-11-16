@@ -9,6 +9,8 @@ import {
   normalizeText,
   parseAllowedExtensionIds
 } from "./redirect-policy.mjs";
+import { createMustStore } from "./must-store.mjs";
+import { handleMustRoute, isMustPath } from "./must-routes.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ENV_PATH = path.join(__dirname, ".env");
@@ -23,6 +25,11 @@ const ENABLE_TOKEN_RELAY = normalizeText(env.ENABLE_TOKEN_RELAY) === "1";
 const OAUTH_REQUEST_TIMEOUT_MS = parseClampedInt(env.OAUTH_REQUEST_TIMEOUT_MS, 15000, 1000, 120000);
 const STATE_TTL = 10 * 60 * 1000;
 const pendingStates = new Map();
+const MUST_FILE = normalizeText(env.MUST_FILE);
+const mustStore = MUST_FILE
+  ? createMustStore({ filePath: MUST_FILE, gateDisabled: normalizeText(env.MUST_GATE_DISABLED) === "1" })
+  : null;
+const bridgeGuardOptions = { allowedExtensionIds: ALLOWED_EXTENSION_IDS, port: PORT };
 
 const TOKEN_RELAYS = {
   monday: { tokenEnv: "MONDAY_ACCESS_TOKEN", accountEnv: "MONDAY_ACCOUNT_LABEL" },
@@ -92,6 +99,15 @@ const server = http.createServer((req, res) => {
     void handleCallback(res, parsedUrl).catch((error) => {
       if (!res.headersSent) {
         sendText(res, `Internal server error: ${error?.message || "unknown"}`, 500);
+      }
+    });
+    return;
+  }
+
+  if (isMustPath(pathname)) {
+    void handleMustRoute({ req, res, pathname, method, store: mustStore, guardOptions: bridgeGuardOptions }).catch(() => {
+      if (!res.headersSent) {
+        sendText(res, "Internal server error", 500);
       }
     });
     return;

@@ -22,7 +22,8 @@ const widgetLoaders = {
   githubReviewInbox: () => import("./githubReviewInbox.js").then((module) => module.githubReviewInboxWidget),
   weather: () => import("./weather.js").then((module) => module.weatherWidget),
   container: () => import("./container.js").then((module) => module.containerWidget),
-  codexUsage: () => import("./codexUsage.js").then((module) => module.codexUsageWidget)
+  codexUsage: () => import("./codexUsage.js").then((module) => module.codexUsageWidget),
+  mustList: () => import("./mustList.js").then((module) => module.mustListWidget)
 };
 
 function renderLazyWidgetStatus(container, message) {

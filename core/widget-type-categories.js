@@ -17,7 +17,8 @@ const WIDGET_TYPE_CATEGORY_DEFINITIONS = [
       "mondayMeetingNote",
       "flexWorktime",
       "flexWorktimeTimeline",
-      "codexUsage"
+      "codexUsage",
+      "mustList"
     ]
   },
   {

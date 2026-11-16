@@ -1,0 +1,206 @@
+/* Must gate (full-page view over the new tab) and the Must list widget. Uses the theme variables from styles.css. */
+
+.must-gate {
+  position: fixed;
+  inset: 0;
+  z-index: 9000;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  overflow-y: auto;
+  padding: 7vh 16px 32px;
+  background: var(--background);
+  color: var(--text);
+  font-family: var(--font-family);
+}
+
+.must-gate-panel {
+  width: min(720px, 100%);
+}
+
+.must-gate-header {
+  margin-bottom: 18px;
+}
+
+.must-gate-heading {
+  margin: 0 0 6px;
+  font-size: 1.7rem;
+  line-height: 1.25;
+}
+
+.must-gate-sub,
+.must-gate-meta,
+.must-gate-hint,
+.must-gate-waiting {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.88rem;
+  line-height: 1.5;
+}
+
+.must-gate-items,
+.must-list-items {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.must-gate-item {
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+}
+
+.must-gate-item-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.must-gate-title {
+  flex: 1 1 200px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.must-gate-kind {
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent), transparent 86%);
+  color: var(--accent);
+  font-size: 0.75rem;
+  white-space: nowrap;
+}
+
+.must-gate-due {
+  color: var(--muted);
+  font-size: 0.82rem;
+  white-space: nowrap;
+}
+
+.must-gate-due.is-overdue {
+  color: var(--warn);
+  font-weight: 600;
+}
+
+.must-gate-meta {
+  margin-top: 6px;
+}
+
+.must-gate-actions,
+.must-gate-quick {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.must-gate-first {
+  text-decoration: none;
+}
+
+.must-gate-first-text {
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.must-gate-action.is-active {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.must-gate-form {
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--line);
+}
+
+.must-gate-input {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  padding: 7px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--background);
+  color: var(--text);
+  font: inherit;
+}
+
+.must-gate-quick .must-gate-input {
+  width: auto;
+}
+
+.must-gate-error {
+  margin: 12px 0 0;
+  color: var(--warn);
+  font-size: 0.88rem;
+}
+
+.must-gate-waiting {
+  margin-top: 14px;
+}
+
+/* Must list widget: header/actions on top, scrollable middle, independent footer (AGENTS.md body layout principles). */
+.must-list-widget {
+  height: 100%;
+}
+
+.must-list-shell {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  gap: 8px;
+}
+
+.must-list-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.must-list-capture {
+  display: flex;
+  gap: 6px;
+}
+
+.must-list-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.must-list-section {
+  margin: 10px 0 6px;
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.must-list-section:first-child {
+  margin-top: 0;
+}
+
+.must-list-footer {
+  flex: 0 0 auto;
+  font-size: 0.76rem;
+}
+
+.must-list-widget .must-gate-item {
+  padding: 10px 12px;
+}
+
+.must-list-recent {
+  margin: 0;
+  padding-left: 18px;
+  color: var(--muted);
+  font-size: 0.82rem;
+}

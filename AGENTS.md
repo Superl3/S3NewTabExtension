@@ -56,6 +56,14 @@ These rules are mandatory for this repository across sessions.
 5. Overlay/Escape dismiss behavior must remain consistent with Cancel semantics unless an exception is explicitly requested and documented in both AGENTS.md and .planning/PROJECT.md before implementation.
 6. Any modal behavior change must include regression tests for click and Enter paths, including apply-throws paths.
 
+## Must Gate Contract
+
+1. The must gate is a page-level view mounted over the new tab, not a modal. The Modal Close Contract does not apply to it, so it deliberately has no Cancel/Escape dismissal: it closes only when no must item remains open.
+2. It must fail open. If the local connector is unreachable, unconfigured, answers 403/503, returns an unusable note, or the gate fails to render, the new tab must open normally and the app must not stay `inert`.
+3. Rules (cap 3, defer limit 2, due-soon promotion) live only in `connector/must-core.mjs`. The extension is a view and must not duplicate them.
+4. `/api/must/*` accepts only the allow-listed extension Origin and loopback Host. Do not loosen this check.
+5. Any change to the gate must keep tests covering fail-open, the inert/release path, and the action payloads.
+
 ## Interaction and Navigation Invariants (Non-Negotiable)
 
 1. This interaction contract applies uniformly across board, dock, folder/container, and launcher page surfaces in both Edit and Use modes.
