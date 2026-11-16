@@ -154,6 +154,16 @@ Gmail/Calendar 위젯은 OAuth 없이 조회 전용으로 동작합니다.
 
 설정: `connector/.env`에 `MUST_FILE`과 `ALLOWED_EXTENSION_IDS`(확장 ID는 `edge://extensions`/`chrome://extensions`에서 확인)를 넣고 `node connector/server.mjs`를 실행한다. Claude Code용 CLI·SessionStart 훅 본문은 `connector/must-cli.mjs`(`state`, `capture`, `done`, `defer`, `drop`, `split`, `session-start`).
 
+## AI Chat: Codex (local) mode
+
+AI Chat 위젯 설정의 `Mode`를 `Codex (local)`로 바꾸면 API 키나 Connect 없이 로컬 Codex CLI(`codex exec`)로 답한다. 커넥터가 대신 실행한다.
+
+- 티어는 `luna`(gpt-6-luna, high) · `terra`(gpt-6.1-terra, medium) · `sol`(gpt-6.1-sol, low). 모델·강도는 `connector/.env`의 `CODEX_MODEL_<TIER>`, `CODEX_EFFORT_<TIER>`로 바꾼다.
+- 실행은 사용자 설정 무시(`--ignore-user-config`), 세션 미저장(`--ephemeral`), 읽기 전용 샌드박스, 빈 임시 폴더를 작업 루트로 한다. 한 번에 한 요청, 120초 제한.
+- 터미널에서 Codex 로그인이 되어 있어야 한다(`codex login`). 오류는 `NOT_LOGGED_IN`, `MODEL_UNSUPPORTED`, `RATE_LIMITED`, `TIMEOUT` 등으로 위젯에 그대로 보인다.
+- terra·sol은 최신 CLI가 필요하다. 0.155.0은 `model_not_found`, 0.169.0은 세 티어 모두 동작했다. 전역 CLI를 올리지 않으려면 따로 설치한 사본을 `CODEX_BIN`으로 지정한다.
+- `/api/codex/chat`도 `/api/must/*`와 같은 확장 Origin 검사를 거친다. 대화는 loopback 주소로만 보낸다.
+
 ## Local Auth Connector (Recommended)
 
 1. Copy `connector/.env.example` to `connector/.env` and set at least one token or OAuth client.

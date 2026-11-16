@@ -13,6 +13,7 @@ import {
   resolveActiveAuthSession
 } from "./shared/authSessionStorage.js";
 import { getChromeIdentity, getChromeStorageLocal } from "./shared/chromeApi.js";
+import { CODEX_TIERS, callCodexBridge, normalizeCodexTier } from "./shared/codexBridge.js";
 
 function toMessage(role, content) {
   return { role, content, ts: Date.now() };
@@ -200,6 +201,7 @@ export const aiChatWidget = {
   title: "AI Chat",
   defaultConfig: {
     providerMode: "chatgpt",
+    codexTier: "luna",
     endpoint: "",
     connectorUrl: LOCAL_AUTH_CONNECTOR_URL,
     accessToken: "",
@@ -221,8 +223,16 @@ export const aiChatWidget = {
       type: "select",
       options: [
         { value: "chatgpt", label: "ChatGPT" },
-        { value: "browser", label: "Browser mode" }
+        { value: "browser", label: "Browser mode" },
+        { value: "codex", label: "Codex (local)" }
       ]
+    },
+    {
+      key: "codexTier",
+      label: "Codex tier (Codex mode)",
+      type: "select",
+      options: CODEX_TIERS,
+      helpText: "Codex mode runs your local Codex CLI through the connector (node connector/server.mjs); no API key or Connect needed."
     },
     { key: "endpoint", label: "Endpoint (optional override)", type: "text", placeholder: "https://..." },
     {
@@ -286,6 +296,7 @@ export const aiChatWidget = {
     let storedSession = null;
     let activeSession = null;
     let isConnecting = false;
+    let isSending = false;
     let connectionError = "";
 
     function getHistory() {
@@ -312,10 +323,24 @@ export const aiChatWidget = {
       });
     }
 
+    function isCodexMode() {
+      return getConfig().providerMode === "codex";
+    }
+
     function renderToolbar() {
       const connectorUrl = getConnectorUrl();
       const configuredToken = getConfiguredAccessToken();
       let text = "";
+      if (isCodexMode()) {
+        const tier = CODEX_TIERS.find((entry) => entry.value === normalizeCodexTier(getConfig().codexTier));
+        status.textContent = isSending ? "Codex is thinking..." : `Codex (local) · ${tier.label}`;
+        status.classList.toggle("is-error", false);
+        connectBtn.hidden = true;
+        disconnectBtn.hidden = true;
+        return;
+      }
+      connectBtn.hidden = false;
+      disconnectBtn.hidden = false;
       if (isConnecting) {
         text = "Connecting...";
       } else if (connectionError) {
@@ -429,10 +454,36 @@ export const aiChatWidget = {
       return appendHistoryMessage(toMessage("assistant", text));
     }
 
+    async function sendCodexMessage(cfg, history, text) {
+      if (isSending) {
+        return;
+      }
+      appendUserMessage(text);
+      isSending = true;
+      render();
+      try {
+        const result = await callCodexBridge({
+          connectorUrl: cfg.connectorUrl,
+          history,
+          text,
+          systemPrompt: cfg.systemPrompt,
+          tier: cfg.codexTier
+        });
+        appendAssistantMessage(result.ok ? result.text : `Codex: ${result.message}`);
+      } finally {
+        isSending = false;
+        render();
+      }
+    }
+
     async function sendMessage(text) {
       const cfg = getConfig();
-      const endpoint = resolveEndpoint(cfg);
       const history = getHistory();
+      if (cfg.providerMode === "codex") {
+        await sendCodexMessage(cfg, history, text);
+        return;
+      }
+      const endpoint = resolveEndpoint(cfg);
       appendUserMessage(text);
 
       if (!endpoint) {

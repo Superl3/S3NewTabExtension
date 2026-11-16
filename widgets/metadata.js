@@ -203,6 +203,7 @@ export const widgetMetadata = [
     "title": "AI Chat",
     "defaultConfig": {
       "providerMode": "chatgpt",
+      "codexTier": "luna",
       "endpoint": "",
       "connectorUrl": "http://localhost:8787/api/auth/start",
       "accessToken": "",
@@ -230,8 +231,32 @@ export const widgetMetadata = [
           {
             "value": "browser",
             "label": "Browser mode"
+          },
+          {
+            "value": "codex",
+            "label": "Codex (local)"
           }
         ]
+      },
+      {
+        "key": "codexTier",
+        "label": "Codex tier (Codex mode)",
+        "type": "select",
+        "options": [
+          {
+            "value": "luna",
+            "label": "luna (high)"
+          },
+          {
+            "value": "terra",
+            "label": "terra (medium)"
+          },
+          {
+            "value": "sol",
+            "label": "sol (low)"
+          }
+        ],
+        "helpText": "Codex mode runs your local Codex CLI through the connector (node connector/server.mjs); no API key or Connect needed."
       },
       {
         "key": "endpoint",

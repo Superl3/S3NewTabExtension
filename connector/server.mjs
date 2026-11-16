@@ -11,6 +11,8 @@ import {
 } from "./redirect-policy.mjs";
 import { createMustStore } from "./must-store.mjs";
 import { handleMustRoute, isMustPath } from "./must-routes.mjs";
+import { createCodexRunner, resolveTiers } from "./codex-runner.mjs";
+import { handleCodexRoute, isCodexPath } from "./codex-routes.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ENV_PATH = path.join(__dirname, ".env");
@@ -30,6 +32,14 @@ const mustStore = MUST_FILE
   ? createMustStore({ filePath: MUST_FILE, gateDisabled: normalizeText(env.MUST_GATE_DISABLED) === "1" })
   : null;
 const bridgeGuardOptions = { allowedExtensionIds: ALLOWED_EXTENSION_IDS, port: PORT };
+const codexRunner =
+  normalizeText(env.CODEX_CHAT_DISABLED) === "1"
+    ? null
+    : createCodexRunner({
+        command: normalizeText(env.CODEX_BIN) || "codex",
+        tiers: resolveTiers(env),
+        timeoutMs: parseClampedInt(env.CODEX_TIMEOUT_MS, 120000, 10000, 600000)
+      });
 
 const TOKEN_RELAYS = {
   monday: { tokenEnv: "MONDAY_ACCESS_TOKEN", accountEnv: "MONDAY_ACCOUNT_LABEL" },
@@ -106,6 +116,15 @@ const server = http.createServer((req, res) => {
 
   if (isMustPath(pathname)) {
     void handleMustRoute({ req, res, pathname, method, store: mustStore, guardOptions: bridgeGuardOptions }).catch(() => {
+      if (!res.headersSent) {
+        sendText(res, "Internal server error", 500);
+      }
+    });
+    return;
+  }
+
+  if (isCodexPath(pathname)) {
+    void handleCodexRoute({ req, res, method, runner: codexRunner, guardOptions: bridgeGuardOptions }).catch(() => {
       if (!res.headersSent) {
         sendText(res, "Internal server error", 500);
       }

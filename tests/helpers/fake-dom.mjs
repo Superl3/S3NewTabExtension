@@ -19,6 +19,16 @@ export class FakeEl {
         if (!this.className.split(" ").includes(name)) {
           this.className = `${this.className} ${name}`.trim();
         }
+      },
+      toggle: (name, force) => {
+        const has = this.className.split(" ").includes(name);
+        const on = force === undefined ? !has : Boolean(force);
+        if (on && !has) {
+          this.className = `${this.className} ${name}`.trim();
+        } else if (!on && has) {
+          this.className = this.className.split(" ").filter((part) => part !== name).join(" ");
+        }
+        return on;
       }
     };
   }
