@@ -3,11 +3,11 @@
 import { renderMustGate } from "./must-gate-view.js";
 
 const ACTION_ERRORS = {
-  NOTE_REQUIRED: "결정 항목은 결정 내용 한 줄이 필요하다.",
-  REASON_REQUIRED: "must를 버릴 때는 이유 한 줄이 필요하다.",
-  DEFER_LIMIT: "이미 두 번 미뤘다. 끝내거나 버리거나 쪼개야 한다.",
+  NOTE_REQUIRED: "결정 항목은 무엇으로 정했는지 한 줄이 필요하다.",
+  REASON_REQUIRED: "안 하기로 할 때는 이유 한 줄이 필요하다.",
+  DEFER_LIMIT: "이미 두 번 미뤘다. 다 했음·안 하기·나누기 중 하나를 골라야 한다.",
   BAD_DATE: "날짜가 올바르지 않다. 내일부터 7일 뒤까지만 고를 수 있다.",
-  BAD_PARTS: "쪼개기는 2~5개로 해야 한다."
+  BAD_PARTS: "나누기는 2~5개로 해야 한다."
 };
 
 const STALE_CODES = new Set(["NOT_FOUND", "NOT_OPEN", "CONFLICT"]);

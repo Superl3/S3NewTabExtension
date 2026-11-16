@@ -92,25 +92,25 @@ test("open must: gate covers the tab, app becomes inert, items and rules are sho
   assert.equal(app.attributes["aria-hidden"], "true");
   const text = textOf(documentObj.body);
   assert.match(text, /오늘 끝내야 할 것/);
-  assert.match(text, /2\/3/);
+  assert.match(text, /2개 남음 \(최대 3개\)/);
   assert.match(text, /회고 준비/);
   assert.match(text, /기한 11-14 \(2일 지남\)/);
-  assert.match(text, /미룸 2\/2/);
+  assert.match(text, /미룬 횟수 2\/2/);
   assert.match(text, /끝난 조건: 타임라인 정리/);
   assert.match(text, /대기 중: 대기 항목/);
-  assert.equal(findAll(documentObj.body, (n) => n.tagName === "BUTTON" && n.textContent === "끝냄").length, 2);
+  assert.equal(findAll(documentObj.body, (n) => n.tagName === "BUTTON" && n.textContent === "다 했음").length, 2);
 });
 
 test("done flow: form opens, submit sends the note, gate closes and app is released when no must remains", async () => {
   const bridge = fakeBridge({ ok: true, state: gateState([mustItem({ kind: "decision" })]) });
   const { documentObj, app, runtime } = setup(bridge);
   await runtime.start();
-  buttonByText(documentObj.body, "끝냄").click();
+  buttonByText(documentObj.body, "다 했음").click();
   const input = findAll(documentObj.body, (n) => n.tagName === "INPUT")[0];
   assert.match(input.placeholder, /필수/);
   input.value = "fork로 간다";
   bridge.setNext({ ok: true, state: gateState([]) });
-  buttonByText(documentObj.body, "끝냈다고 확정").click();
+  buttonByText(documentObj.body, "완료로 기록").click();
   await flush();
   assert.deepEqual(bridge.calls, [["done", "m-a", { note: "fork로 간다" }]]);
   assert.equal(runtime.isOpen(), false);
@@ -122,7 +122,7 @@ test("defer: quick buttons send a date, and with no deferrals left the form only
   const bridge = fakeBridge({ ok: true, state: gateState([mustItem()]) });
   const { documentObj, runtime } = setup(bridge);
   await runtime.start();
-  buttonByText(documentObj.body, "미루기").click();
+  buttonByText(documentObj.body, "미루기 (2회 남음)").click();
   bridge.setNext({ ok: true, state: gateState([mustItem({ defer: 1, deferLeft: 1 })]) });
   buttonByText(documentObj.body, "+3일").click();
   await flush();
@@ -130,8 +130,8 @@ test("defer: quick buttons send a date, and with no deferrals left the form only
 
   const spent = setup(fakeBridge({ ok: true, state: gateState([mustItem({ defer: 2, deferLeft: 0 })]) }));
   await spent.runtime.start();
-  buttonByText(spent.documentObj.body, "미루기").click();
-  assert.match(textOf(spent.documentObj.body), /횟수를 다 썼다/);
+  buttonByText(spent.documentObj.body, "미루기 (불가)").click();
+  assert.match(textOf(spent.documentObj.body), /더는 미룰 수 없으니/);
   assert.equal(buttonByText(spent.documentObj.body, "+3일"), undefined);
 });
 
@@ -139,14 +139,14 @@ test("drop and split send their payloads; split trims blank lines", async () => 
   const bridge = fakeBridge({ ok: true, state: gateState([mustItem()]) });
   const { documentObj, runtime } = setup(bridge);
   await runtime.start();
-  buttonByText(documentObj.body, "쪼개기").click();
+  buttonByText(documentObj.body, "나누기").click();
   findAll(documentObj.body, (n) => n.tagName === "TEXTAREA")[0].value = " 하나 \n\n둘 \n";
-  buttonByText(documentObj.body, "쪼개기 확정").click();
+  buttonByText(documentObj.body, "나눠서 등록").click();
   await flush();
   assert.deepEqual(bridge.calls[0], ["split", "m-a", { parts: ["하나", "둘"] }]);
-  buttonByText(documentObj.body, "버리기").click();
+  buttonByText(documentObj.body, "안 하기").click();
   findAll(documentObj.body, (n) => n.tagName === "INPUT")[0].value = "필요 없어짐";
-  buttonByText(documentObj.body, "버리기 확정").click();
+  buttonByText(documentObj.body, "안 하기로 확정").click();
   await flush();
   assert.deepEqual(bridge.calls[1], ["drop", "m-a", { reason: "필요 없어짐" }]);
 });
@@ -155,13 +155,13 @@ test("a rule error keeps the gate closed-off and shows a readable message", asyn
   const bridge = fakeBridge({ ok: true, state: gateState([mustItem({ kind: "decision" })]) });
   const { documentObj, app, runtime } = setup(bridge);
   await runtime.start();
-  buttonByText(documentObj.body, "끝냄").click();
+  buttonByText(documentObj.body, "다 했음").click();
   bridge.setNext({ ok: false, offline: false, error: { code: "NOTE_REQUIRED", message: "x" } });
-  buttonByText(documentObj.body, "끝냈다고 확정").click();
+  buttonByText(documentObj.body, "완료로 기록").click();
   await flush();
   assert.equal(runtime.isOpen(), true);
   assert.equal(app.attributes.inert, "");
-  assert.match(textOf(documentObj.body), /결정 내용 한 줄이 필요하다/);
+  assert.match(textOf(documentObj.body), /무엇으로 정했는지 한 줄이 필요하다/);
 });
 
 test("a stale item error reloads the current list", async () => {
@@ -175,8 +175,8 @@ test("a stale item error reloads the current list", async () => {
   });
   const { documentObj, runtime } = setup(bridge);
   await runtime.start();
-  buttonByText(documentObj.body, "끝냄").click();
-  buttonByText(documentObj.body, "끝냈다고 확정").click();
+  buttonByText(documentObj.body, "다 했음").click();
+  buttonByText(documentObj.body, "완료로 기록").click();
   await flush();
   await flush();
   assert.ok(loads >= 2);
@@ -186,9 +186,9 @@ test("bridge going offline mid-session releases the tab", async () => {
   const bridge = fakeBridge({ ok: true, state: gateState([mustItem()]) });
   const { documentObj, app, runtime } = setup(bridge);
   await runtime.start();
-  buttonByText(documentObj.body, "끝냄").click();
+  buttonByText(documentObj.body, "다 했음").click();
   bridge.setNext({ ok: false, offline: true, error: { code: "OFFLINE" } });
-  buttonByText(documentObj.body, "끝냈다고 확정").click();
+  buttonByText(documentObj.body, "완료로 기록").click();
   await flush();
   assert.equal(runtime.isOpen(), false);
   assert.equal(app.attributes.inert, undefined);
@@ -230,4 +230,28 @@ test("first-action link is limited to http(s) and obsidian URLs", () => {
   assert.equal(safeFirstActionHref("file:///C:/Windows"), "");
   assert.equal(safeFirstActionHref("컨트롤러 접속"), "");
   assert.equal(describeDue({ due: "2026-11-16", daysLeft: 0 }), "기한 오늘 (11-16)");
+});
+
+test("the start link is named after where it goes, and every choice explains itself", async () => {
+  const { firstActionLabel } = await import("../core/must-gate/must-gate-view.js");
+  assert.equal(firstActionLabel("https://work.clerobotics.com/work_packages/901"), "OpenProject #901 열기");
+  assert.equal(firstActionLabel("obsidian://open?vault=98bc85f7207027ff&file=TASK%2Froboworld-retro-draft"), "노트 열기: roboworld-retro-draft");
+  assert.equal(firstActionLabel("https://example.com/x"), "example.com 열기");
+
+  const { documentObj, runtime } = setup(fakeBridge({ ok: true, state: gateState([mustItem({ first: "https://work.clerobotics.com/work_packages/901" })]) }));
+  await runtime.start();
+  const link = findAll(documentObj.body, (n) => n.tagName === "A")[0];
+  assert.equal(link.textContent, "OpenProject #901 열기");
+  for (const [label, pattern] of [
+    ["다 했음", /끝난 조건 "타임라인 정리"을 채웠으면 확정한다/],
+    ["미루기 (2회 남음)", /새 기한 3일 전부터 다시 여기에 나타난다/],
+    ["안 하기", /하지 않기로 정한다/],
+    ["나누기", /2~5개의 작은 일로 바꾸고 이 항목은 닫힌다/]
+  ]) {
+    const btn = buttonByText(documentObj.body, label);
+    assert.ok(btn.title, `${label} has a tooltip`);
+    btn.click();
+    assert.match(textOf(documentObj.body), pattern);
+    buttonByText(documentObj.body, label).click(); // close again
+  }
 });
