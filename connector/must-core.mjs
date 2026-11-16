@@ -14,7 +14,7 @@ const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const ITEM_LINE_RE = /^(\s*)- \[([ xX-])\] (.*)$/;
 const FIELD_RE = /\[([a-z_]+):: ([^\]]*)\]/g;
 const FIELD_START_RE = /\[[a-z_]+:: /;
-const FIELD_ORDER = ["id", "kind", "due", "defer", "tier", "done_when", "first", "created", "closed", "how"];
+const FIELD_ORDER = ["id", "kind", "due", "defer", "snoozed", "tier", "done_when", "first", "created", "closed", "how"];
 
 export class MustError extends Error {
   constructor(code, message, extra = {}) {
@@ -90,6 +90,7 @@ export function parseMustText(text) {
       first: fields.first ?? "",
       created: isDateString(fields.created) ? fields.created : "",
       closed: isDateString(fields.closed) ? fields.closed : "",
+      snoozed: isDateString(fields.snoozed) ? fields.snoozed : "",
       how: fields.how ?? "",
       lineIndex,
       indent: match[1]
@@ -110,7 +111,8 @@ export function serializeItem(item) {
     first: item.first,
     created: item.created,
     closed: item.closed,
-    how: item.how
+    how: item.how,
+    snoozed: item.snoozed
   };
   const fields = FIELD_ORDER.filter((key) => cleanValue(values[key]) !== "")
     .map((key) => `[${key}:: ${cleanValue(values[key])}]`)
@@ -136,7 +138,9 @@ export function computeState(items, today, { gateDisabled = false } = {}) {
     const due = item.due || addDays(today, DEFAULT_DUE_DAYS);
     const daysLeft = daysBetween(today, due);
     const soon = daysLeft <= DUE_SOON_DAYS;
-    const reason = item.tier === "must" ? "explicit" : soon ? (daysLeft < 0 ? "overdue" : "due-soon") : "";
+    // A deferred item stays folded away until the date it was deferred to, then counts again.
+    const snoozedNow = Boolean(item.snoozed) && today < item.snoozed;
+    const reason = snoozedNow ? "" : item.tier === "must" ? "explicit" : soon ? (daysLeft < 0 ? "overdue" : "due-soon") : "";
     const view = { ...item, due, daysLeft, reason, deferLeft: Math.max(0, DEFER_LIMIT - item.defer) };
     (reason ? candidates : rest).push(view);
   }
@@ -205,6 +209,7 @@ export function opCapture(items, { title, kind = "work", due = "", doneWhen = ""
     created: today,
     closed: "",
     how: "",
+    snoozed: "",
     indent: ""
   };
   return { items: [...items, item], created: [item], log: `capture ${item.id} ${item.title} (기한 ${item.due})` };
@@ -221,7 +226,7 @@ export function opPromote(items, id, today) {
       must: state.must.map((item) => ({ id: item.id, title: item.title }))
     });
   }
-  const next = items.map((item) => (item.id === id ? { ...item, tier: "must" } : item));
+  const next = items.map((item) => (item.id === id ? { ...item, tier: "must", snoozed: "" } : item));
   return { items: next, created: [], log: `promote ${id} ${target.title}` };
 }
 
@@ -250,7 +255,7 @@ export function opDefer(items, id, { until }, today) {
     throw new MustError("BAD_DATE", `최대 ${DEFER_MAX_DAYS}일까지만 미룰 수 있다`);
   }
   const next = items.map((item) =>
-    item.id === id ? { ...item, due: until, defer: item.defer + 1, tier: "list" } : item
+    item.id === id ? { ...item, due: until, snoozed: until, defer: item.defer + 1, tier: "list" } : item
   );
   return { items: next, created: [], log: `defer ${id} ${target.title} → ${until} (${target.defer + 1}/${DEFER_LIMIT})` };
 }

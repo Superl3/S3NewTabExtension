@@ -165,7 +165,8 @@ test("actions rewrite the note (CRLF kept), log the change and return the new st
 
     const deferred = await call(port, "POST", "/api/must/m-a/defer", { body: { until: "2026-11-19" } });
     assert.equal(deferred.status, 200);
-    assert.equal(deferred.json.gateOpen, true); // 3 days away is still due-soon
+    assert.equal(deferred.json.gateOpen, false); // regression: deferring folds the item away until that date (it used to bounce straight back)
+    assert.equal(deferred.json.list.find((x) => x.id === "m-a").reason, "");
     const again = await call(port, "POST", "/api/must/m-a/defer", { body: { until: "2026-11-20" } });
     assert.equal(again.status, 200);
     const third = await call(port, "POST", "/api/must/m-a/defer", { body: { until: "2026-11-21" } });

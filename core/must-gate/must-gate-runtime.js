@@ -17,6 +17,7 @@ export function createMustGateRuntime({ documentObj, bridge, appElement = null, 
   let state = null;
   let ui = { openId: "", openAction: "", busy: false, error: "" };
   let started = false;
+  let stepAside = false; // set when the user opens an item's start link: this tab stops gating
   let visibilityHandler = null;
 
   function setAppInert(on) {
@@ -41,7 +42,7 @@ export function createMustGateRuntime({ documentObj, bridge, appElement = null, 
   }
 
   function render() {
-    if (!state?.gateOpen) {
+    if (!state?.gateOpen || stepAside) {
       close();
       return;
     }
@@ -77,6 +78,10 @@ export function createMustGateRuntime({ documentObj, bridge, appElement = null, 
   }
 
   const handlers = {
+    onStart() {
+      stepAside = true;
+      render();
+    },
     onToggle(id, action) {
       ui =
         ui.openId === id && ui.openAction === action

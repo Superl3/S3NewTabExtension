@@ -244,7 +244,7 @@ test("the start link is named after where it goes, and every choice explains its
   assert.equal(link.textContent, "OpenProject #901 열기");
   for (const [label, pattern] of [
     ["다 했음", /끝난 조건 "타임라인 정리"을 채웠으면 확정한다/],
-    ["미루기 (2회 남음)", /새 기한 3일 전부터 다시 여기에 나타난다/],
+    ["미루기 (2회 남음)", /고른 날짜까지 이 항목을 접어 두고, 그날 다시 여기에 나타난다/],
     ["안 하기", /하지 않기로 정한다/],
     ["나누기", /2~5개의 작은 일로 바꾸고 이 항목은 닫힌다/]
   ]) {
@@ -254,4 +254,17 @@ test("the start link is named after where it goes, and every choice explains its
     assert.match(textOf(documentObj.body), pattern);
     buttonByText(documentObj.body, label).click(); // close again
   }
+});
+
+test("opening the start link steps the gate aside for this tab; obsidian links do not open an empty tab", async () => {
+  const { documentObj, app, runtime } = setup(fakeBridge({ ok: true, state: gateState([mustItem({ first: "obsidian://open?vault=v&file=TASK%2Fx" })]) }));
+  await runtime.start();
+  const link = findAll(documentObj.body, (n) => n.tagName === "A")[0];
+  assert.equal(link.target, undefined);
+  link.click();
+  assert.equal(runtime.isOpen(), false);
+  assert.equal(app.attributes.inert, undefined);
+  const web = setup(fakeBridge({ ok: true, state: gateState([mustItem({ first: "https://work.clerobotics.com/work_packages/901" })]) }));
+  await web.runtime.start();
+  assert.equal(findAll(web.documentObj.body, (n) => n.tagName === "A")[0].target, "_blank");
 });

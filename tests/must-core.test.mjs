@@ -199,3 +199,16 @@ test("appendLog creates the log section once and appends below it", () => {
   assert.deepEqual(twice.filter((line) => line.startsWith("- 2026")), ["- 2026-11-16 done m-a x", "- 2026-11-16 drop m-b y"]);
   assert.equal(appendLog(["x"], "", TODAY).length, 1);
 });
+
+test("regression: a deferred item stays out of the gate until the chosen date, then returns", () => {
+  const start = [item({ id: "r", tier: "must", due: "2026-11-17" })];
+  const deferred = opDefer(start, "r", { until: "2026-11-17" }, TODAY).items;
+  assert.equal(deferred[0].snoozed, "2026-11-17");
+  assert.equal(computeState(deferred, TODAY).gateOpen, false, "deferring to tomorrow must release today");
+  assert.deepEqual(computeState(deferred, "2026-11-17").must.map((x) => x.id), ["r"], "it is back on the chosen day");
+  const reparsed = parseMustText(serializeItem(deferred[0])).items[0];
+  assert.equal(reparsed.snoozed, "2026-11-17", "snooze survives the note round trip");
+  const promoted = opPromote(deferred, "r", TODAY).items;
+  assert.equal(promoted[0].snoozed, "", "promoting by hand clears the snooze");
+  assert.deepEqual(computeState(promoted, TODAY).must.map((x) => x.id), ["r"]);
+});
