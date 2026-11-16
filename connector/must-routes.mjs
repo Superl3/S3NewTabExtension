@@ -3,6 +3,7 @@ import { MustError } from "./must-core.mjs";
 import {
   evaluateBridgeRequest,
   readJsonBody,
+  logDeniedBridgeRequest,
   sendBridgeError,
   sendBridgeJson,
   sendPreflight
@@ -26,6 +27,7 @@ export function isMustPath(pathname) {
 export async function handleMustRoute({ req, res, pathname, method, store, guardOptions }) {
   const decision = evaluateBridgeRequest(req, guardOptions);
   if (!decision.ok) {
+    logDeniedBridgeRequest(req, decision);
     sendBridgeError(res, decision.status, decision.code, decision.message);
     return;
   }
@@ -50,6 +52,12 @@ export async function handleMustRoute({ req, res, pathname, method, store, guard
     }
     const parts = pathname.split("/").filter(Boolean); // ["api","must", ...]
     const body = await readJsonBody(req);
+    if (parts.length === 3 && parts[2] === "state") {
+      // The extension reads state with POST: browsers attach Origin to POST but not to extension-page GETs,
+      // and every route here is authenticated by Origin.
+      sendBridgeJson(res, 200, store.read(), origin);
+      return;
+    }
     if (parts.length === 3 && parts[2] === "capture") {
       sendBridgeJson(res, 200, store.mutate("capture", body), origin);
       return;

@@ -51,7 +51,8 @@ export function createMustBridge({ fetchImpl, baseUrl = MUST_BRIDGE_ORIGIN, time
   const itemPath = (id, action) => `/api/must/${encodeURIComponent(id)}/${action}`;
 
   return {
-    load: () => request("GET", "/api/must"),
+    // POST, not GET: Chrome sends no Origin header on extension-page GETs and the bridge requires Origin.
+    load: () => post("/api/must/state"),
     capture: (payload) => post("/api/must/capture", payload),
     promote: (id) => post(itemPath(id, "promote")),
     done: (id, payload) => post(itemPath(id, "done"), payload),
