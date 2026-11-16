@@ -5,7 +5,7 @@ const KIND_LABELS = { work: "업무", habit: "정기", cleanup: "뒤처리", dec
 // Each choice says what it does in its own words; the form that opens repeats it in full.
 const ACTIONS = [
   { key: "done", label: "다 했음", title: "끝난 조건을 채웠으면 완료로 기록한다" },
-  { key: "defer", label: "미루기", title: "기한을 새 날짜로 옮긴다 (최대 7일, 2번까지)" },
+  { key: "defer", label: "미루기", title: "고른 날짜까지 접어 두고 그날 다시 보여 준다 (최대 7일, 2번까지)" },
   { key: "drop", label: "안 하기", title: "하지 않기로 정하고 목록에서 뺀다" },
   { key: "split", label: "나누기", title: "너무 커서 손이 안 갈 때 작은 일 여러 개로 바꾼다" }
 ];
@@ -112,7 +112,7 @@ function buildForm({ documentObj, item, action, state, handlers }) {
       form.append(
         explain(
           documentObj,
-          `기한을 새 날짜로 옮긴다. 새 기한 3일 전부터 다시 여기에 나타난다. 이 항목은 ${item.deferLeft}번 더 미룰 수 있다.`
+          `고른 날짜까지 이 항목을 접어 두고, 그날 다시 여기에 나타난다. 이 항목은 ${item.deferLeft}번 더 미룰 수 있다.`
         )
       );
       const row = el(documentObj, "div", "must-gate-quick");
@@ -176,8 +176,13 @@ export function buildMustItem({ documentObj, item, state, ui, handlers, allowPro
     const link = el(documentObj, "a", "btn must-gate-first", firstActionLabel(href));
     link.href = href;
     link.title = href;
-    link.target = "_blank";
-    link.rel = "noopener noreferrer";
+    if (!href.startsWith("obsidian:")) {
+      // http(s) opens in a new tab; obsidian: hands off to the app without leaving an empty tab behind.
+      link.target = "_blank";
+      link.rel = "noopener noreferrer";
+    }
+    // Going to the start point counts as starting the work: the gate steps aside for this tab.
+    link.addEventListener("click", () => handlers.onStart?.(item.id));
     actions.append(link);
   } else if (item.first) {
     actions.append(el(documentObj, "span", "must-gate-first-text", `시작점: ${item.first}`));
