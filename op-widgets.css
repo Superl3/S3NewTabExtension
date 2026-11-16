@@ -21,3 +21,4 @@
 .op-due.is-muted, .op-project { color: var(--muted); }
 .op-project { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .op-empty { margin: 0; }
+.op-title { font-weight: 400; font-size: 0.82rem; color: var(--muted); }

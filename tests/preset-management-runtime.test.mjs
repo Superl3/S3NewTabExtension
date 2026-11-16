@@ -142,3 +142,17 @@ test("loadPresetById and deletePresetById route actions", () => {
   harness.runtime.deletePresetById("p1");
   assert.deepEqual(harness.state.presets.map((preset) => preset.id), ["p2"]);
 });
+
+test("regression: savePreset works with a browser-style structuredClone that rejects a foreign receiver", () => {
+  const browserLikeClone = function (value) {
+    if (this !== undefined && this !== globalThis) {
+      throw new TypeError("Illegal invocation");
+    }
+    return structuredClone(value);
+  };
+  const { runtime, state } = createHarness({ structuredClone: browserLikeClone });
+  runtime.savePreset("레이아웃 적용 전");
+  assert.equal(state.presets.length, 1);
+  assert.equal(state.presets[0].name, "레이아웃 적용 전");
+  assert.equal(state.presets[0].snapshot.instances[0].id, "clock-1");
+});

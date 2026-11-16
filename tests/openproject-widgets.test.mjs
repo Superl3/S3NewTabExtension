@@ -163,7 +163,7 @@ test("opAssigned renders rows with status and due, and explains when the connect
   const data = { items: [{ id: 901, subject: "현장 수정분 보존", status: "In progress", project: "로보월드", due: "2026-11-09", url: "https://op.test/work_packages/901" }], total: 1, hidden: 12, openProjectUrl: "https://op.test" };
   const { container, controller } = await mountWidget("../widgets/opAssigned.js", "opAssignedWidget", async () => ({ ok: true, data }));
   const text = textOf(container);
-  assert.match(text, /OpenProject 내 작업 1/);
+  assert.match(text, /열린 작업 1건/);
   assert.match(text, /#901/);
   assert.match(text, /7일 지남 \(11-09\)/);
   assert.match(text, /숨김 12건/);

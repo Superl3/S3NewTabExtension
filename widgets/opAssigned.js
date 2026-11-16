@@ -39,7 +39,7 @@ export const opAssignedWidget = {
     header.className = "op-header";
     const title = document.createElement("strong");
     title.className = "op-title";
-    title.textContent = "OpenProject 내 작업";
+    title.textContent = "";
     const refreshBtn = document.createElement("button");
     refreshBtn.type = "button";
     refreshBtn.className = "btn op-refresh";
@@ -71,13 +71,13 @@ export const opAssignedWidget = {
         return;
       }
       if (!result.ok) {
-        title.textContent = "OpenProject 내 작업";
+        title.textContent = "";
         message(result.message);
         footer.textContent = lastSync ? `마지막 갱신 ${clock(lastSync)}` : "";
         return;
       }
       const { items, total, hidden, openProjectUrl } = result.data;
-      title.textContent = `OpenProject 내 작업 ${total}`;
+      title.textContent = `열린 작업 ${total}건`;
       if (!items.length) {
         message("열린 작업이 없다.");
       }

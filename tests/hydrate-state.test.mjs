@@ -246,3 +246,24 @@ test("hydrateState normalizes preset timestamps with truthy fallback semantics",
     Date.now = previousNow;
   }
 });
+
+test("regression: AI Chat Codex mode and tier survive a reload; unknown modes still fall back to chatgpt", () => {
+  const deps = createDeps();
+  deps.widgetRegistry.aiChat = { title: "AI Chat", defaultConfig: { providerMode: "chatgpt", codexTier: "luna", endpoint: "", model: "gpt-4o-mini" }, defaultLayout: { x: 0, y: 0, w: 300, h: 200 } };
+  const result = hydrateState(
+    {
+      instances: [
+        { id: "aiChat-1", type: "aiChat", config: { providerMode: "codex", codexTier: "terra" } },
+        { id: "aiChat-2", type: "aiChat", config: { providerMode: "weird", codexTier: "../x" } }
+      ],
+      ui: {}
+    },
+    deps
+  );
+  const [codex, weird] = result.instances;
+  assert.equal(codex.config.providerMode, "codex");
+  assert.equal(codex.config.codexTier, "terra");
+  assert.equal(weird.config.providerMode, "chatgpt");
+  assert.equal(weird.config.codexTier, "luna");
+  assert.equal(weird.config.endpoint, "https://api.openai.com/v1/chat/completions");
+});

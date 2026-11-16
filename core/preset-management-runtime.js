@@ -2,6 +2,9 @@ import { arrayOrEmpty } from "./utils/array.js";
 import { clampTruthyNumberOrFallback, toTruthyNumberOrFallback } from "./utils/number.js";
 
 export function createPresetManagementRuntime(deps) {
+  // Browsers throw "Illegal invocation" when the global structuredClone is called as a method (deps.structuredClone(...)).
+  const cloneValue = (value) => Reflect.apply(deps.structuredClone, globalThis, [value]);
+
   function clonePresetSnapshot(snapshot) {
     const cloned = {
       ui: {
@@ -26,15 +29,15 @@ export function createPresetManagementRuntime(deps) {
     const state = deps.getState();
     return {
       ui: {
-        theme: deps.structuredClone(state.ui.theme),
-        background: deps.structuredClone(state.ui.background),
-        home: deps.structuredClone(state.ui.home),
-        widgetCommonMaster: deps.structuredClone(state.ui.widgetCommonMaster),
-        shortcuts: deps.structuredClone(state.ui.shortcuts),
-        monday: deps.structuredClone(state.ui.monday)
+        theme: cloneValue(state.ui.theme),
+        background: cloneValue(state.ui.background),
+        home: cloneValue(state.ui.home),
+        widgetCommonMaster: cloneValue(state.ui.widgetCommonMaster),
+        shortcuts: cloneValue(state.ui.shortcuts),
+        monday: cloneValue(state.ui.monday)
       },
       instances: state.instances.map((instance) => ({
-        ...deps.structuredClone(instance),
+        ...cloneValue(instance),
         zIndex: clampTruthyNumberOrFallback(instance.zIndex, 1, 1, Number.POSITIVE_INFINITY),
         surfaceMode: deps.normalizeSurfaceMode(instance.surfaceMode, "normal"),
         edgeRoundness: deps.normalizeEdgeRoundness(instance.edgeRoundness, 12),

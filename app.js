@@ -391,6 +391,10 @@ import {
 import {
   createMustGateRuntime
 } from "./core/must-gate/must-gate-runtime.js";
+import {
+  LAYOUT_PLANS,
+  planLayout
+} from "./core/layout-plans.js";
 
 const SNAP = 20;
 const LONG_PRESS_DRAG_DELAY_MS = 340;
@@ -5146,7 +5150,87 @@ async function init() {
   wireEvents();
   renderBoard();
   void warnWhenStorageNearQuota();
+  applyLayoutFromLocation();
   startMustGate();
+}
+
+function createLayoutInstance(type, config) {
+  const def = widgetRegistry[type];
+  if (!def) {
+    return null;
+  }
+  const instance = createWidgetInstanceDraft(
+    {
+      type,
+      def,
+      nextId: state.nextId,
+      zIndex: (Number(zCounter) || 1) + 1,
+      targetPage: 0,
+      defaultPadding: widgetPaddingFallback(type)
+    },
+    {
+      normalizeText,
+      isHeadlessDefaultType,
+      isHeadlessTransparentDefaultType,
+      defaultWidgetBackdropBlur,
+      defaultWidgetTitleAlign,
+      defaultWidgetContentAlign,
+      normalizeCommonOverrides,
+      normalizeGridLayout,
+      cloneLayout
+    }
+  );
+  if (!instance) {
+    return null;
+  }
+  state.nextId += 1;
+  zCounter = normalizeRawContentZIndex(instance.zIndex);
+  instance.config = { ...instance.config, ...config };
+  instance.commonOverrides = inferCommonOverrides(instance, state?.ui?.widgetCommonMaster) || {};
+  applyWidgetCommonMaster(instance, state?.ui?.widgetCommonMaster, false);
+  return instance;
+}
+
+// newtab.html?layout=work|focus rearranges the current board once. The board before it is saved as a preset
+// ("레이아웃 적용 전 …") so it can be restored from Settings > Presets; undo also works.
+function applyLayoutFromLocation() {
+  let name = "";
+  try {
+    name = new URLSearchParams(window.location.search).get("layout") || "";
+  } catch {
+    return;
+  }
+  if (!Object.prototype.hasOwnProperty.call(LAYOUT_PLANS, name)) {
+    return;
+  }
+  try {
+    // Seconds included: savePreset overwrites a preset with the same name, and the backup must never be overwritten.
+    const stamp = new Date().toLocaleString("sv-SE").slice(0, 19);
+    savePreset(`레이아웃 적용 전 ${stamp}`);
+    recordHistorySnapshot(`Apply layout: ${LAYOUT_PLANS[name].label}`);
+    const home = state.ui.home || {};
+    const result = planLayout(state.instances, name, {
+      createInstance: createLayoutInstance,
+      columns: Number(home.gridColumns) || 12,
+      rows: Number(home.gridRows) || 8
+    });
+    state.instances = result.instances;
+    if (state.ui.home) {
+      state.ui.home.activePage = 0;
+    }
+    syncLauncherPagingState({ expandToFitInstances: true });
+    renderBoard();
+    touchUserMutationClock();
+    queueSave();
+  } catch (error) {
+    console.warn("Layout could not be applied", error);
+  } finally {
+    try {
+      window.history.replaceState(null, "", window.location.pathname);
+    } catch {
+      // ignore
+    }
+  }
 }
 
 // The gate fails open: with the local connector down, unconfigured or throwing, the tab simply opens.

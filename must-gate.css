@@ -211,3 +211,8 @@
   font-size: 0.88rem;
   line-height: 1.5;
 }
+
+.must-list-title { font-weight: 400; font-size: 0.82rem; color: var(--muted); }
+.must-gate-item.is-compact { padding: 8px 10px; }
+.must-gate-item.is-compact .must-gate-item-head { cursor: pointer; }
+.must-gate-item.is-compact:not(.is-expanded) .must-gate-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

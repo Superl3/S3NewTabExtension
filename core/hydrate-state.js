@@ -117,8 +117,10 @@ export function hydrateState(raw, deps = {}) {
     }
 
     if (isAiChat) {
-      mergedConfig.providerMode = mergedConfig.providerMode === "browser" ? "browser" : "chatgpt";
-      if (!normalizeText(mergedConfig.endpoint)) {
+      // "codex" = local Codex CLI through the connector (widgets/shared/codexBridge.js); keep it across reloads.
+      mergedConfig.providerMode = ["browser", "codex"].includes(mergedConfig.providerMode) ? mergedConfig.providerMode : "chatgpt";
+      mergedConfig.codexTier = ["luna", "terra", "sol"].includes(mergedConfig.codexTier) ? mergedConfig.codexTier : "luna";
+      if (mergedConfig.providerMode !== "codex" && !normalizeText(mergedConfig.endpoint)) {
         mergedConfig.endpoint =
           mergedConfig.providerMode === "browser"
             ? "https://api.openai.com/v1/responses"

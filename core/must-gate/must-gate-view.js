@@ -149,8 +149,9 @@ function buildForm({ documentObj, item, action, state, handlers }) {
   return form;
 }
 
-export function buildMustItem({ documentObj, item, state, ui, handlers, allowPromote = false }) {
-  const row = el(documentObj, "li", "must-gate-item");
+export function buildMustItem({ documentObj, item, state, ui, handlers, allowPromote = false, compact = false }) {
+  const expanded = !compact || ui.openId === item.id;
+  const row = el(documentObj, "li", compact ? `must-gate-item is-compact${expanded ? " is-expanded" : ""}` : "must-gate-item");
   row.dataset.id = item.id;
   row.dataset.reason = item.reason || "";
 
@@ -161,7 +162,16 @@ export function buildMustItem({ documentObj, item, state, ui, handlers, allowPro
     due.className += " is-overdue";
   }
   head.append(due);
+  if (compact) {
+    // Compact rows (widget): the row header toggles the actions so a list of many items stays light.
+    head.setAttribute("role", "button");
+    head.setAttribute("aria-expanded", expanded ? "true" : "false");
+    head.addEventListener("click", () => handlers.onExpand?.(item.id));
+  }
   row.append(head);
+  if (!expanded) {
+    return row;
+  }
 
   const meta = [];
   if (item.doneWhen) {

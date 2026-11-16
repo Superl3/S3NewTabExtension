@@ -129,7 +129,7 @@ test("aiChat in Codex mode sends through the bridge without any Connect or token
     assert.deepEqual(requests[0].body.messages, [{ role: "user", content: "안녕" }]);
     assert.deepEqual(config.history.map((m) => [m.role, m.content]), [["user", "안녕"], ["assistant", "코덱스 답"]]);
     const buttons = findAll(container, (n) => n.tagName === "BUTTON");
-    assert.ok(buttons.filter((b) => b.textContent === "Connect" || b.textContent === "Disconnect").every((b) => b.hidden === true));
+    assert.ok(buttons.filter((b) => b.textContent === "Connect" || b.textContent === "Disconnect").every((b) => b.style.display === "none"));
   } finally {
     globalThis.document = previousDocument;
     globalThis.fetch = previousFetch;

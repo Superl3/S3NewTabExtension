@@ -31,7 +31,7 @@ export const opMeetingsWidget = {
     header.className = "op-header";
     const title = document.createElement("strong");
     title.className = "op-title";
-    title.textContent = "OpenProject 회의";
+    title.textContent = "";
     const refreshBtn = document.createElement("button");
     refreshBtn.type = "button";
     refreshBtn.className = "btn op-refresh";
@@ -105,6 +105,7 @@ export const opMeetingsWidget = {
       const meetings = result.data.meetings ?? [];
       const upcoming = meetings.filter((m) => m.upcoming);
       const past = meetings.filter((m) => !m.upcoming).reverse();
+      title.textContent = `다가오는 ${upcoming.length} · 지난 ${past.length}`;
       section("다가오는 회의", upcoming);
       section("지난 회의 (최근 7일)", past);
       if (!meetings.length) {

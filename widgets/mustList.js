@@ -39,7 +39,7 @@ export const mustListWidget = {
     header.className = "must-list-header";
     const title = document.createElement("strong");
     title.className = "must-list-title";
-    title.textContent = "Must";
+    title.textContent = "";
     const refreshBtn = document.createElement("button");
     refreshBtn.type = "button";
     refreshBtn.className = "btn must-list-refresh";
@@ -85,6 +85,10 @@ export const mustListWidget = {
       },
       onPromote(id) {
         return run(() => bridge.promote(id));
+      },
+      onExpand(id) {
+        ui = ui.openId === id ? { ...ui, openId: "", openAction: "", error: "" } : { ...ui, openId: id, openAction: "", error: "" };
+        render();
       }
     };
 
@@ -122,7 +126,7 @@ export const mustListWidget = {
       const list = document.createElement("ul");
       list.className = "must-list-items";
       for (const item of items) {
-        list.append(buildMustItem({ documentObj: document, item, state, ui, handlers, allowPromote: promote }));
+        list.append(buildMustItem({ documentObj: document, item, state, ui, handlers, allowPromote: promote, compact: true }));
       }
       body.append(heading, list);
     }
@@ -134,7 +138,7 @@ export const mustListWidget = {
         note.className = "must-list-empty muted";
         note.textContent = "커넥터에 연결되지 않았다. node connector/server.mjs 를 실행하고 MUST_FILE·ALLOWED_EXTENSION_IDS를 설정해야 한다.";
         body.append(note);
-        title.textContent = "Must";
+        title.textContent = "";
         footer.textContent = lastSync ? `마지막 갱신 ${formatClock(lastSync)}` : "오프라인";
         return;
       }
@@ -142,7 +146,7 @@ export const mustListWidget = {
         footer.textContent = "불러오는 중";
         return;
       }
-      title.textContent = `Must ${state.must.length}/${state.cap}`;
+      title.textContent = `지금 할 것 ${state.must.length}/${state.cap} · 대기 ${state.waiting.length} · 목록 ${state.list.length}`;
       section("Must", state.must, { promote: false });
       section("대기", state.waiting, { promote: false });
       section("목록", state.list, { promote: true });

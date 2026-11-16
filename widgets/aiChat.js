@@ -335,12 +335,12 @@ export const aiChatWidget = {
         const tier = CODEX_TIERS.find((entry) => entry.value === normalizeCodexTier(getConfig().codexTier));
         status.textContent = isSending ? "Codex is thinking..." : `Codex (local) · ${tier.label}`;
         status.classList.toggle("is-error", false);
-        connectBtn.hidden = true;
-        disconnectBtn.hidden = true;
+        connectBtn.style.display = "none";
+        disconnectBtn.style.display = "none";
         return;
       }
-      connectBtn.hidden = false;
-      disconnectBtn.hidden = false;
+      connectBtn.style.display = "";
+      disconnectBtn.style.display = "";
       if (isConnecting) {
         text = "Connecting...";
       } else if (connectionError) {

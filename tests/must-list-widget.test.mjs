@@ -50,11 +50,19 @@ test("renders must / waiting / list sections and the count in the title", async 
   };
   const { container, controller } = await mount(bridge);
   const text = textOf(container);
-  assert.match(text, /Must 1\/3/);
+  assert.match(text, /지금 할 것 1\/3 · 대기 1 · 목록 1/);
   assert.match(text, /회고/);
-  assert.match(text, /대기 1/);
-  assert.match(text, /목록 1/);
-  // only list items can be promoted to must
+  // rows start folded: no action buttons until a row is opened
+  assert.equal(findAll(container, (n) => n.tagName === "BUTTON" && n.textContent === "다 했음").length, 0);
+  const previous = globalThis.document;
+  globalThis.document = new FakeDocument();
+  try {
+    findAll(container, (n) => n.dataset?.id === "m-l")[0].children[0].click();
+  } finally {
+    globalThis.document = previous;
+  }
+  // only the opened row shows actions, and only list items can be promoted to must
+  assert.equal(findAll(container, (n) => n.tagName === "BUTTON" && n.textContent === "다 했음").length, 1);
   assert.equal(findAll(container, (n) => n.tagName === "BUTTON" && n.textContent === "must로").length, 1);
   controller.destroy();
 });
