@@ -3,6 +3,7 @@ import { CodexError } from "./codex-runner.mjs";
 import {
   evaluateBridgeRequest,
   readJsonBody,
+  logDeniedBridgeRequest,
   sendBridgeError,
   sendBridgeJson,
   sendPreflight
@@ -15,6 +16,7 @@ export function isCodexPath(pathname) {
 export async function handleCodexRoute({ req, res, method, runner, guardOptions }) {
   const decision = evaluateBridgeRequest(req, guardOptions);
   if (!decision.ok) {
+    logDeniedBridgeRequest(req, decision);
     sendBridgeError(res, decision.status, decision.code, decision.message);
     return;
   }
